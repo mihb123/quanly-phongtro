@@ -10,6 +10,7 @@ Lưu trữ thông tin tài khoản đăng nhập của Cả Quản lý (Manager)
 - `role`: Enum ('MANAGER', 'TENANT'). Chỉ có manager mới tự đăng ký, tenant do manager tạo.
 - `full_name`: Varchar.
 - `phone`: Varchar.
+- `is_activated`: Boolean, Default False.
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
@@ -25,6 +26,7 @@ Mỗi user (MANAGER) có thể quản lý nhiều nhà trọ.
 - `default_parking_price`: Decimal.
 - `default_service_price`: Decimal.
 - `created_at`: Timestamp.
+- `updated_at`: Timestamp.
 
 ## 3. Bảng `rooms` (Phòng trọ)
 Mỗi nhà trọ có thể chia thành nhiều phòng.
@@ -35,17 +37,19 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `max_tenants`: Integer (Số lượng người ở tối đa).
 - `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE').
 - `created_at`: Timestamp.
+- `updated_at`: Timestamp.
 
 ## 4. Bảng `tenants` (Hồ sơ người thuê)
 Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. Có thể liên kết với bảng `users` để họ đăng nhập xem hóa đơn.
 - `id`: UUID, Primary Key.
 - `room_id`: UUID, Foreign Key (`rooms.id`).
-- `user_id`: UUID, Foreign Key (`users.id`) (Nullable - nếu người dùng chưa/chẳng cần tài khoản đăng nhập, nhưng yêu cầu có mô tả manager sẽ tạo tài khoản cho người thuê).
+- `created_by`: UUID, Foreign Key (`users.id`).
 - `identity_card`: Varchar (CCCD).
 - `start_date`: Date (Ngày bắt đầu thuê).
 - `end_date`: Date (Ngày kết thúc thuê - Null nếu đang ở).
 - `status`: Enum ('ACTIVE', 'INACTIVE').
 - `created_at`: Timestamp.
+- `updated_at`: Timestamp.
 
 ## 5. Bảng `invoices` (Hóa đơn)
 Tính hóa đơn hàng tháng cho mỗi phòng.

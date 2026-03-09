@@ -12,3 +12,4 @@ Dưới đây là danh sách các tài liệu hiện có trong thư mục `Docum
 3. **[api_specifications.md](./api_specifications.md)**: Danh sách và đặc tả các RESTful APIs dành cho Backend.
 4. **[backend_requirements.md](./backend_requirements.md)**: Các yêu cầu nghiệp vụ, tính năng dành cho phía Backend (Golang).
 5. **[frontend_requirements.md](./frontend_requirements.md)**: (Sẽ bổ sung chi tiết sau) Các yêu cầu về giao diện cho phía Frontend (ReactJS).
+6. **[Task/Overview.md](./Task/Overview.md)**: Danh sách và trình tự các công việc phát triển.
