@@ -1,0 +1,19 @@
+*
+!*/
+
+# Keep source code and key project files trackable
+!*.go
+!go.mod
+!go.sum
+!*.sql
+!*.md
+!*.yaml
+!*.yml
+!*.json
+!Makefile
+!Dockerfile
+!*.sh
+!*.ps1
+
+# Keep gitignore itself
+!.gitignore
