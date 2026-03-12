@@ -9,38 +9,38 @@ import (
 	"time"
 
 	"github.com/mihb123/quanly-phongtro/config"
-	"github.com/mihb123/quanly-phongtro/internal/database"
-	"github.com/mihb123/quanly-phongtro/internal/server"
+	"github.com/mihb123/quanly-phongtro/src/Database"
+	"github.com/mihb123/quanly-phongtro/src/Server"
 )
 
 func main() {
-	cfg, err := config.Load()
+	configuration, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		log.Fatalf("failed to load configuration: %v", err)
 	}
 
-	db, err := database.Connect(cfg.PostgresDSN)
+	databaseConnection, err := database.Connect(configuration.PostgresDSN)
 	if err != nil {
 		log.Fatalf("failed to connect postgres: %v", err)
 	}
-	defer database.Disconnect(context.Background(), db)
+	defer database.Disconnect(context.Background(), databaseConnection)
 
-	srv := server.New(cfg, db)
+	httpServer := server.New(configuration, databaseConnection)
 
 	go func() {
-		log.Printf("server starting on http://%s:%s", cfg.Host, cfg.Port)
-		if err := srv.Start(); err != nil {
+		log.Printf("server starting on http://%s:%s", configuration.Host, configuration.Port)
+		if err := httpServer.Start(); err != nil {
 			log.Printf("server stopped: %v", err)
 		}
 	}()
 
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
+	stopSignalChannel := make(chan os.Signal, 1)
+	signal.Notify(stopSignalChannel, os.Interrupt, syscall.SIGTERM)
+	<-stopSignalChannel
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	shutdownContext, cancelShutdownTimeout := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelShutdownTimeout()
+	if err := httpServer.Shutdown(shutdownContext); err != nil {
 		log.Printf("graceful shutdown failed: %v", err)
 	}
 }
