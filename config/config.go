@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	AppPort     string
-	PostgresDSN string
-	JWTSecret   string
-	TokenTTL    time.Duration
+	AppPort               string
+	PostgresDSN           string
+	AccessTokenJWTSecret  string
+	RefreshTokenJWTSecret string
+	TokenTTL              time.Duration
 }
 
 func Load() (*Config, error) {
@@ -23,15 +24,20 @@ func Load() (*Config, error) {
 
 	appPort := getOrDefault("APP_PORT", "8080")
 	postgresDSN := os.Getenv("POSTGRES_DSN")
-	jwtSecret := os.Getenv("JWT_SECRET")
+	accessTokenJWTSecret := os.Getenv("ACCESS_TOKEN_JWT_SECRET")
+	refreshTokenJWTSecret := os.Getenv("REFRESH_TOKEN_JWT_SECRET")
 	ttlMinutes := getOrDefault("JWT_TTL_MINUTES", "60")
 
 	if postgresDSN == "" {
 		return nil, errors.New("POSTGRES_DSN is required")
 	}
 
-	if jwtSecret == "" {
-		return nil, errors.New("JWT_SECRET is required")
+	if accessTokenJWTSecret == "" {
+		return nil, errors.New("ACCESS_TOKEN_JWT_SECRET is required")
+	}
+
+	if refreshTokenJWTSecret == "" {
+		return nil, errors.New("REFRESH_TOKEN_JWT_SECRET is required")
 	}
 
 	minutes, err := strconv.Atoi(ttlMinutes)
@@ -40,10 +46,11 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		AppPort:     appPort,
-		PostgresDSN: postgresDSN,
-		JWTSecret:   jwtSecret,
-		TokenTTL:    time.Duration(minutes) * time.Minute,
+		AppPort:               appPort,
+		PostgresDSN:           postgresDSN,
+		AccessTokenJWTSecret:  accessTokenJWTSecret,
+		RefreshTokenJWTSecret: refreshTokenJWTSecret,
+		TokenTTL:              time.Duration(minutes) * time.Minute,
 	}, nil
 }
 

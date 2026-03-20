@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
@@ -71,7 +71,7 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	houseID := mux.Vars(r)["id"]
+	houseID := chi.URLParam(r, "id")
 	output, err := h.service.GetHouseByID(r.Context(), houseID, claims.UserID)
 	if err != nil {
 		switch {

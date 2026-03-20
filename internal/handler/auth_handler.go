@@ -12,6 +12,10 @@ type AuthHandler struct {
 	service service.AuthService
 }
 
+type refreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" validate:"required"`
+}
+
 type registerRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6"`
@@ -88,6 +92,34 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
 		}
 
+		return
+	}
+
+	writeJSON(w, http.StatusOK, output)
+}
+
+func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var req refreshTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(r, w, http.StatusBadRequest, "invalid request body", err)
+		return
+	}
+
+	if err := validateStruct(req); err != nil {
+		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	output, err := h.service.RefreshToken(r.Context(), req.RefreshToken)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInput):
+			writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		case errors.Is(err, service.ErrInvalidCredentials):
+			writeError(r, w, http.StatusUnauthorized, "invalid credentials", err)
+		default:
+			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
+		}
 		return
 	}
 

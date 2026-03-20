@@ -1,48 +1,95 @@
 package security
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
 type Claims struct {
 	UserID string
-	Email  string
 }
 
 type JWTProvider struct {
-	secret []byte
-	ttl    time.Duration
+	accessSecret  []byte
+	refreshSecret []byte
+	ttl           time.Duration
+	jwtRepo       model.JWTRefreshTokenRepository
 }
 
-func NewJWTProvider(secret string, ttl time.Duration) *JWTProvider {
+func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRepo model.JWTRefreshTokenRepository) *JWTProvider {
 	return &JWTProvider{
-		secret: []byte(secret),
-		ttl:    ttl,
+		accessSecret:  []byte(accessSecret),
+		refreshSecret: []byte(refreshSecret),
+		ttl:           ttl,
+		jwtRepo:       jwtRepo,
 	}
 }
 
-func (p *JWTProvider) Generate(userID, email string) (string, error) {
+func (p *JWTProvider) GenerateAccessToken(userID string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub":   userID,
-		"email": email,
-		"exp":   time.Now().Add(p.ttl).Unix(),
-		"iat":   time.Now().Unix(),
+		"sub": userID,
+		"exp": time.Now().Add(p.ttl).Unix(),
+		"iat": time.Now().Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(p.secret)
+	return token.SignedString(p.accessSecret)
 }
 
-func (p *JWTProvider) Parse(tokenString string) (*Claims, error) {
+func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID string) (string, error) {
+	claims := jwt.MapClaims{
+		"sub": userID,
+		"exp": time.Now().Add(p.ttl * 24 * 30).Unix(),
+		"iat": time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signedToken, err := token.SignedString(p.refreshSecret)
+	if err != nil {
+		return "", err
+	}
+
+	refreshToken := &model.JWTRefreshToken{
+		UserID:       userID,
+		RefreshToken: signedToken,
+	}
+	if err := p.jwtRepo.Create(ctx, refreshToken); err != nil {
+		return "", err
+	}
+
+	return signedToken, nil
+}
+
+func (p *JWTProvider) RevokeRefreshToken(ctx context.Context, token string, userID string) error {
+	return p.jwtRepo.Revoke(ctx, token, userID)
+}
+
+func (p *JWTProvider) FindByToken(ctx context.Context, token string, userID string) (bool, error) {
+	return p.jwtRepo.FindByToken(ctx, token, userID)
+}
+
+func (p *JWTProvider) GetAccessTokenTTL() time.Duration {
+	return p.ttl
+}
+
+func (p *JWTProvider) Parse(tokenString string, tokenType string) (*Claims, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return p.secret, nil
+		switch tokenType {
+		case "access":
+			return p.accessSecret, nil
+		case "refresh":
+			return p.refreshSecret, nil
+		default:
+			return nil, errors.New("invalid token type")
+		}
 	})
 	if err != nil {
 		return nil, err
@@ -62,10 +109,5 @@ func (p *JWTProvider) Parse(tokenString string) (*Claims, error) {
 		return nil, errors.New("invalid token subject")
 	}
 
-	email, ok := mapClaims["email"].(string)
-	if !ok || email == "" {
-		return nil, errors.New("invalid token email")
-	}
-
-	return &Claims{UserID: sub, Email: email}, nil
+	return &Claims{UserID: sub}, nil
 }

@@ -30,7 +30,7 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 				return
 			}
 
-			claims, err := tokens.Parse(token)
+			claims, err := tokens.Parse(token, "access")
 			if err != nil {
 				writeUnauthorized(r, w, "invalid token", err)
 				return

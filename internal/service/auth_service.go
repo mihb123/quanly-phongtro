@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
 var (
@@ -21,7 +23,12 @@ type PasswordHasher interface {
 }
 
 type TokenProvider interface {
-	Generate(userID, email string) (string, error)
+	GenerateAccessToken(userID string) (string, error)
+	GenerateRefreshToken(ctx context.Context, userID string) (string, error)
+	RevokeRefreshToken(ctx context.Context, token string, userID string) error
+	FindByToken(ctx context.Context, token string, userID string) (bool, error)
+	GetAccessTokenTTL() time.Duration
+	Parse(tokenString string, tokenType string) (*security.Claims, error)
 }
 
 type AuthServiceImpl struct {
@@ -32,7 +39,8 @@ type AuthServiceImpl struct {
 
 type AuthService interface {
 	Register(ctx context.Context, in RegisterInput) (*AuthOutput, error)
-	Login(ctx context.Context, in LoginInput) (*AuthOutput, error)
+	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
+	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
 }
 
 type RegisterInput struct {
@@ -47,6 +55,12 @@ type LoginInput struct {
 	Password string
 }
 
+type LoginOutput struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+}
+
 type AuthOutput struct {
 	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
@@ -54,7 +68,7 @@ type AuthOutput struct {
 	FullName    string `json:"full_name,omitempty"`
 	Phone       string `json:"phone,omitempty"`
 	IsActivated bool   `json:"is_activated"`
-	Token       string `json:"token"`
+	AccessToken string `json:"access_token"`
 }
 
 func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider) *AuthServiceImpl {
@@ -106,7 +120,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	token, err := s.tokens.Generate(newUser.ID, newUser.Email)
+	accessToken, err := s.tokens.GenerateAccessToken(newUser.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -118,11 +132,11 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		FullName:    newUser.FullName,
 		Phone:       newUser.Phone,
 		IsActivated: newUser.IsActivated,
-		Token:       token,
+		AccessToken: accessToken,
 	}, nil
 }
 
-func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*AuthOutput, error) {
+func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, error) {
 	email := strings.TrimSpace(strings.ToLower(in.Email))
 	password := strings.TrimSpace(in.Password)
 
@@ -143,23 +157,63 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*AuthOutput
 		return nil, ErrInvalidCredentials
 	}
 
-	token, err := s.tokens.Generate(existingUser.ID, existingUser.Email)
+	accessToken, err := s.tokens.GenerateAccessToken(existingUser.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AuthOutput{
-		UserID:      existingUser.ID,
-		Email:       existingUser.Email,
-		Role:        string(existingUser.Role),
-		FullName:    existingUser.FullName,
-		Phone:       existingUser.Phone,
-		IsActivated: existingUser.IsActivated,
-		Token:       token,
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := s.tokens.GetAccessTokenTTL()
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(ttl.Seconds()),
 	}, nil
 }
 
 func isValidEmail(email string) bool {
 	_, err := mail.ParseAddress(email)
 	return err == nil
+}
+
+func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error) {
+	claims, err := s.tokens.Parse(refreshToken, "refresh")
+	if err != nil {
+		return nil, err
+	}
+
+	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	if isRevoked {
+		return nil, ErrInvalidCredentials
+	}
+
+	accessToken, err := s.tokens.GenerateAccessToken(claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	// err = s.tokens.RevokeRefreshToken(ctx, refreshToken, claims.UserID)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+		ExpiresIn:    int64(s.tokens.GetAccessTokenTTL().Seconds()),
+	}, nil
 }

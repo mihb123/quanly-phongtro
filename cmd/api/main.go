@@ -30,9 +30,10 @@ func main() {
 	}
 	defer sqlDB.Close()
 
+	jwtRepo := repository.NewJWTRefreshTokenRepository(sqlDB)
 	userRepo := repository.NewUserRepository(sqlDB)
 	hasher := security.NewBcryptHasher()
-	tokenProvider := security.NewJWTProvider(cfg.JWTSecret, cfg.TokenTTL)
+	tokenProvider := security.NewJWTProvider(cfg.AccessTokenJWTSecret, cfg.RefreshTokenJWTSecret, cfg.TokenTTL, jwtRepo)
 	authService := service.NewAuthService(userRepo, hasher, tokenProvider)
 	authHandler := httpHandler.NewAuthHandler(authService)
 

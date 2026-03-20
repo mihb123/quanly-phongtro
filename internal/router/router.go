@@ -4,25 +4,28 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gorilla/mux"
+	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
-func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, tokens *security.JWTProvider) *mux.Router {
-	r := mux.NewRouter()
+func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, tokens *security.JWTProvider) http.Handler {
+	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
 
-	r.HandleFunc("/health", healthCheck).Methods(http.MethodGet)
+	r.Get("/health", healthCheck)
 
-	authRoute := r.PathPrefix("/api/v1/auth").Subrouter()
-	authRoute.HandleFunc("/register", authHandler.Register).Methods(http.MethodPost)
-	authRoute.HandleFunc("/login", authHandler.Login).Methods(http.MethodPost)
+	r.Route("/api/v1/auth", func(r chi.Router) {
+		r.Post("/register", authHandler.Register)
+		r.Post("/login", authHandler.Login)
+		r.Post("/token", authHandler.RefreshToken)
+	})
 
-	houseRoute := r.PathPrefix("/api/v1/house").Subrouter()
-	houseRoute.Use(authMiddleware(tokens))
-	houseRoute.HandleFunc("/create", houseHandler.CreateHouse).Methods(http.MethodPost)
-	houseRoute.HandleFunc("/{id}", houseHandler.GetHouseByID).Methods(http.MethodGet)
+	r.Route("/api/v1/house", func(r chi.Router) {
+		r.Use(authMiddleware(tokens))
+		r.Post("/create", houseHandler.CreateHouse)
+		r.Get("/{id}", houseHandler.GetHouseByID)
+	})
 
 	return r
 }
