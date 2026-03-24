@@ -73,3 +73,9 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 
 	return nil
 }
+
+func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
+	query := `UPDATE users SET is_activated = true WHERE email = $1`
+	row := r.db.QueryRowContext(ctx, query, email)
+	return row.Err()
+}

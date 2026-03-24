@@ -19,6 +19,11 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 		r.Post("/register", authHandler.Register)
 		r.Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware(tokens))
+			r.Post("/verify-email", authHandler.CreateOTP)
+			r.Post("/verify-email/otp", authHandler.VerifyEmail)
+		})
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {
