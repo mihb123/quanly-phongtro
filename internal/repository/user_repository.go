@@ -51,6 +51,38 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &u, nil
 }
 
+func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model.User, error) {
+	const query = `
+		SELECT id, email, password_hash, role, full_name, phone, is_activated, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var u model.User
+	var role string
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&u.ID,
+		&u.Email,
+		&u.PasswordHash,
+		&role,
+		&u.FullName,
+		&u.Phone,
+		&u.IsActivated,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+
+		return nil, fmt.Errorf("get user by email: %w", err)
+	}
+
+	u.Role = model.Role(role)
+	return &u, nil
+}
+
 func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 	const query = `
 		INSERT INTO users (email, password_hash, role, full_name, phone, is_activated)
@@ -75,7 +107,7 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 }
 
 func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
-	query := `UPDATE users SET is_activated = true WHERE email = $1`
+	query := `UPDATE users SET is_activated = true, updated_at = NOW() WHERE email = $1`
 	row := r.db.QueryRowContext(ctx, query, email)
 	return row.Err()
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
 )
 
@@ -26,10 +27,6 @@ type registerRequest struct {
 type loginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
-}
-
-type createOTPRequest struct {
-	Email string `json:"email" validate:"required,email"`
 }
 
 func NewAuthHandler(service service.AuthService) *AuthHandler {
@@ -131,30 +128,41 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
-	var req createOTPRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
 		return
 	}
-	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+
+	if claims.IsActivated {
+		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
 		return
 	}
-	err := h.service.CreateOTP(r.Context(), req.Email)
+
+	err := h.service.CreateOTP(r.Context(), claims.Email)
 	if err != nil {
 		writeError(r, w, http.StatusInternalServerError, "cannot create otp", err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]bool{
 		"success": true,
-	},
-	)
+	})
 }
 
 func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
+		return
+	}
+
+	if claims.IsActivated {
+		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
+		return
+	}
 	var req struct {
-		OTP   string `json:"otp"`
-		Email string `json:"email"`
+		OTP string `json:"otp"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
@@ -165,7 +173,7 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ok, err := h.service.VerifyEmail(r.Context(), req.Email, req.OTP)
+	ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
 	if err != nil {
 		writeError(r, w, http.StatusInternalServerError, err.Error(), errors.New("error checking otp"))
 		return

@@ -26,7 +26,7 @@ type PasswordHasher interface {
 }
 
 type TokenProvider interface {
-	GenerateAccessToken(userID string) (string, error)
+	GenerateAccessToken(email, userID string, isActivated bool) (string, error)
 	GenerateRefreshToken(ctx context.Context, userID string) (string, error)
 	RevokeRefreshToken(ctx context.Context, token string, userID string) error
 	FindByToken(ctx context.Context, token string, userID string) (bool, error)
@@ -135,7 +135,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(newUser.ID)
+	accessToken, err := s.tokens.GenerateAccessToken(newUser.Email, newUser.ID, newUser.IsActivated)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, ErrInvalidCredentials
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(existingUser.ID)
+	accessToken, err := s.tokens.GenerateAccessToken(existingUser.Email, existingUser.ID, existingUser.IsActivated)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +211,12 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		return nil, err
 	}
 
-	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, claims.UserID)
+	userID, err := claims.GetSubject()
+	if err != nil {
+		return nil, err
+	}
+
+	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -219,13 +224,18 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 	if isRevoked {
 		return nil, ErrInvalidCredentials
 	}
+	user, err := s.users.GetByUserID(ctx, userID)
 
-	accessToken, err := s.tokens.GenerateAccessToken(claims.UserID)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	accessToken, err := s.tokens.GenerateAccessToken(user.Email, user.ID, user.IsActivated)
 	if err != nil {
 		return nil, err
 	}
 
-	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, claims.UserID)
+	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}

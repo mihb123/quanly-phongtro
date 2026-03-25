@@ -11,7 +11,9 @@ import (
 )
 
 type Claims struct {
-	UserID string
+	IsActivated bool   `json:"is_activated"`
+	Email       string `json:"email"`
+	jwt.RegisteredClaims
 }
 
 type JWTProvider struct {
@@ -30,11 +32,15 @@ func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRe
 	}
 }
 
-func (p *JWTProvider) GenerateAccessToken(userID string) (string, error) {
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"exp": time.Now().Add(p.ttl).Unix(),
-		"iat": time.Now().Unix(),
+func (p *JWTProvider) GenerateAccessToken(email, userID string, isActivated bool) (string, error) {
+	claims := Claims{
+		IsActivated: isActivated,
+		Email:       email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   userID,
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(p.ttl)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -78,7 +84,9 @@ func (p *JWTProvider) GetAccessTokenTTL() time.Duration {
 }
 
 func (p *JWTProvider) Parse(tokenString string, tokenType string) (*Claims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+	claims := &Claims{}
+
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		if token.Method != jwt.SigningMethodHS256 {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -99,15 +107,5 @@ func (p *JWTProvider) Parse(tokenString string, tokenType string) (*Claims, erro
 		return nil, errors.New("invalid token")
 	}
 
-	mapClaims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, errors.New("invalid token claims")
-	}
-
-	sub, err := mapClaims.GetSubject()
-	if err != nil || sub == "" {
-		return nil, errors.New("invalid token subject")
-	}
-
-	return &Claims{UserID: sub}, nil
+	return claims, nil
 }

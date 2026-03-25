@@ -21,7 +21,7 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 		r.Post("/token", authHandler.RefreshToken)
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(tokens))
-			r.Post("/verify-email", authHandler.CreateOTP)
+			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
 	})

@@ -31,7 +31,8 @@ func NewHouseHandler(service service.HouseService) *HouseHandler {
 
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok || claims.UserID == "" {
+	userID, err := claims.GetSubject()
+	if !ok || err != nil {
 		writeError(r, w, http.StatusUnauthorized, "unauthorized", errors.New("missing auth claims"))
 		return
 	}
@@ -49,7 +50,7 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 
 	output, err := h.service.CreateHouse(r.Context(), service.CreateHouseInput{
 		Name:                    req.Name,
-		ManagerID:               claims.UserID,
+		ManagerID:               userID,
 		Address:                 req.Address,
 		DefaultElectricityPrice: req.DefaultElectricityPrice,
 		DefaultWaterPrice:       req.DefaultWaterPrice,
@@ -66,13 +67,14 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok || claims.UserID == "" {
+	userID, err := claims.GetSubject()
+	if !ok || err != nil {
 		writeError(r, w, http.StatusUnauthorized, "unauthorized", errors.New("missing auth claims"))
 		return
 	}
 
 	houseID := chi.URLParam(r, "id")
-	output, err := h.service.GetHouseByID(r.Context(), houseID, claims.UserID)
+	output, err := h.service.GetHouseByID(r.Context(), houseID, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidHouseID), errors.Is(err, service.ErrInvalidManagerID):
