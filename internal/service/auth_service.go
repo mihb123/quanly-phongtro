@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -45,6 +46,7 @@ type AuthServiceImpl struct {
 	emailVerification model.EmailVerificationRepository
 	emailSender       EmailSender
 	OTPExpiresIn      time.Duration
+	otpCheck          model.OTPCheckRepository
 }
 
 type AuthService interface {
@@ -53,6 +55,7 @@ type AuthService interface {
 	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
 	CreateOTP(ctx context.Context, email string) error
 	VerifyEmail(ctx context.Context, email, otp string) (bool, error)
+	IncrementOTPCheck(ctx context.Context, email string) error
 }
 
 type RegisterInput struct {
@@ -83,7 +86,7 @@ type AuthOutput struct {
 	AccessToken string `json:"access_token"`
 }
 
-func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration) *AuthServiceImpl {
+func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository) *AuthServiceImpl {
 	return &AuthServiceImpl{
 		users:             users,
 		hasher:            hasher,
@@ -91,6 +94,7 @@ func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens To
 		emailVerification: verifyEmailRepo,
 		emailSender:       emailSender,
 		OTPExpiresIn:      otpExpiresIn,
+		otpCheck:          otpCheck,
 	}
 }
 
@@ -240,11 +244,6 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		return nil, err
 	}
 
-	// err = s.tokens.RevokeRefreshToken(ctx, refreshToken, claims.UserID)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return &LoginOutput{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
@@ -285,17 +284,29 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (b
 		OTP:   otp,
 	}
 
-	err := s.emailVerification.GetOTP(ctx, emailVeri)
-	if err != nil {
+	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
+	if err != nil && err != sql.ErrNoRows {
 		return false, err
 	}
-
-	if time.Since(emailVeri.Expires) > s.OTPExpiresIn {
-		return false, errors.New("otp code is expired")
+	if otpCheck.OTPFails == 5 {
+		if time.Since(otpCheck.BlockTime) > time.Duration(15)*time.Minute {
+			err = s.otpCheck.ResetOTP(ctx, email)
+			if err != nil {
+				return false, err
+			}
+		} else {
+			return false, errors.New("too many request")
+		}
 	}
-
-	if emailVeri.IsUsed {
-		return false, errors.New("otp code is already used")
+	err = s.emailVerification.GetOTP(ctx, emailVeri)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	if time.Since(emailVeri.Expires) > s.OTPExpiresIn || emailVeri.IsUsed {
+		return false, nil
 	}
 
 	err = s.emailVerification.UpdateUsedOTP(ctx, emailVeri)
@@ -308,4 +319,20 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (b
 	}
 	return true, nil
 
+}
+
+func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) error {
+	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
+	if err == sql.ErrNoRows {
+		err := s.otpCheck.CreateOTPCheck(ctx, email)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	err = s.otpCheck.IncrementOTPCheck(ctx, email, otpCheck.OTPFails+1)
+	return err
 }

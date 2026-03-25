@@ -32,11 +32,12 @@ func main() {
 	defer sqlDB.Close()
 	emailSender := email.NewGoogleSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.MailFromEmail, cfg.MailFromName)
 	verifyEmailRepo := repository.NewEmailVerificationRepository(sqlDB)
+	otpCheckRepo := repository.NewOTPCheckRepository(sqlDB)
 	jwtRepo := repository.NewJWTRefreshTokenRepository(sqlDB)
 	userRepo := repository.NewUserRepository(sqlDB)
 	hasher := security.NewBcryptHasher()
 	tokenProvider := security.NewJWTProvider(cfg.AccessTokenJWTSecret, cfg.RefreshTokenJWTSecret, cfg.TokenTTL, jwtRepo)
-	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes)
+	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo)
 	authHandler := httpHandler.NewAuthHandler(authService)
 
 	houseRepo := repository.NewHouseRepository(sqlDB)

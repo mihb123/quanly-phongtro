@@ -178,8 +178,10 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(r, w, http.StatusInternalServerError, err.Error(), errors.New("error checking otp"))
 		return
 	}
+
 	if !ok {
-		writeJSON(w, http.StatusBadRequest, map[string]string{
+		h.service.IncrementOTPCheck(r.Context(), claims.Email)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
 			"message": "otp is invalid",
 		})
 		return
