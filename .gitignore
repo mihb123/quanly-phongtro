@@ -10,6 +10,16 @@
 !*.yaml
 !*.yml
 !*.json
+!*.ts
+!*.tsx
+!*.js
+!*.jsx
+!*.html
+!*.css
+!*.svg
+!*.ico
+!*.png
+!*.jpg
 !Makefile
 !Dockerfile
 !*.sh
