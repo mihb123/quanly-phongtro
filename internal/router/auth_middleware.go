@@ -12,21 +12,27 @@ import (
 func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var token string
+
+			// 1. Try to get token from Authorization header
 			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
-			if authHeader == "" {
-				writeUnauthorized(r, w, "missing Authorization header", nil)
-				return
+			if authHeader != "" {
+				const prefix = "Bearer "
+				if strings.HasPrefix(authHeader, prefix) {
+					token = strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
+				}
 			}
 
-			const prefix = "Bearer "
-			if !strings.HasPrefix(authHeader, prefix) {
-				writeUnauthorized(r, w, "invalid Authorization header format", nil)
-				return
-			}
-
-			token := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
+			// 2. Try to get token from cookie if header is missing
 			if token == "" {
-				writeUnauthorized(r, w, "missing bearer token", nil)
+				cookie, err := r.Cookie("access_token")
+				if err == nil {
+					token = cookie.Value
+				}
+			}
+
+			if token == "" {
+				writeUnauthorized(r, w, "missing authentication token", nil)
 				return
 			}
 
