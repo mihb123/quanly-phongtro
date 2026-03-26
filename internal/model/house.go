@@ -17,7 +17,7 @@ type House struct {
 	Address                 string
 	DefaultElectricityPrice float64
 	DefaultWaterPrice       float64
-	DefaultParikingPrice    float64
+	DefaultParkingPrice     float64
 	DefaultServicePrice     float64
 	DefaultWifiPrice        float64
 	CreatedAt               time.Time

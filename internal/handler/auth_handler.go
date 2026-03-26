@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
 )
 
@@ -148,4 +149,70 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   7 * 24 * 3600,
 	})
+}
+
+func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
+		return
+	}
+
+	if claims.IsActivated {
+		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
+		return
+	}
+
+	err := h.service.CreateOTP(r.Context(), claims.Email)
+	if err != nil {
+		writeError(r, w, http.StatusInternalServerError, "cannot create otp", err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]bool{
+		"success": true,
+	})
+}
+
+func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
+
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
+		return
+	}
+
+	if claims.IsActivated {
+		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
+		return
+	}
+	var req struct {
+		OTP string `json:"otp"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+		return
+	}
+	if err := validateStruct(req); err != nil {
+		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+		return
+	}
+
+	ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
+	if err != nil {
+		writeError(r, w, http.StatusInternalServerError, err.Error(), errors.New("error checking otp"))
+		return
+	}
+
+	if !ok {
+		h.service.IncrementOTPCheck(r.Context(), claims.Email)
+		writeJSON(w, http.StatusUnauthorized, map[string]string{
+			"message": "otp is invalid",
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{
+		"success": true,
+	})
+
 }

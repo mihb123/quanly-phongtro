@@ -21,7 +21,7 @@ func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error
 	query := `INSERT INTO houses (manager_id, name, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price)
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			  RETURNING id, created_at, updated_at`
-	err := r.db.QueryRowContext(ctx, query, h.ManagerID, h.Name, h.Address, h.DefaultElectricityPrice, h.DefaultWaterPrice, h.DefaultWifiPrice, h.DefaultParikingPrice, h.DefaultServicePrice).Scan(
+	err := r.db.QueryRowContext(ctx, query, h.ManagerID, h.Name, h.Address, h.DefaultElectricityPrice, h.DefaultWaterPrice, h.DefaultWifiPrice, h.DefaultParkingPrice, h.DefaultServicePrice).Scan(
 		&h.ID,
 		&h.CreatedAt,
 		&h.UpdatedAt,
@@ -49,7 +49,7 @@ func (r *HouseRepository) GetByID(ctx context.Context, id, managerID string) (*m
 		&h.DefaultElectricityPrice,
 		&h.DefaultWaterPrice,
 		&h.DefaultWifiPrice,
-		&h.DefaultParikingPrice,
+		&h.DefaultParkingPrice,
 		&h.DefaultServicePrice,
 		&h.CreatedAt,
 		&h.UpdatedAt,

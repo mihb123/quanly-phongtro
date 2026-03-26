@@ -34,7 +34,7 @@ type CreateHouseInput struct {
 	DefaultElectricityPrice float64
 	DefaultWaterPrice       float64
 	DefaultWifiPrice        float64
-	DefaultParikingPrice    float64
+	DefaultParkingPrice     float64
 	DefaultServicePrice     float64
 }
 
@@ -46,7 +46,7 @@ type HouseOutput struct {
 	DefaultElectricityPrice float64   `json:"default_electricity_price"`
 	DefaultWaterPrice       float64   `json:"default_water_price"`
 	DefaultWifiPrice        float64   `json:"default_wifi_price"`
-	DefaultParikingPrice    float64   `json:"default_parking_price"`
+	DefaultParkingPrice     float64   `json:"default_parking_price"`
 	DefaultServicePrice     float64   `json:"default_service_price"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
@@ -60,7 +60,7 @@ func (h *HouseServiceImpl) CreateHouse(ctx context.Context, in CreateHouseInput)
 		Address:                 in.Address,
 		DefaultElectricityPrice: in.DefaultElectricityPrice,
 		DefaultWaterPrice:       in.DefaultWaterPrice,
-		DefaultParikingPrice:    in.DefaultParikingPrice,
+		DefaultParkingPrice:     in.DefaultParkingPrice,
 		DefaultWifiPrice:        in.DefaultWifiPrice,
 		DefaultServicePrice:     in.DefaultServicePrice,
 	}
@@ -102,7 +102,7 @@ func toHouseOutput(house *model.House) *HouseOutput {
 		DefaultWifiPrice:        house.DefaultWifiPrice,
 		DefaultWaterPrice:       house.DefaultWaterPrice,
 		DefaultServicePrice:     house.DefaultServicePrice,
-		DefaultParikingPrice:    house.DefaultParikingPrice,
+		DefaultParkingPrice:     house.DefaultParkingPrice,
 		CreatedAt:               house.CreatedAt,
 		UpdatedAt:               house.UpdatedAt,
 	}
