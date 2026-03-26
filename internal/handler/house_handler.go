@@ -55,7 +55,7 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		DefaultElectricityPrice: req.DefaultElectricityPrice,
 		DefaultWaterPrice:       req.DefaultWaterPrice,
 		DefaultWifiPrice:        req.DefaultWifiPrice,
-		DefaultParikingPrice:    req.DefaultParikingPrice,
+		DefaultParkingPrice:     req.DefaultParkingPrice,
 		DefaultServicePrice:     req.DefaultServicePrice,
 	})
 	if err != nil {
