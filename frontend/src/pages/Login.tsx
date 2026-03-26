@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
-import { authApi } from '@/api/auth'
+import { login as loginAccount } from '@/api/auth'
 import { useFormError } from '@/hooks/useFormError'
 
 const loginSchema = z.object({
@@ -28,13 +28,13 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   })
 
-  async function onSubmit(data: LoginFormValues) {
+  async function onSubmit(formData: LoginFormValues) {
     setIsLoading(true)
     clearFormError()
     try {
-      await authApi.login({
-        email: data.email,
-        password: data.password,
+      await loginAccount({
+        email: formData.email,
+        password: formData.password,
       })
       navigate('/')
     } catch (error) {

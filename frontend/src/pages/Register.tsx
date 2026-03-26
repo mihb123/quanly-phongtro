@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { authApi } from '@/api/auth'
+import { register as registerAccount } from '@/api/auth'
 import { useFormError } from '@/hooks/useFormError'
 
 const registerSchema = z.object({
@@ -34,17 +34,15 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
   })
 
-  async function onSubmit(data: RegisterFormValues) {
+  async function onSubmit(formData: RegisterFormValues) {
     setIsLoading(true)
     clearFormError()
     try {
-      const response = await authApi.register({
-        username: data.username,
-        email: data.email,
-        password: data.password,
+      await registerAccount({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
       })
-      localStorage.setItem('access_token', response.data.access_token)
-      localStorage.setItem('refresh_token', response.data.refresh_token)
       navigate('/')
     } catch (error) {
       handleApiError(error)
