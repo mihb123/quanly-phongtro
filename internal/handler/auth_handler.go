@@ -96,6 +96,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusOK, output)
 }
 
@@ -124,7 +125,30 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusOK, output)
+}
+
+func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   3600,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   7 * 24 * 3600,
+	})
 }
 
 func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
