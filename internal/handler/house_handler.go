@@ -21,7 +21,7 @@ type createHouseRequest struct {
 	DefaultElectricityPrice float64 `json:"default_electricity_price" validate:"gte=0"`
 	DefaultWaterPrice       float64 `json:"default_water_price" validate:"gte=0"`
 	DefaultWifiPrice        float64 `json:"default_wifi_price" validate:"gte=0"`
-	DefaultParikingPrice    float64 `json:"default_parking_price" validate:"gte=0"`
+	DefaultParkingPrice     float64 `json:"default_parking_price" validate:"gte=0"`
 	DefaultServicePrice     float64 `json:"default_service_price" validate:"gte=0"`
 }
 
