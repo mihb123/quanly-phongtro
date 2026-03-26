@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
 )
 
@@ -126,6 +127,49 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusOK, output)
+}
+
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(r, w, http.StatusUnauthorized, "missing authentication token", nil)
+		return
+	}
+
+	user, err := h.service.GetMe(r.Context(), claims.UserID)
+	if err != nil {
+		writeError(r, w, http.StatusUnauthorized, "user not found", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, user)
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	clearTokenCookies(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func clearTokenCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
 }
 
 func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {

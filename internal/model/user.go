@@ -32,5 +32,6 @@ type User struct {
 
 type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
+	GetByID(ctx context.Context, id string) (*User, error)
 	Create(ctx context.Context, user *User) error
 }

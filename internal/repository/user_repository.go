@@ -25,10 +25,22 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		FROM users
 		WHERE email = $1
 	`
+	return r.getUser(ctx, query, email)
+}
 
+func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+	const query = `
+		SELECT id, email, password_hash, role, full_name, phone, is_activated, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+	return r.getUser(ctx, query, id)
+}
+
+func (r *UserRepository) getUser(ctx context.Context, query string, arg any) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
+	err := r.db.QueryRowContext(ctx, query, arg).Scan(
 		&u.ID,
 		&u.Email,
 		&u.PasswordHash,
@@ -44,7 +56,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 			return nil, model.ErrNotFound
 		}
 
-		return nil, fmt.Errorf("get user by email: %w", err)
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	u.Role = model.Role(role)

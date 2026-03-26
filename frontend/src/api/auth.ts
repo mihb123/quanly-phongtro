@@ -1,38 +1,23 @@
-import axios from 'axios'
+import { apiClient } from '@/api/client'
+import type {
+  AuthResponse,
+  LoginPayload,
+  RefreshTokenPayload,
+  RegisterPayload,
+  AuthOutput,
+} from '@/types/auth'
 
-const apiClient = axios.create({
-  baseURL: '/api/v1',
-  headers: { 'Content-Type': 'application/json' },
-  withCredentials: true,
-})
+export const register = (payload: RegisterPayload) =>
+  apiClient.post<AuthOutput>('/auth/register', payload).then((res) => res.data)
 
-export type RegisterPayload = {
-  username: string
-  password: string
-  email: string
-}
+export const login = (payload: LoginPayload) =>
+  apiClient.post<AuthResponse>('/auth/login', payload).then((res) => res.data)
 
-export type LoginPayload = {
-  email: string
-  password: string
-}
+export const refreshToken = (payload: RefreshTokenPayload) =>
+  apiClient.post<AuthResponse>('/auth/token', payload).then((res) => res.data)
 
-export type AuthResponse = {
-  access_token: string
-  refresh_token: string
-}
+export const getMe = () =>
+  apiClient.get<AuthOutput>('/auth/me').then((res) => res.data)
 
-export type RefreshTokenPayload = {
-  refresh_token: string
-}
-
-export const authApi = {
-  register: (payload: RegisterPayload) =>
-    apiClient.post<AuthResponse>('/auth/register', payload),
-
-  login: (payload: LoginPayload) =>
-    apiClient.post<AuthResponse>('/auth/login', payload),
-
-  refreshToken: (payload: RefreshTokenPayload) =>
-    apiClient.post<AuthResponse>('/auth/token', payload),
-}
+export const logout = () =>
+  apiClient.post<void>('/auth/logout').then((res) => res.data)

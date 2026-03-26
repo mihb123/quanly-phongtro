@@ -41,6 +41,7 @@ type AuthService interface {
 	Register(ctx context.Context, in RegisterInput) (*AuthOutput, error)
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
+	GetMe(ctx context.Context, userID string) (*AuthOutput, error)
 }
 
 type RegisterInput struct {
@@ -215,5 +216,24 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 		ExpiresIn:    int64(s.tokens.GetAccessTokenTTL().Seconds()),
+	}, nil
+}
+
+func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput, error) {
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, ErrInvalidCredentials
+		}
+		return nil, err
+	}
+
+	return &AuthOutput{
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
 	}, nil
 }

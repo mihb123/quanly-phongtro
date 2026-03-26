@@ -12,6 +12,7 @@ import (
 func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, tokens *security.JWTProvider) http.Handler {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
+	r.Use(loggerMiddleware)
 
 	r.Get("/health", healthCheck)
 
@@ -19,6 +20,8 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 		r.Post("/register", authHandler.Register)
 		r.Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
+		r.With(authMiddleware(tokens)).Get("/me", authHandler.GetMe)
+		r.Post("/logout", authHandler.Logout)
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {

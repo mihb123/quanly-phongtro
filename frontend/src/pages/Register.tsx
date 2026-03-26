@@ -7,9 +7,10 @@ import { Eye, EyeOff, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { authApi } from '@/api/auth'
+import { Card } from '@/components/ui/card'
+import { register as registerAccount } from '@/api/auth'
 import { useFormError } from '@/hooks/useFormError'
+import { useAuth } from '@/contexts/AuthContext'
 
 const registerSchema = z.object({
   username: z.string().email('Tên đăng nhập phải là định dạng email'),
@@ -30,21 +31,21 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const { formError, handleApiError, clearFormError } = useFormError()
 
+  const { login } = useAuth()
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
   })
 
-  async function onSubmit(data: RegisterFormValues) {
+  async function onSubmit(formData: RegisterFormValues) {
     setIsLoading(true)
     clearFormError()
     try {
-      const response = await authApi.register({
-        username: data.username,
-        email: data.email,
-        password: data.password,
+      const user = await registerAccount({
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
       })
-      localStorage.setItem('access_token', response.data.access_token)
-      localStorage.setItem('refresh_token', response.data.refresh_token)
+      login(user)
       navigate('/')
     } catch (error) {
       handleApiError(error)
