@@ -7,9 +7,10 @@ import { Eye, EyeOff, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { register as registerAccount } from '@/api/auth'
 import { useFormError } from '@/hooks/useFormError'
+import { useAuth } from '@/contexts/AuthContext'
 
 const registerSchema = z.object({
   username: z.string().email('Tên đăng nhập phải là định dạng email'),
@@ -30,6 +31,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const { formError, handleApiError, clearFormError } = useFormError()
 
+  const { login } = useAuth()
   const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
   })
@@ -38,11 +40,12 @@ export default function RegisterPage() {
     setIsLoading(true)
     clearFormError()
     try {
-      await registerAccount({
+      const user = await registerAccount({
         username: formData.username,
         email: formData.email,
         password: formData.password,
       })
+      login(user)
       navigate('/')
     } catch (error) {
       handleApiError(error)

@@ -25,7 +25,6 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		FROM users
 		WHERE email = $1
 	`
-
 	var u model.User
 	var role string
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
@@ -44,7 +43,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 			return nil, model.ErrNotFound
 		}
 
-		return nil, fmt.Errorf("get user by email: %w", err)
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	u.Role = model.Role(role)

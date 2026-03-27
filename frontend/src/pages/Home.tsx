@@ -1,9 +1,13 @@
-import { Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { Home, LogOut, Settings, Users, LayoutDashboard, ChevronRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function HomePage() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
       {/* Sidebar background effect */}
@@ -30,9 +34,9 @@ export default function HomePage() {
           <Button 
             variant="ghost" 
             className="w-full justify-start gap-3 text-slate-300 hover:text-red-400 hover:bg-red-400/10"
-            onClick={() => {
-              // Sign out logic
-              window.location.href = '/login'
+            onClick={async () => {
+              await logout()
+              navigate('/login')
             }}
           >
             <LogOut className="w-5 h-5" />

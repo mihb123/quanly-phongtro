@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
-import { login as loginAccount } from '@/api/auth'
+import { login as loginAccount, getMe } from '@/api/auth'
 import { useFormError } from '@/hooks/useFormError'
+import { useAuth } from '@/contexts/AuthContext'
 
 const loginSchema = z.object({
   email: z.string().email('Địa chỉ email không hợp lệ'),
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const { formError, handleApiError, clearFormError } = useFormError()
 
+  const { login } = useAuth()
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
   })
@@ -36,6 +38,8 @@ export default function LoginPage() {
         email: formData.email,
         password: formData.password,
       })
+      const user = await getMe()
+      login(user)
       navigate('/')
     } catch (error) {
       handleApiError(error)

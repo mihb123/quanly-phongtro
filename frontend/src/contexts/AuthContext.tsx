@@ -1,0 +1,56 @@
+import React, { createContext, useContext, useState, useEffect } from 'react'
+import { getMe, logout as logoutApi } from '@/api/auth'
+import type { AuthOutput } from '@/types/auth'
+
+interface AuthContextType {
+  user: AuthOutput | null
+  isLoading: boolean
+  login: (user: AuthOutput) => void
+  logout: () => void
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<AuthOutput | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const data = await getMe()
+        setUser(data)
+      } catch (error) {
+        setUser(null)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadUser()
+  }, [])
+
+  const login = (user: AuthOutput) => setUser(user)
+  const logout = async () => {
+    try {
+      await logoutApi()
+    } catch (error) {
+      console.error('Failed to logout:', error)
+    } finally {
+      setUser(null)
+    }
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}

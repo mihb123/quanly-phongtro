@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mihb123/quanly-phongtro/internal/handler"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
@@ -12,6 +13,7 @@ import (
 func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, tokens *security.JWTProvider) http.Handler {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
+	r.Use(middleware.Logger)
 
 	r.Get("/health", healthCheck)
 
@@ -24,6 +26,8 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
+		r.With(authMiddleware(tokens)).Get("/me", authHandler.GetMe)
+		r.Post("/logout", authHandler.Logout)
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {

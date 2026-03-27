@@ -145,6 +145,54 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, output, "")
 }
 
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication token")
+		return
+	}
+
+	userID, err := claims.GetSubject()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "invalid token")
+	}
+
+	user, err := h.service.GetMe(r.Context(), userID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "user not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, user, "get user successfully")
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	clearTokenCookies(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func clearTokenCookies(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Set to true in production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+}
+
 func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
@@ -205,7 +253,7 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		OTP string `json:"otp"`
+		OTP string `json:"otp" validate:"required"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn(r, http.StatusBadRequest, "invalid body request", err)
@@ -217,8 +265,19 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body request")
 		return
 	}
+	isNotBlock, err := h.service.IsNotBlockOTP(r.Context(), claims.Email)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "failed to check otp time", err)
+		writeError(w, http.StatusInternalServerError, "failed to check otp time")
+		return
+	}
 
-	ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
+	if isNotBlock {
+		logger.Warn(r, http.StatusBadRequest, "too many request", err)
+		writeError(w, http.StatusBadRequest, "too many request")
+		return
+	}
+	ok, err = h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
 	if err != nil {
 		logger.Error(r, http.StatusInternalServerError, "failed to verify email", err)
 		writeError(w, http.StatusInternalServerError, err.Error())

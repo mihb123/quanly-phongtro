@@ -53,9 +53,11 @@ type AuthService interface {
 	Register(ctx context.Context, in RegisterInput) (*AuthOutput, error)
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
+	GetMe(ctx context.Context, userID string) (*AuthOutput, error)
 	CreateOTP(ctx context.Context, email string) error
 	VerifyEmail(ctx context.Context, email, otp string) (bool, error)
 	IncrementOTPCheck(ctx context.Context, email string) error
+	IsNotBlockOTP(ctx context.Context, email string) (bool, error)
 }
 
 type RegisterInput struct {
@@ -251,6 +253,25 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 	}, nil
 }
 
+func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput, error) {
+	user, err := s.users.GetByUserID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, model.ErrNotFound) {
+			return nil, ErrInvalidCredentials
+		}
+		return nil, err
+	}
+
+	return &AuthOutput{
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
+	}, nil
+}
+
 func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err error) {
 	otp, err := generateSixDigitOTP()
 	if err != nil {
@@ -284,21 +305,7 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (b
 		OTP:   otp,
 	}
 
-	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-	if otpCheck.OTPFails == 5 {
-		if time.Since(otpCheck.BlockTime) > time.Duration(15)*time.Minute {
-			err = s.otpCheck.ResetOTP(ctx, email)
-			if err != nil {
-				return false, err
-			}
-		} else {
-			return false, errors.New("too many request")
-		}
-	}
-	err = s.emailVerification.GetOTP(ctx, emailVeri)
+	err := s.emailVerification.GetOTP(ctx, emailVeri)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, nil
@@ -335,4 +342,23 @@ func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) e
 
 	err = s.otpCheck.IncrementOTPCheck(ctx, email, otpCheck.OTPFails+1)
 	return err
+}
+
+func (s *AuthServiceImpl) IsNotBlockOTP(ctx context.Context, email string) (bool, error) {
+	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
+	if err != nil && err != sql.ErrNoRows {
+		return true, err
+	}
+	if otpCheck.OTPFails == 5 {
+		if time.Since(otpCheck.BlockTime) > time.Duration(15)*time.Minute {
+			err = s.otpCheck.ResetOTP(ctx, email)
+			if err != nil {
+				return true, err
+			}
+			return false, nil
+		} else {
+			return true, nil
+		}
+	}
+	return false, nil
 }
