@@ -265,14 +265,14 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid body request")
 		return
 	}
-	isNotBlock, err := h.service.IsNotBlockOTP(r.Context(), claims.Email)
+	isBlock, err := h.service.IsBlockOTP(r.Context(), claims.Email)
 	if err != nil {
 		logger.Error(r, http.StatusInternalServerError, "failed to check otp time", err)
 		writeError(w, http.StatusInternalServerError, "failed to check otp time")
 		return
 	}
 
-	if isNotBlock {
+	if isBlock {
 		logger.Warn(r, http.StatusBadRequest, "too many request", err)
 		writeError(w, http.StatusBadRequest, "too many request")
 		return

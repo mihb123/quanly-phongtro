@@ -57,7 +57,7 @@ type AuthService interface {
 	CreateOTP(ctx context.Context, email string) error
 	VerifyEmail(ctx context.Context, email, otp string) (bool, error)
 	IncrementOTPCheck(ctx context.Context, email string) error
-	IsNotBlockOTP(ctx context.Context, email string) (bool, error)
+	IsBlockOTP(ctx context.Context, email string) (bool, error)
 }
 
 type RegisterInput struct {
@@ -344,7 +344,7 @@ func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) e
 	return err
 }
 
-func (s *AuthServiceImpl) IsNotBlockOTP(ctx context.Context, email string) (bool, error) {
+func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, error) {
 	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
 	if err != nil && err != sql.ErrNoRows {
 		return true, err
