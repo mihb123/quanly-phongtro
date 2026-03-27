@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
@@ -30,12 +31,14 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 			}
 
 			if token == "" {
+				logger.Warn(r, http.StatusBadRequest, "missing authentication token", nil)
 				writeError(w, http.StatusBadRequest, "missing authentication token")
 				return
 			}
 
 			claims, err := tokens.Parse(token, "access")
 			if err != nil {
+				logger.Warn(r, http.StatusBadRequest, "invalid access token", err)
 				writeError(w, http.StatusBadRequest, "invalid token")
 				return
 			}
