@@ -33,18 +33,18 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	userID, err := claims.GetSubject()
 	if !ok || err != nil {
-		writeError(r, w, http.StatusUnauthorized, "unauthorized", errors.New("missing auth claims"))
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
 	var req createHouseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -59,17 +59,17 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		DefaultServicePrice:     req.DefaultServicePrice,
 	})
 	if err != nil {
-		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, output)
+	writeJSON(w, http.StatusCreated, output, "")
 }
 
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	userID, err := claims.GetSubject()
 	if !ok || err != nil {
-		writeError(r, w, http.StatusUnauthorized, "unauthorized", errors.New("missing auth claims"))
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 
@@ -78,14 +78,14 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidHouseID), errors.Is(err, service.ErrInvalidManagerID):
-			writeError(r, w, http.StatusBadRequest, err.Error(), err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, model.ErrHouseNotFound):
-			writeError(r, w, http.StatusNotFound, "house not found", err)
+			writeError(w, http.StatusNotFound, "house not found")
 		default:
-			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}
 
-	writeJSON(w, http.StatusOK, output)
+	writeJSON(w, http.StatusOK, output, "")
 }

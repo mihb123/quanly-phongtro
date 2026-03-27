@@ -1,11 +1,9 @@
 package router
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
-	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
@@ -32,13 +30,13 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 			}
 
 			if token == "" {
-				writeUnauthorized(r, w, "missing authentication token", nil)
+				writeError(w, http.StatusBadRequest, "missing authentication token")
 				return
 			}
 
 			claims, err := tokens.Parse(token, "access")
 			if err != nil {
-				writeUnauthorized(r, w, "invalid token", err)
+				writeError(w, http.StatusBadRequest, "invalid token")
 				return
 			}
 
@@ -46,11 +44,4 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-func writeUnauthorized(r *http.Request, w http.ResponseWriter, message string, err error) {
-	logger.Error(r, http.StatusUnauthorized, message, err)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }

@@ -36,12 +36,12 @@ func NewAuthHandler(service service.AuthService) *AuthHandler {
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -54,28 +54,28 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
-			writeError(r, w, http.StatusBadRequest, err.Error(), err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, service.ErrEmailAlreadyExists):
-			writeError(r, w, http.StatusConflict, "email already exists", err)
+			writeError(w, http.StatusConflict, "email already exists")
 		default:
-			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, output)
+	writeJSON(w, http.StatusCreated, output, "registered successfully")
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -86,29 +86,29 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
-			writeError(r, w, http.StatusBadRequest, err.Error(), err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, service.ErrInvalidCredentials):
-			writeError(r, w, http.StatusUnauthorized, "invalid credentials", err)
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
 		default:
-			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 
 		return
 	}
 
 	setTokenCookies(w, output.AccessToken, output.RefreshToken)
-	writeJSON(w, http.StatusOK, output)
+	writeJSON(w, http.StatusOK, output, "login success")
 }
 
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	var req refreshTokenRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 
 	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, err.Error(), err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -116,17 +116,17 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
-			writeError(r, w, http.StatusBadRequest, err.Error(), err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		case errors.Is(err, service.ErrInvalidCredentials):
-			writeError(r, w, http.StatusUnauthorized, "invalid credentials", err)
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
 		default:
-			writeError(r, w, http.StatusInternalServerError, "internal server error", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}
 
 	setTokenCookies(w, output.AccessToken, output.RefreshToken)
-	writeJSON(w, http.StatusOK, output)
+	writeJSON(w, http.StatusOK, output, "")
 }
 
 func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
@@ -154,65 +154,58 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
+		writeError(w, http.StatusInternalServerError, "invalid access token")
 		return
 	}
 
 	if claims.IsActivated {
-		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
+		writeError(w, http.StatusBadRequest, "account is already activated")
 		return
 	}
 
 	err := h.service.CreateOTP(r.Context(), claims.Email)
 	if err != nil {
-		writeError(r, w, http.StatusInternalServerError, "cannot create otp", err)
+		writeError(w, http.StatusInternalServerError, "cannot create otp")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]bool{
-		"success": true,
-	})
+	writeJSON(w, http.StatusCreated, nil, "success")
 }
 
 func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok {
-		writeError(r, w, http.StatusInternalServerError, "invalid access token", errors.New("invalid access token"))
+		writeError(w, http.StatusInternalServerError, "invalid access token")
 		return
 	}
 
 	if claims.IsActivated {
-		writeError(r, w, http.StatusBadRequest, "account is already activated", errors.New("account is already activated"))
+		writeError(w, http.StatusBadRequest, "account is already activated")
 		return
 	}
 	var req struct {
 		OTP string `json:"otp"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+		writeError(w, http.StatusBadRequest, "invalid body request")
 		return
 	}
 	if err := validateStruct(req); err != nil {
-		writeError(r, w, http.StatusBadRequest, "invalid body request", err)
+		writeError(w, http.StatusBadRequest, "invalid body request")
 		return
 	}
 
 	ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
 	if err != nil {
-		writeError(r, w, http.StatusInternalServerError, err.Error(), errors.New("error checking otp"))
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if !ok {
 		h.service.IncrementOTPCheck(r.Context(), claims.Email)
-		writeJSON(w, http.StatusUnauthorized, map[string]string{
-			"message": "otp is invalid",
-		})
+		writeJSON(w, http.StatusUnauthorized, nil, "otp is invalid")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]bool{
-		"success": true,
-	})
-
+	writeJSON(w, http.StatusOK, nil, "successs")
 }

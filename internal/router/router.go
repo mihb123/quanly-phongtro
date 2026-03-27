@@ -41,3 +41,14 @@ func healthCheck(w http.ResponseWriter, _ *http.Request) {
 		"status": "ok",
 	})
 }
+
+func writeError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	resdata := handler.ResData{
+		Status:  status,
+		Data:    nil,
+		Message: message,
+	}
+	_ = json.NewEncoder(w).Encode(resdata)
+}

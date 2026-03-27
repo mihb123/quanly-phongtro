@@ -23,13 +23,14 @@ func RateLimiter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := security.ClaimsFromContext(r.Context())
 		if !ok {
-			http.Error(w, "cannot get used id from tokens", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "cannot parse token")
 			return
 		}
 
 		userID, err := claims.GetSubject()
 		if err != nil {
-			http.Error(w, "cannot get used id from tokens", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, "cannot parse token")
+
 		}
 
 		mu.Lock()
@@ -41,7 +42,7 @@ func RateLimiter(next http.Handler) http.Handler {
 		mu.Unlock()
 
 		if !limiter.Allow() {
-			http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
+			writeError(w, http.StatusBadRequest, "too many request")
 			return
 		}
 
