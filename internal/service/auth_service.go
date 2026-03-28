@@ -2,7 +2,11 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"database/sql"
 	"errors"
+	"fmt"
+	"math/big"
 	"net/mail"
 	"strings"
 	"time"
@@ -23,7 +27,7 @@ type PasswordHasher interface {
 }
 
 type TokenProvider interface {
-	GenerateAccessToken(userID string) (string, error)
+	GenerateAccessToken(email, userID string, isActivated bool) (string, error)
 	GenerateRefreshToken(ctx context.Context, userID string) (string, error)
 	RevokeRefreshToken(ctx context.Context, token string, userID string) error
 	FindByToken(ctx context.Context, token string, userID string) (bool, error)
@@ -31,10 +35,18 @@ type TokenProvider interface {
 	Parse(tokenString string, tokenType string) (*security.Claims, error)
 }
 
+type EmailSender interface {
+	SendEmail(toEmail string, otpCode string, expiresIn time.Duration) error
+}
+
 type AuthServiceImpl struct {
-	users  model.UserRepository
-	hasher PasswordHasher
-	tokens TokenProvider
+	users             model.UserRepository
+	hasher            PasswordHasher
+	tokens            TokenProvider
+	emailVerification model.EmailVerificationRepository
+	emailSender       EmailSender
+	OTPExpiresIn      time.Duration
+	otpCheck          model.OTPCheckRepository
 }
 
 type AuthService interface {
@@ -42,6 +54,10 @@ type AuthService interface {
 	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
 	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
 	GetMe(ctx context.Context, userID string) (*AuthOutput, error)
+	CreateOTP(ctx context.Context, email string) error
+	VerifyEmail(ctx context.Context, email, otp string) (bool, error)
+	IncrementOTPCheck(ctx context.Context, email string) error
+	IsBlockOTP(ctx context.Context, email string) (bool, error)
 }
 
 type RegisterInput struct {
@@ -72,11 +88,15 @@ type AuthOutput struct {
 	AccessToken string `json:"access_token"`
 }
 
-func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider) *AuthServiceImpl {
+func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository) *AuthServiceImpl {
 	return &AuthServiceImpl{
-		users:  users,
-		hasher: hasher,
-		tokens: tokens,
+		users:             users,
+		hasher:            hasher,
+		tokens:            tokens,
+		emailVerification: verifyEmailRepo,
+		emailSender:       emailSender,
+		OTPExpiresIn:      otpExpiresIn,
+		otpCheck:          otpCheck,
 	}
 }
 
@@ -121,7 +141,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(newUser.ID)
+	accessToken, err := s.tokens.GenerateAccessToken(newUser.Email, newUser.ID, newUser.IsActivated)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +178,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, ErrInvalidCredentials
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(existingUser.ID)
+	accessToken, err := s.tokens.GenerateAccessToken(existingUser.Email, existingUser.ID, existingUser.IsActivated)
 	if err != nil {
 		return nil, err
 	}
@@ -182,13 +202,27 @@ func isValidEmail(email string) bool {
 	return err == nil
 }
 
+func generateSixDigitOTP() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
 func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error) {
 	claims, err := s.tokens.Parse(refreshToken, "refresh")
 	if err != nil {
 		return nil, err
 	}
 
-	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, claims.UserID)
+	userID, err := claims.GetSubject()
+	if err != nil {
+		return nil, err
+	}
+
+	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -196,21 +230,21 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 	if isRevoked {
 		return nil, ErrInvalidCredentials
 	}
+	user, err := s.users.GetByUserID(ctx, userID)
 
-	accessToken, err := s.tokens.GenerateAccessToken(claims.UserID)
+	if err != nil {
+		return nil, ErrInvalidCredentials
+	}
+
+	accessToken, err := s.tokens.GenerateAccessToken(user.Email, user.ID, user.IsActivated)
 	if err != nil {
 		return nil, err
 	}
 
-	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, claims.UserID)
+	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID)
 	if err != nil {
 		return nil, err
 	}
-
-	// err = s.tokens.RevokeRefreshToken(ctx, refreshToken, claims.UserID)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return &LoginOutput{
 		AccessToken:  accessToken,
@@ -220,7 +254,7 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 }
 
 func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput, error) {
-	user, err := s.users.GetByID(ctx, userID)
+	user, err := s.users.GetByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return nil, ErrInvalidCredentials
@@ -236,4 +270,95 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 		Phone:       user.Phone,
 		IsActivated: user.IsActivated,
 	}, nil
+}
+
+func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err error) {
+	otp, err := generateSixDigitOTP()
+	if err != nil {
+		return err
+	}
+
+	emailVeri := &model.EmailVerification{
+		Email:   email,
+		Expires: time.Now().Add(s.OTPExpiresIn),
+		OTP:     otp,
+	}
+
+	err = s.emailVerification.CreateOTP(ctx, emailVeri)
+	if err != nil {
+		return err
+	}
+
+	if s.emailSender != nil {
+		err = s.emailSender.SendEmail(email, otp, s.OTPExpiresIn)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (bool, error) {
+	emailVeri := &model.EmailVerification{
+		Email: email,
+		OTP:   otp,
+	}
+
+	err := s.emailVerification.GetOTP(ctx, emailVeri)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	if time.Since(emailVeri.Expires) > s.OTPExpiresIn || emailVeri.IsUsed {
+		return false, nil
+	}
+
+	err = s.emailVerification.UpdateUsedOTP(ctx, emailVeri)
+	if err != nil {
+		return false, errors.New("cannot update used otp")
+	}
+	err = s.users.ActivateUser(ctx, emailVeri.Email)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+
+}
+
+func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) error {
+	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
+	if err == sql.ErrNoRows {
+		err := s.otpCheck.CreateOTPCheck(ctx, email)
+		if err != nil {
+			return err
+		}
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	err = s.otpCheck.IncrementOTPCheck(ctx, email, otpCheck.OTPFails+1)
+	return err
+}
+
+func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, error) {
+	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
+	if err != nil && err != sql.ErrNoRows {
+		return true, err
+	}
+	if otpCheck.OTPFails == 5 {
+		if time.Since(otpCheck.BlockTime) > time.Duration(15)*time.Minute {
+			err = s.otpCheck.ResetOTP(ctx, email)
+			if err != nil {
+				return true, err
+			}
+			return false, nil
+		} else {
+			return true, nil
+		}
+	}
+	return false, nil
 }

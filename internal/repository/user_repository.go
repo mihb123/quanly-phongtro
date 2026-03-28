@@ -25,22 +25,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 		FROM users
 		WHERE email = $1
 	`
-	return r.getUser(ctx, query, email)
-}
-
-func (r *UserRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
-	const query = `
-		SELECT id, email, password_hash, role, full_name, phone, is_activated, created_at, updated_at
-		FROM users
-		WHERE id = $1
-	`
-	return r.getUser(ctx, query, id)
-}
-
-func (r *UserRepository) getUser(ctx context.Context, query string, arg any) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.QueryRowContext(ctx, query, arg).Scan(
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&u.ID,
 		&u.Email,
 		&u.PasswordHash,
@@ -57,6 +44,38 @@ func (r *UserRepository) getUser(ctx context.Context, query string, arg any) (*m
 		}
 
 		return nil, fmt.Errorf("get user: %w", err)
+	}
+
+	u.Role = model.Role(role)
+	return &u, nil
+}
+
+func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model.User, error) {
+	const query = `
+		SELECT id, email, password_hash, role, full_name, phone, is_activated, created_at, updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var u model.User
+	var role string
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+		&u.ID,
+		&u.Email,
+		&u.PasswordHash,
+		&role,
+		&u.FullName,
+		&u.Phone,
+		&u.IsActivated,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+
+		return nil, fmt.Errorf("get user by email: %w", err)
 	}
 
 	u.Role = model.Role(role)
@@ -84,4 +103,10 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 	}
 
 	return nil
+}
+
+func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
+	query := `UPDATE users SET is_activated = true, updated_at = NOW() WHERE email = $1`
+	row := r.db.QueryRowContext(ctx, query, email)
+	return row.Err()
 }
