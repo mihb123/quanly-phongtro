@@ -1,15 +1,15 @@
-# Zalo OTP Verification Flow
+# Email OTP Verification Flow
 
 ## 1. Overview
 
-Hệ thống sử dụng **Zalo API (Zalo Notification Service - ZNS)** để gửi mã OTP xác thực qua tin nhắn Zalo. Flow này cho phép người dùng đăng nhập hoặc đăng ký bằng số điện thoại (`phone_number`), sau đó nhận mã xác thực qua Zalo để kích hoạt (enable) tài khoản.
+Hệ thống sử dụng **Email (SMTP)** để gửi mã OTP xác thực qua thư điện tử. Flow này cho phép người dùng đăng nhập hoặc đăng ký bằng email, sau đó nhận mã xác thực qua Email để kích hoạt (enable) tài khoản.
 
 ## 2. Token / OTP Definition
 
 ### OTP Code
 - **Dạng:** Chuỗi số ngẫu nhiên (VD: 6 chữ số)
 - **TTL:** 5 phút
-- **Dùng để:** Xác thực quyền sở hữu số điện thoại và kích hoạt tài khoản
+- **Dùng để:** Xác thực quyền sở hữu email và kích hoạt tài khoản
 - **Lưu trong:** DB (table `user_otps`) hoặc Cache (Redis)
 
 ## 3. API Endpoints
@@ -20,25 +20,25 @@ Hệ thống sử dụng **Zalo API (Zalo Notification Service - ZNS)** để g�
 **Request:**
 ```json
 {
-  "phone_number": "string"
+  "email": "string"
 }
 ```
 
 **Response:**
 ```json
 {
-  "message": "Mã OTP đã được gửi qua Zalo",
+  "message": "Mã OTP đã được gửi qua Email",
   "expires_in": 300
 }
 ```
 
-### 3.2 Verify Zalo OTP (Kích hoạt tài khoản)
-**POST** `/api/verify-zalo`
+### 3.2 Verify Email OTP (Kích hoạt tài khoản)
+**POST** `/api/verify-email`
 
 **Request:**
 ```json
 {
-  "phone_number": "string",
+  "email": "string",
   "otp_code": "string"
 }
 ```
@@ -56,21 +56,21 @@ Hệ thống sử dụng **Zalo API (Zalo Notification Service - ZNS)** để g�
 
 ## 4. Flow chi tiết
 
-### Step 1: Đăng nhập bằng Phone Number & Request OTP
-1. FE gửi `phone_number` (có thể gửi cả `password` tuỳ design)
+### Step 1: Đăng nhập bằng Email & Request OTP
+1. FE gửi `email` (có thể gửi cả `password` tuỳ design)
 2. BE:
    - Validate thông tin user (nếu account chưa active thì tiến hành gửi OTP).
    - Random sinh ra mã `otp_code`.
-   - Lưu `otp_code` vào DB (kèm `phone_number` và `expires_at`).
-   - Gọi Zalo API (ZNS) để gửi tin nhắn chứa mã OTP đến `phone_number` đó.
+   - Lưu `otp_code` vào DB (kèm `email` và `expires_at`).
+   - Gọi Email Service (SMTP) để gửi thư điện tử chứa mã OTP đến email đó.
 3. Trả về thông báo thành công cho FE.
 
 ### Step 2: Nhập mã OTP
-1. Người dùng mở Zalo, lấy mã OTP và nhập vào app/web.
-2. FE gửi thông tin đến `POST /api/verify-zalo`.
+1. Người dùng mở Email, lấy mã OTP và nhập vào app/web.
+2. FE gửi thông tin đến `POST /api/verify-email`.
 
 ### Step 3: BE Verify OTP
-1. BE nhận request và truy vấn `otp_code` theo `phone_number`:
+1. BE nhận request và truy vấn `otp_code` theo `email`:
    - Nếu không tồn tại -> Báo lỗi.
    - Nếu `expires_at` < hiện tại -> Báo `OTP đã hết hạn`.
    - Nếu thông tin trùng khớp:
@@ -89,7 +89,7 @@ Hệ thống sử dụng **Zalo API (Zalo Notification Service - ZNS)** để g�
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `id` | uuid | Primary key |
-| `phone_number` | string | Số điện thoại nhận OTP |
+| `email` | string | Email nhận OTP |
 | `otp_code` | string | Mã OTP |
 | `expires_at` | datetime | Thời gian hết hạn của OTP |
 | `is_used` | boolean | Đã sử dụng hay chưa |
@@ -105,12 +105,12 @@ Hệ thống sử dụng **Zalo API (Zalo Notification Service - ZNS)** để g�
 
 ## 6. Todo
 - [ ] Implement `POST /api/request-otp`
-- [ ] Tích hợp Zalo ZNS API để thực hiện gửi tin nhắn.
-- [ ] Implement `POST /api/verify-zalo`
+- [ ] Tích hợp SMTP Email Service để thực hiện gửi thư.
+- [ ] Implement `POST /api/verify-email`
 - [ ] Implement logic tạo access_token/refresh_token sau khi xác thực thành công (tái sử dụng utility từ lệnh POST `/api/login`).
 
 ## 7. Security
-- [ ] **Rate Limiting OTP:** Giới hạn API Request OTP (ví dụ 1 số điện thoại chỉ được gửi tối đa 3 lần/5 phút) để tránh bị spam tin nhắn Zalo gây tốn phí.
+- [ ] **Rate Limiting OTP:** Giới hạn API Request OTP (ví dụ 1 email chỉ được gửi tối đa 3 lần/5 phút) để tránh bị spam mail.
 - [ ] **Short TTL:** Thời gian sống của mã OTP nên ngắn (3 đến 5 phút).
 - [ ] **Brute-force Prevention:** Giới hạn số lần verify sai. (Ví dụ: sai OTP quá 5 lần thì khoá tính năng nhập của user đó trong 15 phút).
 - [ ] Xoá hoặc vô hiệu hoá (Invalidate) OTP ngay sau khi verify thành công.

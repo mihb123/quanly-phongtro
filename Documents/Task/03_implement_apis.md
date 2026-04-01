@@ -7,15 +7,15 @@
 1. **Auth APIs**:
    - `POST /register`: Đăng ký Manager.
    - `POST /login`: Đăng nhập lấy JWT.
-   - `POST /verify-zalo`: API kích hoạt tài khoản.
+   - `POST /verify-email`: API kích hoạt tài khoản.
 2. **House Management APIs**:
    - `GET`, `POST`, `PUT`, `DELETE` cho House.
-   - Bổ sung logic filtering và sorting cho `GET`.
+   - Bổ sung logic search, filtering và sorting cho `GET`.
 3. **Room Management APIs**:
    - CRUD cho Room.
-   - Logic filtering và sorting cho `GET`.
+   - Logic search, filtering và sorting cho `GET`.
 4. **Tenant Management APIs**:
-   - Thêm người thuê, tự động sinh account và gửi qua Zalo API.
+   - Thêm người thuê, tự động sinh account và gửi qua Email (SMTP).
    - Thay đổi trạng thái người thuê.
 5. **Invoice Management APIs**:
    - Tính toán và lưu hóa đơn dựa trên chỉ số điện nước.

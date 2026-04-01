@@ -6,7 +6,7 @@ Tất cả các API yêu cầu xác thực (trừ Đăng ký/Đăng nhập Manag
 ## 1. Auth APIs
 - `POST /api/v1/auth/register`: Đăng ký tài khoản Manager. Mặc định gán role là MANAGER.
 - `POST /api/v1/auth/login`: Đăng nhập, trả về JWT Token và thông tin User.
-- `POST /api/v1/auth/verify-zalo`: Kích hoạt tài khoản bằng mã (OTP) gửi qua Zalo API.
+- `POST /api/v1/auth/verify-email`: Kích hoạt tài khoản bằng mã (OTP) gửi qua Email.
 
 ## 2. House Management APIs (Dành cho Manager)
 - `GET /api/v1/houses`: Lấy danh sách các nhà trọ. Hỗ trợ sort (`name`, `created_at`) và filter (`name` search).
@@ -24,7 +24,7 @@ Tất cả các API yêu cầu xác thực (trừ Đăng ký/Đăng nhập Manag
 
 ## 4. Tenant Management APIs (Dành cho Manager)
 - `POST /api/v1/rooms/:room_id/tenants`: Thêm người thuê mới vào phòng. API này sẽ làm 2 việc:
-   1. Tạo tài khoản đăng nhập (role TENANT) tạo mật khẩu mặc định, gửi thông tin đăng nhập qua Zalo API.
+   1. Tạo tài khoản đăng nhập (role TENANT) tạo mật khẩu mặc định, gửi thông tin đăng nhập qua Email.
    2. Tạo Record Tenant liên kết User vừa tạo với Phòng.
 - `GET /api/v1/rooms/:room_id/tenants`: Danh sách người thuê của phòng. Hỗ trợ sort (`start_date`) và filter (`status`).
 - `PUT /api/v1/tenants/:id`: Chuyển trạng thái người thuê rời đi.
