@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -15,8 +14,11 @@ var (
 )
 
 type HouseService interface {
-	CreateHouse(ctx context.Context, in CreateHouseInput) (*HouseOutput, error)
-	GetHouseByID(ctx context.Context, id, managerID string) (*HouseOutput, error)
+	CreateHouse(ctx context.Context, house *model.House) error
+	GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error)
+	ListHouseByManagerID(ctx context.Context, managerID string, page, limit int, search string) ([]model.House, error)
+	UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error)
+	DeleteHouse(ctx context.Context, id, managerID string) error
 }
 
 type HouseServiceImpl struct {
@@ -27,53 +29,24 @@ func NewHouseServiceImpt(houseRepo model.HouseRepository) HouseService {
 	return &HouseServiceImpl{houseRepo: houseRepo}
 }
 
-type CreateHouseInput struct {
-	ManagerID               string
-	Name                    string
-	Address                 string
-	DefaultElectricityPrice float64
-	DefaultWaterPrice       float64
-	DefaultWifiPrice        float64
-	DefaultParkingPrice     float64
-	DefaultServicePrice     float64
+type UpdateHouseInput struct {
+	ManagerID               *string
+	Name                    *string
+	Address                 *string
+	DefaultElectricityPrice *float64
+	DefaultWaterPrice       *float64
+	DefaultWifiPrice        *float64
+	DefaultParkingPrice     *float64
+	DefaultServicePrice     *float64
 }
 
-type HouseOutput struct {
-	HouseID                 string    `json:"house_id"`
-	ManagerID               string    `json:"manager_id"`
-	Name                    string    `json:"name"`
-	Address                 string    `json:"address"`
-	DefaultElectricityPrice float64   `json:"default_electricity_price"`
-	DefaultWaterPrice       float64   `json:"default_water_price"`
-	DefaultWifiPrice        float64   `json:"default_wifi_price"`
-	DefaultParkingPrice     float64   `json:"default_parking_price"`
-	DefaultServicePrice     float64   `json:"default_service_price"`
-	CreatedAt               time.Time `json:"created_at"`
-	UpdatedAt               time.Time `json:"updated_at"`
+func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
+
+	return h.houseRepo.CreateHouse(ctx, house)
+
 }
 
-func (h *HouseServiceImpl) CreateHouse(ctx context.Context, in CreateHouseInput) (*HouseOutput, error) {
-
-	newHouse := &model.House{
-		Name:                    in.Name,
-		ManagerID:               in.ManagerID,
-		Address:                 in.Address,
-		DefaultElectricityPrice: in.DefaultElectricityPrice,
-		DefaultWaterPrice:       in.DefaultWaterPrice,
-		DefaultParkingPrice:     in.DefaultParkingPrice,
-		DefaultWifiPrice:        in.DefaultWifiPrice,
-		DefaultServicePrice:     in.DefaultServicePrice,
-	}
-
-	err := h.houseRepo.CreateHouse(ctx, newHouse)
-	if err != nil {
-		return nil, err
-	}
-
-	return toHouseOutput(newHouse), nil
-}
-
-func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*HouseOutput, error) {
+func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error) {
 	houseID := strings.TrimSpace(id)
 	if houseID == "" {
 		return nil, ErrInvalidHouseID
@@ -89,21 +62,39 @@ func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID strin
 		return nil, err
 	}
 
-	return toHouseOutput(house), nil
+	return house, nil
 }
 
-func toHouseOutput(house *model.House) *HouseOutput {
-	return &HouseOutput{
-		HouseID:                 house.ID,
-		ManagerID:               house.ManagerID,
-		Address:                 house.Address,
-		Name:                    house.Name,
-		DefaultElectricityPrice: house.DefaultElectricityPrice,
-		DefaultWifiPrice:        house.DefaultWifiPrice,
-		DefaultWaterPrice:       house.DefaultWaterPrice,
-		DefaultServicePrice:     house.DefaultServicePrice,
-		DefaultParkingPrice:     house.DefaultParkingPrice,
-		CreatedAt:               house.CreatedAt,
-		UpdatedAt:               house.UpdatedAt,
+func (h *HouseServiceImpl) ListHouseByManagerID(ctx context.Context, managerID string, page, limit int, search string) ([]model.House, error) {
+	offset := (page - 1) * limit
+	return h.houseRepo.ListHouseByManagerID(ctx, managerID, limit, offset, search)
+}
+
+func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error) {
+	updateHouseParams := model.UpdateHouseParams{
+		Name:                    input.Name,
+		Address:                 input.Address,
+		DefaultElectricityPrice: input.DefaultElectricityPrice,
+		DefaultWaterPrice:       input.DefaultWaterPrice,
+		DefaultWifiPrice:        input.DefaultWifiPrice,
+		DefaultParkingPrice:     input.DefaultParkingPrice,
+		DefaultServicePrice:     input.DefaultServicePrice,
 	}
+	house, err := h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
+	if err != nil {
+		return nil, err
+	}
+	return house, nil
+}
+
+func (h *HouseServiceImpl) DeleteHouse(ctx context.Context, id, managerID string) error {
+	houseID := strings.TrimSpace(id)
+	if houseID == "" {
+		return ErrInvalidHouseID
+	}
+	ownerID := strings.TrimSpace(managerID)
+	if ownerID == "" {
+		return ErrInvalidManagerID
+	}
+	return h.houseRepo.DeleteHouse(ctx, houseID, ownerID)
 }

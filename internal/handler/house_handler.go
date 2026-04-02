@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/logger"
@@ -13,7 +14,7 @@ import (
 )
 
 type HouseHandler struct {
-	service service.HouseService
+	houseService service.HouseService
 }
 
 type createHouseRequest struct {
@@ -26,8 +27,18 @@ type createHouseRequest struct {
 	DefaultServicePrice     float64 `json:"default_service_price" validate:"gte=0"`
 }
 
+type updateHouseRequest struct {
+	Name                    *string  `json:"name"`
+	Address                 *string  `json:"address"`
+	DefaultElectricityPrice *float64 `json:"default_electricity_price"`
+	DefaultWaterPrice       *float64 `json:"default_water_price" validate:"omitempty,gte=0"`
+	DefaultWifiPrice        *float64 `json:"default_wifi_price" validate:"omitempty,gte=0"`
+	DefaultParkingPrice     *float64 `json:"default_parking_price" validate:"omitempty,gte=0"`
+	DefaultServicePrice     *float64 `json:"default_service_price" validate:"omitempty,gte=0"`
+}
+
 func NewHouseHandler(service service.HouseService) *HouseHandler {
-	return &HouseHandler{service: service}
+	return &HouseHandler{houseService: service}
 }
 
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +63,7 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	output, err := h.service.CreateHouse(r.Context(), service.CreateHouseInput{
+	house := &model.House{
 		Name:                    req.Name,
 		ManagerID:               userID,
 		Address:                 req.Address,
@@ -61,13 +72,15 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		DefaultWifiPrice:        req.DefaultWifiPrice,
 		DefaultParkingPrice:     req.DefaultParkingPrice,
 		DefaultServicePrice:     req.DefaultServicePrice,
-	})
+	}
+
+	err = h.houseService.CreateHouse(r.Context(), house)
 	if err != nil {
 		logger.Error(r, http.StatusBadRequest, "failed to create house", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusCreated, output, "")
+	writeJSON(w, http.StatusCreated, house, "")
 }
 
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +93,7 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	houseID := chi.URLParam(r, "id")
-	output, err := h.service.GetHouseByID(r.Context(), houseID, userID)
+	houses, err := h.houseService.GetHouseByID(r.Context(), houseID, userID)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidHouseID), errors.Is(err, service.ErrInvalidManagerID):
@@ -96,5 +109,104 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, output, "")
+	writeJSON(w, http.StatusOK, houses, "")
+}
+
+func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	userID, err := claims.GetSubject()
+	if !ok || err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	page := r.URL.Query().Get("page")
+	limit := r.URL.Query().Get("limit")
+	search := r.URL.Query().Get("search")
+	pageInt, err := strconv.Atoi(page)
+	if err != nil {
+		pageInt = 1
+	}
+	limitInt, err := strconv.Atoi(limit)
+	if err != nil {
+		limitInt = 5
+	}
+
+	houses, err := h.houseService.ListHouseByManagerID(r.Context(), userID, pageInt, limitInt, search)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "cannot list house", err)
+		writeError(w, http.StatusInternalServerError, "cannot list houseByID")
+	}
+
+	writeJSON(w, http.StatusOK, houses, "")
+}
+
+func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	userID, err := claims.GetSubject()
+	if !ok || err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	var req updateHouseRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if err := validateStruct(req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updateHouseInput := service.UpdateHouseInput{
+		Name:                    req.Name,
+		Address:                 req.Address,
+		DefaultElectricityPrice: req.DefaultElectricityPrice,
+		DefaultWaterPrice:       req.DefaultWaterPrice,
+		DefaultWifiPrice:        req.DefaultWifiPrice,
+		DefaultParkingPrice:     req.DefaultParkingPrice,
+		DefaultServicePrice:     req.DefaultServicePrice,
+	}
+
+	house, err := h.houseService.UpdateHouse(r.Context(), id, userID, updateHouseInput)
+	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "cannot update house", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, house, "")
+}
+
+func (h *HouseHandler) DeleteHouse(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	userID, err := claims.GetSubject()
+	if !ok || err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	err = h.houseService.DeleteHouse(r.Context(), id, userID)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidHouseID), errors.Is(err, service.ErrInvalidManagerID):
+			logger.Warn(r, http.StatusBadRequest, "invalid house or manager ID", err)
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, model.ErrHouseNotFound):
+			logger.Warn(r, http.StatusNotFound, "house not found", err)
+			writeError(w, http.StatusNotFound, "house not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to delete house", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, nil, "house deleted successfully")
 }

@@ -32,8 +32,12 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 
 	r.Route("/api/v1/house", func(r chi.Router) {
 		r.Use(authMiddleware(tokens))
+		r.Use(requireRole("MANAGER"))
 		r.Post("/create", houseHandler.CreateHouse)
 		r.Get("/{id}", houseHandler.GetHouseByID)
+		r.Get("/", houseHandler.ListHouseByManagerID)
+		r.Post("/{id}", houseHandler.UpdateHouse)
+		r.Delete("/{id}", houseHandler.DeleteHouse)
 	})
 
 	return r
