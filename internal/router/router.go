@@ -10,7 +10,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
-func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, tokens *security.JWTProvider) http.Handler {
+func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tokens *security.JWTProvider) http.Handler {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
 	r.Use(middleware.Logger)
@@ -38,6 +38,15 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, t
 		r.Get("/", houseHandler.ListHouseByManagerID)
 		r.Post("/{id}", houseHandler.UpdateHouse)
 		r.Delete("/{id}", houseHandler.DeleteHouse)
+	})
+	r.Route("/api/v1/room", func(r chi.Router) {
+		r.Use(authMiddleware(tokens))
+		r.Use(requireRole("MANAGER"))
+		r.Post("/", roomHandler.CreateRoom)
+		r.Get("/", roomHandler.ListRooms)
+		r.Get("/{id}", roomHandler.GetRoom)
+		r.Patch("/{id}", roomHandler.UpdateRoom)
+		r.Delete("/{id}", roomHandler.DeleteRoom)
 	})
 
 	return r

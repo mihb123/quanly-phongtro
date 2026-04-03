@@ -8,6 +8,7 @@ import (
 
 var (
 	ErrHouseNotFound = errors.New("house not found")
+	ErrRoomNotFound  = errors.New("room not found")
 )
 
 type House struct {
@@ -22,6 +23,17 @@ type House struct {
 	DefaultWifiPrice        float64   `json:"default_wifi_price"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
+}
+
+type Room struct {
+	ID          string    `json:"id"`
+	HouseID     string    `json:"house_id"`
+	Name        string    `json:"name"`
+	Price       int64     `json:"price"`
+	MaxTennants int       `json:"max_tennants"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // UpdateHouseParams holds the fields that may be partially updated.
@@ -42,4 +54,23 @@ type HouseRepository interface {
 	ListHouseByManagerID(ctx context.Context, managerID string, limit, offset int, search string) ([]House, error)
 	UpdateHouse(ctx context.Context, id, managerID string, params UpdateHouseParams) (*House, error)
 	DeleteHouse(ctx context.Context, id, managerID string) error
+	// IsHouseOwnedBy returns true when the house exists and belongs to managerID.
+	IsHouseOwnedBy(ctx context.Context, houseID, managerID string) (bool, error)
+}
+
+// UpdateRoomParams holds the fields that may be partially updated.
+// Only non-nil fields are written to the UPDATE query.
+type UpdateRoomParams struct {
+	Name        *string
+	Price       *int64
+	MaxTennants *int
+	Status      *string
+}
+
+type RoomRepository interface {
+	CreateRoom(ctx context.Context, room *Room) error
+	GetRoomByID(ctx context.Context, id, houseID string) (*Room, error)
+	ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]Room, error)
+	UpdateRoom(ctx context.Context, id, houseID string, params UpdateRoomParams) (*Room, error)
+	DeleteRoom(ctx context.Context, id, houseID string) error
 }

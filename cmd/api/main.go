@@ -44,7 +44,11 @@ func main() {
 	houseService := service.NewHouseServiceImpt(houseRepo)
 	houseHandler := httpHandler.NewHouseHandler(houseService)
 
-	router := httpRouter.New(authHandler, houseHandler, tokenProvider)
+	roomRepo := repository.NewRoomRepository(sqlDB)
+	roomService := service.NewRoomService(roomRepo, houseRepo)
+	roomHandler := httpHandler.NewRoomHandler(roomService)
+
+	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,

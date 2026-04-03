@@ -232,3 +232,18 @@ func (r *HouseRepository) DeleteHouse(ctx context.Context, id, managerID string)
 	}
 	return nil
 }
+
+// IsHouseOwnedBy returns true when a house with the given id exists and its
+// manager_id matches managerID. Uses SELECT 1 to avoid fetching the full row.
+func (r *HouseRepository) IsHouseOwnedBy(ctx context.Context, houseID, managerID string) (bool, error) {
+	const query = `SELECT 1 FROM houses WHERE id = $1 AND manager_id = $2`
+	var exists int
+	err := r.db.QueryRowContext(ctx, query, houseID, managerID).Scan(&exists)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("is house owned by: %w", err)
+	}
+	return true, nil
+}
