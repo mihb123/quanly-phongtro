@@ -13,6 +13,7 @@ import (
 type Claims struct {
 	IsActivated bool   `json:"is_activated"`
 	Email       string `json:"email"`
+	Role        string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -32,10 +33,11 @@ func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRe
 	}
 }
 
-func (p *JWTProvider) GenerateAccessToken(email, userID string, isActivated bool) (string, error) {
+func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivated bool) (string, error) {
 	claims := Claims{
 		IsActivated: isActivated,
 		Email:       email,
+		Role:        role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(p.ttl)),

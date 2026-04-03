@@ -48,3 +48,26 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 		})
 	}
 }
+
+func requireRole(roles ...string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := security.ClaimsFromContext(r.Context())
+			if !ok {
+				logger.Warn(r, http.StatusUnauthorized, "missing claims in context", nil)
+				writeError(w, http.StatusUnauthorized, "unauthorized")
+				return
+			}
+
+			for _, role := range roles {
+				if claims.Role == role {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			logger.Warn(r, http.StatusForbidden, "insufficient role", nil)
+			writeError(w, http.StatusForbidden, "forbidden")
+		})
+	}
+}
