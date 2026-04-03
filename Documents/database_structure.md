@@ -36,6 +36,11 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `room_price`: Decimal (Giá thuê phòng tính theo tháng).
 - `max_tenants`: Integer (Số lượng người ở tối đa).
 - `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE').
+- `electricity_price`: Decimal (Tùy chỉnh giá điện riêng cho phòng, nếu có).
+- `water_price`: Decimal (Tùy chỉnh giá nước riêng cho phòng, nếu có).
+- `wifi_price`: Decimal (Tùy chỉnh giá wifi riêng cho phòng, nếu có).
+- `parking_price`: Decimal (Tùy chỉnh giá gửi xe riêng cho phòng, nếu có).
+- `service_price`: Decimal (Tùy chỉnh giá dịch vụ riêng cho phòng, nếu có).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 

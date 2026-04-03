@@ -32,6 +32,11 @@ type Room struct {
 	Price       int64     `json:"price"`
 	MaxTennants int       `json:"max_tennants"`
 	Status      string    `json:"status"`
+	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
+	WaterPrice       *float64 `json:"water_price,omitempty"`
+	WifiPrice        *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice     *float64 `json:"parking_price,omitempty"`
+	ServicePrice     *float64 `json:"service_price,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -65,6 +70,11 @@ type UpdateRoomParams struct {
 	Price       *int64
 	MaxTennants *int
 	Status      *string
+	ElectricityPrice *float64
+	WaterPrice       *float64
+	WifiPrice        *float64
+	ParkingPrice     *float64
+	ServicePrice     *float64
 }
 
 type RoomRepository interface {

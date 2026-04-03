@@ -22,19 +22,29 @@ func NewRoomHandler(roomService service.RoomService) *RoomHandler {
 }
 
 type createRoomRequest struct {
-	HouseID     string `json:"house_id" validate:"required"`
-	Name        string `json:"name" validate:"required"`
-	Price       int64  `json:"price" validate:"gte=0"`
-	MaxTennants int    `json:"max_tennants" validate:"gte=1"`
-	Status      string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID          string   `json:"house_id" validate:"required"`
+	Name             string   `json:"name" validate:"required"`
+	Price            int64    `json:"price" validate:"gte=0"`
+	MaxTennants      int      `json:"max_tennants" validate:"gte=1"`
+	Status           string   `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
+	WaterPrice       *float64 `json:"water_price,omitempty"`
+	WifiPrice        *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice     *float64 `json:"parking_price,omitempty"`
+	ServicePrice     *float64 `json:"service_price,omitempty"`
 }
 
 type updateRoomRequest struct {
-	HouseID     string  `json:"house_id" validate:"required"`
-	Name        *string `json:"name"`
-	Price       *int64  `json:"price" validate:"omitempty,gte=0"`
-	MaxTennants *int    `json:"max_tennants" validate:"omitempty,gte=1"`
-	Status      *string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID          string   `json:"house_id" validate:"required"`
+	Name             *string  `json:"name"`
+	Price            *int64   `json:"price" validate:"omitempty,gte=0"`
+	MaxTennants      *int     `json:"max_tennants" validate:"omitempty,gte=1"`
+	Status           *string  `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
+	WaterPrice       *float64 `json:"water_price,omitempty"`
+	WifiPrice        *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice     *float64 `json:"parking_price,omitempty"`
+	ServicePrice     *float64 `json:"service_price,omitempty"`
 }
 
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
@@ -96,11 +106,16 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room := &model.Room{
-		HouseID:     req.HouseID,
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      status,
+		HouseID:          req.HouseID,
+		Name:             req.Name,
+		Price:            req.Price,
+		MaxTennants:      req.MaxTennants,
+		Status:           status,
+		ElectricityPrice: req.ElectricityPrice,
+		WaterPrice:       req.WaterPrice,
+		WifiPrice:        req.WifiPrice,
+		ParkingPrice:     req.ParkingPrice,
+		ServicePrice:     req.ServicePrice,
 	}
 
 	if err := h.roomService.CreateRoom(r.Context(), room, managerID); err != nil {
@@ -129,7 +144,7 @@ func (h *RoomHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	}
 	limitInt, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil || limitInt < 1 {
-		limitInt = 10
+		limitInt = 25
 	}
 
 	rooms, err := h.roomService.ListRoomsByHouseID(r.Context(), houseID, managerID, pageInt, limitInt)
@@ -184,10 +199,15 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room, err := h.roomService.UpdateRoom(r.Context(), id, req.HouseID, managerID, service.UpdateRoomInput{
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      req.Status,
+		Name:             req.Name,
+		Price:            req.Price,
+		MaxTennants:      req.MaxTennants,
+		Status:           req.Status,
+		ElectricityPrice: req.ElectricityPrice,
+		WaterPrice:       req.WaterPrice,
+		WifiPrice:        req.WifiPrice,
+		ParkingPrice:     req.ParkingPrice,
+		ServicePrice:     req.ServicePrice,
 	})
 	if err != nil {
 		handleRoomError(w, r, err)

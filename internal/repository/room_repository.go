@@ -21,11 +21,12 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 // CreateRoom inserts a new room. Ownership must be verified by the caller before this.
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
 	const query = `
-		INSERT INTO rooms (house_id, name, price, max_tennants, status)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO rooms (house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, created_at, updated_at`
 	err := r.db.QueryRowContext(ctx, query,
 		room.HouseID, room.Name, room.Price, room.MaxTennants, room.Status,
+		room.ElectricityPrice, room.WaterPrice, room.WifiPrice, room.ParkingPrice, room.ServicePrice,
 	).Scan(&room.ID, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create room: %w", err)
@@ -37,13 +38,15 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*model.Room, error) {
 	const query = `
-		SELECT id, house_id, name, price, max_tennants, status, created_at, updated_at
+		SELECT id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at
 		FROM   rooms
 		WHERE  id = $1 AND house_id = $2`
 	var room model.Room
 	err := r.db.QueryRowContext(ctx, query, id, houseID).Scan(
 		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+		&room.MaxTennants, &room.Status,
+		&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
+		&room.CreatedAt, &room.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,10 +61,10 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]model.Room, error) {
 	const query = `
-		SELECT id, house_id, name, price, max_tennants, status, created_at, updated_at
+		SELECT id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at
 		FROM   rooms
 		WHERE  house_id = $1
-		ORDER BY created_at DESC
+		ORDER BY name ASC
 		LIMIT $2 OFFSET $3`
 	rows, err := r.db.QueryContext(ctx, query, houseID, limit, offset)
 	if err != nil {
@@ -74,7 +77,9 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 		var room model.Room
 		if err := rows.Scan(
 			&room.ID, &room.HouseID, &room.Name, &room.Price,
-			&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+			&room.MaxTennants, &room.Status,
+			&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
+			&room.CreatedAt, &room.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("list rooms scan: %w", err)
 		}
@@ -113,6 +118,31 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 		args = append(args, *params.Status)
 		argIdx++
 	}
+	if params.ElectricityPrice != nil {
+		setClauses = append(setClauses, fmt.Sprintf("electricity_price = $%d", argIdx))
+		args = append(args, *params.ElectricityPrice)
+		argIdx++
+	}
+	if params.WaterPrice != nil {
+		setClauses = append(setClauses, fmt.Sprintf("water_price = $%d", argIdx))
+		args = append(args, *params.WaterPrice)
+		argIdx++
+	}
+	if params.WifiPrice != nil {
+		setClauses = append(setClauses, fmt.Sprintf("wifi_price = $%d", argIdx))
+		args = append(args, *params.WifiPrice)
+		argIdx++
+	}
+	if params.ParkingPrice != nil {
+		setClauses = append(setClauses, fmt.Sprintf("parking_price = $%d", argIdx))
+		args = append(args, *params.ParkingPrice)
+		argIdx++
+	}
+	if params.ServicePrice != nil {
+		setClauses = append(setClauses, fmt.Sprintf("service_price = $%d", argIdx))
+		args = append(args, *params.ServicePrice)
+		argIdx++
+	}
 
 	if len(setClauses) == 0 {
 		return nil, fmt.Errorf("update room: no fields to update")
@@ -126,7 +156,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 		UPDATE rooms
 		SET    %s
 		WHERE  id = $%d AND house_id = $%d
-		RETURNING id, house_id, name, price, max_tennants, status, created_at, updated_at`,
+		RETURNING id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at`,
 		strings.Join(setClauses, ", "),
 		argIdx,
 		argIdx+1,
@@ -135,7 +165,9 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	var room model.Room
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+		&room.MaxTennants, &room.Status,
+		&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
+		&room.CreatedAt, &room.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
