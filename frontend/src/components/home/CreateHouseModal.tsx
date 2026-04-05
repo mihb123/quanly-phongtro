@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createHouse } from '@/api/house'
 import { createRoom } from '@/api/room'
+import { formatNumber, parseNumber } from '@/utils/format'
 
 export function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
   const [name, setName] = useState('')
@@ -37,11 +38,11 @@ export function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void, 
       const house = await createHouse({ 
          name, 
          address,
-         default_electricity_price: Number(electricity),
-         default_water_price: Number(water),
-         default_wifi_price: Number(wifi),
-         default_parking_price: Number(parking),
-         default_service_price: Number(service)
+         default_electricity_price: parseNumber(electricity),
+         default_water_price: parseNumber(water),
+         default_wifi_price: parseNumber(wifi),
+         default_parking_price: parseNumber(parking),
+         default_service_price: parseNumber(service)
       })
 
       const promises = []
@@ -89,23 +90,23 @@ export function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void, 
             {/* Phí mặc định */}
             <div className="space-y-2">
               <Label className="text-xs">Giá điện mặc định / số (VNĐ)</Label>
-              <Input type="number" required value={electricity} onChange={e => setElectricity(e.target.value)} className="border-slate-200 h-8" />
+              <Input type="text" required value={formatNumber(electricity)} onChange={e => setElectricity(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Giá nước mặc định (theo khối hoặc người)</Label>
-              <Input type="number" required value={water} onChange={e => setWater(e.target.value)} className="border-slate-200 h-8" />
+              <Input type="text" required value={formatNumber(water)} onChange={e => setWater(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Giá Wifi / phòng (VNĐ)</Label>
-              <Input type="number" required value={wifi} onChange={e => setWifi(e.target.value)} className="border-slate-200 h-8" />
+              <Input type="text" required value={formatNumber(wifi)} onChange={e => setWifi(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
             </div>
             <div className="space-y-2">
               <Label className="text-xs">Giá gửi xe / xe (VNĐ)</Label>
-              <Input type="number" required value={parking} onChange={e => setParking(e.target.value)} className="border-slate-200 h-8" />
+              <Input type="text" required value={formatNumber(parking)} onChange={e => setParking(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
             </div>
             <div className="space-y-2 col-span-2">
               <Label className="text-xs">Giá dịch vụ chung / người (VNĐ)</Label>
-              <Input type="number" required value={service} onChange={e => setService(e.target.value)} className="border-slate-200 h-8" />
+              <Input type="text" required value={formatNumber(service)} onChange={e => setService(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
             </div>
           </div>
           

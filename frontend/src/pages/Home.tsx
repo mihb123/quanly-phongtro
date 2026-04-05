@@ -14,6 +14,8 @@ import { CreateHouseModal } from '@/components/home/CreateHouseModal'
 import { CreateRoomModal } from '@/components/home/CreateRoomModal'
 import { EditRoomModal } from '@/components/home/EditRoomModal'
 import { ConfirmModal } from '@/components/home/ConfirmModal'
+import { QuickSetRoomPriceModal } from '@/components/home/QuickSetRoomPriceModal'
+import { TenantRoomModal } from '@/components/home/TenantRoomModal'
 import { ROOMS_LIMIT } from '@/hooks/useHomeData'
 import type { Room } from '@/api/room'
 
@@ -45,6 +47,8 @@ export default function HomePage() {
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, house: any } | null>(null)
   const [houseToDelete, setHouseToDelete] = useState<any>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showQuickSetPrice, setShowQuickSetPrice] = useState(false)
+  const [showTenantRoom, setShowTenantRoom] = useState<Room | null>(null)
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null)
@@ -90,6 +94,20 @@ export default function HomePage() {
             setIsDeleting(false)
             setHouseToDelete(null)
           }}
+        />
+      )}
+      {showQuickSetPrice && selectedHouse && (
+        <QuickSetRoomPriceModal
+          rooms={rooms}
+          onClose={() => setShowQuickSetPrice(false)}
+          onSuccess={() => { setShowQuickSetPrice(false); fetchRooms(selectedHouse.id, roomPage) }}
+        />
+      )}
+      {showTenantRoom && (
+        <TenantRoomModal
+          room={showTenantRoom}
+          onClose={() => setShowTenantRoom(null)}
+          onSuccess={() => { setShowTenantRoom(null); if(selectedHouse) fetchRooms(selectedHouse.id, roomPage) }}
         />
       )}
 
@@ -257,6 +275,8 @@ export default function HomePage() {
                 rooms={rooms}
                 onOpenCreateRoom={() => setShowCreateRoom(true)}
                 onEditRoom={(room) => setShowEditRoom(room)}
+                onClickRoom={(room) => setShowTenantRoom(room)}
+                onOpenQuickSetRoomPrice={() => setShowQuickSetPrice(true)}
                 page={roomPage}
                 onPageChange={setRoomPage}
                 limit={ROOMS_LIMIT}

@@ -35,14 +35,22 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 }
 
 // GetRoomByID fetches a room by its id within a specific house.
+// GetRoomByID fetches a room by its id. If houseID is provided, it must match.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*model.Room, error) {
-	const query = `
+	query := `
 		SELECT id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at
 		FROM   rooms
-		WHERE  id = $1 AND house_id = $2`
+		WHERE  id = $1`
+	
+	args := []any{id}
+	if houseID != "" {
+		query += " AND house_id = $2"
+		args = append(args, houseID)
+	}
+
 	var room model.Room
-	err := r.db.QueryRowContext(ctx, query, id, houseID).Scan(
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&room.ID, &room.HouseID, &room.Name, &room.Price,
 		&room.MaxTennants, &room.Status,
 		&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
@@ -149,17 +157,23 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	}
 	setClauses = append(setClauses, "updated_at = NOW()")
 
-	// Append WHERE args: id and houseID.
-	args = append(args, id, houseID)
+	// Append WHERE args: id.
+	args = append(args, id)
+	whereClause := fmt.Sprintf("WHERE id = $%d", argIdx)
+	argIdx++
+
+	if houseID != "" {
+		whereClause += fmt.Sprintf(" AND house_id = $%d", argIdx)
+		args = append(args, houseID)
+	}
 
 	query := fmt.Sprintf(`
 		UPDATE rooms
 		SET    %s
-		WHERE  id = $%d AND house_id = $%d
+		%s
 		RETURNING id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at`,
 		strings.Join(setClauses, ", "),
-		argIdx,
-		argIdx+1,
+		whereClause,
 	)
 
 	var room model.Room

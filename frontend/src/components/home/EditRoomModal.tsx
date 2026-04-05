@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { updateRoom, type Room } from '@/api/room'
 import type { House } from '@/api/house'
+import { formatNumber, parseNumber } from '@/utils/format'
 
 export function EditRoomModal({ house, room, onClose, onSuccess }: { house: House, room: Room, onClose: () => void, onSuccess: () => void }) {
   const [name, setName] = useState(room.name || '')
@@ -25,13 +26,13 @@ export function EditRoomModal({ house, room, onClose, onSuccess }: { house: Hous
       await updateRoom(room.id, { 
         house_id: house.id, 
         name, 
-        price: Number(price), 
+        price: parseNumber(price), 
         max_tennants: Number(maxTennants),
-        electricity_price: electricity !== '' ? Number(electricity) : undefined,
-        water_price: water !== '' ? Number(water) : undefined,
-        wifi_price: wifi !== '' ? Number(wifi) : undefined,
-        parking_price: parking !== '' ? Number(parking) : undefined,
-        service_price: service !== '' ? Number(service) : undefined,
+        electricity_price: electricity !== '' ? parseNumber(electricity) : undefined,
+        water_price: water !== '' ? parseNumber(water) : undefined,
+        wifi_price: wifi !== '' ? parseNumber(wifi) : undefined,
+        parking_price: parking !== '' ? parseNumber(parking) : undefined,
+        service_price: service !== '' ? parseNumber(service) : undefined,
       })
       onSuccess()
     } catch(err) {
@@ -53,7 +54,7 @@ export function EditRoomModal({ house, room, onClose, onSuccess }: { house: Hous
             </div>
             <div className="space-y-2">
               <Label>Giá thuê hàng tháng (VNĐ)</Label>
-              <Input required type="number" min="0" value={price} onChange={e => setPrice(e.target.value)} className="border-slate-200" />
+              <Input required type="text" value={formatNumber(price)} onChange={e => setPrice(e.target.value.replace(/\D/g, ''))} className="border-slate-200" />
             </div>
             <div className="space-y-2">
               <Label>Số người ở tối đa</Label>
@@ -68,23 +69,23 @@ export function EditRoomModal({ house, room, onClose, onSuccess }: { house: Hous
              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div className="space-y-1">
                   <Label className="text-xs">Giá điện / số</Label>
-                  <Input type="number" placeholder="Mặc định..." value={electricity} onChange={e => setElectricity(e.target.value)} className="h-8 border-slate-200 bg-white" />
+                  <Input type="text" placeholder="Mặc định..." value={formatNumber(electricity)} onChange={e => setElectricity(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Giá nước</Label>
-                  <Input type="number" placeholder="Mặc định..." value={water} onChange={e => setWater(e.target.value)} className="h-8 border-slate-200 bg-white" />
+                  <Input type="text" placeholder="Mặc định..." value={formatNumber(water)} onChange={e => setWater(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Giá Wifi</Label>
-                  <Input type="number" placeholder="Mặc định..." value={wifi} onChange={e => setWifi(e.target.value)} className="h-8 border-slate-200 bg-white" />
+                  <Input type="text" placeholder="Mặc định..." value={formatNumber(wifi)} onChange={e => setWifi(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Giá gửi xe</Label>
-                  <Input type="number" placeholder="Mặc định..." value={parking} onChange={e => setParking(e.target.value)} className="h-8 border-slate-200 bg-white" />
+                  <Input type="text" placeholder="Mặc định..." value={formatNumber(parking)} onChange={e => setParking(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Giá dịch vụ chung</Label>
-                  <Input type="number" placeholder="Mặc định..." value={service} onChange={e => setService(e.target.value)} className="h-8 border-slate-200 bg-white" />
+                  <Input type="text" placeholder="Mặc định..." value={formatNumber(service)} onChange={e => setService(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
                 </div>
              </div>
           </div>
