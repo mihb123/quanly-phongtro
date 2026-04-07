@@ -99,7 +99,7 @@ func (h *TenantHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.tenantService.CreateTenant(r.Context(), tenant, claims.Role); err != nil {
+	if err := h.tenantService.CreateTenant(r.Context(), tenant, claims.Role, userID); err != nil {
 		handleTenantError(w, r, err)
 		return
 	}
@@ -148,6 +148,11 @@ func (h *TenantHandler) GetTenantByRoom(w http.ResponseWriter, r *http.Request) 
 func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	userID, err := claims.GetSubject()
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -203,7 +208,7 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	tenant, err := h.tenantService.UpdateTenantInfo(r.Context(), id, claims.Role, req)
+	tenant, err := h.tenantService.UpdateTenantInfo(r.Context(), id, claims.Role, userID, req)
 	if err != nil {
 		handleTenantError(w, r, err)
 		return
@@ -219,6 +224,11 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
+	userID, err := claims.GetSubject()
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
@@ -226,7 +236,7 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.tenantService.DeleteTenant(r.Context(), id, claims.Role)
+	err = h.tenantService.DeleteTenant(r.Context(), id, claims.Role, userID)
 	if err != nil {
 		handleTenantError(w, r, err)
 		return

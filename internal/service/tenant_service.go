@@ -16,12 +16,12 @@ var (
 )
 
 type TenantService interface {
-	CreateTenant(ctx context.Context, tenant *model.Tenant, userRole string) error
+	CreateTenant(ctx context.Context, tenant *model.Tenant, userRole string, userID string) error
 	GetTenant(ctx context.Context, id string, userRole, userID string) (*model.Tenant, error)
 	GetTenantByRoomID(ctx context.Context, roomID string, userRole, userID string) ([]*model.Tenant, error)
-	UpdateTenantInfo(ctx context.Context, id string, userRole string, params model.UpdateTenantParams) (*model.Tenant, error)
-	DeleteTenant(ctx context.Context, id string, userRole string) error
-	TerminateTenant(ctx context.Context, id string, userRole string) error
+	UpdateTenantInfo(ctx context.Context, id string, userRole string, userID string, params model.UpdateTenantParams) (*model.Tenant, error)
+	DeleteTenant(ctx context.Context, id string, userRole string, userID string) error
+	TerminateTenant(ctx context.Context, id string, userRole string, userID string) error
 }
 
 type TenantServiceImpl struct {
@@ -33,8 +33,7 @@ func NewTenantService(tenantRepo model.TenantRepository, roomRepo model.RoomRepo
 	return &TenantServiceImpl{tenantRepo: tenantRepo, roomRepo: roomRepo}
 }
 
-// TODO: Add missing file uploads implementation when file storage logic is defined
-func (s *TenantServiceImpl) CreateTenant(ctx context.Context, tenant *model.Tenant, userRole string) error {
+func (s *TenantServiceImpl) CreateTenant(ctx context.Context, tenant *model.Tenant, userRole string, userID string) error {
 	if strings.TrimSpace(tenant.RoomID) == "" {
 		return ErrInvalidRoomID
 	}
@@ -105,7 +104,7 @@ func (s *TenantServiceImpl) GetTenantByRoomID(ctx context.Context, roomID string
 	return tenants, nil
 }
 
-func (s *TenantServiceImpl) TerminateTenant(ctx context.Context, id string, userRole string) error {
+func (s *TenantServiceImpl) TerminateTenant(ctx context.Context, id string, userRole string, userID string) error {
 	if strings.TrimSpace(id) == "" {
 		return ErrInvalidTenantID
 	}
@@ -116,6 +115,10 @@ func (s *TenantServiceImpl) TerminateTenant(ctx context.Context, id string, user
 	tenant, err := s.tenantRepo.GetTenantByID(ctx, id)
 	if err != nil {
 		return err
+	}
+
+	if tenant.CreatedBy != userID {
+		return ErrUnauthorized
 	}
 
 	now := time.Now()
@@ -136,7 +139,7 @@ func (s *TenantServiceImpl) TerminateTenant(ctx context.Context, id string, user
 	return err
 }
 
-func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, id string, userRole string, params model.UpdateTenantParams) (*model.Tenant, error) {
+func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, id string, userRole string, userID string, params model.UpdateTenantParams) (*model.Tenant, error) {
 	if strings.TrimSpace(id) == "" {
 		return nil, ErrInvalidTenantID
 	}
@@ -144,14 +147,22 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, id string, use
 		return nil, ErrUnauthorized
 	}
 
-	tenant, err := s.tenantRepo.UpdateTenantInfo(ctx, id, params)
+	tenant, err := s.tenantRepo.GetTenantByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if tenant.CreatedBy != userID {
+		return nil, ErrUnauthorized
+	}
+
+	tenant, err = s.tenantRepo.UpdateTenantInfo(ctx, id, params)
 	if err != nil {
 		return nil, err
 	}
 	return tenant, nil
 }
 
-func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, id string, userRole string) error {
+func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, id string, userRole string, userID string) error {
 	if strings.TrimSpace(id) == "" {
 		return ErrInvalidTenantID
 	}
@@ -162,6 +173,10 @@ func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, id string, userRol
 	tenant, err := s.tenantRepo.GetTenantByID(ctx, id)
 	if err != nil {
 		return err
+	}
+
+	if tenant.CreatedBy != userID {
+		return ErrUnauthorized
 	}
 
 	err = s.tenantRepo.DeleteTenant(ctx, id)
