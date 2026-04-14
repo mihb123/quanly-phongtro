@@ -26,14 +26,14 @@ type House struct {
 }
 
 type Room struct {
-	ID          string    `json:"id"`
-	HouseID     string    `json:"house_id"`
-	Name        string    `json:"name"`
-	Price       int64     `json:"price"`
-	MaxTennants int       `json:"max_tennants"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	HouseID    string    `json:"house_id"`
+	Name       string    `json:"name"`
+	Price      int64     `json:"price"`
+	Maxtenants int       `json:"max_tenants"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // UpdateHouseParams holds the fields that may be partially updated.
@@ -61,10 +61,10 @@ type HouseRepository interface {
 // UpdateRoomParams holds the fields that may be partially updated.
 // Only non-nil fields are written to the UPDATE query.
 type UpdateRoomParams struct {
-	Name        *string
-	Price       *int64
-	MaxTennants *int
-	Status      *string
+	Name       *string
+	Price      *int64
+	Maxtenants *int
+	Status     *string
 }
 
 type RoomRepository interface {
@@ -73,4 +73,6 @@ type RoomRepository interface {
 	ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]Room, error)
 	UpdateRoom(ctx context.Context, id, houseID string, params UpdateRoomParams) (*Room, error)
 	DeleteRoom(ctx context.Context, id, houseID string) error
+	GetMaxTenants(ctx context.Context, roomID string) (int64, error)
+	UpdateRoomStatus(ctx context.Context, roomID, status string) error
 }

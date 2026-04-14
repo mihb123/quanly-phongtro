@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     house_id    UUID         NOT NULL REFERENCES houses(id) ON DELETE CASCADE,
     name        VARCHAR(100) NOT NULL,
     price       BIGINT       NOT NULL DEFAULT 0,
-    max_tennants INT          NOT NULL DEFAULT 1,
+    max_tenants INT          NOT NULL DEFAULT 1,
     status      room_status  NOT NULL DEFAULT 'AVAILABLE',
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()

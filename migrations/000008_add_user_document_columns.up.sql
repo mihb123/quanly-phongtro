@@ -1,0 +1,4 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS cccd_path     TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS identity_card VARCHAR(20) DEFAULT '',
+    ADD COLUMN IF NOT EXISTS contract_path TEXT DEFAULT '';

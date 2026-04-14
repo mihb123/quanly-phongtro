@@ -22,19 +22,19 @@ func NewRoomHandler(roomService service.RoomService) *RoomHandler {
 }
 
 type createRoomRequest struct {
-	HouseID     string `json:"house_id" validate:"required"`
-	Name        string `json:"name" validate:"required"`
-	Price       int64  `json:"price" validate:"gte=0"`
-	MaxTennants int    `json:"max_tennants" validate:"gte=1"`
-	Status      string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID    string `json:"house_id" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+	Price      int64  `json:"price" validate:"gte=0"`
+	Maxtenants int    `json:"max_tenants" validate:"gte=1"`
+	Status     string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 }
 
 type updateRoomRequest struct {
-	HouseID     string  `json:"house_id" validate:"required"`
-	Name        *string `json:"name"`
-	Price       *int64  `json:"price" validate:"omitempty,gte=0"`
-	MaxTennants *int    `json:"max_tennants" validate:"omitempty,gte=1"`
-	Status      *string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID    string  `json:"house_id" validate:"required"`
+	Name       *string `json:"name"`
+	Price      *int64  `json:"price" validate:"omitempty,gte=0"`
+	Maxtenants *int    `json:"max_tenants" validate:"omitempty,gte=1"`
+	Status     *string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 }
 
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
@@ -96,11 +96,11 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room := &model.Room{
-		HouseID:     req.HouseID,
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      status,
+		HouseID:    req.HouseID,
+		Name:       req.Name,
+		Price:      req.Price,
+		Maxtenants: req.Maxtenants,
+		Status:     status,
 	}
 
 	if err := h.roomService.CreateRoom(r.Context(), room, managerID); err != nil {
@@ -184,10 +184,10 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room, err := h.roomService.UpdateRoom(r.Context(), id, req.HouseID, managerID, service.UpdateRoomInput{
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      req.Status,
+		Name:       req.Name,
+		Price:      req.Price,
+		Maxtenants: req.Maxtenants,
+		Status:     req.Status,
 	})
 	if err != nil {
 		handleRoomError(w, r, err)

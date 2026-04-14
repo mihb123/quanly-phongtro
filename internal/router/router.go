@@ -10,7 +10,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
-func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tokens *security.JWTProvider) http.Handler {
+func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tokens *security.JWTProvider, tenantHandler *handler.TenantHandler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
 	r.Use(middleware.Logger)
@@ -47,6 +47,16 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 		r.Get("/{id}", roomHandler.GetRoom)
 		r.Patch("/{id}", roomHandler.UpdateRoom)
 		r.Delete("/{id}", roomHandler.DeleteRoom)
+	})
+
+	r.Route("/api/v1/tenant", func(r chi.Router) {
+		r.Use(authMiddleware(tokens))
+		r.Use(requireRole("MANAGER"))
+		r.Post("/", tenantHandler.RegisterTenant)
+		r.Get("/room/{id}", tenantHandler.ListTenantByRoomID)
+		r.Patch("/{id}", tenantHandler.UpdateTenantInfo)
+		r.Delete("/{id}", tenantHandler.DeleteTenant)
+		r.Handle("/files/*", http.StripPrefix("/api/v1/tenant/files/", http.FileServer(http.Dir("uploads/tenants"))))
 	})
 
 	return r

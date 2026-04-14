@@ -21,11 +21,11 @@ func NewRoomRepository(db *sql.DB) *RoomRepository {
 // CreateRoom inserts a new room. Ownership must be verified by the caller before this.
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
 	const query = `
-		INSERT INTO rooms (house_id, name, price, max_tennants, status)
+		INSERT INTO rooms (house_id, name, price, max_tenants, status)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at, updated_at`
 	err := r.db.QueryRowContext(ctx, query,
-		room.HouseID, room.Name, room.Price, room.MaxTennants, room.Status,
+		room.HouseID, room.Name, room.Price, room.Maxtenants, room.Status,
 	).Scan(&room.ID, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create room: %w", err)
@@ -37,13 +37,13 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*model.Room, error) {
 	const query = `
-		SELECT id, house_id, name, price, max_tennants, status, created_at, updated_at
+		SELECT id, house_id, name, price, max_tenants, status, created_at, updated_at
 		FROM   rooms
 		WHERE  id = $1 AND house_id = $2`
 	var room model.Room
 	err := r.db.QueryRowContext(ctx, query, id, houseID).Scan(
 		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+		&room.Maxtenants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -58,7 +58,7 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]model.Room, error) {
 	const query = `
-		SELECT id, house_id, name, price, max_tennants, status, created_at, updated_at
+		SELECT id, house_id, name, price, max_tenants, status, created_at, updated_at
 		FROM   rooms
 		WHERE  house_id = $1
 		ORDER BY created_at DESC
@@ -74,7 +74,7 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 		var room model.Room
 		if err := rows.Scan(
 			&room.ID, &room.HouseID, &room.Name, &room.Price,
-			&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+			&room.Maxtenants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("list rooms scan: %w", err)
 		}
@@ -103,9 +103,9 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 		args = append(args, *params.Price)
 		argIdx++
 	}
-	if params.MaxTennants != nil {
-		setClauses = append(setClauses, fmt.Sprintf("max_tennants = $%d", argIdx))
-		args = append(args, *params.MaxTennants)
+	if params.Maxtenants != nil {
+		setClauses = append(setClauses, fmt.Sprintf("max_tenants = $%d", argIdx))
+		args = append(args, *params.Maxtenants)
 		argIdx++
 	}
 	if params.Status != nil {
@@ -126,7 +126,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 		UPDATE rooms
 		SET    %s
 		WHERE  id = $%d AND house_id = $%d
-		RETURNING id, house_id, name, price, max_tennants, status, created_at, updated_at`,
+		RETURNING id, house_id, name, price, max_tenants, status, created_at, updated_at`,
 		strings.Join(setClauses, ", "),
 		argIdx,
 		argIdx+1,
@@ -135,7 +135,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	var room model.Room
 	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
+		&room.Maxtenants, &room.Status, &room.CreatedAt, &room.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -160,6 +160,32 @@ func (r *RoomRepository) DeleteRoom(ctx context.Context, id, houseID string) err
 	}
 	if n == 0 {
 		return model.ErrRoomNotFound
+	}
+	return nil
+}
+
+func (r *RoomRepository) GetMaxTenants(ctx context.Context, roomID string) (int64, error) {
+	var maxTenants int64
+	query := `SELECT max_tenants FROM rooms where id = $1`
+	err := r.db.QueryRowContext(ctx, query, roomID).Scan(&maxTenants)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, model.ErrNotFound
+		}
+		return 0, fmt.Errorf("error get max tenant by id: %v", err)
+
+	}
+	return maxTenants, nil
+}
+
+func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status string) error {
+	query := `UPDATE ROOMS SET status = $1 where id = $2`
+	res, err := r.db.ExecContext(ctx, query, status, roomID)
+	if err != nil {
+		return err
+	}
+	if row, err := res.RowsAffected(); err != nil || row == 0 {
+		return model.ErrNotFound
 	}
 	return nil
 }
