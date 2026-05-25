@@ -28,3 +28,8 @@ export const updateRoom = async (id: string, payload: Partial<Room>) => {
   const { data } = await apiClient.patch(`/room/${id}`, payload)
   return data.data as Room
 }
+
+export const deleteRoom = async (id: string, houseId: string) => {
+  const { data } = await apiClient.delete(`/room/${id}?house_id=${houseId}`)
+  return data
+}

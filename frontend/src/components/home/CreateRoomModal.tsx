@@ -1,29 +1,54 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createRoom } from '@/api/room'
+import { useSelectedStore } from '@/data/selectedData'
+import { useRoomStore } from '@/data/roomData'
+import { formatNumber, parseNumber } from '@/utils/format'
+import { useForm, Controller } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 
-export function CreateRoomModal({ houseId, onClose, onSuccess }: { houseId: string, onClose: () => void, onSuccess: () => void }) {
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('0')
-  const [maxTennants, setMaxTennants] = useState('2')
+const createRoomSchema = z.object({
+  name: z.string().min(1, 'Bắt buộc'),
+  price: z.string(),
+  maxTenants: z.string()
+})
+
+type CreateRoomFormValues = z.infer<typeof createRoomSchema>
+
+export function CreateRoomModal({ onClose }: { onClose: () => void }) {
+  const houseId = useSelectedStore(state => state.selectedHouse?.id)
+  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
+  
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const { register, handleSubmit, control, formState: { errors } } = useForm<CreateRoomFormValues>({
+    resolver: zodResolver(createRoomSchema),
+    defaultValues: {
+      name: '',
+      price: '0',
+      maxTenants: '2'
+    }
+  })
+
+  if (!houseId) return null
+
+  const onSubmit = async (values: CreateRoomFormValues) => {
     setIsLoading(true)
     try {
       await createRoom({ 
         house_id: houseId, 
-        name, 
-        price: Number(price), 
-        max_tenants: Number(maxTennants),
+        name: values.name, 
+        price: parseNumber(values.price), 
+        max_tenants: Number(values.maxTenants),
         status: 'AVAILABLE'
       })
-      onSuccess()
-    } catch(err) {
+      await refreshCurrentRooms()
+      onClose()
+    } catch {
       alert("Lỗi khi thêm phòng, vui lòng kiểm tra lại thông tin!")
     } finally {
       setIsLoading(false)
@@ -31,21 +56,28 @@ export function CreateRoomModal({ houseId, onClose, onSuccess }: { houseId: stri
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
       <Card className="w-full max-w-sm p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
         <h2 className="text-xl font-bold mb-4 text-slate-800">Thêm phòng mới</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label>Tên phòng</Label>
-            <Input required value={name} onChange={e => setName(e.target.value)} placeholder="vd: Phòng 101" className="border-slate-200" />
+            <Input {...register('name')} placeholder="vd: Phòng 101" className="border-slate-200" />
+            {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
           </div>
           <div className="space-y-2">
             <Label>Giá thuê (VNĐ)</Label>
-            <Input required type="number" min="0" value={price} onChange={e => setPrice(e.target.value)} className="border-slate-200" />
+            <Controller
+              name="price"
+              control={control}
+              render={({ field }) => (
+                <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200" />
+              )}
+            />
           </div>
           <div className="space-y-2">
             <Label>Số khách thuê tối đa</Label>
-            <Input required type="number" min="1" value={maxTennants} onChange={e => setMaxTennants(e.target.value)} className="border-slate-200" />
+            <Input type="number" min="1" {...register('maxTenants')} className="border-slate-200" />
           </div>
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} className="border-slate-200 text-slate-600">Hủy</Button>

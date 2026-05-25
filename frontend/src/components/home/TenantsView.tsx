@@ -1,8 +1,10 @@
 import { Building } from 'lucide-react'
 import { Card } from '@/components/ui/card'
-import type { House } from '@/api/house'
+import { useHouseStore } from '@/data/houseData'
 
-export function TenantsView({ houses }: { houses: House[] }) {
+export function TenantsView() {
+  const { houses } = useHouseStore()
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <div>

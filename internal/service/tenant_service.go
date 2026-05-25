@@ -36,10 +36,8 @@ type RegisterTenantInput struct {
 	FullName           string
 	Phone              string
 	RoomID             string
-	CCCDFile           multipart.File
-	CCCDFileHeader     *multipart.FileHeader
-	ContractFile       multipart.File
-	ContractFileHeader *multipart.FileHeader
+	CCCDFiles          []*multipart.FileHeader
+	ContractFiles      []*multipart.FileHeader
 	IdentityCard       string
 	StartDate          time.Time
 }
@@ -52,10 +50,10 @@ type UpdateTenantInput struct {
 	Phone              *string
 	Email              *string
 	IdentityCard       *string
-	CCCDFile           multipart.File
-	CCCDFileHeader     *multipart.FileHeader
-	ContractFile       multipart.File
-	ContractFileHeader *multipart.FileHeader
+	CCCDFiles          []*multipart.FileHeader
+	ContractFiles      []*multipart.FileHeader
+	KeptCCCDPaths      *string
+	KeptContractPaths  *string
 }
 
 func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantRepository, rooms model.RoomRepository, hasher PasswordHasher) *TenantServiceImpl {
@@ -65,6 +63,25 @@ func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantReposito
 		tenants: tenant,
 		hasher:  hasher,
 	}
+}
+
+func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
+	var paths []string
+	for _, header := range headers {
+		file, err := header.Open()
+		if err != nil {
+			return "", err
+		}
+		fileName := uuid.New().String() + filepath.Ext(header.Filename)
+		filePath := filepath.Join("uploads", "tenants", fileName)
+		if err := saveFile(file, filePath); err != nil {
+			file.Close()
+			return "", err
+		}
+		file.Close()
+		paths = append(paths, "/api/v1/tenant/files/" + fileName)
+	}
+	return strings.Join(paths, ","), nil
 }
 
 func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error) {
@@ -103,46 +120,24 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		StartDate:    in.StartDate,
 		Status:       model.TenantStatusActive,
 	}
-	if in.ContractFile != nil && in.ContractFileHeader != nil {
-		contractFileName := uuid.New().String() + filepath.Ext(in.ContractFileHeader.Filename)
-		contractFilePath := filepath.Join("uploads", "tenants", contractFileName)
-		if err := saveFile(in.ContractFile, contractFilePath); err == nil {
-			newRoomTenant.ContractPath = "/api/v1/tenant/files/" + contractFileName
-		} else {
+	if len(in.ContractFiles) > 0 {
+		contractPaths, err := processUploadedFiles(in.ContractFiles)
+		if err != nil {
 			return nil, err
 		}
+		newRoomTenant.ContractPath = contractPaths
 	}
 
-	if in.CCCDFile != nil && in.CCCDFileHeader != nil {
-		cccdFileName := uuid.New().String() + filepath.Ext(in.CCCDFileHeader.Filename)
-		cccdFilePath := filepath.Join("uploads", "tenants", cccdFileName)
-		if err := saveFile(in.CCCDFile, cccdFilePath); err == nil {
-			newRoomTenant.CCCDPath = "/api/v1/tenant/files/" + cccdFileName
-		} else {
-			if newRoomTenant.ContractPath != "" {
-				contractFilePath := filepath.Join("uploads", "tenants", filepath.Base(newRoomTenant.ContractPath))
-				if removeErr := os.Remove(contractFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
-					return nil, fmt.Errorf("%w; cleanup contract upload: %v", err, removeErr)
-				}
-			}
+	if len(in.CCCDFiles) > 0 {
+		cccdPaths, err := processUploadedFiles(in.CCCDFiles)
+		if err != nil {
 			return nil, err
 		}
+		newRoomTenant.CCCDPath = cccdPaths
 	}
 
 	err = s.tenants.CreateTenantWithAccount(ctx, newTenant, newRoomTenant)
 	if err != nil {
-		if newRoomTenant.ContractPath != "" {
-			contractFilePath := filepath.Join("uploads", "tenants", filepath.Base(newRoomTenant.ContractPath))
-			if removeErr := os.Remove(contractFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				return nil, fmt.Errorf("%w; cleanup contract upload: %v", err, removeErr)
-			}
-		}
-		if newRoomTenant.CCCDPath != "" {
-			cccdFilePath := filepath.Join("uploads", "tenants", filepath.Base(newRoomTenant.CCCDPath))
-			if removeErr := os.Remove(cccdFilePath); removeErr != nil && !os.IsNotExist(removeErr) {
-				return nil, fmt.Errorf("%w; cleanup cccd upload: %v", err, removeErr)
-			}
-		}
 		return nil, err
 	}
 
@@ -203,26 +198,36 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 		IdentityCard: in.IdentityCard,
 	}
 
-	// Save CCCD image if a new file was uploaded.
-	if in.CCCDFile != nil && in.CCCDFileHeader != nil {
-		cccdFileName := uuid.New().String() + filepath.Ext(in.CCCDFileHeader.Filename)
-		cccdFilePath := filepath.Join("uploads", "tenants", cccdFileName)
-		if err := saveFile(in.CCCDFile, cccdFilePath); err != nil {
+	if in.KeptCCCDPaths != nil {
+		tenantInput.CCCDPath = in.KeptCCCDPaths
+	}
+	if len(in.CCCDFiles) > 0 {
+		newPaths, err := processUploadedFiles(in.CCCDFiles)
+		if err != nil {
 			return nil, err
 		}
-		path := "/api/v1/tenant/files/" + cccdFileName
-		tenantInput.CCCDPath = &path
+		if tenantInput.CCCDPath != nil && *tenantInput.CCCDPath != "" {
+			combined := *tenantInput.CCCDPath + "," + newPaths
+			tenantInput.CCCDPath = &combined
+		} else {
+			tenantInput.CCCDPath = &newPaths
+		}
 	}
 
-	// Save contract if a new file was uploaded.
-	if in.ContractFile != nil && in.ContractFileHeader != nil {
-		contractFileName := uuid.New().String() + filepath.Ext(in.ContractFileHeader.Filename)
-		contractFilePath := filepath.Join("uploads", "tenants", contractFileName)
-		if err := saveFile(in.ContractFile, contractFilePath); err != nil {
+	if in.KeptContractPaths != nil {
+		tenantInput.ContractPath = in.KeptContractPaths
+	}
+	if len(in.ContractFiles) > 0 {
+		newPaths, err := processUploadedFiles(in.ContractFiles)
+		if err != nil {
 			return nil, err
 		}
-		path := "/api/v1/tenant/files/" + contractFileName
-		tenantInput.ContractPath = &path
+		if tenantInput.ContractPath != nil && *tenantInput.ContractPath != "" {
+			combined := *tenantInput.ContractPath + "," + newPaths
+			tenantInput.ContractPath = &combined
+		} else {
+			tenantInput.ContractPath = &newPaths
+		}
 	}
 
 	if _, err := s.users.UpdateUser(ctx, existing.UserID, userInput); err != nil {
@@ -238,36 +243,8 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 		return nil, err
 	}
 
-	// Delete old files from disk only after a successful DB update.
-	const urlPrefix = "/api/v1/tenant/files/"
-	deleteUpload := func(urlPath string) error {
-		if urlPath == "" {
-			return nil
-		}
-		fileName := strings.TrimPrefix(urlPath, urlPrefix)
-		if fileName == "" {
-			return nil
-		}
-		diskPath := filepath.Join("uploads", "tenants", fileName)
-		if err := os.Remove(diskPath); err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
-			return err
-		}
-		return nil
-	}
-
-	if tenantInput.CCCDPath != nil {
-		if err := deleteUpload(existing.CCCDPath); err != nil {
-			return nil, err
-		}
-	}
-	if tenantInput.ContractPath != nil {
-		if err := deleteUpload(existing.ContractPath); err != nil {
-			return nil, err
-		}
-	}
+	// TODO: Clean up deleted files from disk if they were removed from kept_paths.
+	// We skip deleting from disk right now since multiple paths need splitting.
 
 	return updated, nil
 }

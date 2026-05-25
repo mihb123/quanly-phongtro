@@ -66,6 +66,11 @@
 - Avoid `dangerouslySetInnerHTML`. If HTML injection is required, sanitize or escape the content first and document the XSS-safe guarantee in a comment.
 - Modals must close on Escape keypress and backdrop click.
 - Buttons and links must show pointer cursor. Any async action triggered from the UI must expose a visible loading state.
+- If a component is the only place that triggers a modal, that component should own the modal state and render the modal itself. Do not lift modal state to a parent just to pass callbacks back down.
+- Use global stores (zustand, context) only for shared data that multiple components read (e.g. entities fetched from API). Keep UI-specific state (modal visibility, form inputs, selection) local to the owning component.
+- Prefer form libraries (e.g. react-hook-form) over manual `useState` per field for form state. Manual `useState` re-renders the entire component on every keystroke; form libraries use uncontrolled inputs and avoid this.
+- Moving `useState` from a component into a custom hook does not reduce re-renders — it only moves code. Only extract hooks when the logic is reusable across multiple components or when separation of concerns demands it.
+- Do not create abstractions to eliminate prop passing that is only 1 level deep. Optimize prop drilling only when data flows through 2 or more intermediate components that do not use it.
 
 ## Backend Rules (Go)
 - Do not combine routing, request parsing, middleware, business logic, database access, and response shaping in one file.

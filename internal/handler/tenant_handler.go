@@ -84,23 +84,9 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	cccdFile, cccdHeader, err := r.FormFile("cccd_file")
-	if err != nil && err != http.ErrMissingFile {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if cccdFile != nil {
-		defer cccdFile.Close()
-	}
+	cccdFiles := r.MultipartForm.File["cccd_file"]
+	contractFiles := r.MultipartForm.File["contract_file"]
 
-	contractFile, contractHeader, err := r.FormFile("contract_file")
-	if err != nil && err != http.ErrMissingFile {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if contractFile != nil {
-		defer contractFile.Close()
-	}
 	registerTenantInput := service.RegisterTenantInput{
 		ManagerID:          userID,
 		RoomID:             roomID,
@@ -110,10 +96,8 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		Email:              email,
 		IdentityCard:       identityCard,
 		StartDate:          startDate,
-		CCCDFile:           cccdFile,
-		CCCDFileHeader:     cccdHeader,
-		ContractFile:       contractFile,
-		ContractFileHeader: contractHeader,
+		CCCDFiles:          cccdFiles,
+		ContractFiles:      contractFiles,
 	}
 
 	user, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
@@ -187,17 +171,22 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		in.IdentityCard = &v
 	}
 
-	// File fields are optional: ignore the error when no file was uploaded.
-	if cccdFile, cccdHeader, err := r.FormFile("cccd_file"); err == nil {
-		defer cccdFile.Close()
-		in.CCCDFile = cccdFile
-		in.CCCDFileHeader = cccdHeader
+	if v := r.FormValue("kept_cccd_paths"); v != "" {
+		in.KeptCCCDPaths = &v
+	} else if r.FormValue("kept_cccd_paths_empty") == "true" {
+        empty := ""
+		in.KeptCCCDPaths = &empty
 	}
-	if contractFile, contractHeader, err := r.FormFile("contract_file"); err == nil {
-		defer contractFile.Close()
-		in.ContractFile = contractFile
-		in.ContractFileHeader = contractHeader
+
+	if v := r.FormValue("kept_contract_paths"); v != "" {
+		in.KeptContractPaths = &v
+	} else if r.FormValue("kept_contract_paths_empty") == "true" {
+        empty := ""
+		in.KeptContractPaths = &empty
 	}
+
+	in.CCCDFiles = r.MultipartForm.File["cccd_file"]
+	in.ContractFiles = r.MultipartForm.File["contract_file"]
 
 	updated, err := h.tenantService.UpdateTenantInfo(r.Context(), managerID, tenantID, in)
 	if err != nil {

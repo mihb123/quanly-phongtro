@@ -3,16 +3,13 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { X, Save, DollarSign, Users } from 'lucide-react'
-import { updateRoom, type Room } from '@/api/room'
+import { updateRoom } from '@/api/room'
 import { formatNumber, parseNumber } from '@/utils/format'
+import { useRoomStore } from '@/data/roomData'
 
-interface QuickSetRoomPriceModalProps {
-  rooms: Room[]
-  onClose: () => void
-  onSuccess: () => void
-}
-
-export function QuickSetRoomPriceModal({ rooms, onClose, onSuccess }: QuickSetRoomPriceModalProps) {
+export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
+  const rooms = useRoomStore(state => state.rooms)
+  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
   const [roomData, setRoomData] = useState<Record<string, { price: string, max_tenants: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
 
@@ -53,8 +50,9 @@ export function QuickSetRoomPriceModal({ rooms, onClose, onSuccess }: QuickSetRo
         return Promise.resolve()
       })
       await Promise.all(promises)
-      onSuccess()
-    } catch (err) {
+      await refreshCurrentRooms()
+      onClose()
+    } catch {
       alert("Lỗi khi cập nhật giá phòng, vui lòng kiểm tra lại!")
     } finally {
       setIsLoading(false)

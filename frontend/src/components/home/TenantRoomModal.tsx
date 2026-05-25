@@ -1,79 +1,109 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UserPlus, User, Upload, CheckCircle2, Plus, Trash2, Pencil, X, ExternalLink, FileIcon, ZoomIn, Eye, Download } from 'lucide-react'
-import { createTenant, getTenantsByRoom, updateTenant, deleteTenant, type Tenant } from '@/api/tenant'
+import { createTenant, updateTenant, type Tenant } from '@/api/tenant'
 import type { Room } from '@/api/room'
+import { useRoomStore } from '@/data/roomData'
+import { useTenantList } from '@/hooks/useTenantList'
+import { getFileName, isImagePath } from '@/utils/file'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 
-interface TenantRoomModalProps {
-  room: Room
-  onClose: () => void
-  onSuccess: () => void
-}
+const tenantSchema = z.object({
+  fullName: z.string().min(1, 'Bắt buộc'),
+  phone: z.string().min(1, 'Bắt buộc'),
+  email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
+  identityCard: z.string().min(1, 'Bắt buộc'),
+  startDate: z.string(),
+})
 
-export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalProps) {
-  const [tenants, setTenants] = useState<Tenant[]>([])
+type TenantFormValues = z.infer<typeof tenantSchema>
+
+export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => void }) {
   const isOccupied = room.status === 'OCCUPIED'
-  const [showAddForm, setShowAddForm] = useState(!isOccupied)
-  const [editingTenantId, setEditingTenantId] = useState<string | null>(null)
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
 
-  // Form State
-  const [fullName, setFullName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
-  const [identityCard, setIdentityCard] = useState('')
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
-  const [cccdFile, setCccdFile] = useState<File | null>(null)
-  const [contractFile, setContractFile] = useState<File | null>(null)
-
-  const [isLoading, setIsLoading] = useState(false)
-  const [isFetchingInfo, setIsFetchingInfo] = useState(isOccupied)
+  const {
+    tenants,
+    isLoading: isDeleting,
+    isFetching,
+    showAddForm,
+    editingTenantId,
+    fetchTenants,
+    handleDeleteTenant,
+    setShowAddForm,
+    setEditingTenantId,
+    setIsFetching
+  } = useTenantList(room.id, !isOccupied)
 
   useEffect(() => {
     if (isOccupied) {
-      getTenantsByRoom(room.id)
-        .then(res => {
-          setTenants(res.data)
-          if (res.data.length === 0) {
-            setShowAddForm(true)
-          }
-        })
-        .catch(err => console.error("Error fetching tenants", err))
-        .finally(() => setIsFetchingInfo(false))
+      fetchTenants(room.id)
     } else {
-      setIsFetchingInfo(false)
+      setIsFetching(false)
     }
-  }, [isOccupied, room.id])
+  }, [isOccupied, room.id, fetchTenants, setIsFetching])
 
-  const fetchTenants = () => {
-    setIsLoading(true)
-    getTenantsByRoom(room.id)
-      .then(res => {
-        setTenants(res.data)
-        if (res.data.length === 0) {
-          setShowAddForm(true)
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+
+  // File states
+  const [cccdFiles, setCccdFiles] = useState<File[]>([])
+  const [contractFiles, setContractFiles] = useState<File[]>([])
+  const [existingCccdPaths, setExistingCccdPaths] = useState<string[]>([])
+  const [existingContractPaths, setExistingContractPaths] = useState<string[]>([])
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<TenantFormValues>({
+    resolver: zodResolver(tenantSchema),
+    defaultValues: {
+      fullName: '',
+      phone: '',
+      email: '',
+      identityCard: '',
+      startDate: new Date().toISOString().split('T')[0]
+    }
+  })
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedImageUrl) {
+          setSelectedImageUrl(null)
+        } else {
+          onClose()
         }
-      })
-      .catch(err => console.error("Error fetching tenants", err))
-      .finally(() => setIsLoading(false))
-  }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, selectedImageUrl])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const onSubmit = async (values: TenantFormValues) => {
+    setIsSubmitting(true)
     try {
       const formData = new FormData()
       formData.append('room_id', room.id)
-      formData.append('full_name', fullName)
-      formData.append('phone', phone)
-      if (email) formData.append('email', email)
-      formData.append('identity_card', identityCard)
-      formData.append('start_date', startDate)
-      if (cccdFile) formData.append('cccd_file', cccdFile)
-      if (contractFile) formData.append('contract_file', contractFile)
+      formData.append('full_name', values.fullName)
+      formData.append('phone', values.phone)
+      if (values.email) formData.append('email', values.email)
+      formData.append('identity_card', values.identityCard)
+      formData.append('start_date', values.startDate)
+      
+      cccdFiles.forEach(f => formData.append('cccd_file', f))
+      contractFiles.forEach(f => formData.append('contract_file', f))
+      
+      if (editingTenantId) {
+        formData.append('kept_cccd_paths', existingCccdPaths.join(','))
+        formData.append('kept_cccd_paths_empty', existingCccdPaths.length === 0 ? 'true' : 'false')
+        formData.append('kept_contract_paths', existingContractPaths.join(','))
+        formData.append('kept_contract_paths_empty', existingContractPaths.length === 0 ? 'true' : 'false')
+      }
+
       if (editingTenantId) {
         await updateTenant(editingTenantId, formData)
       } else {
@@ -82,50 +112,42 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
 
       setEditingTenantId(null)
       setShowAddForm(false)
-      fetchTenants()
-      onSuccess()
+      await fetchTenants(room.id)
+      await refreshCurrentRooms()
       resetForm()
-    } catch (error) {
+      
+      // Auto close if added successfully and no more actions needed, or keep open if they want to see list. Let's keep open on list.
+    } catch {
       alert("Lỗi khi xử lý thao tác người thuê!")
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   const handleDelete = async (tenantId: string) => {
     if (!confirm("Bạn có chắc chắn muốn xóa người thuê này?")) return
-    setIsLoading(true)
     try {
-      await deleteTenant(tenantId)
-      fetchTenants()
-      onSuccess()
-    } catch (error) {
-      alert("Lỗi khi xóa người thuê!")
-    } finally {
-      setIsLoading(false)
+      await handleDeleteTenant(tenantId, room.id)
+      await refreshCurrentRooms()
+    } catch {
+      // Error handled inside hook
     }
   }
 
   const handleEditClick = (tenant: Tenant) => {
-    setFullName(tenant.full_name)
-    setPhone(tenant.phone)
-    setEmail(tenant.email || '')
-    setIdentityCard(tenant.identity_card)
-    setStartDate(tenant.start_date.split('T')[0])
-    setCccdFile(null)
-    setContractFile(null)
+    reset({
+      fullName: tenant.full_name,
+      phone: tenant.phone,
+      email: tenant.email || '',
+      identityCard: tenant.identity_card,
+      startDate: tenant.start_date.split('T')[0]
+    })
+    setCccdFiles([])
+    setContractFiles([])
+    setExistingCccdPaths(tenant.cccd_path ? tenant.cccd_path.split(',').filter(Boolean) : [])
+    setExistingContractPaths(tenant.contract_path ? tenant.contract_path.split(',').filter(Boolean) : [])
     setEditingTenantId(tenant.id)
-  }
-
-  const getFileName = (path?: string) => {
-    if (!path) return ''
-    const parts = path.split('/')
-    return parts[parts.length - 1]
-  }
-
-  const isImagePath = (path?: string) => {
-    if (!path) return false
-    return /\.(jpg|jpeg|png|gif|webp)$/i.test(path)
+    setShowAddForm(true)
   }
 
   const handleFileClick = (path: string) => {
@@ -138,40 +160,50 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
   }
 
   const resetForm = () => {
-    setFullName('')
-    setPhone('')
-    setEmail('')
-    setIdentityCard('')
-    setStartDate(new Date().toISOString().split('T')[0])
-    setCccdFile(null)
-    setContractFile(null)
+    reset({
+      fullName: '',
+      phone: '',
+      email: '',
+      identityCard: '',
+      startDate: new Date().toISOString().split('T')[0]
+    })
+    setCccdFiles([])
+    setContractFiles([])
+    setExistingCccdPaths([])
+    setExistingContractPaths([])
     setEditingTenantId(null)
   }
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto py-10">
-        <Card className="w-full max-w-2xl bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
+      <div 
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto py-10"
+        onClick={onClose}
+      >
+        <Card 
+          className="w-full max-w-2xl bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="p-6 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50 rounded-t-xl">
             <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 text-blue-600">
               {isOccupied ? <User className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-800">
-                {showAddForm ? 'Thêm người thuê mới' : editingTenantId ? 'Sửa người thuê' : 'Danh sách người thuê'}
+                {showAddForm ? (editingTenantId ? 'Sửa người thuê' : 'Thêm người thuê mới') : 'Danh sách người thuê'}
               </h2>
-              <p className="text-sm text-slate-500">Phòng {room.name} {(!showAddForm && !editingTenantId) && `(${tenants.length}/${room.max_tenants})`}</p>
+              <p className="text-sm text-slate-500">Phòng {room.name} {(!showAddForm) && `(${tenants.length}/${room.max_tenants})`}</p>
             </div>
             <button onClick={onClose} className="ml-auto p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {isFetchingInfo ? (
+          {isFetching ? (
             <div className="p-10 text-center text-slate-500">Đang tải thông tin...</div>
           ) : (
             <div className="p-6">
-              {(!showAddForm && !editingTenantId) ? (
+              {(!showAddForm) ? (
                 <div className="space-y-6">
                   <div className="space-y-4">
                     {tenants.map((t, idx) => (
@@ -184,10 +216,10 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                             <h4 className="font-bold text-slate-800">{t.full_name}</h4>
                           </div>
                           <div className="flex items-center gap-2">
-                            <button onClick={() => handleEditClick(t)} className="p-1.5 text-slate-400 hover:text-blue-600 bg-white shadow-sm border border-slate-200 rounded-md transition-colors" title="Sửa">
+                            <button onClick={() => handleEditClick(t)} className="p-1.5 text-slate-400 hover:text-blue-600 bg-white shadow-sm border border-slate-200 rounded-md transition-colors cursor-pointer" title="Sửa">
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-600 bg-white shadow-sm border border-slate-200 rounded-md transition-colors" title="Xóa">
+                            <button disabled={isDeleting} onClick={() => handleDelete(t.id)} className="p-1.5 text-slate-400 hover:text-red-600 bg-white shadow-sm border border-slate-200 rounded-md transition-colors cursor-pointer disabled:opacity-50" title="Xóa">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider ml-1">
@@ -215,28 +247,28 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                           </div>
 
                           {(t.cccd_path || t.contract_path) && (
-                            <div className="col-span-2 grid grid-cols-1 gap-2 mt-2">
-                              {t.cccd_path && (
-                                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 group/file hover:border-blue-300 transition-colors">
+                            <div className="col-span-2 grid grid-cols-2 gap-2 mt-2 max-h-80 overflow-y-auto pr-1">
+                              {t.cccd_path && t.cccd_path.split(',').filter(Boolean).map((path, fileIdx) => (
+                                <div key={`cccd-${fileIdx}`} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 group/file hover:border-blue-300 transition-colors">
                                   <div className="flex items-center gap-2 overflow-hidden">
                                     <div className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
                                       <FileIcon className="w-3 h-3" />
                                     </div>
                                     <div className="flex flex-col overflow-hidden">
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Ảnh CCCD</span>
-                                      <span className="text-[10px] font-semibold text-slate-600 truncate">{getFileName(t.cccd_path)}</span>
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Ảnh CCCD {fileIdx > 0 ? fileIdx + 1 : ''}</span>
+                                      <span className="text-[10px] font-semibold text-slate-600 truncate">{getFileName(path)}</span>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <button
-                                      onClick={() => handleFileClick(t.cccd_path!)}
-                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                      title={isImagePath(t.cccd_path) ? "Xem ảnh" : "Tải về"}
+                                      onClick={() => handleFileClick(path)}
+                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                                      title={isImagePath(path) ? "Xem ảnh" : "Tải về"}
                                     >
-                                      {isImagePath(t.cccd_path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                                      {isImagePath(path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5 cursor-pointer" />}
                                     </button>
                                     <a
-                                      href={`${import.meta.env.VITE_API_BASE_URL || ''}${t.cccd_path}`}
+                                      href={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       download
@@ -246,28 +278,28 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                                     </a>
                                   </div>
                                 </div>
-                              )}
-                              {t.contract_path && (
-                                <div className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 group/file hover:border-blue-300 transition-colors">
+                              ))}
+                              {t.contract_path && t.contract_path.split(',').filter(Boolean).map((path, fileIdx) => (
+                                <div key={`contract-${fileIdx}`} className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 group/file hover:border-blue-300 transition-colors">
                                   <div className="flex items-center gap-2 overflow-hidden">
                                     <div className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
                                       <FileIcon className="w-3 h-3" />
                                     </div>
                                     <div className="flex flex-col overflow-hidden">
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Hợp đồng</span>
-                                      <span className="text-[10px] font-semibold text-slate-600 truncate">{getFileName(t.contract_path)}</span>
+                                      <span className="text-[9px] font-bold text-slate-400 uppercase">Hợp đồng {fileIdx > 0 ? fileIdx + 1 : ''}</span>
+                                      <span className="text-[10px] font-semibold text-slate-600 truncate">{getFileName(path)}</span>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <button
-                                      onClick={() => handleFileClick(t.contract_path!)}
+                                      onClick={() => handleFileClick(path)}
                                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                                      title={isImagePath(t.contract_path) ? "Xem ảnh" : "Tải về"}
+                                      title={isImagePath(path) ? "Xem ảnh" : "Tải về"}
                                     >
-                                      {isImagePath(t.contract_path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                                      {isImagePath(path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                                     </button>
                                     <a
-                                      href={`${import.meta.env.VITE_API_BASE_URL || ''}${t.contract_path}`}
+                                      href={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       download
@@ -277,7 +309,7 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                                     </a>
                                   </div>
                                 </div>
-                              )}
+                              ))}
                             </div>
                           )}
                         </div>
@@ -288,75 +320,123 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                   <div className="flex justify-between items-center pt-4 border-t border-slate-100">
                     <div className="flex gap-2">
                       {tenants.length < room.max_tenants && (
-                        <Button onClick={() => { resetForm(); setShowAddForm(true) }} variant="default" className="bg-blue-600 hover:bg-blue-700 font-bold gap-2">
+                        <Button onClick={() => { resetForm(); setShowAddForm(true) }} variant="default" className="bg-blue-600 hover:bg-blue-700 font-bold gap-2 cursor-pointer">
                           <Plus className="w-4 h-4" /> Thêm người ở
                         </Button>
                       )}
                     </div>
-                    <Button onClick={onClose} variant="outline" className="font-bold border-slate-200">Đóng</Button>
+                    <Button onClick={onClose} variant="outline" className="font-bold border-slate-200 cursor-pointer">Đóng</Button>
                   </div>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Họ và tên <span className="text-red-500">*</span></Label>
-                      <Input required value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Nguyễn Văn A" className="border-slate-200" />
+                      <Input {...register('fullName')} placeholder="Nguyễn Văn A" className="border-slate-200" />
+                      {errors.fullName && <span className="text-red-500 text-xs">{errors.fullName.message}</span>}
                     </div>
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Số điện thoại <span className="text-red-500">*</span></Label>
-                      <Input required value={phone} onChange={e => setPhone(e.target.value)} placeholder="09..." className="border-slate-200" />
+                      <Input {...register('phone')} placeholder="09..." className="border-slate-200" />
+                      {errors.phone && <span className="text-red-500 text-xs">{errors.phone.message}</span>}
                     </div>
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Email (Tùy chọn)</Label>
-                      <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="abc@gmail.com" className="border-slate-200" />
+                      <Input type="email" {...register('email')} placeholder="abc@gmail.com" className="border-slate-200" />
+                      {errors.email && <span className="text-red-500 text-xs">{errors.email.message}</span>}
                     </div>
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Căn cước công dân <span className="text-red-500">*</span></Label>
-                      <Input required value={identityCard} onChange={e => setIdentityCard(e.target.value)} placeholder="12 số CCCD" className="border-slate-200" />
+                      <Input {...register('identityCard')} placeholder="12 số CCCD" className="border-slate-200" />
+                      {errors.identityCard && <span className="text-red-500 text-xs">{errors.identityCard.message}</span>}
                     </div>
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Ngày bắt đầu thuê</Label>
-                      <Input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} className="border-slate-200" />
+                      <Input type="date" {...register('startDate')} className="border-slate-200" />
+                      {errors.startDate && <span className="text-red-500 text-xs">{errors.startDate.message}</span>}
                     </div>
 
                     <div className="space-y-4 col-span-2 mt-4 p-4 rounded-xl border border-slate-200 bg-white">
                       <h3 className="text-sm font-bold text-slate-800 mb-2">Tài liệu đính kèm</h3>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
                         {/* CCCD Upload */}
                         <div className="space-y-2 col-span-2 md:col-span-1">
                           <Label>Ảnh CCCD</Label>
-                          {!cccdFile ? (
+                          {existingCccdPaths.length === 0 && cccdFiles.length === 0 ? (
                             <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:bg-slate-100 hover:border-blue-300 transition-colors">
                               <Upload className="w-5 h-5 text-slate-400" />
                               <span className="text-[10px] text-slate-500 font-semibold px-4 text-center">Tải lên ảnh CCCD</span>
-                              <input type="file" accept="image/*" className="hidden" onChange={e => setCccdFile(e.target.files?.[0] || null)} />
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) setCccdFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
                             </label>
                           ) : (
                             <div className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
-                                <div className="flex items-center gap-2 overflow-hidden truncate">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                                  <span className="text-[10px] font-semibold text-blue-700 truncate">{cccdFile.name}</span>
+                              {existingCccdPaths.map((path, idx) => (
+                                <div key={`exist-cccd-${idx}`} className="flex flex-col gap-2">
+                                  <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
+                                    <div className="flex items-center gap-2 overflow-hidden truncate">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                      <span className="text-[10px] font-semibold text-blue-700 truncate">{getFileName(path)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                      <button type="button" onClick={() => setExistingCccdPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {isImagePath(path) ? (
+                                    <div
+                                      className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
+                                      onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                    >
+                                      <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <ZoomIn className="w-5 h-5" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-lg border border-slate-200 aspect-video bg-slate-50 flex flex-col items-center justify-center text-slate-400">
+                                      <FileIcon className="w-8 h-8" />
+                                      <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(cccdFile))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button type="button" onClick={() => setCccdFile(null)} className="p-1 hover:bg-blue-100 rounded-md text-slate-500">
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
+                              ))}
+                              {cccdFiles.map((file, idx) => (
+                                <div key={`new-cccd-${idx}`} className="flex flex-col gap-2">
+                                  <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
+                                    <div className="flex items-center gap-2 overflow-hidden truncate">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                      <span className="text-[10px] font-semibold text-blue-700 truncate">{file.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                        <Eye className="w-4 h-4" />
+                                      </button>
+                                      <button type="button" onClick={() => setCccdFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
+                                    onClick={() => setSelectedImageUrl(URL.createObjectURL(file))}
+                                  >
+                                    <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                      <ZoomIn className="w-5 h-5" />
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              <div
-                                className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
-                                onClick={() => setSelectedImageUrl(URL.createObjectURL(cccdFile))}
-                              >
-                                <img src={URL.createObjectURL(cccdFile)} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                  <ZoomIn className="w-5 h-5" />
-                                </div>
-                              </div>
+                              ))}
+                              <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors">
+                                <Upload className="w-4 h-4 text-slate-500" />
+                                <span className="text-xs font-semibold text-slate-600">Tải ảnh khác</span>
+                                <input type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) setCccdFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                              </label>
                             </div>
                           )}
                         </div>
@@ -364,46 +444,91 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                         {/* Contract Upload */}
                         <div className="space-y-2 col-span-2 md:col-span-1">
                           <Label>Hợp đồng</Label>
-                          {!contractFile ? (
+                          {existingContractPaths.length === 0 && contractFiles.length === 0 ? (
                             <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:bg-slate-100 hover:border-blue-300 transition-colors">
                               <Upload className="w-5 h-5 text-slate-400" />
                               <span className="text-[10px] text-slate-500 font-semibold px-4 text-center">Tải lên hợp đồng</span>
-                              <input type="file" accept=".pdf,.doc,.docx,image/*" className="hidden" onChange={e => setContractFile(e.target.files?.[0] || null)} />
+                              <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { if (e.target.files) setContractFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
                             </label>
                           ) : (
                             <div className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
-                                <div className="flex items-center gap-2 overflow-hidden truncate">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                                  <span className="text-[10px] font-semibold text-blue-700 truncate">{contractFile.name}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  {contractFile.type.startsWith('image/') && (
-                                    <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(contractFile))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
-                                      <Eye className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                  <button type="button" onClick={() => setContractFile(null)} className="p-1 hover:bg-blue-100 rounded-md text-slate-500">
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                              {contractFile.type.startsWith('image/') ? (
-                                <div
-                                  className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(URL.createObjectURL(contractFile))}
-                                >
-                                  <img src={URL.createObjectURL(contractFile)} className="w-full h-full object-cover" />
-                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                    <ZoomIn className="w-5 h-5" />
+                              {existingContractPaths.map((path, idx) => (
+                                <div key={`exist-contract-${idx}`} className="flex flex-col gap-2">
+                                  <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
+                                    <div className="flex items-center gap-2 overflow-hidden truncate">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                      <span className="text-[10px] font-semibold text-blue-700 truncate">{getFileName(path)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {isImagePath(path) && (
+                                        <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <button type="button" onClick={() => setExistingContractPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
+                                  {isImagePath(path) ? (
+                                    <div
+                                      className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
+                                      onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                    >
+                                      <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <ZoomIn className="w-5 h-5" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-lg border border-slate-200 aspect-video bg-slate-50 flex flex-col items-center justify-center text-slate-400">
+                                      <FileIcon className="w-8 h-8" />
+                                      <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                                    </div>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="rounded-lg border border-slate-200 aspect-video bg-slate-50 flex flex-col items-center justify-center text-slate-400">
-                                  <FileIcon className="w-8 h-8" />
-                                  <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                              ))}
+                              {contractFiles.map((file, idx) => (
+                                <div key={`new-contract-${idx}`} className="flex flex-col gap-2">
+                                  <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-blue-200 bg-blue-50/50">
+                                    <div className="flex items-center gap-2 overflow-hidden truncate">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                      <span className="text-[10px] font-semibold text-blue-700 truncate">{file.name}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {file.type.startsWith('image/') && (
+                                        <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                      )}
+                                      <button type="button" onClick={() => setContractFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {file.type.startsWith('image/') ? (
+                                    <div
+                                      className="relative rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer group"
+                                      onClick={() => setSelectedImageUrl(URL.createObjectURL(file))}
+                                    >
+                                      <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                        <ZoomIn className="w-5 h-5" />
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="rounded-lg border border-slate-200 aspect-video bg-slate-50 flex flex-col items-center justify-center text-slate-400">
+                                      <FileIcon className="w-8 h-8" />
+                                      <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
+                              ))}
+                              <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50 cursor-pointer hover:bg-slate-100 transition-colors">
+                                <Upload className="w-4 h-4 text-slate-500" />
+                                <span className="text-xs font-semibold text-slate-600">Tải file khác</span>
+                                <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { if (e.target.files) setContractFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                              </label>
                             </div>
                           )}
                         </div>
@@ -421,8 +546,8 @@ export function TenantRoomModal({ room, onClose, onSuccess }: TenantRoomModalPro
                         onClose()
                       }
                     }} className="border-slate-200 text-slate-600 font-bold">Hủy</Button>
-                    <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-200 transition-all">
-                      {isLoading ? 'Đang lưu...' : (editingTenantId ? 'Lưu thay đổi' : 'Xác nhận')}
+                    <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-200 transition-all">
+                      {isSubmitting ? 'Đang lưu...' : (editingTenantId ? 'Lưu thay đổi' : 'Xác nhận')}
                     </Button>
                   </div>
                 </form>

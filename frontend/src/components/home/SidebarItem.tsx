@@ -19,7 +19,7 @@ export function SidebarItem({ icon, label, active = false, onClick, collapsed = 
         : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
     }`}>
       <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-        {React.cloneElement(icon as React.ReactElement<any>, { className: 'w-5 h-5' })}
+        {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: 'w-5 h-5' })}
       </span>
       {!collapsed && <span className="whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>}
     </button>

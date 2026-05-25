@@ -1,19 +1,27 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ChevronRight, Users } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatCard } from './StatCard'
+import { CreateHouseModal } from './CreateHouseModal'
 
-export function DashboardView({ onOpenCreateHouse }: { onOpenCreateHouse: () => void }) {
+export function DashboardView() {
+  const [showCreateHouse, setShowCreateHouse] = useState(false)
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {showCreateHouse && (
+        <CreateHouseModal onClose={() => setShowCreateHouse(false)} />
+      )}
+      
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-extrabold tracking-tight text-slate-800">Chào mừng bạn trở lại! 👋</h1>
           <p className="text-slate-500 mt-2">Hôm nay mọi thứ đang diễn ra rất tốt tại các phòng trọ của bạn.</p>
         </div>
         <div className="flex items-center gap-4">
-          <Button onClick={onOpenCreateHouse} className="bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-500/20 px-6 font-semibold text-white">
+          <Button onClick={() => setShowCreateHouse(true)} className="bg-purple-600 hover:bg-purple-700 shadow-md shadow-purple-500/20 px-6 font-semibold text-white">
             <Plus className="w-4 h-4 mr-2" /> Tạo nhà trọ
           </Button>
         </div>

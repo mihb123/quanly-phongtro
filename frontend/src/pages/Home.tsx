@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { Home, LogOut, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
-import { useHomeData } from '@/hooks/useHomeData'
+
+import { useHouseStore } from '@/data/houseData'
+import { useRoomStore } from '@/data/roomData'
+import { useSelectedStore } from '@/data/selectedData'
 
 // Import extracted components
 import { SidebarItem } from '@/components/home/SidebarItem'
@@ -11,44 +14,48 @@ import { DashboardView } from '@/components/home/DashboardView'
 import { HouseRoomsView } from '@/components/home/HouseRoomsView'
 import { TenantsView } from '@/components/home/TenantsView'
 import { CreateHouseModal } from '@/components/home/CreateHouseModal'
-import { CreateRoomModal } from '@/components/home/CreateRoomModal'
-import { EditRoomModal } from '@/components/home/EditRoomModal'
 import { ConfirmModal } from '@/components/home/ConfirmModal'
-import { QuickSetRoomPriceModal } from '@/components/home/QuickSetRoomPriceModal'
-import { TenantRoomModal } from '@/components/home/TenantRoomModal'
-import { ROOMS_LIMIT } from '@/hooks/useHomeData'
-import type { Room } from '@/api/room'
+import type { House } from '@/api/house'
 
 export default function HomePage() {
   const { logout } = useAuth()
   const navigate = useNavigate()
 
-  const {
-    houses,
-    rooms,
-    selectedHouse,
-    activeTab,
-    isHouseListOpen,
-    setIsHouseListOpen,
-    isSidebarCollapsed,
-    setIsSidebarCollapsed,
-    roomPage,
-    setRoomPage,
-    fetchHouses,
-    fetchRooms,
-    handleHouseClick,
-    handleTabClick,
-    handleHouseDelete
-  } = useHomeData()
+  const { houses, fetchHouses, deleteHouse } = useHouseStore()
+  const { roomPage, fetchRooms } = useRoomStore()
+  const { 
+    selectedHouse, activeTab, isHouseListOpen, isSidebarCollapsed,
+    selectHouse, setActiveTab, setIsHouseListOpen, setIsSidebarCollapsed 
+  } = useSelectedStore()
 
   const [showCreateHouse, setShowCreateHouse] = useState(false)
-  const [showCreateRoom, setShowCreateRoom] = useState(false)
-  const [showEditRoom, setShowEditRoom] = useState<Room | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, house: any } | null>(null)
-  const [houseToDelete, setHouseToDelete] = useState<any>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, house: House } | null>(null)
+  const [houseToDelete, setHouseToDelete] = useState<House | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [showQuickSetPrice, setShowQuickSetPrice] = useState(false)
-  const [showTenantRoom, setShowTenantRoom] = useState<Room | null>(null)
+
+  // Initialize data
+  useEffect(() => {
+    fetchHouses()
+  }, [fetchHouses])
+
+  // Hydrate selected house on load
+  useEffect(() => {
+    const savedHouseId = localStorage.getItem('home_selected_house_id')
+    if (savedHouseId && houses.length > 0 && !selectedHouse) {
+      const house = houses.find(h => h.id === savedHouseId)
+      if (house) {
+        selectHouse(house)
+        fetchRooms(house.id, roomPage)
+      }
+    }
+  }, [houses, selectedHouse, selectHouse, fetchRooms, roomPage])
+
+  // Fetch rooms when selected house or page changes
+  useEffect(() => {
+    if (selectedHouse) {
+      fetchRooms(selectedHouse.id, roomPage)
+    }
+  }, [selectedHouse, roomPage, fetchRooms])
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null)
@@ -56,30 +63,26 @@ export default function HomePage() {
     return () => window.removeEventListener('click', handleClick)
   }, [])
 
+  const handleHouseClick = (house: House) => {
+    selectHouse(house)
+    useRoomStore.getState().setRoomPage(1)
+    setActiveTab('house_rooms')
+  }
+
+  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants') => {
+    setActiveTab(tab)
+    if (tab !== 'house_rooms') {
+        selectHouse(null)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-purple-200/50">
-      {/* Modals */}
+      {/* Modals triggered from sidebar context menu */}
       {showCreateHouse && (
-        <CreateHouseModal
-          onClose={() => setShowCreateHouse(false)}
-          onSuccess={() => { setShowCreateHouse(false); fetchHouses() }}
-        />
+        <CreateHouseModal onClose={() => setShowCreateHouse(false)} />
       )}
-      {showCreateRoom && selectedHouse && (
-        <CreateRoomModal
-          houseId={selectedHouse.id}
-          onClose={() => setShowCreateRoom(false)}
-          onSuccess={() => { setShowCreateRoom(false); fetchRooms(selectedHouse.id, roomPage) }}
-        />
-      )}
-      {showEditRoom && selectedHouse && (
-        <EditRoomModal
-          house={selectedHouse}
-          room={showEditRoom}
-          onClose={() => setShowEditRoom(null)}
-          onSuccess={() => { setShowEditRoom(null); fetchRooms(selectedHouse.id, roomPage) }}
-        />
-      )}
+      
       {houseToDelete && (
         <ConfirmModal
           title={`Xóa nhà: ${houseToDelete.name}`}
@@ -90,24 +93,19 @@ export default function HomePage() {
           onCancel={() => setHouseToDelete(null)}
           onConfirm={async () => {
             setIsDeleting(true)
-            await handleHouseDelete(houseToDelete.id)
+            const success = await deleteHouse(houseToDelete.id)
+            if (success) {
+              await fetchHouses()
+              if (selectedHouse?.id === houseToDelete.id) {
+                selectHouse(null)
+                setActiveTab('dashboard')
+              }
+            } else {
+              alert("Lỗi khi xóa nhà trọ, vui lòng thử lại!")
+            }
             setIsDeleting(false)
             setHouseToDelete(null)
           }}
-        />
-      )}
-      {showQuickSetPrice && selectedHouse && (
-        <QuickSetRoomPriceModal
-          rooms={rooms}
-          onClose={() => setShowQuickSetPrice(false)}
-          onSuccess={() => { setShowQuickSetPrice(false); fetchRooms(selectedHouse.id, roomPage) }}
-        />
-      )}
-      {showTenantRoom && (
-        <TenantRoomModal
-          room={showTenantRoom}
-          onClose={() => setShowTenantRoom(null)}
-          onSuccess={() => { setShowTenantRoom(null); if(selectedHouse) fetchRooms(selectedHouse.id, roomPage) }}
         />
       )}
 
@@ -266,25 +264,15 @@ export default function HomePage() {
         <main className="flex-1 overflow-auto p-4 md:p-8 relative transition-all duration-300">
           <div className="max-w-6xl mx-auto space-y-8">
             {activeTab === 'dashboard' && (
-              <DashboardView onOpenCreateHouse={() => setShowCreateHouse(true)} />
+              <DashboardView />
             )}
 
-            {activeTab === 'house_rooms' && selectedHouse && (
-              <HouseRoomsView
-                house={selectedHouse}
-                rooms={rooms}
-                onOpenCreateRoom={() => setShowCreateRoom(true)}
-                onEditRoom={(room) => setShowEditRoom(room)}
-                onClickRoom={(room) => setShowTenantRoom(room)}
-                onOpenQuickSetRoomPrice={() => setShowQuickSetPrice(true)}
-                page={roomPage}
-                onPageChange={setRoomPage}
-                limit={ROOMS_LIMIT}
-              />
+            {activeTab === 'house_rooms' && (
+              <HouseRoomsView />
             )}
 
             {activeTab === 'tenants' && (
-              <TenantsView houses={houses} />
+              <TenantsView />
             )}
           </div>
         </main>
