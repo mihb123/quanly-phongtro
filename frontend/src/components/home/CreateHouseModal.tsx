@@ -56,7 +56,7 @@ export function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void, 
                  house_id: house.id,
                  name: roomName,
                  price: 0,
-                 max_tennants: 2,
+                 max_tenants: 2,
                  status: 'AVAILABLE'
               }))
            }

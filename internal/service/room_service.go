@@ -21,15 +21,10 @@ type RoomService interface {
 }
 
 type UpdateRoomInput struct {
-	Name             *string
-	Price            *int64
-	MaxTennants      *int
-	Status           *string
-	ElectricityPrice *float64
-	WaterPrice       *float64
-	WifiPrice        *float64
-	ParkingPrice     *float64
-	ServicePrice     *float64
+	Name       *string
+	Price      *int64
+	Maxtenants *int
+	Status     *string
 }
 
 type RoomServiceImpl struct {
@@ -62,15 +57,7 @@ func (s *RoomServiceImpl) CreateRoom(ctx context.Context, room *model.Room, mana
 		return ErrInvalidManagerID
 	}
 	//skip checkownership as getByID already does
-	house, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID)
-	if err != nil {
-		return err
-	}
-	room.ElectricityPrice = &house.DefaultElectricityPrice
-	room.ParkingPrice = &house.DefaultParkingPrice
-	room.ServicePrice = &house.DefaultServicePrice
-	room.WaterPrice = &house.DefaultWaterPrice
-	room.WifiPrice = &house.DefaultWifiPrice
+	s.houseRepo.GetByID(ctx, room.HouseID, managerID)
 	return s.roomRepo.CreateRoom(ctx, room)
 }
 
@@ -118,15 +105,10 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		return nil, err
 	}
 	params := model.UpdateRoomParams{
-		Name:             input.Name,
-		Price:            input.Price,
-		MaxTennants:      input.MaxTennants,
-		Status:           input.Status,
-		ElectricityPrice: input.ElectricityPrice,
-		WaterPrice:       input.WaterPrice,
-		WifiPrice:        input.WifiPrice,
-		ParkingPrice:     input.ParkingPrice,
-		ServicePrice:     input.ServicePrice,
+		Name:       input.Name,
+		Price:      input.Price,
+		Maxtenants: input.Maxtenants,
+		Status:     input.Status,
 	}
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)
 }

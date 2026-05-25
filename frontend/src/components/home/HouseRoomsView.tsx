@@ -76,7 +76,7 @@ export function HouseRoomsView({
                   </div>
                   <div className="flex justify-between items-center p-2">
                     <span>Sức chứa:</span>
-                    <span className="font-semibold text-slate-800">{room.max_tennants} người</span>
+                    <span className="font-semibold text-slate-800">{room.max_tenants} người</span>
                   </div>
                 </div>
               </Card>

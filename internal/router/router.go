@@ -10,7 +10,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
-func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tenantHandler *handler.TenantHandler, tokens *security.JWTProvider) http.Handler {
+func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tokenProvider *security.JWTProvider, tenantHandler *handler.TenantHandler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
 	r.Use(middleware.Logger)
@@ -22,16 +22,16 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 		r.Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
 		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware(tokens))
+			r.Use(authMiddleware(tokenProvider))
 			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
-		r.With(authMiddleware(tokens)).Get("/me", authHandler.GetMe)
+		r.With(authMiddleware(tokenProvider)).Get("/me", authHandler.GetMe)
 		r.Post("/logout", authHandler.Logout)
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {
-		r.Use(authMiddleware(tokens))
+		r.Use(authMiddleware(tokenProvider))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/create", houseHandler.CreateHouse)
 		r.Get("/{id}", houseHandler.GetHouseByID)
@@ -40,7 +40,7 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 		r.Delete("/{id}", houseHandler.DeleteHouse)
 	})
 	r.Route("/api/v1/room", func(r chi.Router) {
-		r.Use(authMiddleware(tokens))
+		r.Use(authMiddleware(tokenProvider))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", roomHandler.CreateRoom)
 		r.Get("/", roomHandler.ListRooms)
@@ -50,9 +50,10 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 	})
 
 	r.Route("/api/v1/tenant", func(r chi.Router) {
-		r.Use(authMiddleware(tokens))
-		r.Post("/", tenantHandler.CreateTenant)
-		r.Get("/room/{roomId}", tenantHandler.GetTenantByRoom)
+		r.Use(authMiddleware(tokenProvider))
+		r.Use(requireRole("MANAGER"))
+		r.Post("/", tenantHandler.RegisterTenant)
+		r.Get("/room/{id}", tenantHandler.ListTenantByRoomID)
 		r.Patch("/{id}", tenantHandler.UpdateTenantInfo)
 		r.Delete("/{id}", tenantHandler.DeleteTenant)
 		r.Handle("/files/*", http.StripPrefix("/api/v1/tenant/files/", http.FileServer(http.Dir("uploads/tenants"))))

@@ -5,7 +5,7 @@ export interface Room {
   house_id: string
   name: string
   price: number
-  max_tennants: number
+  max_tenants: number
   status: string
   electricity_price?: number
   water_price?: number

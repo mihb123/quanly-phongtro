@@ -5,29 +5,26 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/uptrace/bun"
 )
 
 type RoomRepository struct {
-	db *sql.DB
+	db *bun.DB
 }
 
-func NewRoomRepository(db *sql.DB) *RoomRepository {
+func NewRoomRepository(db *bun.DB) *RoomRepository {
 	return &RoomRepository{db: db}
 }
 
 // CreateRoom inserts a new room. Ownership must be verified by the caller before this.
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
-	const query = `
-		INSERT INTO rooms (house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id, created_at, updated_at`
-	err := r.db.QueryRowContext(ctx, query,
-		room.HouseID, room.Name, room.Price, room.MaxTennants, room.Status,
-		room.ElectricityPrice, room.WaterPrice, room.WifiPrice, room.ParkingPrice, room.ServicePrice,
-	).Scan(&room.ID, &room.CreatedAt, &room.UpdatedAt)
+	_, err := r.db.NewInsert().
+		Model(room).
+		Column("house_id", "name", "price", "max_tenants", "status").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("create room: %w", err)
 	}
@@ -38,24 +35,11 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 // GetRoomByID fetches a room by its id. If houseID is provided, it must match.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*model.Room, error) {
-	query := `
-		SELECT id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at
-		FROM   rooms
-		WHERE  id = $1`
-	
-	args := []any{id}
-	if houseID != "" {
-		query += " AND house_id = $2"
-		args = append(args, houseID)
-	}
-
 	var room model.Room
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
-		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status,
-		&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
-		&room.CreatedAt, &room.UpdatedAt,
-	)
+	err := r.db.NewSelect().
+		Model(&room).
+		Where("id = ? AND house_id = ?", id, houseID).
+		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound
@@ -68,33 +52,17 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 // ListRoomsByHouseID lists rooms for a house with pagination.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]model.Room, error) {
-	const query = `
-		SELECT id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at
-		FROM   rooms
-		WHERE  house_id = $1
-		ORDER BY name ASC
-		LIMIT $2 OFFSET $3`
-	rows, err := r.db.QueryContext(ctx, query, houseID, limit, offset)
+	var rooms []model.Room
+	err := r.db.NewSelect().
+		Model(&rooms).
+		Where("house_id = ?", houseID).
+		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Scan(ctx)
+		
 	if err != nil {
 		return nil, fmt.Errorf("list rooms: %w", err)
-	}
-	defer rows.Close()
-
-	var rooms []model.Room
-	for rows.Next() {
-		var room model.Room
-		if err := rows.Scan(
-			&room.ID, &room.HouseID, &room.Name, &room.Price,
-			&room.MaxTennants, &room.Status,
-			&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
-			&room.CreatedAt, &room.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("list rooms scan: %w", err)
-		}
-		rooms = append(rooms, room)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list rooms rows: %w", err)
 	}
 	return rooms, nil
 }
@@ -102,87 +70,35 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 // UpdateRoom partially updates a room within a specific house.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, params model.UpdateRoomParams) (*model.Room, error) {
-	var setClauses []string
-	args := []any{}
-	argIdx := 1
+	q := r.db.NewUpdate().
+		Model((*model.Room)(nil)).
+		Where("id = ? AND house_id = ?", id, houseID).
+		Returning("id, house_id, name, price, max_tenants, status, created_at, updated_at")
 
+	updated := false
 	if params.Name != nil {
-		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIdx))
-		args = append(args, *params.Name)
-		argIdx++
+		q.Set("name = ?", *params.Name)
+		updated = true
 	}
 	if params.Price != nil {
-		setClauses = append(setClauses, fmt.Sprintf("price = $%d", argIdx))
-		args = append(args, *params.Price)
-		argIdx++
+		q.Set("price = ?", *params.Price)
+		updated = true
 	}
-	if params.MaxTennants != nil {
-		setClauses = append(setClauses, fmt.Sprintf("max_tennants = $%d", argIdx))
-		args = append(args, *params.MaxTennants)
-		argIdx++
+	if params.Maxtenants != nil {
+		q.Set("max_tenants = ?", *params.Maxtenants)
+		updated = true
 	}
 	if params.Status != nil {
-		setClauses = append(setClauses, fmt.Sprintf("status = $%d", argIdx))
-		args = append(args, *params.Status)
-		argIdx++
+		q.Set("status = ?", *params.Status)
+		updated = true
 	}
-	if params.ElectricityPrice != nil {
-		setClauses = append(setClauses, fmt.Sprintf("electricity_price = $%d", argIdx))
-		args = append(args, *params.ElectricityPrice)
-		argIdx++
-	}
-	if params.WaterPrice != nil {
-		setClauses = append(setClauses, fmt.Sprintf("water_price = $%d", argIdx))
-		args = append(args, *params.WaterPrice)
-		argIdx++
-	}
-	if params.WifiPrice != nil {
-		setClauses = append(setClauses, fmt.Sprintf("wifi_price = $%d", argIdx))
-		args = append(args, *params.WifiPrice)
-		argIdx++
-	}
-	if params.ParkingPrice != nil {
-		setClauses = append(setClauses, fmt.Sprintf("parking_price = $%d", argIdx))
-		args = append(args, *params.ParkingPrice)
-		argIdx++
-	}
-	if params.ServicePrice != nil {
-		setClauses = append(setClauses, fmt.Sprintf("service_price = $%d", argIdx))
-		args = append(args, *params.ServicePrice)
-		argIdx++
-	}
-
-	if len(setClauses) == 0 {
+	if !updated {
 		return nil, fmt.Errorf("update room: no fields to update")
 	}
-	setClauses = append(setClauses, "updated_at = NOW()")
-
-	// Append WHERE args: id.
-	args = append(args, id)
-	whereClause := fmt.Sprintf("WHERE id = $%d", argIdx)
-	argIdx++
-
-	if houseID != "" {
-		whereClause += fmt.Sprintf(" AND house_id = $%d", argIdx)
-		args = append(args, houseID)
-	}
-
-	query := fmt.Sprintf(`
-		UPDATE rooms
-		SET    %s
-		%s
-		RETURNING id, house_id, name, price, max_tennants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at`,
-		strings.Join(setClauses, ", "),
-		whereClause,
-	)
+	q.Set("updated_at = NOW()")
 
 	var room model.Room
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
-		&room.ID, &room.HouseID, &room.Name, &room.Price,
-		&room.MaxTennants, &room.Status,
-		&room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice,
-		&room.CreatedAt, &room.UpdatedAt,
-	)
+	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.Maxtenants, &room.Status, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound
@@ -195,17 +111,51 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 // DeleteRoom deletes a room within a specific house.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) DeleteRoom(ctx context.Context, id, houseID string) error {
-	const query = `DELETE FROM rooms WHERE id = $1 AND house_id = $2`
-	result, err := r.db.ExecContext(ctx, query, id, houseID)
+	res, err := r.db.NewDelete().
+		Model((*model.Room)(nil)).
+		Where("id = ? AND house_id = ?", id, houseID).
+		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("delete room: %w", err)
 	}
-	n, err := result.RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("delete room rows affected: %w", err)
 	}
 	if n == 0 {
 		return model.ErrRoomNotFound
+	}
+	return nil
+}
+
+func (r *RoomRepository) GetMaxTenants(ctx context.Context, roomID string) (int64, error) {
+	var maxTenants int64
+	err := r.db.NewSelect().
+		Model((*model.Room)(nil)).
+		Column("max_tenants").
+		Where("id = ?", roomID).
+		Scan(ctx, &maxTenants)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, model.ErrNotFound
+		}
+		return 0, fmt.Errorf("error get max tenant by id: %v", err)
+	}
+	return maxTenants, nil
+}
+
+func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status string) error {
+	res, err := r.db.NewUpdate().
+		Model((*model.Room)(nil)).
+		Set("status = ?", status).
+		Where("id = ?", roomID).
+		Exec(ctx)
+	if err != nil {
+		return err
+	}
+	row, err := res.RowsAffected()
+	if err != nil || row == 0 {
+		return model.ErrNotFound
 	}
 	return nil
 }

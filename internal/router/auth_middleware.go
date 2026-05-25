@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handler {

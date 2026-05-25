@@ -13,21 +13,21 @@ interface QuickSetRoomPriceModalProps {
 }
 
 export function QuickSetRoomPriceModal({ rooms, onClose, onSuccess }: QuickSetRoomPriceModalProps) {
-  const [roomData, setRoomData] = useState<Record<string, { price: string, max_tennants: string }>>({})
+  const [roomData, setRoomData] = useState<Record<string, { price: string, max_tenants: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
 
   useEffect(() => {
-    const initialData: Record<string, { price: string, max_tennants: string }> = {}
+    const initialData: Record<string, { price: string, max_tenants: string }> = {}
     rooms.forEach(room => {
       initialData[room.id] = {
         price: room.price?.toString() || '0',
-        max_tennants: room.max_tennants?.toString() || '2'
+        max_tenants: room.max_tenants?.toString() || '2'
       }
     })
     setRoomData(initialData)
   }, [rooms])
 
-  const handleInputChange = (id: string, field: 'price' | 'max_tennants', value: string) => {
+  const handleInputChange = (id: string, field: 'price' | 'max_tenants', value: string) => {
     setRoomData(prev => ({
       ...prev,
       [id]: {
@@ -43,10 +43,11 @@ export function QuickSetRoomPriceModal({ rooms, onClose, onSuccess }: QuickSetRo
       const promises = Object.entries(roomData).map(([id, data]) => {
         const originalRoom = rooms.find(r => r.id === id)
         // Only update if changed
-        if (originalRoom && (originalRoom.price?.toString() !== data.price || originalRoom.max_tennants?.toString() !== data.max_tennants)) {
+        if (originalRoom && (originalRoom.price?.toString() !== data.price || originalRoom.max_tenants?.toString() !== data.max_tenants)) {
           return updateRoom(id, {
+            house_id: originalRoom.house_id,
             price: parseNumber(data.price),
-            max_tennants: Number(data.max_tennants)
+            max_tenants: Number(data.max_tenants)
           })
         }
         return Promise.resolve()
@@ -105,8 +106,8 @@ export function QuickSetRoomPriceModal({ rooms, onClose, onSuccess }: QuickSetRo
                   <div className="col-span-4">
                     <Input
                       type="number"
-                      value={roomData[room.id]?.max_tennants || ''}
-                      onChange={e => handleInputChange(room.id, 'max_tennants', e.target.value)}
+                      value={roomData[room.id]?.max_tenants || ''}
+                      onChange={e => handleInputChange(room.id, 'max_tenants', e.target.value)}
                       className="h-9 border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
                     />
                   </div>

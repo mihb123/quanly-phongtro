@@ -19,7 +19,7 @@ export function CreateRoomModal({ houseId, onClose, onSuccess }: { houseId: stri
         house_id: houseId, 
         name, 
         price: Number(price), 
-        max_tennants: Number(maxTennants),
+        max_tenants: Number(maxTennants),
         status: 'AVAILABLE'
       })
       onSuccess()

@@ -6,259 +6,280 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
+	"github.com/lib/pq"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/uptrace/bun"
 )
 
 type TenantRepository struct {
-	db *sql.DB
+	db *bun.DB
 }
 
-func NewTenantRepository(db *sql.DB) *TenantRepository {
+func NewTenantRepository(db *bun.DB) *TenantRepository {
 	return &TenantRepository{db: db}
 }
 
-// CreateTenant inserts a new tenant into the database.
-func (r *TenantRepository) CreateTenant(ctx context.Context, tenant *model.Tenant) error {
-	const query = `
-		INSERT INTO tenants (room_id, created_by, full_name, phone, identity_card, email, start_date, status, cccd_path, contract_path)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-		RETURNING id, created_at, updated_at`
-	
-	err := r.db.QueryRowContext(ctx, query,
-		tenant.RoomID, tenant.CreatedBy, tenant.FullName, tenant.Phone,
-		tenant.IdentityCard, tenant.Email, tenant.StartDate, tenant.Status,
-		tenant.CCCDPath, tenant.ContractPath,
-	).Scan(&tenant.ID, &tenant.CreatedAt, &tenant.UpdatedAt)
-	
+// CreateTenantWithAccount creates the login account, tenant profile, and room status in one transaction.
+func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *model.User, tenant *model.Tenant) error {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("create tenant: %w", err)
+		return fmt.Errorf("begin tenant registration transaction: %w", err)
+	}
+
+	_, err = tx.NewInsert().
+		Model(user).
+		Column("email", "password_hash", "role", "full_name", "phone", "is_activated").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
+
+	if err != nil {
+		return rollbackTenantTx(tx, translateCreateUserError(err), "create tenant account")
+	}
+
+	tenant.UserID = user.ID
+	
+	_, err = tx.NewInsert().
+		Model(tenant).
+		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
+
+	if err != nil {
+		return rollbackTenantTx(tx, err, "create tenant profile")
+	}
+
+	res, err := tx.NewUpdate().
+		Model((*model.Room)(nil)).
+		Set("status = ?", "OCCUPIED").
+		Where("id = ?", tenant.RoomID).
+		Exec(ctx)
+
+	if err != nil {
+		return rollbackTenantTx(tx, err, "update room status")
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return rollbackTenantTx(tx, err, "update room status rows affected")
+	}
+	if rowsAffected == 0 {
+		return rollbackTenantTx(tx, model.ErrNotFound, "update room status")
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tenant registration transaction: %w", err)
 	}
 	return nil
 }
 
-// GetTenantByID fetches a tenant by its ID.
-func (r *TenantRepository) GetTenantByID(ctx context.Context, id string) (*model.Tenant, error) {
-	const query = `
-		SELECT id, room_id, created_by, full_name, phone, identity_card, email, start_date, end_date, status, cccd_path, contract_path, created_at, updated_at
-		FROM tenants
-		WHERE id = $1`
+// AssignRoom inserts a tenant profile linked to a tenant login account.
+func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant) error {
+	_, err := r.db.NewInsert().
+		Model(tenant).
+		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
+		Returning("id, created_at, updated_at").
+		Exec(ctx)
+		
+	if err != nil {
+		return fmt.Errorf("assign room: %w", err)
+	}
+	return nil
+}
+
+// GetCurrentNumTenantInRoom returns the number of active tenants in a room.
+func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID string) (int64, error) {
+	count, err := r.db.NewSelect().
+		Model((*model.Tenant)(nil)).
+		Where("room_id = ? AND status = ?", roomID, string(model.TenantStatusActive)).
+		Count(ctx)
+		
+	if err != nil {
+		return 0, fmt.Errorf("get current num tenant in room: %w", err)
+	}
+	return int64(count), nil
+}
+
+// ListTenantByRoomID retrieves tenant profile and account fields for a room.
+func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error) {
+	var tenants []model.FullInfoTenant
 	
-	var tenant model.Tenant
-	var email, cccd, contract sql.NullString
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&tenant.ID, &tenant.RoomID, &tenant.CreatedBy, &tenant.FullName,
-		&tenant.Phone, &tenant.IdentityCard, &email, &tenant.StartDate, &tenant.EndDate,
-		&tenant.Status, &cccd, &contract, &tenant.CreatedAt, &tenant.UpdatedAt,
-	)
-	if err == nil {
-		tenant.Email = email.String
-		tenant.CCCDPath = cccd.String
-		tenant.ContractPath = contract.String
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
+		ColumnExpr("t.start_date, t.end_date, t.status").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Where("t.room_id = ?", roomID).
+		Where("t.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive)).
+		Scan(ctx, &tenants)
+		
+	if err != nil {
+		return nil, fmt.Errorf("list tenant by room id: %w", err)
 	}
 	
+	for i := range tenants {
+		if tenants[i].StartDate != "" {
+			tenants[i].StartDate = tenants[i].StartDate[:10]
+		}
+		if tenants[i].EndDate != "" {
+			tenants[i].EndDate = tenants[i].EndDate[:10]
+		}
+	}
+	
+	return tenants, nil
+}
+
+// GetTenantByID retrieves one tenant profile and its account fields.
+func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantID string) (*model.FullInfoTenant, error) {
+	var ft model.FullInfoTenant
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
+		ColumnExpr("t.start_date, t.end_date, t.status").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Where("t.id = ?", tenantID).
+		Scan(ctx, &ft)
+		
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound
 		}
 		return nil, fmt.Errorf("get tenant by id: %w", err)
 	}
-	return &tenant, nil
+	if ft.ManagerID != managerID {
+		return nil, model.ErrUnauthorized
+	}
+	
+	if ft.StartDate != "" {
+		ft.StartDate = ft.StartDate[:10]
+	}
+	if ft.EndDate != "" {
+		ft.EndDate = ft.EndDate[:10]
+	}
+
+	return &ft, nil
 }
 
-// GetTenantByRoomID fetches the ACTIVE tenant for a specific room.
-func (r *TenantRepository) GetTenantByRoomID(ctx context.Context, roomID string) (*model.Tenant, error) {
-	const query = `
-		SELECT id, room_id, created_by, full_name, phone, identity_card, email, start_date, end_date, status, cccd_path, contract_path, created_at, updated_at
-		FROM tenants
-		WHERE room_id = $1 AND status = 'ACTIVE'
-		ORDER BY created_at DESC LIMIT 1`
-	
-	var tenant model.Tenant
-	var email, cccd, contract sql.NullString
-	err := r.db.QueryRowContext(ctx, query, roomID).Scan(
-		&tenant.ID, &tenant.RoomID, &tenant.CreatedBy, &tenant.FullName,
-		&tenant.Phone, &tenant.IdentityCard, &email, &tenant.StartDate, &tenant.EndDate,
-		&tenant.Status, &cccd, &contract, &tenant.CreatedAt, &tenant.UpdatedAt,
-	)
-	if err == nil {
-		tenant.Email = email.String
-		tenant.CCCDPath = cccd.String
-		tenant.ContractPath = contract.String
+// UpdateTenant partially updates tenant profile fields only.
+func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, input model.UpdateTenantInput) (*model.Tenant, error) {
+	q := r.db.NewUpdate().
+		Model((*model.Tenant)(nil)).
+		Where("id = ?", tenantID).
+		Returning("id, user_id, room_id, manager_id").
+		Returning("identity_card, cccd_path, contract_path").
+		Returning("start_date, end_date, status").
+		Returning("created_at, updated_at")
+
+	updated := false
+	if input.IdentityCard != nil {
+		q.Set("identity_card = ?", *input.IdentityCard)
+		updated = true
 	}
+	if input.CCCDPath != nil {
+		q.Set("cccd_path = ?", *input.CCCDPath)
+		updated = true
+	}
+	if input.ContractPath != nil {
+		q.Set("contract_path = ?", *input.ContractPath)
+		updated = true
+	}
+	if !updated {
+		return r.getTenantRecordByID(ctx, tenantID)
+	}
+
+	q.Set("updated_at = NOW()")
+
+	var tenant model.Tenant
+	err := q.Scan(ctx, &tenant)
 	
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound
 		}
-		return nil, fmt.Errorf("get tenant by room id: %w", err)
+		return nil, fmt.Errorf("update tenant: %w", err)
 	}
 	return &tenant, nil
 }
-// ListActiveTenantsByRoomID fetches all ACTIVE tenants for a specific room.
-func (r *TenantRepository) ListActiveTenantsByRoomID(ctx context.Context, roomID string) ([]*model.Tenant, error) {
-	const query = `
-		SELECT id, room_id, created_by, full_name, phone, identity_card, email, start_date, end_date, status, cccd_path, contract_path, created_at, updated_at
-		FROM tenants
-		WHERE room_id = $1 AND status = 'ACTIVE'
-		ORDER BY created_at ASC`
-	
-	rows, err := r.db.QueryContext(ctx, query, roomID)
-	if err != nil {
-		return nil, fmt.Errorf("list active tenants by room id: %w", err)
-	}
-	defer rows.Close()
-	
-	var tenants []*model.Tenant
-	for rows.Next() {
-		var tenant model.Tenant
-		var email, cccd, contract sql.NullString
-		err := rows.Scan(
-			&tenant.ID, &tenant.RoomID, &tenant.CreatedBy, &tenant.FullName,
-			&tenant.Phone, &tenant.IdentityCard, &email, &tenant.StartDate, &tenant.EndDate,
-			&tenant.Status, &cccd, &contract, &tenant.CreatedAt, &tenant.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scan active tenant: %w", err)
-		}
-		tenant.Email = email.String
-		tenant.CCCDPath = cccd.String
-		tenant.ContractPath = contract.String
-		tenants = append(tenants, &tenant)
-	}
-	return tenants, nil
-}
 
-// CountActiveTenantsByRoomID counts the current active tenants in a room.
-func (r *TenantRepository) CountActiveTenantsByRoomID(ctx context.Context, roomID string) (int, error) {
-	const query = `
-		SELECT COUNT(*)
-		FROM tenants
-		WHERE room_id = $1 AND status = 'ACTIVE'`
-	
-	var count int
-	err := r.db.QueryRowContext(ctx, query, roomID).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("count active tenants: %w", err)
-	}
-	return count, nil
-}
-
-// UpdateTenantStatus updates the status and end date of a tenant manually.
-func (r *TenantRepository) UpdateTenantStatus(ctx context.Context, id string, status model.TenantStatus, endDate *time.Time) error {
-	const query = `
-		UPDATE tenants
-		SET status = $2, end_date = $3, updated_at = NOW()
-		WHERE id = $1`
+// VerifyTenantOwnership checks that a tenant profile belongs to the manager.
+func (r *TenantRepository) VerifyTenantOwnership(ctx context.Context, managerID, tenantID string) error {
+	var storedManagerID string
+	err := r.db.NewSelect().
+		Model((*model.Tenant)(nil)).
+		Column("manager_id").
+		Where("id = ?", tenantID).
+		Scan(ctx, &storedManagerID)
 		
-	result, err := r.db.ExecContext(ctx, query, id, status, endDate)
 	if err != nil {
-		return fmt.Errorf("update tenant status: %w", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.ErrTenantNotFound
+		}
+		return fmt.Errorf("verify tenant ownership: %w", err)
 	}
-	
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("update tenant status rows affected: %w", err)
+	if storedManagerID != managerID {
+		return model.ErrUnauthorized
 	}
-	if rows == 0 {
-		return model.ErrTenantNotFound
-	}
-	
 	return nil
 }
 
-// UpdateTenantInfo partially updates tenant identifying information.
-func (r *TenantRepository) UpdateTenantInfo(ctx context.Context, id string, params model.UpdateTenantParams) (*model.Tenant, error) {
-	var setClauses []string
-	args := []any{}
-	argIdx := 1
+// DeleteTenant marks the tenant profile inactive and returns its room id.
+func (r *TenantRepository) DeleteTenant(ctx context.Context, tenantID string) (string, error) {
+	var roomID string
+	err := r.db.NewUpdate().
+		Model((*model.Tenant)(nil)).
+		Set("status = ?", string(model.TenantStatusInactive)).
+		Set("end_date = COALESCE(end_date, CURRENT_DATE)").
+		Set("updated_at = NOW()").
+		Where("id = ?", tenantID).
+		Returning("room_id").
+		Scan(ctx, &roomID)
+		
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", model.ErrTenantNotFound
+		}
+		return "", fmt.Errorf("delete tenant: %w", err)
+	}
+	return roomID, nil
+}
 
-	if params.FullName != nil {
-		setClauses = append(setClauses, fmt.Sprintf("full_name = $%d", argIdx))
-		args = append(args, *params.FullName)
-		argIdx++
-	}
-	if params.Phone != nil {
-		setClauses = append(setClauses, fmt.Sprintf("phone = $%d", argIdx))
-		args = append(args, *params.Phone)
-		argIdx++
-	}
-	if params.Email != nil {
-		setClauses = append(setClauses, fmt.Sprintf("email = $%d", argIdx))
-		args = append(args, *params.Email)
-		argIdx++
-	}
-	if params.IdentityCard != nil {
-		setClauses = append(setClauses, fmt.Sprintf("identity_card = $%d", argIdx))
-		args = append(args, *params.IdentityCard)
-		argIdx++
-	}
-	if params.StartDate != nil {
-		setClauses = append(setClauses, fmt.Sprintf("start_date = $%d", argIdx))
-		args = append(args, *params.StartDate)
-		argIdx++
-	}
-	if params.CCCDPath != nil {
-		setClauses = append(setClauses, fmt.Sprintf("cccd_path = $%d", argIdx))
-		args = append(args, *params.CCCDPath)
-		argIdx++
-	}
-	if params.ContractPath != nil {
-		setClauses = append(setClauses, fmt.Sprintf("contract_path = $%d", argIdx))
-		args = append(args, *params.ContractPath)
-		argIdx++
-	}
-
-	if len(setClauses) == 0 {
-		return nil, fmt.Errorf("update tenant info: no fields to update")
-	}
-	setClauses = append(setClauses, "updated_at = NOW()")
-
-	// Append WHERE args: id.
-	args = append(args, id)
-
-	query := fmt.Sprintf(`
-		UPDATE tenants
-		SET    %s
-		WHERE  id = $%d
-		RETURNING id, room_id, created_by, full_name, phone, identity_card, email, start_date, end_date, status, cccd_path, contract_path, created_at, updated_at`,
-		strings.Join(setClauses, ", "),
-		argIdx,
-	)
-
+// getTenantRecordByID retrieves the raw tenant record without account fields.
+func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID string) (*model.Tenant, error) {
 	var tenant model.Tenant
-	var email, cccd, contract sql.NullString
-	err := r.db.QueryRowContext(ctx, query, args...).Scan(
-		&tenant.ID, &tenant.RoomID, &tenant.CreatedBy, &tenant.FullName,
-		&tenant.Phone, &tenant.IdentityCard, &email, &tenant.StartDate, &tenant.EndDate,
-		&tenant.Status, &cccd, &contract, &tenant.CreatedAt, &tenant.UpdatedAt,
-	)
+	err := r.db.NewSelect().
+		Model(&tenant).
+		Where("id = ?", tenantID).
+		Scan(ctx)
+		
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound
 		}
-		return nil, fmt.Errorf("update tenant info: %w", err)
+		return nil, fmt.Errorf("get tenant record by id: %w", err)
 	}
-	tenant.Email = email.String
-	tenant.CCCDPath = cccd.String
-	tenant.ContractPath = contract.String
 	return &tenant, nil
 }
 
-// DeleteTenant deletes a tenant.
-func (r *TenantRepository) DeleteTenant(ctx context.Context, id string) error {
-	const query = `DELETE FROM tenants WHERE id = $1`
-	result, err := r.db.ExecContext(ctx, query, id)
-	if err != nil {
-		return fmt.Errorf("delete tenant: %w", err)
+// rollbackTenantTx rolls back a tenant transaction and preserves the original cause.
+func rollbackTenantTx(tx bun.Tx, cause error, operation string) error {
+	if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+		return fmt.Errorf("%s: %w; rollback tenant transaction: %v", operation, cause, err)
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("delete tenant rows affected: %w", err)
+	return fmt.Errorf("%s: %w", operation, cause)
+}
+
+// translateCreateUserError maps database user insert errors to domain errors.
+func translateCreateUserError(err error) error {
+	if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" && strings.Contains(pqErr.Constraint, "users_email") {
+		return model.ErrAlreadyExists
 	}
-	if rows == 0 {
-		return model.ErrTenantNotFound
-	}
-	return nil
+	return err
 }

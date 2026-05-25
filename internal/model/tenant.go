@@ -7,7 +7,9 @@ import (
 )
 
 var (
+	ErrMaxTenans = errors.New("the room is full of capacity")
 	ErrTenantNotFound = errors.New("tenant not found")
+	ErrUnauthorized = errors.New("unauthorized: manager does not own this tenant")
 )
 
 type TenantStatus string
@@ -19,39 +21,55 @@ const (
 
 type Tenant struct {
 	ID           string       `json:"id"`
+	UserID       string       `json:"user_id"`
 	RoomID       string       `json:"room_id"`
-	CreatedBy    string       `json:"created_by"`
-	FullName     string       `json:"full_name"`
-	Phone        string       `json:"phone"`
+	ManagerID    string       `json:"manager_id"`
 	IdentityCard string       `json:"identity_card"`
-	Email        string       `json:"email,omitempty"`
+	CCCDPath     string       `json:"cccd_path" bun:"cccd_path"`
+	ContractPath string       `json:"contract_path"`
 	StartDate    time.Time    `json:"start_date"`
-	EndDate      *time.Time   `json:"end_date,omitempty"`
+	EndDate      *time.Time   `json:"end_date"`
 	Status       TenantStatus `json:"status"`
-	CCCDPath     string       `json:"cccd_path,omitempty"`
-	ContractPath string       `json:"contract_path,omitempty"`
 	CreatedAt    time.Time    `json:"created_at"`
 	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
-type TenantRepository interface {
-	CreateTenant(ctx context.Context, tenant *Tenant) error
-	GetTenantByID(ctx context.Context, id string) (*Tenant, error)
-	GetTenantByRoomID(ctx context.Context, roomID string) (*Tenant, error)
-	ListActiveTenantsByRoomID(ctx context.Context, roomID string) ([]*Tenant, error)
-	CountActiveTenantsByRoomID(ctx context.Context, roomID string) (int, error)
-	UpdateTenantStatus(ctx context.Context, id string, status TenantStatus, endDate *time.Time) error
-	UpdateTenantInfo(ctx context.Context, id string, params UpdateTenantParams) (*Tenant, error)
-	DeleteTenant(ctx context.Context, id string) error
+type FullInfoTenant struct {
+	TenantID     string `json:"tenant_id"`
+	UserID       string `json:"user_id"`
+	RoomID       string `json:"room_id"`
+	FullName     string `json:"full_name"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	ManagerID    string `json:"manager_id"`
+	CCCDPath     string `json:"cccd_path"`
+	IdentityCard string `json:"identity_card"`
+	ContractPath string `json:"contract_path"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date,omitempty"`
+	Status       string `json:"status"`
 }
 
-// UpdateTenantParams holds optional fields to update.
-type UpdateTenantParams struct {
-	FullName     *string
-	Phone        *string
-	Email        *string
+// UpdateTenantInput holds optional fields for tenant profile updates.
+// Only non-nil pointer fields will be written to the DB.
+type UpdateTenantInput struct {
 	IdentityCard *string
-	StartDate    *time.Time
 	CCCDPath     *string
 	ContractPath *string
+}
+
+type TenantRepository interface {
+	CreateTenantWithAccount(ctx context.Context, user *User, tenant *Tenant) error
+	AssignRoom(ctx context.Context, tenant *Tenant) error
+	GetCurrentNumTenantInRoom(ctx context.Context, roomID string) (int64, error)
+	ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]FullInfoTenant, error)
+	GetTenantByID(ctx context.Context, managerID, tenantID string) (*FullInfoTenant, error)
+	UpdateTenant(ctx context.Context, tenantID string, input UpdateTenantInput) (*Tenant, error)
+	// VerifyTenantOwnership checks that the tenant exists and belongs to the manager.
+	// Returns ErrTenantNotFound or ErrUnauthorized as appropriate.
+	VerifyTenantOwnership(ctx context.Context, managerID, tenantID string) error
+	// DeleteTenant marks the tenant profile inactive after verifying ownership.
+	// Returns the room_id the tenant was in so the caller can decide whether to
+	// update the room status.
+	DeleteTenant(ctx context.Context, tenantID string) (roomID string, err error)
 }

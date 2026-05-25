@@ -10,7 +10,7 @@ import { formatNumber, parseNumber } from '@/utils/format'
 export function EditRoomModal({ house, room, onClose, onSuccess }: { house: House, room: Room, onClose: () => void, onSuccess: () => void }) {
   const [name, setName] = useState(room.name || '')
   const [price, setPrice] = useState(room.price?.toString() || '0')
-  const [maxTennants, setMaxTennants] = useState(room.max_tennants?.toString() || '2')
+  const [maxTennants, setMaxTennants] = useState(room.max_tenants?.toString() || '2')
   
   const [electricity, setElectricity] = useState(room.electricity_price?.toString() || house.default_electricity_price?.toString() || '')
   const [water, setWater] = useState(room.water_price?.toString() || house.default_water_price?.toString() || '')
@@ -27,7 +27,7 @@ export function EditRoomModal({ house, room, onClose, onSuccess }: { house: Hous
         house_id: house.id, 
         name, 
         price: parseNumber(price), 
-        max_tennants: Number(maxTennants),
+        max_tenants: Number(maxTennants),
         electricity_price: electricity !== '' ? parseNumber(electricity) : undefined,
         water_price: water !== '' ? parseNumber(water) : undefined,
         wifi_price: wifi !== '' ? parseNumber(wifi) : undefined,

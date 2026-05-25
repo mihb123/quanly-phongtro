@@ -18,8 +18,6 @@
 !*.css
 !*.svg
 !*.ico
-!*.png
-!*.jpg
 !Makefile
 !Dockerfile
 !*.sh
@@ -28,3 +26,4 @@
 # Keep gitignore itself
 !.gitignore
 uploads/*
+.kilo

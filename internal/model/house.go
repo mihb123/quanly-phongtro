@@ -16,29 +16,24 @@ type House struct {
 	ManagerID               string    `json:"manager_id"`
 	Name                    string    `json:"name"`
 	Address                 string    `json:"address"`
-	DefaultElectricityPrice float64   `json:"default_electricity_price"`
-	DefaultWaterPrice       float64   `json:"default_water_price"`
-	DefaultParkingPrice     float64   `json:"default_parking_price"`
-	DefaultServicePrice     float64   `json:"default_service_price"`
-	DefaultWifiPrice        float64   `json:"default_wifi_price"`
+	DefaultElectricityPrice float64   `json:"default_electricity_price" bun:"default_electricity_price"`
+	DefaultWaterPrice       float64   `json:"default_water_price" bun:"default_water_price"`
+	DefaultParkingPrice     float64   `json:"default_parking_price" bun:"default_parking_price"`
+	DefaultServicePrice     float64   `json:"default_service_price" bun:"default_service_price"`
+	DefaultWifiPrice        float64   `json:"default_wifi_price" bun:"default_wifi_price"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
 
 type Room struct {
-	ID          string    `json:"id"`
-	HouseID     string    `json:"house_id"`
-	Name        string    `json:"name"`
-	Price       int64     `json:"price"`
-	MaxTennants int       `json:"max_tennants"`
-	Status      string    `json:"status"`
-	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
-	WaterPrice       *float64 `json:"water_price,omitempty"`
-	WifiPrice        *float64 `json:"wifi_price,omitempty"`
-	ParkingPrice     *float64 `json:"parking_price,omitempty"`
-	ServicePrice     *float64 `json:"service_price,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID         string    `json:"id"`
+	HouseID    string    `json:"house_id"`
+	Name       string    `json:"name"`
+	Price      int64     `json:"price"`
+	Maxtenants int       `json:"max_tenants" bun:"max_tenants"`
+	Status     string    `json:"status"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // UpdateHouseParams holds the fields that may be partially updated.
@@ -66,15 +61,10 @@ type HouseRepository interface {
 // UpdateRoomParams holds the fields that may be partially updated.
 // Only non-nil fields are written to the UPDATE query.
 type UpdateRoomParams struct {
-	Name        *string
-	Price       *int64
-	MaxTennants *int
-	Status      *string
-	ElectricityPrice *float64
-	WaterPrice       *float64
-	WifiPrice        *float64
-	ParkingPrice     *float64
-	ServicePrice     *float64
+	Name       *string
+	Price      *int64
+	Maxtenants *int
+	Status     *string
 }
 
 type RoomRepository interface {
@@ -83,4 +73,6 @@ type RoomRepository interface {
 	ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]Room, error)
 	UpdateRoom(ctx context.Context, id, houseID string, params UpdateRoomParams) (*Room, error)
 	DeleteRoom(ctx context.Context, id, houseID string) error
+	GetMaxTenants(ctx context.Context, roomID string) (int64, error)
+	UpdateRoomStatus(ctx context.Context, roomID, status string) error
 }
