@@ -1,21 +1,24 @@
 # Yêu cầu Frontend (ReactJS)
 
-Tài liệu này sẽ được bổ sung chi tiết sau theo luồng thiết kế UI/UX cụ thể. 
+Tài liệu này xác định các yêu cầu giao diện (UI) và trải nghiệm người dùng (UX) đã và đang được phát triển cho dự án.
 
-## Yêu cầu cơ bản hiện tại:
-1. **Kiến trúc App**
-   - ReactJS SPA (Single Page Application).
-   - Chia làm 2 giao diện chính (hoặc 2 layout):
-      - **Manager Dashboard**: View quản trị với Sidebar điều hướng (Tổng quan, Nhà trọ, Khách thuê, Hóa đơn).
-      - **Tenant Portal**: View cho người thuê xem số liệu, hóa đơn hàng tháng.
-      - **Authentication Layout**: Giao diện chung cho đăng nhập, đăng ký.
+## 1. Kiến trúc App
+- Viết bằng ReactJS (Single Page Application).
+- Modular Components: Quản lý Code chặt chẽ (Tách riêng UI components chung, Views, Hooks xử lý API, Context cho global states).
+- **Manager Dashboard**: View quản trị với Sidebar điều hướng (Khách thuê, Nhà trọ, Thống kê), hỗ trợ thu gọn mở rộng mượt mà.
+- **Authentication Layout**: Giao diện chung cho đăng nhập, đăng ký.
 
-2. **Các trang dự kiến cần có (Manager)**
-   - Trang Đăng nhập / Đăng ký.
-   - Trang Tổng quan (Dashboard): Thống kê số phòng trống, số tiền thu trong tháng, số hóa đơn chưa thanh toán.
-   - Trang Danh sách Nhà trọ: Thêm/Sửa/Xóa nhà, cấu hình giá điện/nước mặc định.
-   - Trang Chi tiết Nhà trọ -> Danh sách Phòng.
-   - Trang Quản lý Khách thuê: Tìm kiếm khách, thêm người mới, cấp tài khoản.
-   - Trang Quản lý Hóa đơn: Giao diện kiểu bảng (Table) hoặc lưới để tiện chốt số điện nước và xuất hóa đơn hàng tháng.
+## 2. Các trang chính & Tính năng (Manager)
+- **Trang Đăng nhập / Đăng ký**: Hoạt động với AuthContext và local token parsing.
+- **Trang Tổng quan (Dashboard)**: Thống kê số phòng trống, số tiền thu trong tháng, số hóa đơn chưa thanh toán. Trình bày lưới Grid Cards (StatCards) rõ ràng.
+- **Tính năng Quản lý Nhà trọ & Tổ chức Phòng**: 
+  - Khóa (Modal) tạo nhà trọ mới, cho phép tự động map khởi tạo các phòng (Auto Generate) với hậu tố đúng chuẩn P101, P102... khi nhập số tầng và số lượng.
+  - Set Default Pricing (Thiết lập giá tiện ích trung tâm): Điện, Nước, Wifi, Gửi xe.
+  - Phân trang (Pagination) thông minh tối đa 25 phòng / trang cho mỗi khu nhà.
+  - Điều chỉnh phụ phí nâng cao (tùy chỉnh riêng cho một phòng độc lập qua EditRoom Modal, nếu trống giá sẽ lấy mặc định của nhà).
+- **Trang Quản lý Khách thuê**: Tổ chức hiển thị dữ liệu Group theo Nhà Trọ (Theo cấu trúc Data Structure Table).
 
-*(Cấu trúc Component và luồng chạy chi tiết sẽ được thảo luận ở bước lên yêu cầu UI)*
+## 3. Core UI Guidelines
+- Hướng tới **Soft Light Aesthetic**: Nền nhạt, văn bản tương phản nhẹ (slate-800) không gây nhức mắt khi trực ban lâu.
+- **Micro-interactions**: Scale Effects khi Hover, Nổi bóng Box Shadow. 
+- Giữ trạng thái của Web (Persisted State): Ghi nhớ nơi đang thiết lập / đang xem dở vào Browsers `localStorage` (Ví dụ Active Tab & Id Nhà đang khảo sát).

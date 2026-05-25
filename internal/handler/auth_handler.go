@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type AuthHandler struct {

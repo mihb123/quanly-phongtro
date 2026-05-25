@@ -33,18 +33,21 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `id`: UUID, Primary Key.
 - `house_id`: UUID, Foreign Key (`houses.id`).
 - `name`: Varchar (VD: "Phòng 101").
-- `room_price`: Decimal (Giá thuê phòng tính theo tháng).
+- `price`: Decimal (Giá thuê phòng tính theo tháng).
 - `max_tenants`: Integer (Số lượng người ở tối đa).
 - `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE').
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
 ## 4. Bảng `tenants` (Hồ sơ người thuê)
-Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. Có thể liên kết với bảng `users` để họ đăng nhập xem hóa đơn.
+Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. Mỗi hồ sơ liên kết với một tài khoản `users` để người thuê có thể đăng nhập xem hóa đơn.
 - `id`: UUID, Primary Key.
+- `user_id`: UUID, Foreign Key (`users.id`). Tài khoản login của người thuê.
 - `room_id`: UUID, Foreign Key (`rooms.id`).
-- `created_by`: UUID, Foreign Key (`users.id`).
+- `manager_id`: UUID, Foreign Key (`users.id`). Người quản lý tạo/quản lý hồ sơ thuê.
 - `identity_card`: Varchar (CCCD).
+- `cccd_path`: Text (đường dẫn ảnh CCCD).
+- `contract_path`: Text (đường dẫn hợp đồng).
 - `start_date`: Date (Ngày bắt đầu thuê).
 - `end_date`: Date (Ngày kết thúc thuê - Null nếu đang ở).
 - `status`: Enum ('ACTIVE', 'INACTIVE').

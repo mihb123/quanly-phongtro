@@ -21,10 +21,10 @@ type RoomService interface {
 }
 
 type UpdateRoomInput struct {
-	Name        *string
-	Price       *int64
-	MaxTennants *int
-	Status      *string
+	Name       *string
+	Price      *int64
+	Maxtenants *int
+	Status     *string
 }
 
 type RoomServiceImpl struct {
@@ -56,9 +56,8 @@ func (s *RoomServiceImpl) CreateRoom(ctx context.Context, room *model.Room, mana
 	if strings.TrimSpace(managerID) == "" {
 		return ErrInvalidManagerID
 	}
-	if err := s.checkOwnership(ctx, room.HouseID, managerID); err != nil {
-		return err
-	}
+	//skip checkownership as getByID already does
+	s.houseRepo.GetByID(ctx, room.HouseID, managerID)
 	return s.roomRepo.CreateRoom(ctx, room)
 }
 
@@ -106,10 +105,10 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		return nil, err
 	}
 	params := model.UpdateRoomParams{
-		Name:        input.Name,
-		Price:       input.Price,
-		MaxTennants: input.MaxTennants,
-		Status:      input.Status,
+		Name:       input.Name,
+		Price:      input.Price,
+		Maxtenants: input.Maxtenants,
+		Status:     input.Status,
 	}
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)
 }

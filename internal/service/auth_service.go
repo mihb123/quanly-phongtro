@@ -79,13 +79,8 @@ type LoginOutput struct {
 }
 
 type AuthOutput struct {
-	UserID      string `json:"user_id"`
-	Email       string `json:"email"`
-	Role        string `json:"role"`
-	FullName    string `json:"full_name,omitempty"`
-	Phone       string `json:"phone,omitempty"`
-	IsActivated bool   `json:"is_activated"`
-	AccessToken string `json:"access_token"`
+	User        model.User
+	AccessToken string
 }
 
 func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository) *AuthServiceImpl {
@@ -147,12 +142,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 	}
 
 	return &AuthOutput{
-		UserID:      newUser.ID,
-		Email:       newUser.Email,
-		Role:        string(newUser.Role),
-		FullName:    newUser.FullName,
-		Phone:       newUser.Phone,
-		IsActivated: newUser.IsActivated,
+		User:        *newUser,
 		AccessToken: accessToken,
 	}, nil
 }
@@ -263,12 +253,7 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 	}
 
 	return &AuthOutput{
-		UserID:      user.ID,
-		Email:       user.Email,
-		Role:        string(user.Role),
-		FullName:    user.FullName,
-		Phone:       user.Phone,
-		IsActivated: user.IsActivated,
+		User: *user,
 	}, nil
 }
 

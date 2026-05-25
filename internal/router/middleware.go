@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mihb123/quanly-phongtro/internal/logger"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 func recoverMiddleware(next http.Handler) http.Handler {

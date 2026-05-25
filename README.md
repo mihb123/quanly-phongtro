@@ -26,6 +26,41 @@ JWT_SECRET=change-me
 JWT_TTL_MINUTES=60
 ```
 
+## Database Migrations
+
+This project uses `golang-migrate` to manage database schema.
+
+### Execute Migrations
+
+To apply all pending migrations to the database:
+```bash
+# Load environment variables from .env
+export $(grep -v '^#' .env | xargs)
+
+# Run up migrations
+migrate -path migrations -database "$POSTGRES_DSN" up
+```
+
+### Rollback Migrations
+
+To rollback the last migration:
+```bash
+migrate -path migrations -database "$POSTGRES_DSN" down 1
+```
+
+### Create New Migration
+
+```bash
+migrate create -ext sql -dir migrations -seq name_of_migration
+```
+
+### Seed Data (Optional)
+
+To insert test data:
+```bash
+go run ./cmd/seed
+```
+
 ## Run
 
 ```bash

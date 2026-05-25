@@ -11,12 +11,12 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/config"
 	"github.com/mihb123/quanly-phongtro/internal/db"
-	"github.com/mihb123/quanly-phongtro/internal/email"
 	httpHandler "github.com/mihb123/quanly-phongtro/internal/handler"
 	"github.com/mihb123/quanly-phongtro/internal/repository"
 	httpRouter "github.com/mihb123/quanly-phongtro/internal/router"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
+	"github.com/mihb123/quanly-phongtro/internal/service/email"
 )
 
 func main() {
@@ -48,7 +48,11 @@ func main() {
 	roomService := service.NewRoomService(roomRepo, houseRepo)
 	roomHandler := httpHandler.NewRoomHandler(roomService)
 
-	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider)
+	tenantRepo := repository.NewTenantRepository(sqlDB)
+	tenantService := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	tenanHandler := httpHandler.NewTenantHandler(tenantService)
+
+	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,
