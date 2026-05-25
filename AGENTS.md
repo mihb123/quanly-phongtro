@@ -56,7 +56,7 @@
 
 ## Frontend Rules (React)
 - Do not place page rendering, data fetching, state orchestration, and helper logic in one file.
-- Put UI pieces in `@/components`, HTTP calls in `@/api`, reusable stateful logic in `@/hooks`, pure helpers in `@/utils`, and shared low-level helpers in `@/lib`.
+- Enforce strict layer purposes: Put UI pieces in `@/components`, HTTP calls in `@/api`, reusable stateful logic in `@/hooks`, pure helpers in `@/utils`, global domain data and CRUD operations in `@/data` (Zustand stores), and shared low-level helpers in `@/lib`.
 - Keep page-level files thin: compose components, call hooks, and import API or utility helpers instead of reimplementing them inline.
 - All HTTP calls must go through the shared API layer in `@/api`. Never call `fetch` or any HTTP client directly in components, hooks, or pages.
 - Reuse existing API functions before adding new ones. Do not duplicate the same request logic in multiple files.
@@ -64,11 +64,12 @@
 - When a screen grows beyond a small feature slice, split view, hook, API, and helper logic early.
 - Wrap components that receive array or object props with `React.memo` when the parent re-renders frequently. Pass callbacks through `useCallback` and derived data through `useMemo`.
 - Avoid `dangerouslySetInnerHTML`. If HTML injection is required, sanitize or escape the content first and document the XSS-safe guarantee in a comment.
-- Modals must close on Escape keypress and backdrop click.
-- Buttons and links must show pointer cursor. Any async action triggered from the UI must expose a visible loading state.
+- All modals MUST close on Escape keypress and backdrop click. Always ensure consistent implementation across all newly created or updated modals.
+- All interactive elements (buttons, icon buttons, clickable icons, links, and clickable areas) MUST show a pointer cursor (`cursor-pointer` class). Ensure that generic UI components (like `<Button>`) have this class set by default in their base variants. Any async action triggered from the UI must expose a visible loading state.
 - If a component is the only place that triggers a modal, that component should own the modal state and render the modal itself. Do not lift modal state to a parent just to pass callbacks back down.
-- Use global stores (zustand, context) only for shared data that multiple components read (e.g. entities fetched from API). Keep UI-specific state (modal visibility, form inputs, selection) local to the owning component.
-- Prefer form libraries (e.g. react-hook-form) over manual `useState` per field for form state. Manual `useState` re-renders the entire component on every keystroke; form libraries use uncontrolled inputs and avoid this.
+- Modals must be self-contained: they should receive minimal props (e.g., `onClose`, and an `id` or entity if not available from global state). The modal itself should handle its own API calls (via `@/api` or Zustand stores) and not rely on the parent for `onSuccess` callbacks.
+- Use global stores (Zustand in `@/data`) for shared domain data and CRUD orchestration that multiple components read (e.g., houses, rooms, selected state). Use `getState()` for cross-store reads when possible instead of subscribing. Keep UI-specific state (modal visibility, selection, loading states) local to the owning component.
+- Always use React Hook Form + Zod for all form-based modals and pages. Avoid using manual `useState` for individual form fields to prevent unnecessary re-renders on every keystroke. Only use `useState` for complex custom inputs (like File uploads or image previews) that RHF doesn't handle natively.
 - Moving `useState` from a component into a custom hook does not reduce re-renders — it only moves code. Only extract hooks when the logic is reusable across multiple components or when separation of concerns demands it.
 - Do not create abstractions to eliminate prop passing that is only 1 level deep. Optimize prop drilling only when data flows through 2 or more intermediate components that do not use it.
 

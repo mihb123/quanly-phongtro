@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,14 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
     }
   })
 
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) onClose()
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onClose, isLoading])
+
   if (!houseId) return null
 
   const onSubmit = async (values: CreateRoomFormValues) => {
@@ -56,7 +64,12 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+    <div 
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      onMouseDown={e => {
+        if (e.target === e.currentTarget && !isLoading) onClose()
+      }}
+    >
       <Card className="w-full max-w-sm p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
         <h2 className="text-xl font-bold mb-4 text-slate-800">Thêm phòng mới</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

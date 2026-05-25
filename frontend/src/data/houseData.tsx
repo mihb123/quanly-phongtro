@@ -1,10 +1,11 @@
 import { create } from 'zustand'
-import { getHouses, deleteHouse, type House } from '@/api/house'
+import { getHouses, deleteHouse, updateHouse as apiUpdateHouse, type House } from '@/api/house'
 
 interface HouseDataState {
   houses: House[]
   fetchHouses: () => Promise<void>
   deleteHouse: (houseId: string) => Promise<boolean>
+  updateHouse: (id: string, payload: Partial<House>) => Promise<House | null>
 }
 
 export const useHouseStore = create<HouseDataState>((set) => ({
@@ -25,6 +26,15 @@ export const useHouseStore = create<HouseDataState>((set) => ({
     } catch (err) {
       console.error("Failed to delete house", err)
       return false
+    }
+  },
+  updateHouse: async (id: string, payload: Partial<House>) => {
+    try {
+      const house = await apiUpdateHouse(id, payload)
+      return house
+    } catch (err) {
+      console.error("Failed to update house", err)
+      return null
     }
   }
 }))

@@ -129,6 +129,9 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
     try {
       await handleDeleteTenant(tenantId, room.id)
       await refreshCurrentRooms()
+      if (tenants.length <= 1) {
+        onClose()
+      }
     } catch {
       // Error handled inside hook
     }
@@ -194,7 +197,7 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
               </h2>
               <p className="text-sm text-slate-500">Phòng {room.name} {(!showAddForm) && `(${tenants.length}/${room.max_tenants})`}</p>
             </div>
-            <button onClick={onClose} className="ml-auto p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
+            <button onClick={onClose} className="ml-auto p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -293,7 +296,7 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
                                   <div className="flex items-center gap-1">
                                     <button
                                       onClick={() => handleFileClick(path)}
-                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
                                       title={isImagePath(path) ? "Xem ảnh" : "Tải về"}
                                     >
                                       {isImagePath(path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
@@ -379,10 +382,10 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
                                       <span className="text-[10px] font-semibold text-blue-700 truncate">{getFileName(path)}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                      <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600 cursor-pointer" title="Xem trước">
                                         <Eye className="w-4 h-4" />
                                       </button>
-                                      <button type="button" onClick={() => setExistingCccdPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                      <button type="button" onClick={() => setExistingCccdPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500 cursor-pointer" title="Xóa">
                                         <X className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
@@ -413,10 +416,10 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
                                       <span className="text-[10px] font-semibold text-blue-700 truncate">{file.name}</span>
                                     </div>
                                     <div className="flex items-center gap-1">
-                                      <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                      <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600 cursor-pointer" title="Xem trước">
                                         <Eye className="w-4 h-4" />
                                       </button>
-                                      <button type="button" onClick={() => setCccdFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                      <button type="button" onClick={() => setCccdFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500 cursor-pointer" title="Xóa">
                                         <X className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
@@ -461,11 +464,11 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
                                     </div>
                                     <div className="flex items-center gap-1">
                                       {isImagePath(path) && (
-                                        <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                        <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-blue-100 rounded-md text-blue-600 cursor-pointer" title="Xem trước">
                                           <Eye className="w-4 h-4" />
                                         </button>
                                       )}
-                                      <button type="button" onClick={() => setExistingContractPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                      <button type="button" onClick={() => setExistingContractPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500 cursor-pointer" title="Xóa">
                                         <X className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
@@ -497,11 +500,11 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
                                     </div>
                                     <div className="flex items-center gap-1">
                                       {file.type.startsWith('image/') && (
-                                        <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600" title="Xem trước">
+                                        <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-blue-100 rounded-md text-blue-600 cursor-pointer" title="Xem trước">
                                           <Eye className="w-4 h-4" />
                                         </button>
                                       )}
-                                      <button type="button" onClick={() => setContractFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500" title="Xóa">
+                                      <button type="button" onClick={() => setContractFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-blue-100 rounded-md text-slate-500 cursor-pointer" title="Xóa">
                                         <X className="w-3.5 h-3.5" />
                                       </button>
                                     </div>
@@ -563,7 +566,7 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md animate-in fade-in duration-200 p-4"
           onClick={() => setSelectedImageUrl(null)}
         >
-          <button className="absolute top-6 right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-[101]">
+          <button className="absolute top-6 right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-[101] cursor-pointer">
             <X className="w-6 h-6" />
           </button>
           <div className="max-w-5xl max-h-[90vh] w-full flex items-center justify-center relative">

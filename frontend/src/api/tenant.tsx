@@ -38,6 +38,9 @@ export const createTenant = async (payload: FormData) => {
 export const getTenantsByRoom = async (roomId: string) => {
   const { data } = await apiClient.get(`/tenant/room/${roomId}`)
   const tenants = (data.data?.data || data.data || data)
+  if (!tenants || (Array.isArray(tenants) && tenants.length === 0)) {
+    return { data: [] }
+  }
   const tenantArray = Array.isArray(tenants) ? tenants : [tenants]
   return { data: tenantArray.map((t: Partial<Tenant> & { tenant_id?: string }) => ({ ...t, id: t.tenant_id || t.id })) as Tenant[] }
 }

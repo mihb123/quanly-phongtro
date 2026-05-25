@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, DoorOpen, Pencil, DollarSign, UserPlus, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import type { Room } from '@/api/room'
 
 export function HouseRoomsView() {
   const selectedHouse = useSelectedStore(state => state.selectedHouse)
-  const { rooms, roomPage, setRoomPage, deleteRoom } = useRoomStore()
+  const { rooms, roomPage, setRoomPage, deleteRoom, fetchRooms } = useRoomStore()
 
   const limit = 25
 
@@ -23,6 +23,12 @@ export function HouseRoomsView() {
   const [showQuickSetPrice, setShowQuickSetPrice] = useState(false)
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    if (selectedHouse) {
+      fetchRooms(selectedHouse.id, roomPage)
+    }
+  }, [selectedHouse, roomPage, fetchRooms])
 
   if (!selectedHouse) return null
 
@@ -81,7 +87,7 @@ export function HouseRoomsView() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {rooms.map(room => (
+            {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(room => (
               <Card key={room.id} onClick={() => setTenantRoom(room)} className="p-6 bg-white/80 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">

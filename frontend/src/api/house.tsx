@@ -23,6 +23,11 @@ export const createHouse = async (payload: Partial<House>) => {
   return data.data as House
 }
 
+export const updateHouse = async (id: string, payload: Partial<House>) => {
+  const { data } = await apiClient.post(`/house/${id}`, payload)
+  return data.data as House
+}
+
 export const deleteHouse = async (id: string) => {
   const { data } = await apiClient.delete(`/house/${id}`)
   return data

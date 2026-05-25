@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle } from 'lucide-react'
@@ -21,8 +22,21 @@ export function ConfirmModal({
   onCancel,
   isLoading = false
 }: ConfirmModalProps) {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) onCancel()
+    }
+    window.addEventListener('keydown', handleEsc)
+    return () => window.removeEventListener('keydown', handleEsc)
+  }, [onCancel, isLoading])
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+    <div 
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      onMouseDown={e => {
+        if (e.target === e.currentTarget && !isLoading) onCancel()
+      }}
+    >
       <Card className="w-full max-w-md p-6 bg-white shadow-2xl border-0 animate-in zoom-in-95 duration-200">
         <div className="flex flex-col items-center text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
