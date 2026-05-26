@@ -25,7 +25,7 @@ type createRoomRequest struct {
 	HouseID    string `json:"house_id" validate:"required"`
 	Name       string `json:"name" validate:"required"`
 	Price      int64  `json:"price" validate:"gte=0"`
-	Maxtenants int    `json:"max_tenants" validate:"gte=1"`
+	MaxTenants int    `json:"max_tenants" validate:"gte=1"`
 	Status     string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 }
 
@@ -33,7 +33,7 @@ type updateRoomRequest struct {
 	HouseID    string  `json:"house_id" validate:"required"`
 	Name       *string `json:"name"`
 	Price      *int64  `json:"price" validate:"omitempty,gte=0"`
-	Maxtenants *int    `json:"max_tenants" validate:"omitempty,gte=1"`
+	MaxTenants *int    `json:"max_tenants" validate:"omitempty,gte=1"`
 	Status     *string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 }
 
@@ -99,7 +99,7 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 		HouseID:    req.HouseID,
 		Name:       req.Name,
 		Price:      req.Price,
-		Maxtenants: req.Maxtenants,
+		MaxTenants: req.MaxTenants,
 		Status:     status,
 	}
 
@@ -186,7 +186,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	room, err := h.roomService.UpdateRoom(r.Context(), id, req.HouseID, managerID, service.UpdateRoomInput{
 		Name:       req.Name,
 		Price:      req.Price,
-		Maxtenants: req.Maxtenants,
+		MaxTenants: req.MaxTenants,
 		Status:     req.Status,
 	})
 	if err != nil {

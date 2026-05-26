@@ -60,7 +60,7 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 		Limit(limit).
 		Offset(offset).
 		Scan(ctx)
-		
+
 	if err != nil {
 		return nil, fmt.Errorf("list rooms: %w", err)
 	}
@@ -84,8 +84,8 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 		q.Set("price = ?", *params.Price)
 		updated = true
 	}
-	if params.Maxtenants != nil {
-		q.Set("max_tenants = ?", *params.Maxtenants)
+	if params.MaxTenants != nil {
+		q.Set("max_tenants = ?", *params.MaxTenants)
 		updated = true
 	}
 	if params.Status != nil {
@@ -98,7 +98,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	q.Set("updated_at = NOW()")
 
 	var room model.Room
-	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.Maxtenants, &room.Status, &room.CreatedAt, &room.UpdatedAt)
+	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound

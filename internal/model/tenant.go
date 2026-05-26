@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	ErrMaxTenans = errors.New("the room is full of capacity")
+	ErrMaxTenans      = errors.New("the room is full of capacity")
 	ErrTenantNotFound = errors.New("tenant not found")
-	ErrUnauthorized = errors.New("unauthorized: manager does not own this tenant")
+	ErrUnauthorized   = errors.New("unauthorized: manager does not own this tenant")
 )
 
 type TenantStatus string
@@ -25,7 +25,7 @@ type Tenant struct {
 	RoomID       string       `json:"room_id"`
 	ManagerID    string       `json:"manager_id"`
 	IdentityCard string       `json:"identity_card"`
-	CCCDPath     string       `json:"cccd_path" bun:"cccd_path"`
+	CCCDPath     string       `json:"cccd_path"`
 	ContractPath string       `json:"contract_path"`
 	StartDate    time.Time    `json:"start_date"`
 	EndDate      *time.Time   `json:"end_date"`

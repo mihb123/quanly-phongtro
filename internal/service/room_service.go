@@ -23,7 +23,7 @@ type RoomService interface {
 type UpdateRoomInput struct {
 	Name       *string
 	Price      *int64
-	Maxtenants *int
+	MaxTenants *int
 	Status     *string
 }
 
@@ -107,7 +107,7 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 	params := model.UpdateRoomParams{
 		Name:       input.Name,
 		Price:      input.Price,
-		Maxtenants: input.Maxtenants,
+		MaxTenants: input.MaxTenants,
 		Status:     input.Status,
 	}
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)

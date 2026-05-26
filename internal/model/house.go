@@ -16,11 +16,11 @@ type House struct {
 	ManagerID               string    `json:"manager_id"`
 	Name                    string    `json:"name"`
 	Address                 string    `json:"address"`
-	DefaultElectricityPrice float64   `json:"default_electricity_price" bun:"default_electricity_price"`
-	DefaultWaterPrice       float64   `json:"default_water_price" bun:"default_water_price"`
-	DefaultParkingPrice     float64   `json:"default_parking_price" bun:"default_parking_price"`
-	DefaultServicePrice     float64   `json:"default_service_price" bun:"default_service_price"`
-	DefaultWifiPrice        float64   `json:"default_wifi_price" bun:"default_wifi_price"`
+	DefaultElectricityPrice float64   `json:"default_electricity_price"`
+	DefaultWaterPrice       float64   `json:"default_water_price"`
+	DefaultParkingPrice     float64   `json:"default_parking_price"`
+	DefaultServicePrice     float64   `json:"default_service_price"`
+	DefaultWifiPrice        float64   `json:"default_wifi_price"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -30,7 +30,7 @@ type Room struct {
 	HouseID    string    `json:"house_id"`
 	Name       string    `json:"name"`
 	Price      int64     `json:"price"`
-	Maxtenants int       `json:"max_tenants" bun:"max_tenants"`
+	MaxTenants int       `json:"max_tenants"`
 	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
@@ -63,7 +63,7 @@ type HouseRepository interface {
 type UpdateRoomParams struct {
 	Name       *string
 	Price      *int64
-	Maxtenants *int
+	MaxTenants *int
 	Status     *string
 }
 

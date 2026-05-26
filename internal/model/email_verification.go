@@ -9,7 +9,7 @@ type EmailVerification struct {
 	ID        string
 	Email     string
 	OTP       string
-	IsUsed    bool      `bun:"is_used"`
+	IsUsed    bool
 	Expires   time.Time
 	CreatedAt time.Time
 }
@@ -17,8 +17,8 @@ type EmailVerification struct {
 type OTPCheck struct {
 	ID        string
 	Email     string
-	OTPFails  int64     `bun:"otp_fails"`
-	BlockTime time.Time `bun:"block_time"`
+	OTPFails  int64
+	BlockTime time.Time
 }
 
 type EmailVerificationRepository interface {

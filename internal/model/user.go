@@ -21,11 +21,11 @@ const (
 type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-" bun:"password_hash"`
+	PasswordHash string    `json:"-"`
 	Role         Role      `json:"role"`
-	FullName     string    `json:"full_name" bun:"full_name"`
+	FullName     string    `json:"full_name"`
 	Phone        string    `json:"phone"`
-	IsActivated  bool      `json:"is_activated" bun:"is_activated"`
+	IsActivated  bool      `json:"is_activated"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
