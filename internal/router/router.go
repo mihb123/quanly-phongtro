@@ -54,6 +54,7 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", tenantHandler.RegisterTenant)
 		r.Get("/room/{id}", tenantHandler.ListTenantByRoomID)
+		r.Get("/house/{id}", tenantHandler.ListTenantByHouseID)
 		r.Patch("/{id}", tenantHandler.UpdateTenantInfo)
 		r.Delete("/{id}", tenantHandler.DeleteTenant)
 		r.Handle("/files/*", http.StripPrefix("/api/v1/tenant/files/", http.FileServer(http.Dir("uploads/tenants"))))

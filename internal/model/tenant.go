@@ -38,6 +38,7 @@ type FullInfoTenant struct {
 	TenantID     string `json:"tenant_id"`
 	UserID       string `json:"user_id"`
 	RoomID       string `json:"room_id"`
+	RoomName     string `json:"room_name,omitempty"`
 	FullName     string `json:"full_name"`
 	Email        string `json:"email"`
 	Phone        string `json:"phone"`
@@ -63,6 +64,7 @@ type TenantRepository interface {
 	AssignRoom(ctx context.Context, tenant *Tenant) error
 	GetCurrentNumTenantInRoom(ctx context.Context, roomID string) (int64, error)
 	ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]FullInfoTenant, error)
+	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]FullInfoTenant, error)
 	GetTenantByID(ctx context.Context, managerID, tenantID string) (*FullInfoTenant, error)
 	UpdateTenant(ctx context.Context, tenantID string, input UpdateTenantInput) (*Tenant, error)
 	// VerifyTenantOwnership checks that the tenant exists and belongs to the manager.

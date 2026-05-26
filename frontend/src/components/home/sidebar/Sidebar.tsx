@@ -8,10 +8,10 @@ import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
 
-import { SidebarItem } from '@/components/home/SidebarItem'
-import { CreateHouseModal } from '@/components/home/CreateHouseModal'
-import { EditHouseModal } from '@/components/home/EditHouseModal'
-import { ConfirmModal } from '@/components/home/ConfirmModal'
+import { SidebarItem } from './SidebarItem'
+import { CreateHouseModal } from '@/components/home/modals/CreateHouseModal'
+import { EditHouseModal } from '@/components/home/modals/EditHouseModal'
+import { ConfirmModal } from '@/components/home/modals/ConfirmModal'
 import type { House } from '@/api/house'
 
 export function Sidebar() {

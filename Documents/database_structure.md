@@ -58,8 +58,7 @@ Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. M
 Tính hóa đơn hàng tháng cho mỗi phòng.
 - `id`: UUID, Primary Key.
 - `room_id`: UUID, Foreign Key (`rooms.id`).
-- `month`: Integer (Tháng của hóa đơn).
-- `year`: Integer (Năm của hóa đơn).
+- `period`: Date (kỳ của hóa đơn, định dạng yyyy-mm).
 - `room_fee`: Decimal (Tiền phòng).
 - `old_electricity_index`: Integer (Số điện cũ).
 - `new_electricity_index`: Integer (Số điện mới).

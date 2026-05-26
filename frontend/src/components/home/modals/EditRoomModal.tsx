@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { updateRoom, type Room } from '@/api/room'
+import type { Room } from '@/api/room'
 import { formatNumber, parseNumber } from '@/utils/format'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
@@ -26,7 +26,7 @@ type RoomFormValues = z.infer<typeof roomSchema>
 
 export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => void }) {
   const house = useSelectedStore(state => state.selectedHouse)
-  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
+  const updateRoomStore = useRoomStore(state => state.updateRoom)
   
   const [isLoading, setIsLoading] = useState(false)
 
@@ -57,7 +57,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
   const onSubmit = async (values: RoomFormValues) => {
     setIsLoading(true)
     try {
-      await updateRoom(room.id, { 
+      await updateRoomStore(room.id, { 
         house_id: house.id, 
         name: values.name, 
         price: parseNumber(values.price), 
@@ -68,7 +68,6 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
         parking_price: values.parking !== '' ? parseNumber(values.parking) : undefined,
         service_price: values.service !== '' ? parseNumber(values.service) : undefined,
       })
-      await refreshCurrentRooms()
       onClose()
     } catch {
       alert("Lỗi khi cập nhật phòng, vui lòng kiểm tra lại thông tin!")

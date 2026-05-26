@@ -20,6 +20,7 @@ export interface Tenant {
   identity_card: string
   start_date: string
   status: string
+  room_name?: string
   cccd_path?: string
   contract_path?: string
 }
@@ -31,18 +32,29 @@ export const createTenant = async (payload: FormData) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  return { data: (data.data?.data || data.data || data) as Tenant }
+  return { data: data.data as Tenant }
 }
 
 // Get all active tenants by room ID
 export const getTenantsByRoom = async (roomId: string) => {
   const { data } = await apiClient.get(`/tenant/room/${roomId}`)
-  const tenants = (data.data?.data || data.data || data)
+  const tenants = data.data
   if (!tenants || (Array.isArray(tenants) && tenants.length === 0)) {
     return { data: [] }
   }
   const tenantArray = Array.isArray(tenants) ? tenants : [tenants]
-  return { data: tenantArray.map((t: Partial<Tenant> & { tenant_id?: string }) => ({ ...t, id: t.tenant_id || t.id })) as Tenant[] }
+  return { data: tenantArray.map((t: Partial<Tenant> & { tenant_id?: string, room_name?: string }) => ({ ...t, id: t.tenant_id || t.id, room_name: t.room_name })) as Tenant[] }
+}
+
+// Get all active tenants by house ID
+export const getTenantsByHouse = async (houseId: string) => {
+  const { data } = await apiClient.get(`/tenant/house/${houseId}`)
+  const tenants = data.data
+  if (!tenants || (Array.isArray(tenants) && tenants.length === 0)) {
+    return { data: [] }
+  }
+  const tenantArray = Array.isArray(tenants) ? tenants : [tenants]
+  return { data: tenantArray.map((t: Partial<Tenant> & { tenant_id?: string, room_name?: string }) => ({ ...t, id: t.tenant_id || t.id, room_name: t.room_name })) as Tenant[] }
 }
 
 export const updateTenant = async (id: string, payload: FormData) => {
@@ -51,7 +63,7 @@ export const updateTenant = async (id: string, payload: FormData) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  return { data: (data.data?.data || data.data || data) as Tenant }
+  return { data: data.data as Tenant }
 }
 
 export const deleteTenant = async (id: string) => {

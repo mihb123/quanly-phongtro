@@ -4,11 +4,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
-import { CreateRoomModal } from './CreateRoomModal'
-import { EditRoomModal } from './EditRoomModal'
-import { TenantRoomModal } from './TenantRoomModal'
-import { ConfirmModal } from './ConfirmModal'
-import { QuickSetRoomPriceModal } from './QuickSetRoomPriceModal'
+import { CreateRoomModal } from './modals/CreateRoomModal'
+import { EditRoomModal } from './modals/EditRoomModal'
+import { TenantRoomModal } from './modals/TenantRoomModal'
+import { ConfirmModal } from './modals/ConfirmModal'
+import { QuickSetRoomPriceModal } from './modals/QuickSetRoomPriceModal'
 import type { Room } from '@/api/room'
 
 export function HouseRoomsView() {
@@ -87,7 +87,7 @@ export function HouseRoomsView() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(room => (
+            {rooms.map(room => (
               <Card key={room.id} onClick={() => setTenantRoom(room)} className="p-6 bg-white/80 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">

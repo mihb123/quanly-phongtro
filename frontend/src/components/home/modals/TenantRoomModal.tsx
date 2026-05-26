@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { UserPlus, User, Upload, CheckCircle2, Plus, Trash2, Pencil, X, ExternalLink, FileIcon, ZoomIn, Eye, Download } from 'lucide-react'
-import { createTenant, updateTenant, type Tenant } from '@/api/tenant'
+import type { Tenant } from '@/api/tenant'
 import type { Room } from '@/api/room'
-import { useRoomStore } from '@/data/roomData'
 import { useTenantList } from '@/hooks/useTenantList'
+import { useTenantStore } from '@/data/tenantData'
 import { getFileName, isImagePath } from '@/utils/file'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -25,7 +25,8 @@ type TenantFormValues = z.infer<typeof tenantSchema>
 
 export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => void }) {
   const isOccupied = room.status === 'OCCUPIED'
-  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
+  const createTenant = useTenantStore(state => state.createTenant)
+  const updateTenant = useTenantStore(state => state.updateTenant)
 
   const {
     tenants,
@@ -113,7 +114,6 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
       setEditingTenantId(null)
       setShowAddForm(false)
       await fetchTenants(room.id)
-      await refreshCurrentRooms()
       resetForm()
       
       // Auto close if added successfully and no more actions needed, or keep open if they want to see list. Let's keep open on list.
@@ -128,7 +128,6 @@ export function TenantRoomModal({ room, onClose }: { room: Room, onClose: () => 
     if (!confirm("Bạn có chắc chắn muốn xóa người thuê này?")) return
     try {
       await handleDeleteTenant(tenantId, room.id)
-      await refreshCurrentRooms()
       if (tenants.length <= 1) {
         onClose()
       }

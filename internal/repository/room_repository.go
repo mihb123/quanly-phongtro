@@ -56,7 +56,7 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 	err := r.db.NewSelect().
 		Model(&rooms).
 		Where("house_id = ?", houseID).
-		Order("created_at DESC").
+		Order("name ASC").
 		Limit(limit).
 		Offset(offset).
 		Scan(ctx)

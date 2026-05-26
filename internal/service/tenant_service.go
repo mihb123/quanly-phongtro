@@ -18,6 +18,7 @@ type TenantService interface {
 	RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error)
 	CheckCapicityOfRoom(ctx context.Context, roomID string) (bool, error)
 	ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error)
+	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error)
 	UpdateTenantInfo(ctx context.Context, managerID, tenantID string, in UpdateTenantInput) (*model.FullInfoTenant, error)
 	DeleteTenant(ctx context.Context, managerID, tenantID string) error
 }
@@ -177,6 +178,11 @@ func (s TenantServiceImpl) CheckCapicityOfRoom(ctx context.Context, roomID strin
 func (s *TenantServiceImpl) ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error) {
 
 	return s.tenants.ListTenantByRoomID(ctx, managerID, roomID)
+}
+
+func (s *TenantServiceImpl) ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error) {
+
+	return s.tenants.ListTenantByHouseID(ctx, managerID, houseID)
 }
 
 // UpdateTenantInfo verifies that managerID owns the tenant, then performs a

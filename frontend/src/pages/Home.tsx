@@ -1,7 +1,7 @@
 import { useSelectedStore } from '@/data/selectedData'
 
 // Import extracted components
-import { Sidebar } from '@/components/home/Sidebar'
+import { Sidebar } from '@/components/home/sidebar/Sidebar'
 import { DashboardView } from '@/components/home/DashboardView'
 import { HouseRoomsView } from '@/components/home/HouseRoomsView'
 import { TenantsView } from '@/components/home/TenantsView'

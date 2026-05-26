@@ -38,7 +38,7 @@ func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *mo
 	}
 
 	tenant.UserID = user.ID
-	
+
 	_, err = tx.NewInsert().
 		Model(tenant).
 		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
@@ -79,7 +79,7 @@ func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant)
 		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
-		
+
 	if err != nil {
 		return fmt.Errorf("assign room: %w", err)
 	}
@@ -92,7 +92,7 @@ func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID
 		Model((*model.Tenant)(nil)).
 		Where("room_id = ? AND status = ?", roomID, string(model.TenantStatusActive)).
 		Count(ctx)
-		
+
 	if err != nil {
 		return 0, fmt.Errorf("get current num tenant in room: %w", err)
 	}
@@ -102,7 +102,7 @@ func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID
 // ListTenantByRoomID retrieves tenant profile and account fields for a room.
 func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error) {
 	var tenants []model.FullInfoTenant
-	
+
 	err := r.db.NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
@@ -116,11 +116,11 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 		Where("t.manager_id = ?", managerID).
 		Where("t.status = ?", string(model.TenantStatusActive)).
 		Scan(ctx, &tenants)
-		
+
 	if err != nil {
 		return nil, fmt.Errorf("list tenant by room id: %w", err)
 	}
-	
+
 	for i := range tenants {
 		if tenants[i].StartDate != "" {
 			tenants[i].StartDate = tenants[i].StartDate[:10]
@@ -129,7 +129,43 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 			tenants[i].EndDate = tenants[i].EndDate[:10]
 		}
 	}
-	
+
+	return tenants, nil
+}
+
+// ListTenantByHouseID retrieves tenant profile and account fields for a house.
+func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error) {
+	var tenants []model.FullInfoTenant
+
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
+		ColumnExpr("t.start_date, t.end_date, t.status").
+		ColumnExpr("rm.name AS room_name").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Join("JOIN rooms AS rm ON rm.id = t.room_id").
+		Where("rm.house_id = ?", houseID).
+		Where("t.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive)).
+		Scan(ctx, &tenants)
+
+	if err != nil {
+		return nil, fmt.Errorf("list tenant by house id: %w", err)
+	}
+
+	for i := range tenants {
+		if tenants[i].StartDate != "" {
+			tenants[i].StartDate = tenants[i].StartDate[:10]
+		}
+		if tenants[i].EndDate != "" {
+			tenants[i].EndDate = tenants[i].EndDate[:10]
+		}
+	}
+
 	return tenants, nil
 }
 
@@ -147,7 +183,7 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.id = ?", tenantID).
 		Scan(ctx, &ft)
-		
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound
@@ -157,7 +193,7 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 	if ft.ManagerID != managerID {
 		return nil, model.ErrUnauthorized
 	}
-	
+
 	if ft.StartDate != "" {
 		ft.StartDate = ft.StartDate[:10]
 	}
@@ -199,7 +235,7 @@ func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, in
 
 	var tenant model.Tenant
 	err := q.Scan(ctx, &tenant)
-	
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound
@@ -217,7 +253,7 @@ func (r *TenantRepository) VerifyTenantOwnership(ctx context.Context, managerID,
 		Column("manager_id").
 		Where("id = ?", tenantID).
 		Scan(ctx, &storedManagerID)
-		
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return model.ErrTenantNotFound
@@ -241,7 +277,7 @@ func (r *TenantRepository) DeleteTenant(ctx context.Context, tenantID string) (s
 		Where("id = ?", tenantID).
 		Returning("room_id").
 		Scan(ctx, &roomID)
-		
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", model.ErrTenantNotFound
@@ -258,7 +294,7 @@ func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID str
 		Model(&tenant).
 		Where("id = ?", tenantID).
 		Scan(ctx)
-		
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrTenantNotFound

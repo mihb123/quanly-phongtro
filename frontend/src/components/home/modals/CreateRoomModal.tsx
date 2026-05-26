@@ -3,7 +3,6 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createRoom } from '@/api/room'
 import { useSelectedStore } from '@/data/selectedData'
 import { useRoomStore } from '@/data/roomData'
 import { formatNumber, parseNumber } from '@/utils/format'
@@ -21,7 +20,7 @@ type CreateRoomFormValues = z.infer<typeof createRoomSchema>
 
 export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   const houseId = useSelectedStore(state => state.selectedHouse?.id)
-  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
+  const createRoomStore = useRoomStore(state => state.createRoom)
   
   const [isLoading, setIsLoading] = useState(false)
 
@@ -47,14 +46,13 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   const onSubmit = async (values: CreateRoomFormValues) => {
     setIsLoading(true)
     try {
-      await createRoom({ 
+      await createRoomStore({ 
         house_id: houseId, 
         name: values.name, 
         price: parseNumber(values.price), 
         max_tenants: Number(values.maxTenants),
         status: 'AVAILABLE'
       })
-      await refreshCurrentRooms()
       onClose()
     } catch {
       alert("Lỗi khi thêm phòng, vui lòng kiểm tra lại thông tin!")

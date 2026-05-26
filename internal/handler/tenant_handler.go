@@ -131,6 +131,29 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	writeJSON(w, http.StatusOK, listTenant, "")
+}
+
+func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	managerID, err := claims.GetSubject()
+	if !ok || err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	houseID := chi.URLParam(r, "id")
+	if houseID == "" {
+		logger.Warn(r, http.StatusBadRequest, "missing houseID", err)
+		writeError(w, http.StatusBadRequest, "missing house ID")
+		return
+	}
+	listTenant, err := h.tenantService.ListTenantByHouseID(r.Context(), managerID, houseID)
+	if err != nil {
+		logger.Warn(r, http.StatusInternalServerError, "can not get list of tenant by house id", err)
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	writeJSON(w, http.StatusOK, listTenant, "")
 
 }
 

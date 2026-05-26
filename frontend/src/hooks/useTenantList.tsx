@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
-import { getTenantsByRoom, deleteTenant, type Tenant } from '@/api/tenant'
+import type { Tenant } from '@/api/tenant'
+import { useTenantStore } from '@/data/tenantData'
 
 interface UseTenantListReturn {
   tenants: Tenant[]
@@ -20,13 +21,16 @@ export function useTenantList(_roomId: string, initialShowAddForm: boolean = fal
   const [isFetching, setIsFetching] = useState(false)
   const [showAddForm, setShowAddForm] = useState(initialShowAddForm)
   const [editingTenantId, setEditingTenantId] = useState<string | null>(null)
+  
+  const getTenantsByRoom = useTenantStore(state => state.getTenantsByRoom)
+  const deleteTenant = useTenantStore(state => state.deleteTenant)
 
   const fetchTenants = useCallback(async (rId: string) => {
     setIsFetching(true)
     try {
-      const res = await getTenantsByRoom(rId)
-      setTenants(res.data)
-      if (res.data.length === 0) {
+      const data = await getTenantsByRoom(rId)
+      setTenants(data)
+      if (data.length === 0) {
         setShowAddForm(true)
       }
     } catch (err) {
@@ -34,7 +38,7 @@ export function useTenantList(_roomId: string, initialShowAddForm: boolean = fal
     } finally {
       setIsFetching(false)
     }
-  }, [])
+  }, [getTenantsByRoom])
 
   const handleDeleteTenant = async (tenantId: string, rId: string) => {
     setIsLoading(true)

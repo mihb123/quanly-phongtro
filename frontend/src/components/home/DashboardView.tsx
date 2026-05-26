@@ -4,7 +4,7 @@ import { Plus, ChevronRight, Users } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { StatCard } from './StatCard'
-import { CreateHouseModal } from './CreateHouseModal'
+import { CreateHouseModal } from './modals/CreateHouseModal'
 
 export function DashboardView() {
   const [showCreateHouse, setShowCreateHouse] = useState(false)

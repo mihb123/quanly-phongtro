@@ -3,15 +3,15 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { X, Save, DollarSign, Users, Copy, Trash2 } from 'lucide-react'
-import { updateRoom, createRoom } from '@/api/room'
-import { formatNumber, parseNumber } from '@/utils/format'
-import { useRoomStore } from '@/data/roomData'
 import type { Room } from '@/api/room'
+import { useRoomStore } from '@/data/roomData'
+import { formatNumber, parseNumber } from '@/utils/format'
 
 export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const rooms = useRoomStore(state => state.rooms)
-  const refreshCurrentRooms = useRoomStore(state => state.refreshCurrentRooms)
   const deleteRoomStore = useRoomStore(state => state.deleteRoom)
+  const createRoomStore = useRoomStore(state => state.createRoom)
+  const updateRoomStore = useRoomStore(state => state.updateRoom)
   const [roomData, setRoomData] = useState<Record<string, { name: string, price: string, max_tenants: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
@@ -57,14 +57,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         newName = `${room.name} (Copy ${i})`
       }
       
-      await createRoom({
+      await createRoomStore({
         house_id: room.house_id,
         name: newName,
         price: room.price,
         max_tenants: room.max_tenants,
         status: 'AVAILABLE'
       })
-      await refreshCurrentRooms()
     } catch {
       alert("Lỗi khi nhân bản phòng!")
     } finally {
@@ -77,7 +76,6 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
     setIsLoading(true)
     try {
       await deleteRoomStore(room.id, room.house_id)
-      await refreshCurrentRooms()
     } catch {
       alert("Lỗi khi xóa phòng!")
     } finally {
@@ -92,7 +90,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         const originalRoom = rooms.find(r => r.id === id)
         // Only update if changed
         if (originalRoom && (originalRoom.name !== data.name || originalRoom.price?.toString() !== data.price || originalRoom.max_tenants?.toString() !== data.max_tenants)) {
-          return updateRoom(id, {
+          return updateRoomStore(id, {
             house_id: originalRoom.house_id,
             name: data.name,
             price: parseNumber(data.price),
@@ -102,7 +100,6 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         return Promise.resolve()
       })
       await Promise.all(promises)
-      await refreshCurrentRooms()
       onClose()
     } catch {
       alert("Lỗi khi cập nhật giá phòng, vui lòng kiểm tra lại!")

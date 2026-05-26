@@ -15,7 +15,7 @@ export interface House {
 
 export const getHouses = async () => {
   const { data } = await apiClient.get('/house/')
-  return (data.data?.data || data.data || []) as House[]
+  return (data.data || []) as House[]
 }
 
 export const createHouse = async (payload: Partial<House>) => {
