@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { getRoomsByHouseId, deleteRoom, createRoom as apiCreateRoom, updateRoom as apiUpdateRoom, type Room } from '@/api/room'
 import { useSelectedStore } from './selectedData'
+import { useInvoiceStore } from './invoiceData'
 
 export const ROOMS_LIMIT = 25
 
@@ -104,6 +105,8 @@ export const useRoomStore = create<RoomDataState>((set, get) => ({
       set(state => ({
         rooms: state.rooms.map(r => r.id === roomId ? updatedRoom : r)
       }))
+      // Refetch invoices to reflect the price change in unpaid invoices
+      useInvoiceStore.getState().fetchInvoices()
       return true
     } catch (err) {
       console.error("Failed to update room", err)

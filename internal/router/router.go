@@ -10,7 +10,14 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
-func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, roomHandler *handler.RoomHandler, tokenProvider *security.JWTProvider, tenantHandler *handler.TenantHandler) http.Handler {
+func New(
+	authHandler *handler.AuthHandler,
+	houseHandler *handler.HouseHandler,
+	roomHandler *handler.RoomHandler,
+	tokenProvider *security.JWTProvider,
+	tenantHandler *handler.TenantHandler,
+	invoiceHandler *handler.InvoiceHandler,
+) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
 	r.Use(middleware.Logger)
@@ -58,6 +65,16 @@ func New(authHandler *handler.AuthHandler, houseHandler *handler.HouseHandler, r
 		r.Patch("/{id}", tenantHandler.UpdateTenantInfo)
 		r.Delete("/{id}", tenantHandler.DeleteTenant)
 		r.Handle("/files/*", http.StripPrefix("/api/v1/tenant/files/", http.FileServer(http.Dir("uploads/tenants"))))
+	})
+
+	r.Route("/api/v1/invoice", func(r chi.Router) {
+		r.Use(authMiddleware(tokenProvider))
+		r.Use(requireRole("MANAGER"))
+		r.Post("/", invoiceHandler.CreateInvoice)
+		r.Get("/", invoiceHandler.ListInvoices)
+		r.Get("/{id}", invoiceHandler.GetInvoice)
+		r.Patch("/{id}/pay", invoiceHandler.PayInvoice)
+		r.Patch("/{id}/unpay", invoiceHandler.UnpayInvoice)
 	})
 
 	return r

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getHouses, deleteHouse, updateHouse as apiUpdateHouse, createHouse as apiCreateHouse, type House } from '@/api/house'
+import { useInvoiceStore } from './invoiceData'
 
 interface HouseDataState {
   houses: House[]
@@ -47,6 +48,7 @@ export const useHouseStore = create<HouseDataState>((set) => ({
     try {
       const house = await apiUpdateHouse(id, payload)
       set(state => ({ houses: state.houses.map(h => h.id === id ? house : h) }))
+      useInvoiceStore.getState().fetchInvoices()
       return house
     } catch (err) {
       console.error("Failed to update house", err)
@@ -68,6 +70,14 @@ export const useHouseStore = create<HouseDataState>((set) => ({
       default_wifi_price: payload.default_wifi_price || 0,
       default_parking_price: payload.default_parking_price || 0,
       default_service_price: payload.default_service_price || 0,
+      electricity_billing_type: payload.electricity_billing_type || 'USAGE',
+      water_billing_type: payload.water_billing_type || 'USAGE',
+      electricity_billing_unit: payload.electricity_billing_unit || 'ROOM',
+      water_billing_unit: payload.water_billing_unit || 'ROOM',
+      extra_person_threshold: payload.extra_person_threshold || 0,
+      extra_person_fee: payload.extra_person_fee || 0,
+      extra_vehicle_threshold: payload.extra_vehicle_threshold || 0,
+      extra_vehicle_fee: payload.extra_vehicle_fee || 0,
     }
 
     set(state => ({ houses: [...state.houses, tempHouse] }))

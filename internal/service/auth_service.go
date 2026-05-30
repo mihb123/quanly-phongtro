@@ -97,11 +97,8 @@ func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens To
 
 func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*AuthOutput, error) {
 	email := strings.TrimSpace(strings.ToLower(in.Email))
-	password := strings.TrimSpace(in.Password)
-	fullName := strings.TrimSpace(in.FullName)
-	phone := strings.TrimSpace(in.Phone)
 
-	if !isValidEmail(email) || len(password) < 6 {
+	if !isValidEmail(email) {
 		return nil, ErrInvalidInput
 	}
 
@@ -114,17 +111,17 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	passwordHash, err := s.hasher.Hash(password)
+	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
 		return nil, err
 	}
 
 	newUser := &model.User{
-		Email:        email,
+		Email:        in.Email,
 		PasswordHash: passwordHash,
 		Role:         model.RoleManager,
-		FullName:     fullName,
-		Phone:        phone,
+		FullName:     in.FullName,
+		Phone:        in.Phone,
 		IsActivated:  false,
 	}
 
@@ -164,7 +161,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, err
 	}
 
-	if err := s.hasher.Compare(existingUser.PasswordHash, password); err != nil {
+	if err := s.hasher.Compare(existingUser.PasswordHash, in.Password); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 

@@ -14,7 +14,8 @@ import (
 )
 
 type HouseHandler struct {
-	houseService service.HouseService
+	houseService   service.HouseService
+	invoiceService service.InvoiceService
 }
 
 type createHouseRequest struct {
@@ -25,20 +26,36 @@ type createHouseRequest struct {
 	DefaultWifiPrice        float64 `json:"default_wifi_price" validate:"gte=0"`
 	DefaultParkingPrice     float64 `json:"default_parking_price" validate:"gte=0"`
 	DefaultServicePrice     float64 `json:"default_service_price" validate:"gte=0"`
+	ElectricityBillingType  string  `json:"electricity_billing_type" validate:"required,oneof=USAGE FIXED"`
+	WaterBillingType        string  `json:"water_billing_type" validate:"required,oneof=USAGE FIXED"`
+	ElectricityBillingUnit  string  `json:"electricity_billing_unit" validate:"required,oneof=ROOM PERSON"`
+	WaterBillingUnit        string  `json:"water_billing_unit" validate:"required,oneof=ROOM PERSON"`
+	ExtraPersonThreshold    int     `json:"extra_person_threshold" validate:"gte=0"`
+	ExtraPersonFee          float64 `json:"extra_person_fee" validate:"gte=0"`
+	ExtraVehicleThreshold   int     `json:"extra_vehicle_threshold" validate:"gte=0"`
+	ExtraVehicleFee         float64 `json:"extra_vehicle_fee" validate:"gte=0"`
 }
 
 type updateHouseRequest struct {
-	Name                    *string  `json:"name"`
-	Address                 *string  `json:"address"`
-	DefaultElectricityPrice *float64 `json:"default_electricity_price"`
-	DefaultWaterPrice       *float64 `json:"default_water_price" validate:"omitempty,gte=0"`
-	DefaultWifiPrice        *float64 `json:"default_wifi_price" validate:"omitempty,gte=0"`
-	DefaultParkingPrice     *float64 `json:"default_parking_price" validate:"omitempty,gte=0"`
-	DefaultServicePrice     *float64 `json:"default_service_price" validate:"omitempty,gte=0"`
+	Name                    string  `json:"name" validate:"required"`
+	Address                 string  `json:"address" validate:"required"`
+	DefaultElectricityPrice float64 `json:"default_electricity_price" validate:"gte=0"`
+	DefaultWaterPrice       float64 `json:"default_water_price" validate:"gte=0"`
+	DefaultWifiPrice        float64 `json:"default_wifi_price" validate:"gte=0"`
+	DefaultParkingPrice     float64 `json:"default_parking_price" validate:"gte=0"`
+	DefaultServicePrice     float64 `json:"default_service_price" validate:"gte=0"`
+	ElectricityBillingType  string  `json:"electricity_billing_type" validate:"omitempty,oneof=USAGE FIXED"`
+	WaterBillingType        string  `json:"water_billing_type" validate:"omitempty,oneof=USAGE FIXED"`
+	ElectricityBillingUnit  string  `json:"electricity_billing_unit" validate:"omitempty,oneof=ROOM PERSON"`
+	WaterBillingUnit        string  `json:"water_billing_unit" validate:"omitempty,oneof=ROOM PERSON"`
+	ExtraPersonThreshold    int     `json:"extra_person_threshold" validate:"gte=0"`
+	ExtraPersonFee          float64 `json:"extra_person_fee" validate:"gte=0"`
+	ExtraVehicleThreshold   int     `json:"extra_vehicle_threshold" validate:"gte=0"`
+	ExtraVehicleFee         float64 `json:"extra_vehicle_fee" validate:"gte=0"`
 }
 
-func NewHouseHandler(service service.HouseService) *HouseHandler {
-	return &HouseHandler{houseService: service}
+func NewHouseHandler(service service.HouseService, invoiceService service.InvoiceService) *HouseHandler {
+	return &HouseHandler{houseService: service, invoiceService: invoiceService}
 }
 
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
@@ -72,6 +89,14 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		DefaultWifiPrice:        req.DefaultWifiPrice,
 		DefaultParkingPrice:     req.DefaultParkingPrice,
 		DefaultServicePrice:     req.DefaultServicePrice,
+		ElectricityBillingType:  req.ElectricityBillingType,
+		WaterBillingType:        req.WaterBillingType,
+		ElectricityBillingUnit:  req.ElectricityBillingUnit,
+		WaterBillingUnit:        req.WaterBillingUnit,
+		ExtraPersonThreshold:    req.ExtraPersonThreshold,
+		ExtraPersonFee:          req.ExtraPersonFee,
+		ExtraVehicleThreshold:   req.ExtraVehicleThreshold,
+		ExtraVehicleFee:         req.ExtraVehicleFee,
 	}
 
 	err = h.houseService.CreateHouse(r.Context(), house)
@@ -171,6 +196,14 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 		DefaultWifiPrice:        req.DefaultWifiPrice,
 		DefaultParkingPrice:     req.DefaultParkingPrice,
 		DefaultServicePrice:     req.DefaultServicePrice,
+		ElectricityBillingType:  req.ElectricityBillingType,
+		WaterBillingType:        req.WaterBillingType,
+		ElectricityBillingUnit:  req.ElectricityBillingUnit,
+		WaterBillingUnit:        req.WaterBillingUnit,
+		ExtraPersonThreshold:    req.ExtraPersonThreshold,
+		ExtraPersonFee:          req.ExtraPersonFee,
+		ExtraVehicleThreshold:   req.ExtraVehicleThreshold,
+		ExtraVehicleFee:         req.ExtraVehicleFee,
 	}
 
 	house, err := h.houseService.UpdateHouse(r.Context(), id, userID, updateHouseInput)
@@ -179,6 +212,13 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// Trigger recalculation for unpaid invoices when house is updated
+	err = h.invoiceService.RecalculateUnpaidInvoicesByHouse(r.Context(), userID, id)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after house update", err)
+	}
+
 	writeJSON(w, http.StatusOK, house, "")
 }
 

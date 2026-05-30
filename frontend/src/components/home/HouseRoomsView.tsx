@@ -88,7 +88,7 @@ export function HouseRoomsView() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {rooms.map(room => (
-              <Card key={room.id} onClick={() => setTenantRoom(room)} className="p-6 bg-white/80 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer">
+              <Card key={room.id} onClick={() => setEditRoom(room)} className="p-6 bg-white/80 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">

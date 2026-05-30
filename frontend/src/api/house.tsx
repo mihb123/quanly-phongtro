@@ -10,6 +10,14 @@ export interface House {
   default_wifi_price?: number
   default_parking_price?: number
   default_service_price?: number
+  electricity_billing_type?: string
+  water_billing_type?: string
+  electricity_billing_unit?: string
+  water_billing_unit?: string
+  extra_person_threshold?: number
+  extra_person_fee?: number
+  extra_vehicle_threshold?: number
+  extra_vehicle_fee?: number
   created_at?: string
 }
 

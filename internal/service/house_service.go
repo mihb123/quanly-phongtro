@@ -30,20 +30,25 @@ func NewHouseServiceImpt(houseRepo model.HouseRepository) HouseService {
 }
 
 type UpdateHouseInput struct {
-	ManagerID               *string
-	Name                    *string
-	Address                 *string
-	DefaultElectricityPrice *float64
-	DefaultWaterPrice       *float64
-	DefaultWifiPrice        *float64
-	DefaultParkingPrice     *float64
-	DefaultServicePrice     *float64
+	Name                    string
+	Address                 string
+	DefaultElectricityPrice float64
+	DefaultWaterPrice       float64
+	DefaultWifiPrice        float64
+	DefaultParkingPrice     float64
+	DefaultServicePrice     float64
+	ElectricityBillingType  string
+	WaterBillingType        string
+	ElectricityBillingUnit  string
+	WaterBillingUnit        string
+	ExtraPersonThreshold    int
+	ExtraPersonFee          float64
+	ExtraVehicleThreshold   int
+	ExtraVehicleFee         float64
 }
 
 func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
-
 	return h.houseRepo.CreateHouse(ctx, house)
-
 }
 
 func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error) {
@@ -79,6 +84,14 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 		DefaultWifiPrice:        input.DefaultWifiPrice,
 		DefaultParkingPrice:     input.DefaultParkingPrice,
 		DefaultServicePrice:     input.DefaultServicePrice,
+		ElectricityBillingType:  input.ElectricityBillingType,
+		WaterBillingType:        input.WaterBillingType,
+		ElectricityBillingUnit:  input.ElectricityBillingUnit,
+		WaterBillingUnit:        input.WaterBillingUnit,
+		ExtraPersonThreshold:    input.ExtraPersonThreshold,
+		ExtraPersonFee:          input.ExtraPersonFee,
+		ExtraVehicleThreshold:   input.ExtraVehicleThreshold,
+		ExtraVehicleFee:         input.ExtraVehicleFee,
 	}
 	house, err := h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
 	if err != nil {

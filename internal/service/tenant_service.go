@@ -31,30 +31,30 @@ type TenantServiceImpl struct {
 }
 
 type RegisterTenantInput struct {
-	ManagerID          string
-	Email              string
-	Password           string
-	FullName           string
-	Phone              string
-	RoomID             string
-	CCCDFiles          []*multipart.FileHeader
-	ContractFiles      []*multipart.FileHeader
-	IdentityCard       string
-	StartDate          time.Time
+	ManagerID     string
+	Email         string
+	Password      string
+	FullName      string
+	Phone         string
+	RoomID        string
+	CCCDFiles     []*multipart.FileHeader
+	ContractFiles []*multipart.FileHeader
+	IdentityCard  string
+	StartDate     time.Time
 }
 
 // UpdateTenantInput carries the optional fields a manager can patch on a tenant.
 // Nil pointer = field not provided = leave unchanged.
 // File fields are optional — leave nil to keep the existing stored path.
 type UpdateTenantInput struct {
-	FullName           *string
-	Phone              *string
-	Email              *string
-	IdentityCard       *string
-	CCCDFiles          []*multipart.FileHeader
-	ContractFiles      []*multipart.FileHeader
-	KeptCCCDPaths      *string
-	KeptContractPaths  *string
+	FullName          *string
+	Phone             *string
+	Email             *string
+	IdentityCard      *string
+	CCCDFiles         []*multipart.FileHeader
+	ContractFiles     []*multipart.FileHeader
+	KeptCCCDPaths     *string
+	KeptContractPaths *string
 }
 
 func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantRepository, rooms model.RoomRepository, hasher PasswordHasher) *TenantServiceImpl {
@@ -73,25 +73,28 @@ func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fileName := uuid.New().String() + filepath.Ext(header.Filename)
+		
+		ext := strings.ToLower(filepath.Ext(header.Filename))
+		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".pdf": true}
+		if !allowedExts[ext] {
+			file.Close()
+			return "", fmt.Errorf("unsupported file extension: %s", ext)
+		}
+
+		fileName := uuid.New().String() + ext
 		filePath := filepath.Join("uploads", "tenants", fileName)
 		if err := saveFile(file, filePath); err != nil {
 			file.Close()
 			return "", err
 		}
 		file.Close()
-		paths = append(paths, "/api/v1/tenant/files/" + fileName)
+		paths = append(paths, "/api/v1/tenant/files/"+fileName)
 	}
 	return strings.Join(paths, ","), nil
 }
 
 func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error) {
-	email := strings.TrimSpace(strings.ToLower(in.Email))
-	password := strings.TrimSpace(in.Password)
-	fullName := strings.TrimSpace(in.FullName)
-	phone := strings.TrimSpace(in.Phone)
-
-	if !isValidEmail(email) || len(password) < 6 {
+	if !isValidEmail(in.Email) {
 		return nil, ErrInvalidInput
 	}
 
@@ -103,15 +106,15 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		return nil, model.ErrMaxTenans
 	}
 
-	passwordHash, err := s.hasher.Hash(password)
+	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
 		return nil, err
 	}
 	newTenant := &model.User{
-		Email:        email,
-		FullName:     fullName,
+		Email:        in.Email,
+		FullName:     in.FullName,
 		PasswordHash: passwordHash,
-		Phone:        phone,
+		Phone:        in.Phone,
 		Role:         model.RoleTenant,
 	}
 	newRoomTenant := &model.Tenant{

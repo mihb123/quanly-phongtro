@@ -21,7 +21,7 @@ func NewHouseRepository(db *bun.DB) *HouseRepository {
 func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error {
 	_, err := r.db.NewInsert().
 		Model(h).
-		Column("manager_id", "name", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price").
+		Column("manager_id", "name", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
@@ -69,46 +69,27 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 	q := r.db.NewUpdate().
 		Model((*model.House)(nil)).
 		Where("id = ? AND manager_id = ?", id, managerID).
-		Returning("id, manager_id, name, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price, created_at, updated_at")
+		Returning("id, manager_id, name, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price, electricity_billing_type, water_billing_type, electricity_billing_unit, water_billing_unit, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, created_at, updated_at")
 
-	updated := false
-	if params.Name != nil {
-		q.Set("name = ?", *params.Name)
-		updated = true
-	}
-	if params.Address != nil {
-		q.Set("address = ?", *params.Address)
-		updated = true
-	}
-	if params.DefaultElectricityPrice != nil {
-		q.Set("default_electricity_price = ?", *params.DefaultElectricityPrice)
-		updated = true
-	}
-	if params.DefaultWaterPrice != nil {
-		q.Set("default_water_price = ?", *params.DefaultWaterPrice)
-		updated = true
-	}
-	if params.DefaultWifiPrice != nil {
-		q.Set("default_wifi_price = ?", *params.DefaultWifiPrice)
-		updated = true
-	}
-	if params.DefaultParkingPrice != nil {
-		q.Set("default_parking_price = ?", *params.DefaultParkingPrice)
-		updated = true
-	}
-	if params.DefaultServicePrice != nil {
-		q.Set("default_service_price = ?", *params.DefaultServicePrice)
-		updated = true
-	}
-
-	if !updated {
-		return nil, fmt.Errorf("update house: no fields to update")
-	}
-
+	q.Set("name = ?", params.Name)
+	q.Set("address = ?", params.Address)
+	q.Set("default_electricity_price = ?", params.DefaultElectricityPrice)
+	q.Set("default_water_price = ?", params.DefaultWaterPrice)
+	q.Set("default_wifi_price = ?", params.DefaultWifiPrice)
+	q.Set("default_parking_price = ?", params.DefaultParkingPrice)
+	q.Set("default_service_price = ?", params.DefaultServicePrice)
+	q.Set("electricity_billing_type = ?", params.ElectricityBillingType)
+	q.Set("water_billing_type = ?", params.WaterBillingType)
+	q.Set("electricity_billing_unit = ?", params.ElectricityBillingUnit)
+	q.Set("water_billing_unit = ?", params.WaterBillingUnit)
+	q.Set("extra_person_threshold = ?", params.ExtraPersonThreshold)
+	q.Set("extra_person_fee = ?", params.ExtraPersonFee)
+	q.Set("extra_vehicle_threshold = ?", params.ExtraVehicleThreshold)
+	q.Set("extra_vehicle_fee = ?", params.ExtraVehicleFee)
 	q.Set("updated_at = NOW()")
 
 	var h model.House
-	err := q.Scan(ctx, &h.ID, &h.ManagerID, &h.Name, &h.Address, &h.DefaultElectricityPrice, &h.DefaultWaterPrice, &h.DefaultWifiPrice, &h.DefaultParkingPrice, &h.DefaultServicePrice, &h.CreatedAt, &h.UpdatedAt)
+	err := q.Scan(ctx, &h.ID, &h.ManagerID, &h.Name, &h.Address, &h.DefaultElectricityPrice, &h.DefaultWaterPrice, &h.DefaultWifiPrice, &h.DefaultParkingPrice, &h.DefaultServicePrice, &h.ElectricityBillingType, &h.WaterBillingType, &h.ElectricityBillingUnit, &h.WaterBillingUnit, &h.ExtraPersonThreshold, &h.ExtraPersonFee, &h.ExtraVehicleThreshold, &h.ExtraVehicleFee, &h.CreatedAt, &h.UpdatedAt)
 	
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

@@ -62,7 +62,8 @@
 - Reuse existing API functions before adding new ones. Do not duplicate the same request logic in multiple files.
 - Do not store state that can be derived from props, query data, or other state.
 - When a screen grows beyond a small feature slice, split view, hook, API, and helper logic early.
-- Wrap components that receive array or object props with `React.memo` when the parent re-renders frequently. Pass callbacks through `useCallback` and derived data through `useMemo`.
+- **Performance Hooks**: Wrap components that receive array/object props with `React.memo` when the parent re-renders frequently. Pass callbacks through `useCallback` and derived data through `useMemo`. Only use these when there is a proven performance bottleneck. Do not wrap primitives or simple functions preemptively.
+- **Reporting Optimization**: When adding or removing performance hooks, you MUST explicitly report to the user: (1) Justification for adding or removing (e.g., removing useless hooks to clean code), (2) Reference risks (unmemoized array/object/function props passed to memoized components), and (3) Warnings if dependency arrays become too complex or deeply nested.
 - Avoid `dangerouslySetInnerHTML`. If HTML injection is required, sanitize or escape the content first and document the XSS-safe guarantee in a comment.
 - All modals MUST close on Escape keypress and backdrop click. Always ensure consistent implementation across all newly created or updated modals.
 - All interactive elements (buttons, icon buttons, clickable icons, links, and clickable areas) MUST show a pointer cursor (`cursor-pointer` class). Ensure that generic UI components (like `<Button>`) have this class set by default in their base variants. Any async action triggered from the UI must expose a visible loading state.

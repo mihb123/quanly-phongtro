@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -22,18 +23,21 @@ func NewTenantHandler(service service.TenantService) *TenantHandler {
 	}
 }
 
-func handleTenantError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, model.ErrMaxTenans):
-		logger.Warn(r, http.StatusBadRequest, "room is max", err)
-		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, service.ErrInvalidInput):
-		logger.Warn(r, http.StatusBadRequest, "invalid input", err)
-		writeError(w, http.StatusBadRequest, "invalid input")
-	default:
-		logger.Error(r, http.StatusInternalServerError, "tenant operation failed", err)
-		writeError(w, http.StatusInternalServerError, "internal server error")
-	}
+type registerTenantRequest struct {
+	RoomID       string `validate:"required"`
+	FullName     string `validate:"required"`
+	Password     string `validate:"required,min=6"`
+	Phone        string `validate:"required"`
+	Email        string `validate:"required,email"`
+	IdentityCard string `validate:"required"`
+	StartDate    string `validate:"required"`
+}
+
+type updateTenantRequest struct {
+	FullName     *string `validate:"omitempty"`
+	Phone        *string `validate:"omitempty"`
+	Email        *string `validate:"omitempty,email"`
+	IdentityCard *string `validate:"omitempty"`
 }
 
 func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
@@ -45,20 +49,22 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	err = r.ParseMultipartForm(10 << 20) // 10MB limit for files
+	// Prevent DoS: Limit total request body size to 15MB
+	r.Body = http.MaxBytesReader(w, r.Body, 15<<20)
+	err = r.ParseMultipartForm(10 << 20) // 10MB limit for files in RAM
 	if err != nil {
 		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
 		return
 	}
 
-	roomID := r.FormValue("room_id")
-	fullName := r.FormValue("full_name")
-	password := r.FormValue("password")
-	phone := r.FormValue("phone")
-	email := r.FormValue("email")
-	identityCard := r.FormValue("identity_card")
-	startDateStr := r.FormValue("start_date")
+	roomID := strings.TrimSpace(r.FormValue("room_id"))
+	fullName := strings.TrimSpace(r.FormValue("full_name"))
+	password := strings.TrimSpace(r.FormValue("password"))
+	phone := strings.TrimSpace(r.FormValue("phone"))
+	email := strings.TrimSpace(strings.ToLower(r.FormValue("email")))
+	identityCard := strings.TrimSpace(r.FormValue("identity_card"))
+	startDateStr := strings.TrimSpace(r.FormValue("start_date"))
 
 	if email == "" && phone != "" {
 		email = phone + "@tenant.local"
@@ -68,24 +74,40 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		password = phone
 	}
 
-	if roomID == "" || fullName == "" || phone == "" || identityCard == "" || startDateStr == "" || email == "" {
-		writeError(w, http.StatusBadRequest, "missing required fields")
-		return
+	req := registerTenantRequest{
+		RoomID:       roomID,
+		FullName:     fullName,
+		Password:     password,
+		Phone:        phone,
+		Email:        email,
+		IdentityCard: identityCard,
+		StartDate:    startDateStr,
 	}
 
-	if len(password) < 6 {
-		writeError(w, http.StatusBadRequest, "password is too short")
+	if err := validateStruct(req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	var startDate time.Time
 	startDate, err = time.Parse("2006-01-02", startDateStr)
 	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid start date", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	cccdFiles := r.MultipartForm.File["cccd_file"]
+	if len(cccdFiles) > 10 {
+		writeError(w, http.StatusBadRequest, "maximum 10 CCCD files allowed")
+		return
+	}
+
 	contractFiles := r.MultipartForm.File["contract_file"]
+	if len(contractFiles) > 10 {
+		writeError(w, http.StatusBadRequest, "maximum 10 contract files allowed")
+		return
+	}
 
 	registerTenantInput := service.RegisterTenantInput{
 		ManagerID:          userID,
@@ -102,7 +124,17 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		switch {
+		case errors.Is(err, model.ErrMaxTenans):
+			logger.Warn(r, http.StatusBadRequest, "room is full", err)
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, service.ErrInvalidInput):
+			logger.Warn(r, http.StatusBadRequest, "invalid input", err)
+			writeError(w, http.StatusBadRequest, "invalid input")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to register tenant", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
 		return
 	}
 
@@ -119,14 +151,9 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	roomID := chi.URLParam(r, "id")
-	if roomID == "" {
-		logger.Warn(r, http.StatusBadRequest, "missing roomID", err)
-		writeError(w, http.StatusBadRequest, "missing room ID")
-		return
-	}
 	listTenant, err := h.tenantService.ListTenantByRoomID(r.Context(), managerID, roomID)
 	if err != nil {
-		logger.Warn(r, http.StatusInternalServerError, "can not get list of tenant by room id", err)
+		logger.Error(r, http.StatusInternalServerError, "failed to get list of tenants by room ID", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -142,14 +169,9 @@ func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	houseID := chi.URLParam(r, "id")
-	if houseID == "" {
-		logger.Warn(r, http.StatusBadRequest, "missing houseID", err)
-		writeError(w, http.StatusBadRequest, "missing house ID")
-		return
-	}
 	listTenant, err := h.tenantService.ListTenantByHouseID(r.Context(), managerID, houseID)
 	if err != nil {
-		logger.Warn(r, http.StatusInternalServerError, "can not get list of tenant by house id", err)
+		logger.Error(r, http.StatusInternalServerError, "failed to get list of tenants by house ID", err)
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
@@ -167,11 +189,9 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	}
 
 	tenantID := chi.URLParam(r, "id")
-	if tenantID == "" {
-		writeError(w, http.StatusBadRequest, "missing tenant ID")
-		return
-	}
 
+	// Prevent DoS: Limit total request body size to 15MB
+	r.Body = http.MaxBytesReader(w, r.Body, 15<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
 		writeError(w, http.StatusBadRequest, "invalid multipart form")
@@ -180,18 +200,33 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 
 	// Text fields: empty string means "not provided" → leave field unchanged.
 	in := service.UpdateTenantInput{}
+	var req updateTenantRequest
 
 	if v := r.FormValue("full_name"); v != "" {
-		in.FullName = &v
+		trimmed := strings.TrimSpace(v)
+		in.FullName = &trimmed
+		req.FullName = &trimmed
 	}
 	if v := r.FormValue("phone"); v != "" {
-		in.Phone = &v
+		trimmed := strings.TrimSpace(v)
+		in.Phone = &trimmed
+		req.Phone = &trimmed
 	}
 	if v := r.FormValue("email"); v != "" {
-		in.Email = &v
+		trimmed := strings.TrimSpace(strings.ToLower(v))
+		in.Email = &trimmed
+		req.Email = &trimmed
 	}
 	if v := r.FormValue("identity_card"); v != "" {
-		in.IdentityCard = &v
+		trimmed := strings.TrimSpace(v)
+		in.IdentityCard = &trimmed
+		req.IdentityCard = &trimmed
+	}
+
+	if err := validateStruct(req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "update validation failed", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	if v := r.FormValue("kept_cccd_paths"); v != "" {
@@ -209,7 +244,16 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	}
 
 	in.CCCDFiles = r.MultipartForm.File["cccd_file"]
+	if len(in.CCCDFiles) > 10 {
+		writeError(w, http.StatusBadRequest, "maximum 10 CCCD files allowed")
+		return
+	}
+
 	in.ContractFiles = r.MultipartForm.File["contract_file"]
+	if len(in.ContractFiles) > 10 {
+		writeError(w, http.StatusBadRequest, "maximum 10 contract files allowed")
+		return
+	}
 
 	updated, err := h.tenantService.UpdateTenantInfo(r.Context(), managerID, tenantID, in)
 	if err != nil {
@@ -240,10 +284,6 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := chi.URLParam(r, "id")
-	if tenantID == "" {
-		writeError(w, http.StatusBadRequest, "missing tenant ID")
-		return
-	}
 
 	if err := h.tenantService.DeleteTenant(r.Context(), managerID, tenantID); err != nil {
 		switch {

@@ -22,7 +22,7 @@ func NewRoomRepository(db *bun.DB) *RoomRepository {
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
 	_, err := r.db.NewInsert().
 		Model(room).
-		Column("house_id", "name", "price", "max_tenants", "status").
+		Column("house_id", "name", "price", "max_tenants", "status", "electricity_price", "water_price", "wifi_price", "parking_price", "service_price").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
@@ -67,38 +67,43 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string,
 	return rooms, nil
 }
 
+// ListAllRoomsByHouseID lists all rooms for a house without pagination.
+// Ownership must be verified by the caller before this.
+func (r *RoomRepository) ListAllRoomsByHouseID(ctx context.Context, houseID string) ([]model.Room, error) {
+	var rooms []model.Room
+	err := r.db.NewSelect().
+		Model(&rooms).
+		Where("house_id = ?", houseID).
+		Order("name ASC").
+		Scan(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("list all rooms: %w", err)
+	}
+	return rooms, nil
+}
+
 // UpdateRoom partially updates a room within a specific house.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, params model.UpdateRoomParams) (*model.Room, error) {
 	q := r.db.NewUpdate().
 		Model((*model.Room)(nil)).
 		Where("id = ? AND house_id = ?", id, houseID).
-		Returning("id, house_id, name, price, max_tenants, status, created_at, updated_at")
+		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at")
 
-	updated := false
-	if params.Name != nil {
-		q.Set("name = ?", *params.Name)
-		updated = true
-	}
-	if params.Price != nil {
-		q.Set("price = ?", *params.Price)
-		updated = true
-	}
-	if params.MaxTenants != nil {
-		q.Set("max_tenants = ?", *params.MaxTenants)
-		updated = true
-	}
-	if params.Status != nil {
-		q.Set("status = ?", *params.Status)
-		updated = true
-	}
-	if !updated {
-		return nil, fmt.Errorf("update room: no fields to update")
-	}
+	q.Set("name = ?", params.Name)
+	q.Set("price = ?", params.Price)
+	q.Set("max_tenants = ?", params.MaxTenants)
+	q.Set("status = ?", params.Status)
+	q.Set("electricity_price = ?", params.ElectricityPrice)
+	q.Set("water_price = ?", params.WaterPrice)
+	q.Set("wifi_price = ?", params.WifiPrice)
+	q.Set("parking_price = ?", params.ParkingPrice)
+	q.Set("service_price = ?", params.ServicePrice)
 	q.Set("updated_at = NOW()")
 
 	var room model.Room
-	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.CreatedAt, &room.UpdatedAt)
+	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound
@@ -158,4 +163,20 @@ func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status st
 		return model.ErrNotFound
 	}
 	return nil
+}
+
+// GetRoomByIDOnly fetches a room by its ID only.
+func (r *RoomRepository) GetRoomByIDOnly(ctx context.Context, id string) (*model.Room, error) {
+	var room model.Room
+	err := r.db.NewSelect().
+		Model(&room).
+		Where("id = ?", id).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrRoomNotFound
+		}
+		return nil, fmt.Errorf("get room by id only: %w", err)
+	}
+	return &room, nil
 }

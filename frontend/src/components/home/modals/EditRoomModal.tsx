@@ -62,6 +62,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
         name: values.name, 
         price: parseNumber(values.price), 
         max_tenants: Number(values.maxTenants),
+        status: room.status,
         electricity_price: values.electricity !== '' ? parseNumber(values.electricity) : undefined,
         water_price: values.water !== '' ? parseNumber(values.water) : undefined,
         wifi_price: values.wifi !== '' ? parseNumber(values.wifi) : undefined,

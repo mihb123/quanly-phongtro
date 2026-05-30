@@ -42,17 +42,22 @@ func main() {
 
 	houseRepo := repository.NewHouseRepository(sqlDB)
 	houseService := service.NewHouseServiceImpt(houseRepo)
-	houseHandler := httpHandler.NewHouseHandler(houseService)
-
+	invoiceRepo := repository.NewInvoiceRepository(sqlDB)
+	
 	roomRepo := repository.NewRoomRepository(sqlDB)
 	roomService := service.NewRoomService(roomRepo, houseRepo)
-	roomHandler := httpHandler.NewRoomHandler(roomService)
 
 	tenantRepo := repository.NewTenantRepository(sqlDB)
 	tenantService := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
 	tenanHandler := httpHandler.NewTenantHandler(tenantService)
 
-	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler)
+	invoiceService := service.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo)
+	invoiceHandler := httpHandler.NewInvoiceHandler(invoiceService)
+
+	houseHandler := httpHandler.NewHouseHandler(houseService, invoiceService)
+	roomHandler := httpHandler.NewRoomHandler(roomService, invoiceService)
+
+	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,

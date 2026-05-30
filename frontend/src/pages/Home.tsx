@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/home/sidebar/Sidebar'
 import { DashboardView } from '@/components/home/DashboardView'
 import { HouseRoomsView } from '@/components/home/HouseRoomsView'
 import { TenantsView } from '@/components/home/TenantsView'
+import { InvoicesView } from '@/components/home/InvoicesView'
 
 export default function HomePage() {
   const { activeTab } = useSelectedStore()
@@ -31,6 +32,10 @@ export default function HomePage() {
 
             {activeTab === 'tenants' && (
               <TenantsView />
+            )}
+
+            {activeTab === 'invoices' && (
+              <InvoicesView />
             )}
           </div>
         </main>

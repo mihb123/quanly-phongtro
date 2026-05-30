@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
@@ -30,6 +31,10 @@ type loginRequest struct {
 	Password string `json:"password" validate:"required"`
 }
 
+type verifyEmailRequest struct {
+	OTP string `json:"otp" validate:"required"`
+}
+
 func NewAuthHandler(service service.AuthService) *AuthHandler {
 	return &AuthHandler{service: service}
 }
@@ -49,10 +54,10 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output, err := h.service.Register(r.Context(), service.RegisterInput{
-		Email:    req.Email,
-		Password: req.Password,
-		FullName: req.FullName,
-		Phone:    req.Phone,
+		Email:    strings.TrimSpace(strings.ToLower(req.Email)),
+		Password: strings.TrimSpace(req.Password),
+		FullName: strings.TrimSpace(req.FullName),
+		Phone:    strings.TrimSpace(req.Phone),
 	})
 	if err != nil {
 		switch {
@@ -88,8 +93,8 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output, err := h.service.Login(r.Context(), service.LoginInput{
-		Email:    req.Email,
-		Password: req.Password,
+		Email:    strings.TrimSpace(strings.ToLower(req.Email)),
+		Password: strings.TrimSpace(req.Password),
 	})
 	if err != nil {
 		switch {
@@ -252,9 +257,7 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "account is already activated")
 		return
 	}
-	var req struct {
-		OTP string `json:"otp" validate:"required"`
-	}
+	var req verifyEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn(r, http.StatusBadRequest, "invalid body request", err)
 		writeError(w, http.StatusBadRequest, "invalid body request")

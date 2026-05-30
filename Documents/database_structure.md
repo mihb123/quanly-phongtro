@@ -25,6 +25,14 @@ Mỗi user (MANAGER) có thể quản lý nhiều nhà trọ.
 - `default_wifi_price`: Decimal.
 - `default_parking_price`: Decimal.
 - `default_service_price`: Decimal.
+- `electricity_billing_type`: Varchar (VD: 'USAGE', 'FIXED').
+- `water_billing_type`: Varchar (VD: 'USAGE', 'FIXED').
+- `electricity_billing_unit`: Varchar (VD: 'ROOM', 'PERSON').
+- `water_billing_unit`: Varchar (VD: 'ROOM', 'PERSON').
+- `extra_person_threshold`: Integer (Số người mặc định không tính phụ phí).
+- `extra_person_fee`: Decimal (Phí thu thêm cho mỗi người vượt mức).
+- `extra_vehicle_threshold`: Integer (Số xe mặc định không tính phụ phí).
+- `extra_vehicle_fee`: Decimal (Phí thu thêm cho mỗi xe vượt mức).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
@@ -70,6 +78,10 @@ Tính hóa đơn hàng tháng cho mỗi phòng.
 - `parking_fee`: Decimal.
 - `service_fee`: Decimal.
 - `other_fee`: Decimal.
+- `tenant_count`: Integer (Số lượng người lúc chốt hóa đơn).
+- `vehicle_count`: Integer (Số lượng xe).
+- `extra_person_fee`: Decimal (Phụ phí vượt mức người).
+- `extra_vehicle_fee`: Decimal (Phụ phí vượt mức xe).
 - `discount`: Decimal (Giảm giá nếu có).
 - `total_amount`: Decimal (Tổng cộng).
 - `status`: Enum ('UNPAID', 'PARTIALLY_PAID', 'PAID').

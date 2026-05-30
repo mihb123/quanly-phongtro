@@ -9,18 +9,18 @@ Tất cả các API yêu cầu xác thực (trừ Đăng ký/Đăng nhập Manag
 - `POST /api/v1/auth/verify-email`: Kích hoạt tài khoản bằng mã (OTP) gửi qua Email.
 
 ## 2. House Management APIs (Dành cho Manager)
-- `GET /api/v1/houses`: Lấy danh sách các nhà trọ. Hỗ trợ sort (`name`, `created_at`) và filter (`name` search).
-- `POST /api/v1/houses`: Tạo mới một nhà trọ. Body: `name`, `address` và các thiết lập giá default (điện, nước, dịch vụ...).
-- `GET /api/v1/houses/:id`: Lấy chi tiết nhà trọ.
-- `PUT /api/v1/houses/:id`: Cập nhật cấu hình nhà trọ.
-- `DELETE /api/v1/houses/:id`: Xóa nhà trọ.
+- `GET /api/v1/house`: Lấy danh sách các nhà trọ. Hỗ trợ sort và filter qua query params.
+- `POST /api/v1/house`: Tạo mới một nhà trọ. Body: `name`, `address` và các thiết lập giá default (điện, nước, cấu hình hóa đơn, phụ phí, ...).
+- `GET /api/v1/house/{id}`: Lấy chi tiết nhà trọ.
+- `PATCH /api/v1/house/{id}`: Cập nhật cấu hình nhà trọ.
+- `DELETE /api/v1/house/{id}`: Xóa nhà trọ.
 
 ## 3. Room Management APIs (Dành cho Manager)
-- `GET /api/v1/houses/:house_id/rooms`: Danh sách phòng trong 1 nhà. Hỗ trợ sort (`name`, `room_price`) và filter (`status`, `name` search).
-- `POST /api/v1/houses/:house_id/rooms`: Tạo phòng mới.
-- `GET /api/v1/rooms/:id`: Chi tiết phòng (kèm danh sách người thuê hiện tại).
-- `PUT /api/v1/rooms/:id`: Sửa thông tin phòng.
-- `DELETE /api/v1/rooms/:id`: Xóa phòng.
+- `GET /api/v1/room?house_id={id}`: Danh sách phòng trong 1 nhà.
+- `POST /api/v1/room`: Tạo phòng mới.
+- `GET /api/v1/room/{id}?house_id={id}`: Chi tiết phòng.
+- `PATCH /api/v1/room/{id}`: Sửa thông tin phòng. Tự động cập nhật các hóa đơn UNPAID nếu giá phòng thay đổi.
+- `DELETE /api/v1/room/{id}?house_id={id}`: Xóa phòng.
 
 ## 4. Tenant Management APIs (Dành cho Manager)
 - `POST /api/v1/rooms/:room_id/tenants`: Thêm người thuê mới vào phòng. API này sẽ làm 2 việc:
@@ -30,12 +30,11 @@ Tất cả các API yêu cầu xác thực (trừ Đăng ký/Đăng nhập Manag
 - `PUT /api/v1/tenants/:id`: Chuyển trạng thái người thuê rời đi.
 
 ## 5. Invoice Management APIs
-- `GET /api/v1/invoices`: Danh sách hóa đơn. Hỗ trợ filter (`house_id`, `room_id`, `month`, `year`, `status`) và sort (`created_at`, `total_amount`).
-- `POST /api/v1/rooms/:room_id/invoices`: Khởi tạo hóa đơn tháng cho 1 phòng.
-  Body: `month`, `year`, `new_electricity_index`, `new_water_index`, `other_fee`.
-  *Logic tính toán: Lấy chỉ số mới trừ chỉ số cũ (của tháng trước), nhân với giá thiết lập tại House hoặc Room.*
-- `GET /api/v1/invoices/:id`: Xem chi tiết hóa đơn.
-- `PUT /api/v1/invoices/:id/pay`: Cập nhật trạng thái thanh toán của hóa đơn thành PAID.
+- `GET /api/v1/invoice`: Danh sách hóa đơn. Hỗ trợ filter qua query params.
+- `POST /api/v1/invoice`: Khởi tạo/Cập nhật hóa đơn tháng cho 1 phòng. (Upsert dựa trên `room_id` và `period`).
+- `GET /api/v1/invoice/{id}`: Xem chi tiết hóa đơn.
+- `PATCH /api/v1/invoice/{id}/pay`: Cập nhật trạng thái thanh toán của hóa đơn thành PAID.
+- `PATCH /api/v1/invoice/{id}/unpay`: Hoàn tác trạng thái thanh toán về UNPAID.
 
 ## 6. Tenant APIs (Người thuê login)
 - `GET /api/v1/tenant/my-invoices`: Danh sách hóa đơn cá nhân. Hỗ trợ sort (`month`, `year`, `created_at`) và filter (`status`).

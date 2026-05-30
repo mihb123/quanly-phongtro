@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Home, LogOut, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit } from 'lucide-react'
+import { Home, LogOut, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -13,6 +13,7 @@ import { CreateHouseModal } from '@/components/home/modals/CreateHouseModal'
 import { EditHouseModal } from '@/components/home/modals/EditHouseModal'
 import { ConfirmModal } from '@/components/home/modals/ConfirmModal'
 import type { House } from '@/api/house'
+import { Plus } from 'lucide-react'
 
 export function Sidebar() {
   const { logout } = useAuth()
@@ -58,7 +59,7 @@ export function Sidebar() {
     setActiveTab('house_rooms')
   }
 
-  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants') => {
+  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants' | 'invoices') => {
     setActiveTab(tab)
     if (tab !== 'house_rooms') {
         selectHouse(null)
@@ -181,7 +182,7 @@ export function Sidebar() {
             </button>
 
             {isHouseListOpen && !isSidebarCollapsed && (
-              <div className="pl-4 pr-2 flex flex-col gap-1 mt-1">
+              <div className="flex flex-col gap-1 mt-1">
                 {houses.length > 0 ? (
                   <>
                     {houses.map(house => (
@@ -192,37 +193,45 @@ export function Sidebar() {
                           e.preventDefault()
                           setContextMenu({ x: e.clientX, y: e.clientY, house })
                         }}
-                        className={`text-left text-sm font-bold py-2.5 px-10 rounded-xl transition-all relative overflow-hidden group cursor-pointer ${selectedHouse?.id === house.id && activeTab === 'house_rooms'
-                            ? 'text-purple-700 bg-purple-50/80'
-                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                        className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all relative overflow-hidden group cursor-pointer ${
+                          selectedHouse?.id === house.id && activeTab === 'house_rooms'
+                            ? 'bg-purple-100/50 text-purple-700 shadow-sm shadow-purple-500/10'
+                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
                           }`}
                       >
-                        <div className={`absolute left-4 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full transition-all ${selectedHouse?.id === house.id && activeTab === 'house_rooms'
-                            ? 'bg-purple-500 scale-100'
-                            : 'bg-slate-300 scale-0 group-hover:scale-100'
-                          }`} />
-                        <span className="whitespace-nowrap overflow-hidden text-ellipsis block italic">
+                        <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                          <div className={`w-1.5 h-1.5 rounded-full transition-all ${
+                            selectedHouse?.id === house.id && activeTab === 'house_rooms'
+                              ? 'bg-purple-600 scale-100'
+                              : 'bg-slate-300 scale-100 group-hover:bg-slate-400 group-hover:scale-125'
+                            }`} />
+                        </div>
+                        <span className="whitespace-nowrap overflow-hidden text-ellipsis text-sm font-bold">
                           {house.name}
                         </span>
                       </button>
                     ))}
 
-                    <Button
-                      variant="ghost"
+                    <button
                       onClick={() => setShowCreateHouse(true)}
-                      className="flex items-center justify-start gap-3 w-full px-10 py-2.5 rounded-xl text-sm font-bold text-purple-600 hover:text-purple-700 hover:bg-purple-100/50 transition-all cursor-pointer h-auto"
+                      className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 group"
                     >
-                      Tạo thêm nhà
-                    </Button>
+                      <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                        <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                      </div>
+                      <span className="text-sm font-bold">Tạo thêm nhà</span>
+                    </button>
                   </>
                 ) : (
-                  <Button
-                    variant="outline"
+                  <button
                     onClick={() => setShowCreateHouse(true)}
-                    className="flex items-center justify-start gap-3 w-full px-10 py-2.5 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-100/50 transition-all border border-dashed border-purple-200 cursor-pointer h-auto"
+                    className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 border border-dashed border-slate-200 mt-2 group"
                   >
-                    Thêm nhà trọ
-                  </Button>
+                    <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
+                      <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                    </div>
+                    <span className="text-sm font-bold">Thêm nhà trọ</span>
+                  </button>
                 )}
               </div>
             )}
@@ -233,6 +242,13 @@ export function Sidebar() {
             label="Khách thuê"
             active={activeTab === 'tenants'}
             onClick={() => handleTabClick('tenants')}
+            collapsed={isSidebarCollapsed}
+          />
+          <SidebarItem
+            icon={<Receipt />}
+            label="Hóa đơn"
+            active={activeTab === 'invoices'}
+            onClick={() => handleTabClick('invoices')}
             collapsed={isSidebarCollapsed}
           />
           <SidebarItem
