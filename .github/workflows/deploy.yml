@@ -15,13 +15,9 @@ jobs:
 
     env:
       SERVICE_NAME: quanly-phongtro-api
+      PROJECT_DIR: /home/debi/quanly-phongtro
 
     steps:
-      # ── Phase 0: Khởi tạo biến môi trường ──────────────
-      - name: Set project directory
-        run: echo "PROJECT_DIR=$HOME/quanly-phongtro" >> $GITHUB_ENV
-
-      # ── Phase 1: Pull source code ──────────────────────
       - name: Pull latest source code
         run: |
           cd $PROJECT_DIR
