@@ -27,3 +27,4 @@
 !.gitignore
 uploads/*
 .kilo
+!nginx.conf

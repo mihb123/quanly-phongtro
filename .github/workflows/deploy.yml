@@ -1,0 +1,67 @@
+name: Deploy QuanLyPhongTro
+
+on:
+  push:
+    branches:
+      - develop
+
+concurrency:
+  group: deploy-develop
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    env:
+      SERVICE_NAME: quanly-phongtro-api
+
+    steps:
+      - name: Deploy source code
+        run: |
+          cd $HOME/quanly-phongtro
+          git fetch origin develop
+          git reset --hard origin/develop
+
+      - name: Run database migrations
+        run: |
+          cd $HOME/quanly-phongtro
+          set -a
+          source .env
+          set +a
+          $HOME/go/bin/migrate -path migrations -database "$POSTGRES_DSN" up
+
+      - name: Run database seed
+        run: |
+          cd $HOME/quanly-phongtro
+          set -a
+          source .env
+          set +a
+          go run ./cmd/seed/main.go
+
+      - name: Build backend
+        run: |
+          cd $HOME/quanly-phongtro
+          go mod download
+          go build -o quanly-phongtro-api ./cmd/api
+
+      - name: Build frontend
+        run: |
+          cd $HOME/quanly-phongtro/frontend
+          if command -v pnpm &> /dev/null; then
+            pnpm install --frozen-lockfile
+            pnpm build
+          else
+            npm install
+            npm run build
+          fi
+
+      - name: Deploy frontend to Nginx
+        run: |
+          rsync -a --delete $HOME/quanly-phongtro/frontend/dist/ /var/www/quanly-phongtro/
+          sudo /usr/bin/systemctl reload nginx
+
+      - name: Restart backend service
+        run: |
+          sudo /usr/bin/systemctl restart $SERVICE_NAME
+          sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
