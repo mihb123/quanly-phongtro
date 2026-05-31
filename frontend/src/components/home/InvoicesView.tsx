@@ -6,6 +6,7 @@ import { useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
+import { type Invoice } from '@/api/invoice'
 import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
@@ -75,7 +76,7 @@ export function InvoicesView() {
     return { totalInvoices, expectedRevenue, collectedRevenue, unpaidRevenue };
   }, [invoices]);
 
-  const handleDownload = async (e: React.MouseEvent, invoice: any) => {
+  const handleDownload = async (e: React.MouseEvent, invoice: Invoice) => {
     e.stopPropagation();
     
     try {
