@@ -73,6 +73,7 @@ func New(
 		r.Post("/", invoiceHandler.CreateInvoice)
 		r.Get("/", invoiceHandler.ListInvoices)
 		r.Get("/{id}", invoiceHandler.GetInvoice)
+		r.Get("/{id}/image", invoiceHandler.DownloadInvoiceImage)
 		r.Patch("/{id}/pay", invoiceHandler.PayInvoice)
 		r.Patch("/{id}/unpay", invoiceHandler.UnpayInvoice)
 	})

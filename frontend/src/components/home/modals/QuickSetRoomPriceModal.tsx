@@ -6,6 +6,7 @@ import { X, Save, DollarSign, Users, Copy, Trash2 } from 'lucide-react'
 import type { Room } from '@/api/room'
 import { useRoomStore } from '@/data/roomData'
 import { formatNumber, parseNumber } from '@/utils/format'
+import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
 export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const rooms = useRoomStore(state => state.rooms)
@@ -16,13 +17,9 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const [isLoading, setIsLoading] = useState(false)
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose, isLoading])
+  const [isDirty, setIsDirty] = useState(false)
+
+  const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
   useEffect(() => {
     const initialData: Record<string, { name: string, price: string, max_tenants: string }> = {}
@@ -37,6 +34,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   }, [rooms])
 
   const handleInputChange = (id: string, field: 'name' | 'price' | 'max_tenants', value: string) => {
+    setIsDirty(true)
     setRoomData(prev => ({
       ...prev,
       [id]: {
@@ -94,7 +92,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
             house_id: originalRoom.house_id,
             name: data.name,
             price: parseNumber(data.price),
-            max_tenants: Number(data.max_tenants)
+            max_tenants: Number(data.max_tenants),
+            status: originalRoom.status,
+            electricity_price: originalRoom.electricity_price,
+            water_price: originalRoom.water_price,
+            wifi_price: originalRoom.wifi_price,
+            parking_price: originalRoom.parking_price,
+            service_price: originalRoom.service_price
           })
         }
         return Promise.resolve()
@@ -112,7 +116,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-10 overflow-y-auto"
       onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) onClose()
+        if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
       <Card className="w-full max-w-3xl bg-white shadow-2xl border-0 animate-in zoom-in-95 duration-200 flex flex-col h-full max-h-[85vh]">
@@ -124,7 +128,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
             </h2>
             <p className="text-xs text-slate-500 mt-1">Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc.</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -193,7 +197,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/30 rounded-b-2xl">
-          <Button variant="outline" onClick={onClose} className="border-slate-200 text-slate-600 hover:bg-white rounded-xl h-11 px-6 font-bold">
+          <Button variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600 hover:bg-white rounded-xl h-11 px-6 font-bold">
             Hủy
           </Button>
           <Button 
@@ -205,6 +209,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
       </Card>
+      {confirmModal}
     </div>
   )
 }

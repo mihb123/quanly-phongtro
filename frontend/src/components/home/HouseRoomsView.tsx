@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, DoorOpen, Pencil, DollarSign, UserPlus, Trash2 } from 'lucide-react'
+import { Plus, DoorOpen, Pencil, DollarSign, UserPlus, Trash2, Users } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useRoomStore } from '@/data/roomData'
@@ -19,7 +19,10 @@ export function HouseRoomsView() {
 
   const [showCreateRoom, setShowCreateRoom] = useState(false)
   const [editRoom, setEditRoom] = useState<Room | null>(null)
+  
   const [tenantRoom, setTenantRoom] = useState<Room | null>(null)
+  const [tenantModalView, setTenantModalView] = useState<'list' | 'add'>('list')
+  
   const [showQuickSetPrice, setShowQuickSetPrice] = useState(false)
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -41,9 +44,15 @@ export function HouseRoomsView() {
       {editRoom && (
         <EditRoomModal room={editRoom} onClose={() => setEditRoom(null)} />
       )}
+      
       {tenantRoom && (
-        <TenantRoomModal room={tenantRoom} onClose={() => setTenantRoom(null)} />
+        <TenantRoomModal
+          room={tenantRoom}
+          initialView={tenantModalView}
+          onClose={() => setTenantRoom(null)}
+        />
       )}
+
       {showQuickSetPrice && (
         <QuickSetRoomPriceModal onClose={() => setShowQuickSetPrice(false)} />
       )}
@@ -102,7 +111,10 @@ export function HouseRoomsView() {
                     </div>
                   </div>
                   <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setTenantRoom(room) }} className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors cursor-pointer" title="Thêm khách thuê">
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('list') }} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors cursor-pointer" title="Danh sách khách thuê">
+                      <Users className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors cursor-pointer" title="Thêm khách thuê">
                       <UserPlus className="w-4 h-4" />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="h-8 w-8 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer" title="Sửa thông tin phòng">

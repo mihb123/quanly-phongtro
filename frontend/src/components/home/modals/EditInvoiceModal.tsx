@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import type { Invoice } from '@/api/invoice'
+import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
 const schema = z.object({
   new_electricity_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số điện không được âm').optional(),
@@ -39,7 +40,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<EditInvoiceFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -51,15 +52,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
     },
   })
 
-  // Handle Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
+  const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isSubmitting)
 
   const onSubmit = async (data: EditInvoiceFormValues) => {
     setIsSubmitting(true)
@@ -84,7 +77,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" />
       
@@ -100,7 +93,8 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </p>
           </div>
           <button 
-            onClick={onClose}
+            type="button"
+            onClick={handleClose}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -185,7 +179,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             <Button 
               type="button" 
               variant="outline" 
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 rounded-xl h-12 font-bold cursor-pointer"
             >
               Hủy bỏ
@@ -207,6 +201,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
           </div>
         </form>
       </div>
+      {confirmModal}
     </div>
   )
 }

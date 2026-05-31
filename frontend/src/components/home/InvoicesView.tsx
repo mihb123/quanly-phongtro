@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX } from 'lucide-react'
+import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -10,6 +10,8 @@ import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
 import { EditInvoiceModal } from './modals/EditInvoiceModal'
+import { toast } from 'sonner'
+import { apiClient } from '@/api/client'
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -72,6 +74,34 @@ export function InvoicesView() {
 
     return { totalInvoices, expectedRevenue, collectedRevenue, unpaidRevenue };
   }, [invoices]);
+
+  const handleDownload = async (e: React.MouseEvent, invoice: any) => {
+    e.stopPropagation();
+    
+    try {
+      toast.loading('Đang tạo ảnh hóa đơn...', { id: 'download-invoice' });
+      
+      const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
+        responseType: 'blob', // Bắt buộc để tải file nhị phân (ảnh)
+      });
+
+      const blob = new Blob([response.data], { type: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `phongtro_hoadon_${invoice.room_name}_${invoice.period.replace('-', '_')}.png`;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success('Đã tải ảnh hóa đơn', { id: 'download-invoice', description: `Hóa đơn phòng ${invoice.room_name} đã được tải về máy.` });
+    } catch (error) {
+      console.error('Lỗi tải ảnh:', error);
+      toast.error('Lỗi khi tải ảnh hóa đơn', { id: 'download-invoice', description: 'Vui lòng thử lại sau.' });
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in zoom-in duration-300">
@@ -254,6 +284,7 @@ export function InvoicesView() {
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-right">Tổng tiền</th>
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">Trạng thái</th>
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap">Ngày tạo</th>
+                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">Hành động</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -283,6 +314,32 @@ export function InvoicesView() {
                     </td>
                     <td className="py-4 px-6 text-sm font-medium text-slate-500 whitespace-nowrap">
                       {new Date(invoice.created_at).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedInvoiceId(invoice.id);
+                            setShowEditModal(true);
+                          }}
+                          className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          title="Sửa hóa đơn"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => handleDownload(e, invoice)}
+                          className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          title="Tải hóa đơn"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

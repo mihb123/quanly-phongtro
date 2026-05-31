@@ -8,6 +8,7 @@ import { useHouseStore } from '@/data/houseData'
 import { type Room } from '@/api/room'
 import { getInvoices, createInvoice, type Invoice } from '@/api/invoice'
 import { useInvoiceStore } from '@/data/invoiceData'
+import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
 export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const { houses } = useHouseStore()
@@ -34,13 +35,9 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const isElectricityUsage = selectedHouseData?.electricity_billing_type !== 'FIXED'
   const isWaterUsage = selectedHouseData?.water_billing_type !== 'FIXED'
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose, isLoading])
+  const [isDirty, setIsDirty] = useState(false)
+
+  const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
   useEffect(() => {
     if (!selectedHouseId) {
@@ -98,6 +95,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           }
         })
         setInvoiceData(initialData)
+        setIsDirty(false)
       } catch (err) {
         console.error("Lỗi khi tải dữ liệu", err)
       } finally {
@@ -108,6 +106,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   }, [selectedHouseId, period, getRoomsByHouse])
 
   const handleInputChange = (id: string, field: 'new_electricity' | 'new_water' | 'vehicle_count', value: string) => {
+    setIsDirty(true)
     setInvoiceData(prev => ({
       ...prev,
       [id]: {
@@ -221,7 +220,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-10 overflow-y-auto"
       onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) onClose()
+        if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
       <Card className="w-full max-w-4xl bg-white shadow-2xl border-0 animate-in zoom-in-95 duration-200 flex flex-col h-full max-h-[90vh]">
@@ -233,7 +232,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             </h2>
             <p className="text-xs text-slate-500 mt-1">Ghi nhanh chỉ số điện nước mới cho nhiều phòng cùng lúc.</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
             <X className="w-5 h-5" />
           </Button>
         </div>
@@ -433,7 +432,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-2xl">
-          <Button variant="outline" onClick={onClose} className="border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11 px-6 font-bold">
+          <Button variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11 px-6 font-bold">
             Hủy
           </Button>
           <Button 
@@ -445,6 +444,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
       </Card>
+      {confirmModal}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { useSelectedStore } from '@/data/selectedData'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
 const roomSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
@@ -30,7 +31,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
   
   const [isLoading, setIsLoading] = useState(false)
 
-  const { register, handleSubmit, control, formState: { errors } } = useForm<RoomFormValues>({
+  const { register, handleSubmit, control, formState: { errors, isDirty } } = useForm<RoomFormValues>({
     resolver: zodResolver(roomSchema),
     defaultValues: {
       name: room.name || '',
@@ -44,13 +45,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
     }
   })
 
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose, isLoading])
+  const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
   if (!house) return null
 
@@ -81,7 +76,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
     <div 
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto pt-20 pb-20"
       onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) onClose()
+        if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
       <Card className="w-full max-w-xl p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
@@ -168,13 +163,15 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="border-slate-200 text-slate-600">Hủy</Button>
+            <Button type="button" variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600">Hủy</Button>
             <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
               {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>
         </form>
       </Card>
+      
+      {confirmModal}
     </div>
   )
 }

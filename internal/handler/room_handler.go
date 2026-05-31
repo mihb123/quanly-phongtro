@@ -27,7 +27,7 @@ type createRoomRequest struct {
 	Name             string   `json:"name" validate:"required"`
 	Price            int64    `json:"price" validate:"gte=0"`
 	MaxTenants       int      `json:"max_tenants" validate:"gte=1"`
-	Status           string   `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	Status           string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
 	WaterPrice       *float64 `json:"water_price,omitempty"`
 	WifiPrice        *float64 `json:"wifi_price,omitempty"`
@@ -40,7 +40,7 @@ type updateRoomRequest struct {
 	Name             string   `json:"name" validate:"required"`
 	Price            int64    `json:"price" validate:"gte=0"`
 	MaxTenants       int      `json:"max_tenants" validate:"gte=1"`
-	Status           string   `json:"status" validate:"required,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	Status           string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
 	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
 	WaterPrice       *float64 `json:"water_price,omitempty"`
 	WifiPrice        *float64 `json:"wifi_price,omitempty"`
