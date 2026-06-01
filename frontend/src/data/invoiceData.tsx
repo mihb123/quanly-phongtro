@@ -7,6 +7,7 @@ import {
   type CreateInvoicePayload,
   payInvoice,
   unpayInvoice,
+  deleteInvoice,
 } from '../api/invoice';
 
 
@@ -20,6 +21,7 @@ interface InvoiceDataState {
   updateInvoice: (payload: CreateInvoicePayload) => Promise<{ success: boolean; message?: string }>;
   payInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
   unpayInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
+  deleteInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
@@ -117,6 +119,17 @@ export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
       // Rollback
       set({ invoices: originalInvoices });
       return { success: false, message: err.response?.data?.message || 'Lỗi khi hoàn tác thanh toán' };
+    }
+  },
+
+  deleteInvoice: async (id: string) => {
+    try {
+      await deleteInvoice(id);
+      await get().fetchInvoices();
+      return { success: true, message: 'Xóa hóa đơn thành công' };
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      return { success: false, message: err.response?.data?.message || 'Lỗi khi xóa hóa đơn' };
     }
   },
 }));

@@ -5,17 +5,21 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
 type CreateInvoiceInput struct {
 	RoomID              string
 	Period              string
+	OldElectricityIndex *int
 	NewElectricityIndex int
+	OldWaterIndex       *int
 	NewWaterIndex       int
 	OtherFee            float64
 	Discount            float64
 	VehicleCount        int
+	TenantCount         *int
 }
 
 type InvoiceService interface {
@@ -26,6 +30,7 @@ type InvoiceService interface {
 	UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error)
 	RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error
 	RecalculateUnpaidInvoicesByHouse(ctx context.Context, managerID, houseID string) error
+	DeleteInvoice(ctx context.Context, managerID, invoiceID string) error
 }
 
 type InvoiceServiceImpl struct {
@@ -77,11 +82,23 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		oldWaterIndex = prevInvoice.NewWaterIndex
 	}
 
-	tenantCount, err := s.tenantRepo.GetCurrentNumTenantInRoom(ctx, input.RoomID)
-	if err != nil {
-		return nil, fmt.Errorf("get tenant count for extra fee: %w", err)
+	if input.OldElectricityIndex != nil {
+		oldElecIndex = *input.OldElectricityIndex
 	}
-	tenantCountInt := int(tenantCount)
+	if input.OldWaterIndex != nil {
+		oldWaterIndex = *input.OldWaterIndex
+	}
+
+	tenantCountInt := 0
+	if input.TenantCount != nil {
+		tenantCountInt = *input.TenantCount
+	} else {
+		tenantCount, err := s.tenantRepo.GetCurrentNumTenantInRoom(ctx, input.RoomID)
+		if err != nil {
+			return nil, fmt.Errorf("get tenant count for extra fee: %w", err)
+		}
+		tenantCountInt = int(tenantCount)
+	}
 
 	elecPrice := house.DefaultElectricityPrice
 	if room.ElectricityPrice != nil {
@@ -137,19 +154,38 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 
 	// tenantCount already fetched above
 
+	// Resolve surcharge thresholds: room override takes priority over house default
+	personThreshold := house.ExtraPersonThreshold
+	if room.ExtraPersonThreshold != nil {
+		personThreshold = *room.ExtraPersonThreshold
+	}
+	personFeeUnit := house.ExtraPersonFee
+	if room.ExtraPersonFee != nil {
+		personFeeUnit = *room.ExtraPersonFee
+	}
+	vehicleThreshold := house.ExtraVehicleThreshold
+	if room.ExtraVehicleThreshold != nil {
+		vehicleThreshold = *room.ExtraVehicleThreshold
+	}
+	vehicleFeeUnit := house.ExtraVehicleFee
+	if room.ExtraVehicleFee != nil {
+		vehicleFeeUnit = *room.ExtraVehicleFee
+	}
+
 	extraPersonFee := 0.0
-	if house.ExtraPersonThreshold > 0 && tenantCountInt > house.ExtraPersonThreshold {
-		extraPersonFee = float64(tenantCountInt-house.ExtraPersonThreshold) * house.ExtraPersonFee
+	if personThreshold > 0 && tenantCountInt > personThreshold {
+		extraPersonFee = float64(tenantCountInt-personThreshold) * personFeeUnit
 	}
 
 	extraVehicleFee := 0.0
-	if house.ExtraVehicleThreshold > 0 && input.VehicleCount > house.ExtraVehicleThreshold {
-		extraVehicleFee = float64(input.VehicleCount-house.ExtraVehicleThreshold) * house.ExtraVehicleFee
+	if vehicleThreshold > 0 && input.VehicleCount > vehicleThreshold {
+		extraVehicleFee = float64(input.VehicleCount-vehicleThreshold) * vehicleFeeUnit
 	}
 
 	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + input.OtherFee - input.Discount
 
 	invoice := &model.Invoice{
+		ID:                  uuid.New().String(),
 		RoomID:              room.ID,
 		Period:              input.Period,
 		RoomFee:             roomFee,
@@ -232,6 +268,19 @@ func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoic
 	return s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
 }
 
+func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoiceID string) error {
+	invoice, err := s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
+	if err != nil {
+		return err
+	}
+
+	if invoice.Status == "PAID" {
+		return errors.New("cannot delete a paid invoice")
+	}
+
+	return s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
+}
+
 func (s *InvoiceServiceImpl) calculateUtilityFee(billingType, billingUnit string, defaultPrice float64, newIndex, oldIndex int, tenantCount int) (float64, error) {
 	if billingType == "FIXED" {
 		if billingUnit == "PERSON" {
@@ -251,14 +300,20 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 		return err
 	}
 	for _, inv := range invoices {
+		oldElec := inv.OldElectricityIndex
+		oldWater := inv.OldWaterIndex
+		tenantCount := inv.TenantCount
 		input := CreateInvoiceInput{
 			RoomID:              inv.RoomID,
 			Period:              inv.Period,
+			OldElectricityIndex: &oldElec,
 			NewElectricityIndex: inv.NewElectricityIndex,
+			OldWaterIndex:       &oldWater,
 			NewWaterIndex:       inv.NewWaterIndex,
 			OtherFee:            inv.OtherFee,
 			Discount:            inv.Discount,
 			VehicleCount:        inv.VehicleCount,
+			TenantCount:         &tenantCount,
 		}
 		// CreateInvoice acts as an upsert for the same room and period
 		_, err := s.CreateInvoice(ctx, managerID, input)

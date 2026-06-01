@@ -34,11 +34,14 @@ export interface Invoice {
 export interface CreateInvoicePayload {
   room_id: string;
   period: string;
+  old_electricity_index?: number;
   new_electricity_index: number;
+  old_water_index?: number;
   new_water_index: number;
   other_fee?: number;
   discount?: number;
   vehicle_count: number;
+  tenant_count?: number;
 }
 
 export interface InvoiceFilter {
@@ -72,5 +75,10 @@ export const payInvoice = async (id: string) => {
 
 export const unpayInvoice = async (id: string) => {
   const response = await api.patch<Invoice>(`/invoice/${id}/unpay`);
+  return response.data;
+};
+
+export const deleteInvoice = async (id: string) => {
+  const response = await api.delete(`/invoice/${id}`);
   return response.data;
 };

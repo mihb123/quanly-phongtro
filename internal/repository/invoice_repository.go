@@ -23,6 +23,7 @@ func NewInvoiceRepository(db *bun.DB) *InvoiceRepository {
 func (r *InvoiceRepository) CreateInvoice(ctx context.Context, invoice *model.Invoice) error {
 	_, err := r.db.NewInsert().
 		Model(invoice).
+		ExcludeColumn("created_at").
 		Returning("id, created_at").
 		Exec(ctx)
 
@@ -44,10 +45,10 @@ func (r *InvoiceRepository) GetInvoiceByID(ctx context.Context, managerID, id st
 		ColumnExpr("invoice.*").
 		ColumnExpr("r.name AS room_name").
 		ColumnExpr("r.house_id AS house_id").
-		ColumnExpr("h.extra_person_threshold AS extra_person_threshold").
-		ColumnExpr("h.extra_person_fee AS extra_person_fee_unit").
-		ColumnExpr("h.extra_vehicle_threshold AS extra_vehicle_threshold").
-		ColumnExpr("h.extra_vehicle_fee AS extra_vehicle_fee_unit").
+		ColumnExpr("COALESCE(r.extra_person_threshold, h.extra_person_threshold) AS extra_person_threshold").
+		ColumnExpr("COALESCE(r.extra_person_fee, h.extra_person_fee) AS extra_person_fee_unit").
+		ColumnExpr("COALESCE(r.extra_vehicle_threshold, h.extra_vehicle_threshold) AS extra_vehicle_threshold").
+		ColumnExpr("COALESCE(r.extra_vehicle_fee, h.extra_vehicle_fee) AS extra_vehicle_fee_unit").
 		Join("JOIN rooms AS r ON invoice.room_id = r.id").
 		Join("JOIN houses AS h ON r.house_id = h.id").
 		Where("invoice.id = ?", id).
@@ -73,10 +74,10 @@ func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, 
 		ColumnExpr("invoice.*").
 		ColumnExpr("r.name AS room_name").
 		ColumnExpr("r.house_id AS house_id").
-		ColumnExpr("h.extra_person_threshold AS extra_person_threshold").
-		ColumnExpr("h.extra_person_fee AS extra_person_fee_unit").
-		ColumnExpr("h.extra_vehicle_threshold AS extra_vehicle_threshold").
-		ColumnExpr("h.extra_vehicle_fee AS extra_vehicle_fee_unit").
+		ColumnExpr("COALESCE(r.extra_person_threshold, h.extra_person_threshold) AS extra_person_threshold").
+		ColumnExpr("COALESCE(r.extra_person_fee, h.extra_person_fee) AS extra_person_fee_unit").
+		ColumnExpr("COALESCE(r.extra_vehicle_threshold, h.extra_vehicle_threshold) AS extra_vehicle_threshold").
+		ColumnExpr("COALESCE(r.extra_vehicle_fee, h.extra_vehicle_fee) AS extra_vehicle_fee_unit").
 		Join("JOIN rooms AS r ON invoice.room_id = r.id").
 		Join("JOIN houses AS h ON r.house_id = h.id").
 		Where("h.manager_id = ?", managerID)
@@ -210,6 +211,25 @@ func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string,
 	if err != nil {
 		return fmt.Errorf("update invoice: %w", err)
 	}
+	rows, err := res.RowsAffected()
+	if err == nil && rows == 0 {
+		return model.ErrInvoiceNotFound
+	}
+	return nil
+}
+
+// DeleteInvoice completely removes an invoice from the database.
+func (r *InvoiceRepository) DeleteInvoice(ctx context.Context, managerID, id string) error {
+	res, err := r.db.NewDelete().
+		Model((*model.Invoice)(nil)).
+		Where("id = ?", id).
+		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Exec(ctx)
+
+	if err != nil {
+		return fmt.Errorf("delete invoice: %w", err)
+	}
+
 	rows, err := res.RowsAffected()
 	if err == nil && rows == 0 {
 		return model.ErrInvoiceNotFound

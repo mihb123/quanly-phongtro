@@ -23,29 +23,37 @@ func NewRoomHandler(roomService service.RoomService, invoiceService service.Invo
 }
 
 type createRoomRequest struct {
-	HouseID          string   `json:"house_id" validate:"required"`
-	Name             string   `json:"name" validate:"required"`
-	Price            int64    `json:"price" validate:"gte=0"`
-	MaxTenants       int      `json:"max_tenants" validate:"gte=1"`
-	Status           string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
-	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
-	WaterPrice       *float64 `json:"water_price,omitempty"`
-	WifiPrice        *float64 `json:"wifi_price,omitempty"`
-	ParkingPrice     *float64 `json:"parking_price,omitempty"`
-	ServicePrice     *float64 `json:"service_price,omitempty"`
+	HouseID               string   `json:"house_id" validate:"required"`
+	Name                  string   `json:"name" validate:"required"`
+	Price                 int64    `json:"price" validate:"gte=0"`
+	MaxTenants            int      `json:"max_tenants" validate:"gte=1"`
+	Status                string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice      *float64 `json:"electricity_price,omitempty"`
+	WaterPrice            *float64 `json:"water_price,omitempty"`
+	WifiPrice             *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice          *float64 `json:"parking_price,omitempty"`
+	ServicePrice          *float64 `json:"service_price,omitempty"`
+	ExtraPersonThreshold  *int     `json:"extra_person_threshold,omitempty"`
+	ExtraPersonFee        *float64 `json:"extra_person_fee,omitempty"`
+	ExtraVehicleThreshold *int     `json:"extra_vehicle_threshold,omitempty"`
+	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
 }
 
 type updateRoomRequest struct {
-	HouseID          string   `json:"house_id" validate:"required"`
-	Name             string   `json:"name" validate:"required"`
-	Price            int64    `json:"price" validate:"gte=0"`
-	MaxTenants       int      `json:"max_tenants" validate:"gte=1"`
-	Status           string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
-	ElectricityPrice *float64 `json:"electricity_price,omitempty"`
-	WaterPrice       *float64 `json:"water_price,omitempty"`
-	WifiPrice        *float64 `json:"wifi_price,omitempty"`
-	ParkingPrice     *float64 `json:"parking_price,omitempty"`
-	ServicePrice     *float64 `json:"service_price,omitempty"`
+	HouseID               string   `json:"house_id" validate:"required"`
+	Name                  string   `json:"name" validate:"required"`
+	Price                 int64    `json:"price" validate:"gte=0"`
+	MaxTenants            int      `json:"max_tenants" validate:"gte=1"`
+	Status                string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice      *float64 `json:"electricity_price,omitempty"`
+	WaterPrice            *float64 `json:"water_price,omitempty"`
+	WifiPrice             *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice          *float64 `json:"parking_price,omitempty"`
+	ServicePrice          *float64 `json:"service_price,omitempty"`
+	ExtraPersonThreshold  *int     `json:"extra_person_threshold,omitempty"`
+	ExtraPersonFee        *float64 `json:"extra_person_fee,omitempty"`
+	ExtraVehicleThreshold *int     `json:"extra_vehicle_threshold,omitempty"`
+	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
 }
 
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
@@ -107,16 +115,20 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room := &model.Room{
-		HouseID:          req.HouseID,
-		Name:             req.Name,
-		Price:            req.Price,
-		MaxTenants:       req.MaxTenants,
-		Status:           status,
-		ElectricityPrice: req.ElectricityPrice,
-		WaterPrice:       req.WaterPrice,
-		WifiPrice:        req.WifiPrice,
-		ParkingPrice:     req.ParkingPrice,
-		ServicePrice:     req.ServicePrice,
+		HouseID:               req.HouseID,
+		Name:                  req.Name,
+		Price:                 req.Price,
+		MaxTenants:            req.MaxTenants,
+		Status:                status,
+		ElectricityPrice:      req.ElectricityPrice,
+		WaterPrice:            req.WaterPrice,
+		WifiPrice:             req.WifiPrice,
+		ParkingPrice:          req.ParkingPrice,
+		ServicePrice:          req.ServicePrice,
+		ExtraPersonThreshold:  req.ExtraPersonThreshold,
+		ExtraPersonFee:        req.ExtraPersonFee,
+		ExtraVehicleThreshold: req.ExtraVehicleThreshold,
+		ExtraVehicleFee:       req.ExtraVehicleFee,
 	}
 
 	if err := h.roomService.CreateRoom(r.Context(), room, managerID); err != nil {
@@ -200,15 +212,19 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room, err := h.roomService.UpdateRoom(r.Context(), id, req.HouseID, managerID, service.UpdateRoomInput{
-		Name:             req.Name,
-		Price:            req.Price,
-		MaxTenants:       req.MaxTenants,
-		Status:           req.Status,
-		ElectricityPrice: req.ElectricityPrice,
-		WaterPrice:       req.WaterPrice,
-		WifiPrice:        req.WifiPrice,
-		ParkingPrice:     req.ParkingPrice,
-		ServicePrice:     req.ServicePrice,
+		Name:                  req.Name,
+		Price:                 req.Price,
+		MaxTenants:            req.MaxTenants,
+		Status:                req.Status,
+		ElectricityPrice:      req.ElectricityPrice,
+		WaterPrice:            req.WaterPrice,
+		WifiPrice:             req.WifiPrice,
+		ParkingPrice:          req.ParkingPrice,
+		ServicePrice:          req.ServicePrice,
+		ExtraPersonThreshold:  req.ExtraPersonThreshold,
+		ExtraPersonFee:        req.ExtraPersonFee,
+		ExtraVehicleThreshold: req.ExtraVehicleThreshold,
+		ExtraVehicleFee:       req.ExtraVehicleFee,
 	})
 	if err != nil {
 		handleRoomError(w, r, err)

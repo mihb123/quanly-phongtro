@@ -26,11 +26,11 @@ func NewTenantHandler(service service.TenantService) *TenantHandler {
 type registerTenantRequest struct {
 	RoomID       string `validate:"required"`
 	FullName     string `validate:"required"`
-	Password     string `validate:"required,min=6"`
-	Phone        string `validate:"required"`
-	Email        string `validate:"required,email"`
-	IdentityCard string `validate:"required"`
-	StartDate    string `validate:"required"`
+	Password     string `validate:"omitempty,min=6"`
+	Phone        string `validate:"omitempty"`
+	Email        string `validate:"omitempty,email"`
+	IdentityCard string `validate:"omitempty"`
+	StartDate    string `validate:"omitempty"`
 }
 
 type updateTenantRequest struct {
@@ -66,12 +66,8 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 	identityCard := strings.TrimSpace(r.FormValue("identity_card"))
 	startDateStr := strings.TrimSpace(r.FormValue("start_date"))
 
-	if email == "" && phone != "" {
-		email = phone + "@tenant.local"
-	}
-
-	if password == "" && phone != "" {
-		password = phone
+	if startDateStr == "" {
+		startDateStr = time.Now().Format("2006-01-02")
 	}
 
 	req := registerTenantRequest{

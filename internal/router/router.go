@@ -76,6 +76,7 @@ func New(
 		r.Get("/{id}/image", invoiceHandler.DownloadInvoiceImage)
 		r.Patch("/{id}/pay", invoiceHandler.PayInvoice)
 		r.Patch("/{id}/unpay", invoiceHandler.UnpayInvoice)
+		r.Delete("/{id}", invoiceHandler.DeleteInvoice)
 	})
 
 	return r

@@ -9,19 +9,33 @@ import { type Room } from '@/api/room'
 import { getInvoices, createInvoice, type Invoice } from '@/api/invoice'
 import { useInvoiceStore } from '@/data/invoiceData'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
+import { useRecommendedHouse } from '@/hooks/useRecommendedHouse'
 
 export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const { houses } = useHouseStore()
   const { getRoomsByHouse } = useRoomStore()
   const { fetchInvoices, invoiceFilter } = useInvoiceStore()
   
-  const [selectedHouseId, setSelectedHouseId] = useState<string>(invoiceFilter.house_id || '')
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [latestInvoices, setLatestInvoices] = useState<Record<string, Invoice>>({})
-  
   const today = new Date()
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const [period, setPeriod] = useState(currentMonth)
+
+  const { recommendedHouseId, isLoading: isHouseLoading, saveSelectedHouse } = useRecommendedHouse(houses, period, invoiceFilter.house_id)
+  
+  const [selectedHouseId, setSelectedHouseId] = useState<string>('')
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [latestInvoices, setLatestInvoices] = useState<Record<string, Invoice>>({})
+
+  useEffect(() => {
+    if (recommendedHouseId && !selectedHouseId) {
+      setSelectedHouseId(recommendedHouseId)
+    }
+  }, [recommendedHouseId, selectedHouseId])
+
+  const handleHouseChange = (id: string) => {
+    setSelectedHouseId(id)
+    if (id) saveSelectedHouse(id)
+  }
   
   const [invoiceData, setInvoiceData] = useState<Record<string, { new_electricity: string, new_water: string, vehicle_count: string, saved: boolean, error?: string, is_paid?: boolean }>>({})
   const [isLoading, setIsLoading] = useState(false)
@@ -241,9 +255,10 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           <div className="flex-1 max-w-[200px]">
             <label className="block text-xs font-bold text-slate-500 mb-1">Chọn nhà trọ</label>
             <select 
-              className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold"
+              className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold disabled:opacity-50"
               value={selectedHouseId}
-              onChange={(e) => setSelectedHouseId(e.target.value)}
+              onChange={(e) => handleHouseChange(e.target.value)}
+              disabled={isHouseLoading}
             >
               <option value="">-- Chọn nhà trọ --</option>
               {houses.map(h => (

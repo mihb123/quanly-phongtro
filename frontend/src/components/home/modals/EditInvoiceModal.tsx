@@ -11,8 +11,11 @@ import type { Invoice } from '@/api/invoice'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
 const schema = z.object({
+  old_electricity_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số điện không được âm').optional(),
   new_electricity_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số điện không được âm').optional(),
+  old_water_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số nước không được âm').optional(),
   new_water_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số nước không được âm').optional(),
+  tenant_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số người không hợp lệ'),
   vehicle_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số lượng xe không hợp lệ'),
   other_fee: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Phí khác không được âm'),
   discount: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Giảm giá không được âm'),
@@ -44,8 +47,11 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   } = useForm<EditInvoiceFormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
+      old_electricity_index: invoice.old_electricity_index,
       new_electricity_index: invoice.new_electricity_index,
+      old_water_index: invoice.old_water_index,
       new_water_index: invoice.new_water_index,
+      tenant_count: invoice.tenant_count,
       vehicle_count: invoice.vehicle_count,
       other_fee: invoice.other_fee,
       discount: invoice.discount,
@@ -60,8 +66,11 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
     const res = await updateInvoice({
       room_id: invoice.room_id,
       period: invoice.period,
+      old_electricity_index: isElectricityFixed ? undefined : data.old_electricity_index,
       new_electricity_index: isElectricityFixed ? 0 : (data.new_electricity_index ?? 0),
+      old_water_index: isWaterFixed ? undefined : data.old_water_index,
       new_water_index: isWaterFixed ? 0 : (data.new_water_index ?? 0),
+      tenant_count: data.tenant_count,
       vehicle_count: data.vehicle_count,
       other_fee: data.other_fee,
       discount: data.discount,
@@ -105,30 +114,56 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
           {(!isElectricityFixed || !isWaterFixed) && (
             <div className="grid grid-cols-2 gap-4">
               {!isElectricityFixed && (
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">
-                    Chỉ số điện mới (Cũ: {invoice.old_electricity_index})
-                  </label>
-                  <Input 
-                    type="number" 
-                    {...register('new_electricity_index', { valueAsNumber: true })}
-                    className="h-11 rounded-xl bg-slate-50"
-                  />
-                  {errors.new_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.new_electricity_index.message}</p>}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">
+                      Chỉ số điện cũ
+                    </label>
+                    <Input 
+                      type="number" 
+                      {...register('old_electricity_index', { valueAsNumber: true })}
+                      className="h-11 rounded-xl bg-slate-50"
+                    />
+                    {errors.old_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.old_electricity_index.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">
+                      Chỉ số điện mới
+                    </label>
+                    <Input 
+                      type="number" 
+                      {...register('new_electricity_index', { valueAsNumber: true })}
+                      className="h-11 rounded-xl bg-slate-50"
+                    />
+                    {errors.new_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.new_electricity_index.message}</p>}
+                  </div>
                 </div>
               )}
 
               {!isWaterFixed && (
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-slate-700">
-                    Chỉ số nước mới (Cũ: {invoice.old_water_index})
-                  </label>
-                  <Input 
-                    type="number" 
-                    {...register('new_water_index', { valueAsNumber: true })}
-                    className="h-11 rounded-xl bg-slate-50"
-                  />
-                  {errors.new_water_index && <p className="text-red-500 text-xs font-medium">{errors.new_water_index.message}</p>}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">
+                      Chỉ số nước cũ
+                    </label>
+                    <Input 
+                      type="number" 
+                      {...register('old_water_index', { valueAsNumber: true })}
+                      className="h-11 rounded-xl bg-slate-50"
+                    />
+                    {errors.old_water_index && <p className="text-red-500 text-xs font-medium">{errors.old_water_index.message}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700">
+                      Chỉ số nước mới
+                    </label>
+                    <Input 
+                      type="number" 
+                      {...register('new_water_index', { valueAsNumber: true })}
+                      className="h-11 rounded-xl bg-slate-50"
+                    />
+                    {errors.new_water_index && <p className="text-red-500 text-xs font-medium">{errors.new_water_index.message}</p>}
+                  </div>
                 </div>
               )}
             </div>
@@ -143,6 +178,16 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
+              <label className="text-sm font-bold text-slate-700">Số người ở</label>
+              <Input 
+                type="number" 
+                {...register('tenant_count', { valueAsNumber: true })}
+                className="h-11 rounded-xl bg-slate-50"
+              />
+              {errors.tenant_count && <p className="text-red-500 text-xs font-medium">{errors.tenant_count.message}</p>}
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Số lượng xe</label>
               <Input 
                 type="number" 
@@ -151,7 +196,9 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
               />
               {errors.vehicle_count && <p className="text-red-500 text-xs font-medium">{errors.vehicle_count.message}</p>}
             </div>
+          </div>
 
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">Phí khác (VNĐ)</label>
               <Input 

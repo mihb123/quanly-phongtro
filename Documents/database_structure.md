@@ -44,6 +44,15 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `price`: Decimal (Giá thuê phòng tính theo tháng).
 - `max_tenants`: Integer (Số lượng người ở tối đa).
 - `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE').
+- `electricity_price`: Decimal, Nullable (Giá điện riêng, NULL = dùng mặc định nhà).
+- `water_price`: Decimal, Nullable (Giá nước riêng).
+- `wifi_price`: Decimal, Nullable (Giá wifi riêng).
+- `parking_price`: Decimal, Nullable (Giá gửi xe riêng).
+- `service_price`: Decimal, Nullable (Giá dịch vụ riêng).
+- `extra_person_threshold`: Integer, Nullable (Số người miễn phí trước khi tính phụ thu, NULL = dùng mặc định nhà).
+- `extra_person_fee`: Decimal, Nullable (Phí thu thêm cho mỗi người vượt mức, NULL = dùng mặc định nhà).
+- `extra_vehicle_threshold`: Integer, Nullable (Số xe miễn phí trước khi tính phụ thu, NULL = dùng mặc định nhà).
+- `extra_vehicle_fee`: Decimal, Nullable (Phí thu thêm cho mỗi xe vượt mức, NULL = dùng mặc định nhà).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 

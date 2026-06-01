@@ -11,6 +11,8 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/go-chi/chi/v5"
+	"github.com/golang/freetype/truetype"
+	"github.com/mihb123/quanly-phongtro/internal/assets"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/service"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
@@ -29,11 +31,14 @@ func NewInvoiceHandler(invoiceService service.InvoiceService) *InvoiceHandler {
 type createInvoiceRequest struct {
 	RoomID              string  `json:"room_id" validate:"required"`
 	Period              string  `json:"period" validate:"required"`
+	OldElectricityIndex *int    `json:"old_electricity_index"`
 	NewElectricityIndex int     `json:"new_electricity_index" validate:"gte=0"`
+	OldWaterIndex       *int    `json:"old_water_index"`
 	NewWaterIndex       int     `json:"new_water_index" validate:"gte=0"`
 	OtherFee            float64 `json:"other_fee" validate:"gte=0"`
 	Discount            float64 `json:"discount" validate:"gte=0"`
 	VehicleCount        int     `json:"vehicle_count" validate:"gte=0"`
+	TenantCount         *int    `json:"tenant_count"`
 }
 
 func handleInvoiceError(w http.ResponseWriter, r *http.Request, err error) {
@@ -79,11 +84,14 @@ func (h *InvoiceHandler) CreateInvoice(w http.ResponseWriter, r *http.Request) {
 	input := service.CreateInvoiceInput{
 		RoomID:              req.RoomID,
 		Period:              req.Period,
+		OldElectricityIndex: req.OldElectricityIndex,
 		NewElectricityIndex: req.NewElectricityIndex,
+		OldWaterIndex:       req.OldWaterIndex,
 		NewWaterIndex:       req.NewWaterIndex,
 		OtherFee:            req.OtherFee,
 		Discount:            req.Discount,
 		VehicleCount:        req.VehicleCount,
+		TenantCount:         req.TenantCount,
 	}
 
 	invoice, err := h.invoiceService.CreateInvoice(r.Context(), managerID, input)
@@ -217,26 +225,56 @@ func (h *InvoiceHandler) UnpayInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *InvoiceHandler) DeleteInvoice(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := getManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing invoice id")
+		return
+	}
+
+	err := h.invoiceService.DeleteInvoice(r.Context(), managerID, id)
+	if err != nil {
+		if err.Error() == "cannot delete a paid invoice" {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		handleInvoiceError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func formatCurrencyToVND(amount float64) string {
 	p := message.NewPrinter(language.Vietnamese)
 	return p.Sprintf("%.0f ₫", amount)
 }
 
 func loadFont(dc *gg.Context, fontName string, points float64) error {
-	paths := []string{
-		"assets/" + fontName,
-		"../assets/" + fontName,
-		"../../assets/" + fontName,
-		"/media/minhchu1336/Data/quanly-phongtro/assets/" + fontName,
+	var fontBytes []byte
+	if fontName == "Roboto-Bold.ttf" {
+		fontBytes = assets.RobotoBold
+	} else if fontName == "Roboto-Regular.ttf" {
+		fontBytes = assets.RobotoRegular
+	} else {
+		return fmt.Errorf("unknown font: %s", fontName)
 	}
-	var lastErr error
-	for _, p := range paths {
-		if err := dc.LoadFontFace(p, points); err == nil {
-			return nil
-		}
-		lastErr = fmt.Errorf("failed to load font from %s: %w", p, lastErr)
+
+	f, err := truetype.Parse(fontBytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse font: %w", err)
 	}
-	return lastErr
+
+	face := truetype.NewFace(f, &truetype.Options{
+		Size: points,
+	})
+	dc.SetFontFace(face)
+	return nil
 }
 
 type invoiceLine struct {
@@ -265,47 +303,67 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 	}
 
 	// Dynamic variables for tables
-	showUtilityTable := false
+	showUtilityTable := invoice.ElectricityFee > 0 || invoice.WaterFee > 0
+
 	type utilityLine struct {
-		name      string
-		oldIdx    int
-		newIdx    int
-		usage     int
-		unit      string
-		unitPrice float64
+		name     string
+		oldIdx   string
+		newIdx   string
+		usageStr string
+		priceStr string
+		totalFee float64
 	}
 	var utilLines []utilityLine
 
+	getUtilDisplay := func(fee float64, usage int, unit string) (string, string) {
+		if usage > 0 {
+			return fmt.Sprintf("%d %s", usage, unit), formatCurrencyToVND(fee / float64(usage))
+		}
+		if fee > 0 {
+			if invoice.TenantCount > 0 && int(fee)%invoice.TenantCount == 0 && (fee/float64(invoice.TenantCount)) >= 1000 {
+				return fmt.Sprintf("%d người", invoice.TenantCount), formatCurrencyToVND(fee / float64(invoice.TenantCount))
+			}
+			return "Khoán", formatCurrencyToVND(fee)
+		}
+		return "-", "-"
+	}
+
 	if invoice.ElectricityFee > 0 {
 		usage := invoice.NewElectricityIndex - invoice.OldElectricityIndex
+		oldIdx := "-"
+		newIdx := "-"
 		if usage > 0 {
-			showUtilityTable = true
-			unitPrice := invoice.ElectricityFee / float64(usage)
-			utilLines = append(utilLines, utilityLine{"Điện", invoice.OldElectricityIndex, invoice.NewElectricityIndex, usage, "kWh", unitPrice})
+			oldIdx = fmt.Sprintf("%d", invoice.OldElectricityIndex)
+			newIdx = fmt.Sprintf("%d", invoice.NewElectricityIndex)
 		}
+		usageStr, priceStr := getUtilDisplay(invoice.ElectricityFee, usage, "kWh")
+		utilLines = append(utilLines, utilityLine{"Điện", oldIdx, newIdx, usageStr, priceStr, invoice.ElectricityFee})
 	}
 	if invoice.WaterFee > 0 {
 		usage := invoice.NewWaterIndex - invoice.OldWaterIndex
+		oldIdx := "-"
+		newIdx := "-"
 		if usage > 0 {
-			showUtilityTable = true
-			unitPrice := invoice.WaterFee / float64(usage)
-			utilLines = append(utilLines, utilityLine{"Nước", invoice.OldWaterIndex, invoice.NewWaterIndex, usage, "m³", unitPrice})
+			oldIdx = fmt.Sprintf("%d", invoice.OldWaterIndex)
+			newIdx = fmt.Sprintf("%d", invoice.NewWaterIndex)
 		}
+		usageStr, priceStr := getUtilDisplay(invoice.WaterFee, usage, "m³")
+		utilLines = append(utilLines, utilityLine{"Nước", oldIdx, newIdx, usageStr, priceStr, invoice.WaterFee})
 	}
 
 	// structured invoice line items
 	var lines []invoiceLine
 
 	if invoice.RoomFee > 0 {
-		lines = append(lines, invoiceLine{"Tiền thuê phòng", "Giá thuê phòng cố định", invoice.RoomFee, false})
+		lines = append(lines, invoiceLine{"Tiền phòng", "", invoice.RoomFee, false})
 	}
 	if invoice.ElectricityFee > 0 {
 		usage := invoice.NewElectricityIndex - invoice.OldElectricityIndex
 		var desc string
 		if usage > 0 {
-			desc = fmt.Sprintf("Tiêu thụ: %d kWh (Xem bảng chỉ số)", usage)
+			desc = fmt.Sprintf("Tiêu thụ: %d kWh", usage)
 		} else {
-			desc = "Định mức điện cố định"
+			desc = ""
 		}
 		lines = append(lines, invoiceLine{"Tiền điện", desc, invoice.ElectricityFee, false})
 	}
@@ -313,20 +371,20 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 		usage := invoice.NewWaterIndex - invoice.OldWaterIndex
 		var desc string
 		if usage > 0 {
-			desc = fmt.Sprintf("Tiêu thụ: %d m³ (Xem bảng chỉ số)", usage)
+			desc = fmt.Sprintf("Tiêu thụ: %d m³", usage)
 		} else {
-			desc = "Định mức nước cố định"
+			desc = ""
 		}
 		lines = append(lines, invoiceLine{"Tiền nước", desc, invoice.WaterFee, false})
 	}
 	if invoice.WifiFee > 0 {
-		lines = append(lines, invoiceLine{"Tiền mạng Wifi", "Trọn gói / phòng", invoice.WifiFee, false})
+		lines = append(lines, invoiceLine{"Tiền mạng Wifi", "", invoice.WifiFee, false})
 	}
 	if invoice.ParkingFee > 0 {
 		lines = append(lines, invoiceLine{"Tiền gửi xe", fmt.Sprintf("Gửi %d xe máy", invoice.VehicleCount), invoice.ParkingFee, false})
 	}
 	if invoice.ServiceFee > 0 {
-		lines = append(lines, invoiceLine{"Phí dịch vụ chung", "Vệ sinh, rác, thang máy", invoice.ServiceFee, false})
+		lines = append(lines, invoiceLine{"Phí dịch vụ chung", "Vệ sinh, rác, giặt sấy", invoice.ServiceFee, false})
 	}
 	if invoice.ExtraPersonFee > 0 {
 		lines = append(lines, invoiceLine{
@@ -348,7 +406,7 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 		lines = append(lines, invoiceLine{"Chi phí phát sinh", "Chi phí khác phát sinh", invoice.OtherFee, false})
 	}
 	if invoice.Discount > 0 {
-		lines = append(lines, invoiceLine{"Giảm trừ khuyến mại", "Khấu trừ đặc biệt", invoice.Discount, true})
+		lines = append(lines, invoiceLine{"Giảm trừ", "Giảm giá", invoice.Discount, true})
 	}
 
 	// Layout and height calculations
@@ -359,13 +417,13 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 		yTable2 = yRow + 20.0
 	}
 	yStart := yTable2 + 58.0
-	yEndTable2 := yStart + float64(len(lines))*48.0
+	yEndTable2 := yStart + float64(len(lines))*32.0
 	yTotal := yEndTable2 + 15.0
 	neededHeight := int(yTotal + 75.0 + 40.0)
 
 	// Create vertical ticket dynamically
 	dc := gg.NewContext(600, neededHeight)
-	
+
 	// Soft elegant background
 	dc.SetHexColor("#f8fafc")
 	dc.Clear()
@@ -414,10 +472,11 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 		dc.SetHexColor("#64748b")
 		_ = loadFont(dc, "Roboto-Bold.ttf", 10)
 		dc.DrawString("DỊCH VỤ", 60, 242)
-		dc.DrawStringAnchored("CHỈ SỐ CŨ", 220, 242, 0.5, 0)
-		dc.DrawStringAnchored("CHỈ SỐ MỚI", 310, 242, 0.5, 0)
-		dc.DrawStringAnchored("TIÊU THỤ", 400, 242, 0.5, 0)
-		dc.DrawStringAnchored("ĐƠN GIÁ", 540, 242, 1.0, 0)
+		dc.DrawStringAnchored("CHỈ SỐ CŨ", 180, 242, 0.5, 0)
+		dc.DrawStringAnchored("CHỈ SỐ MỚI", 260, 242, 0.5, 0)
+		dc.DrawStringAnchored("TIÊU THỤ", 340, 242, 0.5, 0)
+		dc.DrawStringAnchored("ĐƠN GIÁ", 440, 242, 1.0, 0)
+		dc.DrawStringAnchored("THÀNH TIỀN", 540, 242, 1.0, 0)
 
 		// Separator Line
 		dc.SetHexColor("#e2e8f0")
@@ -435,10 +494,15 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 			// Indices and Details
 			dc.SetHexColor("#334155")
 			_ = loadFont(dc, "Roboto-Regular.ttf", 13)
-			dc.DrawStringAnchored(fmt.Sprintf("%d", ul.oldIdx), 220, yRow, 0.5, 0)
-			dc.DrawStringAnchored(fmt.Sprintf("%d", ul.newIdx), 310, yRow, 0.5, 0)
-			dc.DrawStringAnchored(fmt.Sprintf("%d %s", ul.usage, ul.unit), 400, yRow, 0.5, 0)
-			dc.DrawStringAnchored(formatCurrencyToVND(ul.unitPrice), 540, yRow, 1.0, 0)
+			dc.DrawStringAnchored(ul.oldIdx, 180, yRow, 0.5, 0)
+			dc.DrawStringAnchored(ul.newIdx, 260, yRow, 0.5, 0)
+			dc.DrawStringAnchored(ul.usageStr, 340, yRow, 0.5, 0)
+			dc.DrawStringAnchored(ul.priceStr, 440, yRow, 1.0, 0)
+
+			// Total Fee
+			dc.SetHexColor("#0f172a")
+			_ = loadFont(dc, "Roboto-Bold.ttf", 13)
+			dc.DrawStringAnchored(formatCurrencyToVND(ul.totalFee), 540, yRow, 1.0, 0)
 
 			// Subtle Row separator
 			dc.SetHexColor("#f1f5f9")
@@ -464,7 +528,6 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 	dc.SetHexColor("#64748b")
 	_ = loadFont(dc, "Roboto-Bold.ttf", 10)
 	dc.DrawString("KHOẢN MỤC DỊCH VỤ", 60, yTable2+22)
-	dc.DrawStringAnchored("MÔ TẢ CHI TIẾT", 320, yTable2+22, 0.5, 0)
 	dc.DrawStringAnchored("THÀNH TIỀN", 540, yTable2+22, 1.0, 0)
 
 	// Separator Under Headers
@@ -473,33 +536,28 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 	dc.DrawLine(50, yTable2+36, 550, yTable2+36)
 	dc.Stroke()
 
-	lineGap := 48.0
+	lineGap := 32.0
 	for _, line := range lines {
 		// Draw label
 		dc.SetHexColor("#0f172a")
 		_ = loadFont(dc, "Roboto-Bold.ttf", 13)
 		dc.DrawString(line.label, 60, yStart)
 
-		// Draw description below label
-		dc.SetHexColor("#64748b")
-		_ = loadFont(dc, "Roboto-Regular.ttf", 11)
-		dc.DrawString(line.desc, 60, yStart+18)
-
 		// Draw value aligned right
 		if line.isDiscount {
 			dc.SetHexColor("#dc2626") // Red for negative discount
 			_ = loadFont(dc, "Roboto-Bold.ttf", 13)
-			dc.DrawStringAnchored(fmt.Sprintf("-%s", formatCurrencyToVND(line.value)), 540, yStart+10, 1.0, 0.5)
+			dc.DrawStringAnchored(fmt.Sprintf("-%s", formatCurrencyToVND(line.value)), 540, yStart, 1.0, 0)
 		} else {
 			dc.SetHexColor("#0f172a")
 			_ = loadFont(dc, "Roboto-Bold.ttf", 13)
-			dc.DrawStringAnchored(formatCurrencyToVND(line.value), 540, yStart+10, 1.0, 0.5)
+			dc.DrawStringAnchored(formatCurrencyToVND(line.value), 540, yStart, 1.0, 0)
 		}
 
 		// Row Separator Line
 		dc.SetHexColor("#f1f5f9")
 		dc.SetLineWidth(1)
-		dc.DrawLine(50, yStart+32, 550, yStart+32)
+		dc.DrawLine(50, yStart+16, 550, yStart+16)
 		dc.Stroke()
 
 		yStart += lineGap
@@ -513,12 +571,12 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 	// Total Label
 	dc.SetHexColor("#3730a3") // Deep indigo
 	_ = loadFont(dc, "Roboto-Bold.ttf", 16)
-	dc.DrawString("TỔNG TIỀN CẦN THANH TOÁN", 70, yTotal+42)
+	dc.DrawString("TỔNG TIỀN CẦN THANH TOÁN", 60, yTotal+46)
 
 	// Total Amount
 	dc.SetHexColor("#4f46e5")
 	_ = loadFont(dc, "Roboto-Bold.ttf", 24)
-	dc.DrawStringAnchored(formatCurrencyToVND(invoice.TotalAmount), 530, yTotal+42, 1.0, 0.5)
+	dc.DrawStringAnchored(formatCurrencyToVND(invoice.TotalAmount), 540, yTotal+46, 1.0, 0.0)
 
 	w.Header().Set("Content-Type", "image/png")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"phongtro_hoadon_%s_%s.png\"", invoice.RoomName, invoice.Period))

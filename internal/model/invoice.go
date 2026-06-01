@@ -71,4 +71,5 @@ type InvoiceRepository interface {
 	GetPreviousInvoice(ctx context.Context, roomID, period string) (*Invoice, error)
 	GetUnpaidInvoicesByRoomID(ctx context.Context, roomID string) ([]Invoice, error)
 	UpdateInvoice(ctx context.Context, managerID string, invoice *Invoice) error
+	DeleteInvoice(ctx context.Context, managerID, id string) error
 }

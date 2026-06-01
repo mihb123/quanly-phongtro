@@ -12,6 +12,10 @@ export interface Room {
   wifi_price?: number
   parking_price?: number
   service_price?: number
+  extra_person_threshold?: number
+  extra_person_fee?: number
+  extra_vehicle_threshold?: number
+  extra_vehicle_fee?: number
 }
 
 export const getRoomsByHouseId = async (houseId: string, page: number = 1, limit: number = 25) => {

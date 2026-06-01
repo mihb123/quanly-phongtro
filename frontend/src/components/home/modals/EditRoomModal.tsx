@@ -21,6 +21,10 @@ const roomSchema = z.object({
   wifi: z.string(),
   parking: z.string(),
   service: z.string(),
+  extraPersonThreshold: z.string(),
+  extraPersonFee: z.string(),
+  extraVehicleThreshold: z.string(),
+  extraVehicleFee: z.string(),
 })
 
 type RoomFormValues = z.infer<typeof roomSchema>
@@ -41,7 +45,11 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
       water: room.water_price?.toString() || house?.default_water_price?.toString() || '',
       wifi: room.wifi_price?.toString() || house?.default_wifi_price?.toString() || '',
       parking: room.parking_price?.toString() || house?.default_parking_price?.toString() || '',
-      service: room.service_price?.toString() || house?.default_service_price?.toString() || ''
+      service: room.service_price?.toString() || house?.default_service_price?.toString() || '',
+      extraPersonThreshold: room.extra_person_threshold?.toString() || '',
+      extraPersonFee: room.extra_person_fee?.toString() || '',
+      extraVehicleThreshold: room.extra_vehicle_threshold?.toString() || '',
+      extraVehicleFee: room.extra_vehicle_fee?.toString() || '',
     }
   })
 
@@ -63,6 +71,10 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
         wifi_price: values.wifi !== '' ? parseNumber(values.wifi) : undefined,
         parking_price: values.parking !== '' ? parseNumber(values.parking) : undefined,
         service_price: values.service !== '' ? parseNumber(values.service) : undefined,
+        extra_person_threshold: values.extraPersonThreshold !== '' ? Number(values.extraPersonThreshold) : undefined,
+        extra_person_fee: values.extraPersonFee !== '' ? parseNumber(values.extraPersonFee) : undefined,
+        extra_vehicle_threshold: values.extraVehicleThreshold !== '' ? Number(values.extraVehicleThreshold) : undefined,
+        extra_vehicle_fee: values.extraVehicleFee !== '' ? parseNumber(values.extraVehicleFee) : undefined,
       })
       onClose()
     } catch {
@@ -156,6 +168,41 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                     control={control}
                     render={({ field }) => (
                       <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                    )}
+                  />
+                </div>
+              </div>
+          </div>
+
+          <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+             <h3 className="font-bold text-amber-800 text-sm">Phụ thu vượt mức</h3>
+             <p className="text-xs text-amber-600 mb-3">Nếu để trống, hệ thống sẽ tự động dùng cấu hình mặc định của nhà trọ.</p>
+             <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="space-y-1">
+                  <Label className="text-xs">Số người miễn phí</Label>
+                  <Input type="number" min="0" {...register('extraPersonThreshold')} placeholder="Mặc định..." className="h-8 border-amber-200 bg-white" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Phí / người vượt (VNĐ)</Label>
+                  <Controller
+                    name="extraPersonFee"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-amber-200 bg-white" />
+                    )}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Số xe miễn phí</Label>
+                  <Input type="number" min="0" {...register('extraVehicleThreshold')} placeholder="Mặc định..." className="h-8 border-amber-200 bg-white" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Phí / xe vượt (VNĐ)</Label>
+                  <Controller
+                    name="extraVehicleFee"
+                    control={control}
+                    render={({ field }) => (
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-amber-200 bg-white" />
                     )}
                   />
                 </div>

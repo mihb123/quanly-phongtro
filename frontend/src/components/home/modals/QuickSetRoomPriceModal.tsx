@@ -98,7 +98,11 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
             water_price: originalRoom.water_price,
             wifi_price: originalRoom.wifi_price,
             parking_price: originalRoom.parking_price,
-            service_price: originalRoom.service_price
+            service_price: originalRoom.service_price,
+            extra_person_threshold: originalRoom.extra_person_threshold,
+            extra_person_fee: originalRoom.extra_person_fee,
+            extra_vehicle_threshold: originalRoom.extra_vehicle_threshold,
+            extra_vehicle_fee: originalRoom.extra_vehicle_fee,
           })
         }
         return Promise.resolve()
@@ -183,10 +187,10 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                     />
                   </div>
                   <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" onClick={() => handleDuplicateRoom(room)} disabled={isLoading} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors cursor-pointer" title="Nhân bản">
+                    <Button variant="ghost" size="icon" onClick={() => handleDuplicateRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors cursor-pointer" title="Nhân bản">
                       <Copy className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRoom(room)} disabled={isLoading} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer" title="Xóa">
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer" title="Xóa">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>

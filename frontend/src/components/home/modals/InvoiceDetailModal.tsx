@@ -1,9 +1,12 @@
-import { useState, useCallback, useEffect } from 'react'
-import { X, Receipt, Loader2, CheckCircle, Zap, Droplets, Download } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { X, Receipt, Loader2, CheckCircle, Zap, Droplets, Download, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useInvoiceStore } from '@/data/invoiceData'
 import type { Invoice } from '@/api/invoice'
-import { apiClient } from '@/api/client'
+import { useHouseStore } from '@/data/houseData'
+import * as htmlToImage from 'html-to-image'
+import { toast } from 'sonner'
+import { BackendImagePreviewModal } from './BackendImagePreviewModal'
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -19,6 +22,11 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   const { payInvoice, unpayInvoice } = useInvoiceStore()
   const [isPaying, setIsPaying] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isPreviewing, setIsPreviewing] = useState(false)
+  const [previewData, setPreviewData] = useState<{ url: string, filename: string } | null>(null)
+  
+  const printRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   // Handle Escape key
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -39,6 +47,68 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     }
   }
 
+  const generateFrontendImage = async () => {
+    if (!printRef.current) return null;
+    const printEl = printRef.current;
+    const contentEl = contentRef.current;
+    
+    // Save original styles
+    const origPrintMaxHeight = printEl.style.maxHeight;
+    const origPrintOverflow = printEl.style.overflow;
+    const origContentOverflow = contentEl ? contentEl.style.overflow : '';
+    
+    // Modify styles to capture full scrolling content
+    printEl.style.maxHeight = 'none';
+    printEl.style.overflow = 'visible';
+    if (contentEl) {
+      contentEl.style.overflow = 'visible';
+    }
+
+    // Small delay to let browser re-layout
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    const url = await htmlToImage.toPng(printEl, {
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      filter: (node) => {
+        if (node.nodeType === 3) return true; // Keep text nodes
+        const el = node as HTMLElement;
+        return !el.classList || !el.classList.contains('no-print');
+      }
+    });
+
+    // Restore styles
+    printEl.style.maxHeight = origPrintMaxHeight;
+    printEl.style.overflow = origPrintOverflow;
+    if (contentEl) {
+      contentEl.style.overflow = origContentOverflow;
+    }
+
+    const houseNameRaw = useHouseStore.getState().houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
+    const houseName = houseNameRaw.replace(/\s+/g, '');
+    const filename = `${invoice.room_name}_${invoice.period.replace('-', '_')}_${houseName}.png`;
+
+    return { url, filename };
+  }
+
+  const handlePreviewFrontend = async () => {
+    try {
+      setIsPreviewing(true)
+      toast.loading('Đang tạo ảnh xem trước...', { id: 'preview-invoice' });
+      
+      const data = await generateFrontendImage();
+      if (data) {
+        setPreviewData(data);
+      }
+      toast.dismiss('preview-invoice');
+    } catch (error) {
+      console.error('Lỗi tạo ảnh preview:', error);
+      toast.error('Lỗi khi tạo ảnh xem trước', { id: 'preview-invoice' });
+    } finally {
+      setIsPreviewing(false)
+    }
+  }
+
   const handleUnpay = async () => {
     setIsPaying(true)
     const res = await unpayInvoice(invoice.id)
@@ -51,16 +121,15 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   const handleDownload = async () => {
     try {
       setIsDownloading(true)
-      const res = await apiClient.get(`/invoice/${invoice.id}/download`, {
-        responseType: 'blob'
-      })
-      const url = window.URL.createObjectURL(new Blob([res.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `phongtro_hoadon_${invoice.room_name}_${invoice.period.replace('/', '_')}.png`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
+      const data = await generateFrontendImage();
+      if (data) {
+        const link = document.createElement('a')
+        link.href = data.url
+        link.setAttribute('download', data.filename)
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }
     } catch (error) {
       console.error('Failed to download invoice:', error)
       alert('Không thể tải xuống hóa đơn')
@@ -71,12 +140,34 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
 
   // Calculate dynamic usages and unit prices
   const elecUsage = invoice.new_electricity_index - invoice.old_electricity_index;
-  const elecUnitPrice = elecUsage > 0 ? invoice.electricity_fee / elecUsage : 0;
-  
   const waterUsage = invoice.new_water_index - invoice.old_water_index;
-  const waterUnitPrice = waterUsage > 0 ? invoice.water_fee / waterUsage : 0;
   
   const showUtilityTable = invoice.electricity_fee > 0 || invoice.water_fee > 0;
+
+  const getUtilDisplay = (fee: number, usage: number, unit: string) => {
+    if (usage > 0) {
+      return {
+        usageStr: `${usage} ${unit}`,
+        priceStr: formatCurrency(fee / usage)
+      }
+    }
+    if (fee > 0) {
+      if (invoice.tenant_count > 0 && fee % invoice.tenant_count === 0 && (fee / invoice.tenant_count) >= 1000) {
+        return {
+          usageStr: `${invoice.tenant_count} người`,
+          priceStr: formatCurrency(fee / invoice.tenant_count)
+        }
+      }
+      return {
+        usageStr: `Khoán`,
+        priceStr: formatCurrency(fee)
+      }
+    }
+    return { usageStr: '-', priceStr: '-' }
+  }
+
+  const elecDisplay = getUtilDisplay(invoice.electricity_fee, elecUsage, 'kWh');
+  const waterDisplay = getUtilDisplay(invoice.water_fee, waterUsage, 'm³');
 
   // Build statement lines
   const lines = []
@@ -112,6 +203,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   }
 
   return (
+    <>
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
       onClick={onClose}
@@ -119,6 +211,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
       <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" />
       
       <div 
+        ref={printRef}
         className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200"
         onClick={e => e.stopPropagation()}
       >
@@ -135,18 +228,26 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                   invoice.status === 'PAID' 
                     ? 'bg-green-100 text-green-700 border-green-200' 
-                    : 'bg-red-100 text-red-700 border-red-200'
+                    : 'bg-red-100 text-red-700 border-red-200 no-print'
                 }`}>
                   {invoice.status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
                 </span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 no-print">
+            <button 
+              onClick={handlePreviewFrontend}
+              disabled={isPreviewing}
+              title="Xem trước hóa đơn (Mẫu 2)"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {isPreviewing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+            </button>
             <button 
               onClick={handleDownload}
               disabled={isDownloading}
-              title="Tải ảnh hóa đơn"
+              title="Tải hóa đơn (Mẫu 2)"
               className="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 transition-colors cursor-pointer disabled:opacity-50"
             >
               {isDownloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
@@ -161,7 +262,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-8 flex-1">
+        <div ref={contentRef} className="p-6 overflow-y-auto space-y-8 flex-1">
           
           {/* Table 1: Utility Statement */}
           {showUtilityTable && (
@@ -180,31 +281,34 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                       <th className="px-4 py-3 text-center">Chỉ số mới</th>
                       <th className="px-4 py-3 text-center">Tiêu thụ</th>
                       <th className="px-4 py-3 text-right">Đơn giá</th>
+                      <th className="px-4 py-3 text-right">Thành tiền</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {invoice.electricity_fee > 0 && elecUsage > 0 && (
+                    {invoice.electricity_fee > 0 && (
                       <tr className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-slate-700 flex items-center gap-2">
                           <Zap className="w-4 h-4 text-yellow-500" />
                           Điện
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{invoice.old_electricity_index}</td>
-                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{invoice.new_electricity_index}</td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">{elecUsage} kWh</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-600">{formatCurrency(elecUnitPrice)}</td>
+                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{elecUsage > 0 ? invoice.old_electricity_index : '-'}</td>
+                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{elecUsage > 0 ? invoice.new_electricity_index : '-'}</td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">{elecDisplay.usageStr}</td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-600">{elecDisplay.priceStr}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-800">{formatCurrency(invoice.electricity_fee)}</td>
                       </tr>
                     )}
-                    {invoice.water_fee > 0 && waterUsage > 0 && (
+                    {invoice.water_fee > 0 && (
                       <tr className="hover:bg-slate-50/50 transition-colors">
                         <td className="px-4 py-3 font-semibold text-slate-700 flex items-center gap-2">
                           <Droplets className="w-4 h-4 text-blue-500" />
                           Nước
                         </td>
-                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{invoice.old_water_index}</td>
-                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{invoice.new_water_index}</td>
-                        <td className="px-4 py-3 text-center font-bold text-slate-800">{waterUsage} m³</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-600">{formatCurrency(waterUnitPrice)}</td>
+                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{waterUsage > 0 ? invoice.old_water_index : '-'}</td>
+                        <td className="px-4 py-3 text-center text-slate-600 font-medium">{waterUsage > 0 ? invoice.new_water_index : '-'}</td>
+                        <td className="px-4 py-3 text-center font-bold text-slate-800">{waterDisplay.usageStr}</td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-600">{waterDisplay.priceStr}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-800">{formatCurrency(invoice.water_fee)}</td>
                       </tr>
                     )}
                   </tbody>
@@ -225,7 +329,6 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-3">Khoản mục dịch vụ</th>
-                    <th className="px-4 py-3 hidden sm:table-cell">Mô tả chi tiết</th>
                     <th className="px-4 py-3 text-right">Thành tiền</th>
                   </tr>
                 </thead>
@@ -234,9 +337,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                     <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-4 py-3.5">
                         <div className="font-bold text-slate-800">{line.label}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 sm:hidden">{line.desc}</div>
                       </td>
-                      <td className="px-4 py-3.5 text-slate-500 font-medium hidden sm:table-cell">{line.desc}</td>
                       <td className={`px-4 py-3.5 text-right font-bold whitespace-nowrap ${line.isDiscount ? 'text-red-600' : 'text-slate-800'}`}>
                         {line.isDiscount ? '-' : ''}{formatCurrency(line.value)}
                       </td>
@@ -256,7 +357,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
             <span className="text-2xl font-black text-indigo-600">{formatCurrency(invoice.total_amount)}</span>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex gap-3 no-print">
             {invoice.status === 'UNPAID' && (
               <>
                 {onEdit && (
@@ -306,5 +407,20 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
         </div>
       </div>
     </div>
+    
+    {previewData && (
+      <BackendImagePreviewModal
+        imageUrl={previewData.url}
+        filename={previewData.filename}
+        title="Xem trước hóa đơn (Mẫu 2)"
+        onClose={() => {
+          if (previewData.url.startsWith('blob:')) {
+            URL.revokeObjectURL(previewData.url)
+          }
+          setPreviewData(null)
+        }}
+      />
+    )}
+    </>
   )
 }

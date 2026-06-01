@@ -65,6 +65,7 @@ export const useTenantStore = create<TenantDataState>((set) => ({
           }
         }))
       }
+      useRoomStore.getState().refreshCurrentRooms()
       return true
     } catch (err) {
       console.error("Failed to create tenant", err)
@@ -151,6 +152,7 @@ export const useTenantStore = create<TenantDataState>((set) => ({
 
     try {
       await apiDeleteTenant(id)
+      useRoomStore.getState().refreshCurrentRooms()
       return true
     } catch (err) {
       console.error("Failed to delete tenant", err)

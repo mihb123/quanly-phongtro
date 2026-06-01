@@ -21,15 +21,19 @@ type RoomService interface {
 }
 
 type UpdateRoomInput struct {
-	Name             string
-	Price            int64
-	MaxTenants       int
-	Status           string
-	ElectricityPrice *float64
-	WaterPrice       *float64
-	WifiPrice        *float64
-	ParkingPrice     *float64
-	ServicePrice     *float64
+	Name                  string
+	Price                 int64
+	MaxTenants            int
+	Status                string
+	ElectricityPrice      *float64
+	WaterPrice            *float64
+	WifiPrice             *float64
+	ParkingPrice          *float64
+	ServicePrice          *float64
+	ExtraPersonThreshold  *int
+	ExtraPersonFee        *float64
+	ExtraVehicleThreshold *int
+	ExtraVehicleFee       *float64
 }
 
 type RoomServiceImpl struct {
@@ -110,15 +114,19 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		return nil, err
 	}
 	params := model.UpdateRoomParams{
-		Name:             input.Name,
-		Price:            input.Price,
-		MaxTenants:       input.MaxTenants,
-		Status:           input.Status,
-		ElectricityPrice: input.ElectricityPrice,
-		WaterPrice:       input.WaterPrice,
-		WifiPrice:        input.WifiPrice,
-		ParkingPrice:     input.ParkingPrice,
-		ServicePrice:     input.ServicePrice,
+		Name:                  input.Name,
+		Price:                 input.Price,
+		MaxTenants:            input.MaxTenants,
+		Status:                input.Status,
+		ElectricityPrice:      input.ElectricityPrice,
+		WaterPrice:            input.WaterPrice,
+		WifiPrice:             input.WifiPrice,
+		ParkingPrice:          input.ParkingPrice,
+		ServicePrice:          input.ServicePrice,
+		ExtraPersonThreshold:  input.ExtraPersonThreshold,
+		ExtraPersonFee:        input.ExtraPersonFee,
+		ExtraVehicleThreshold: input.ExtraVehicleThreshold,
+		ExtraVehicleFee:       input.ExtraVehicleFee,
 	}
 
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)

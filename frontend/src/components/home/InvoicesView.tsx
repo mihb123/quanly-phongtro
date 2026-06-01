@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil } from 'lucide-react'
+import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -11,6 +11,7 @@ import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
 import { EditInvoiceModal } from './modals/EditInvoiceModal'
+import { BackendImagePreviewModal } from './modals/BackendImagePreviewModal'
 import { toast } from 'sonner'
 import { apiClient } from '@/api/client'
 
@@ -24,11 +25,13 @@ export function InvoicesView() {
   const selectedHouse = useSelectedStore(state => state.selectedHouse)
   const selectHouse = useSelectedStore(state => state.selectHouse)
   
-  const { invoices, isLoading, invoiceFilter, setInvoiceFilter, fetchInvoices } = useInvoiceStore()
+  const { invoices, isLoading, invoiceFilter, setInvoiceFilter, fetchInvoices, deleteInvoice } = useInvoiceStore()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false)
+  const [previewData, setPreviewData] = useState<{ url: string, filename: string } | null>(null)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
   const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId) || null
 
@@ -86,21 +89,80 @@ export function InvoicesView() {
         responseType: 'blob', // Bắt buộc để tải file nhị phân (ảnh)
       });
 
+      const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
+      const houseName = houseNameRaw.replace(/\s+/g, '');
+
       const blob = new Blob([response.data], { type: 'image/png' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `phongtro_hoadon_${invoice.room_name}_${invoice.period.replace('-', '_')}.png`;
+      const filename = `${invoice.room_name}_${invoice.period.replace('-', '_')}_${houseName}.png`;
       
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast.success('Đã tải ảnh hóa đơn', { id: 'download-invoice', description: `Hóa đơn phòng ${invoice.room_name} đã được tải về máy.` });
+      toast.dismiss('download-invoice');
+      setPreviewData({ url, filename });
     } catch (error) {
       console.error('Lỗi tải ảnh:', error);
       toast.error('Lỗi khi tải ảnh hóa đơn', { id: 'download-invoice', description: 'Vui lòng thử lại sau.' });
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, invoice: Invoice) => {
+    e.stopPropagation();
+    if (invoice.status === 'PAID') {
+      toast.error('Không thể xóa hóa đơn đã thanh toán', { id: 'delete-invoice' });
+      return;
+    }
+    if (confirm(`Bạn có chắc muốn xóa hóa đơn phòng ${invoice.room_name} kỳ ${invoice.period}?`)) {
+      toast.loading('Đang xóa hóa đơn...', { id: 'delete-invoice' });
+      const res = await deleteInvoice(invoice.id);
+      if (res.success) {
+        toast.success(res.message, { id: 'delete-invoice' });
+      } else {
+        toast.error(res.message, { id: 'delete-invoice' });
+      }
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (invoices.length === 0) return;
+    
+    setIsDownloadingAll(true);
+    toast.loading(`Đang tải ${invoices.length} ảnh hóa đơn...`, { id: 'download-all' });
+    
+    try {
+      for (let i = 0; i < invoices.length; i++) {
+        const invoice = invoices[i];
+        try {
+          const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
+            responseType: 'blob',
+          });
+          
+          const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
+          const houseName = houseNameRaw.replace(/\s+/g, '');
+          const periodStr = invoice.period.replace('-', '_');
+          
+          const blob = new Blob([response.data], { type: 'image/png' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${invoice.room_name}_${periodStr}_${houseName}.png`;
+          
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          // Delay to prevent browser from blocking multiple downloads
+          await new Promise(resolve => setTimeout(resolve, 300));
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error(`Lỗi tải hóa đơn ${invoice.room_name}:`, err);
+        }
+      }
+      
+      toast.success('Thành công', { id: 'download-all', description: `Đã hoàn tất tải ${invoices.length} ảnh hóa đơn.` });
+    } catch (error) {
+      console.error('Lỗi khi tải tất cả:', error);
+      toast.error('Có lỗi xảy ra', { id: 'download-all', description: 'Không thể tải toàn bộ hóa đơn.' });
+    } finally {
+      setIsDownloadingAll(false);
     }
   };
 
@@ -126,6 +188,17 @@ export function InvoicesView() {
           onClose={() => {
             setShowEditModal(false)
             setSelectedInvoiceId(null)
+          }}
+        />
+      )}
+      {previewData && (
+        <BackendImagePreviewModal
+          imageUrl={previewData.url}
+          filename={previewData.filename}
+          title="Xem trước hóa đơn (Mẫu 1)"
+          onClose={() => {
+            URL.revokeObjectURL(previewData.url)
+            setPreviewData(null)
           }}
         />
       )}
@@ -285,7 +358,21 @@ export function InvoicesView() {
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-right">Tổng tiền</th>
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">Trạng thái</th>
                   <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap">Ngày tạo</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">Hành động</th>
+                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      Hành động
+                      <Button 
+                        onClick={handleDownloadAll}
+                        disabled={invoices.length === 0 || isDownloadingAll}
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-100 rounded-full"
+                        title="Tải tất cả hóa đơn (Mẫu 1)"
+                      >
+                        {isDownloadingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -298,8 +385,12 @@ export function InvoicesView() {
                     <td className="py-4 px-6 font-bold text-slate-800 whitespace-nowrap">
                       {invoice.period}
                     </td>
-                    <td className="py-4 px-6 font-bold text-purple-600 whitespace-nowrap">
-                      {invoice.room_name}
+                    <td className="py-4 px-6 font-bold text-purple-600 whitespace-nowrap" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
+                      {(() => {
+                        if (invoiceFilter.house_id) return invoice.room_name;
+                        const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
+                        return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
+                      })()}
                     </td>
                     <td className="py-4 px-6 font-bold text-slate-800 text-right whitespace-nowrap">
                       {formatCurrency(invoice.total_amount)}
@@ -314,7 +405,7 @@ export function InvoicesView() {
                       </span>
                     </td>
                     <td className="py-4 px-6 text-sm font-medium text-slate-500 whitespace-nowrap">
-                      {new Date(invoice.created_at).toLocaleDateString('vi-VN')}
+                      {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -336,9 +427,18 @@ export function InvoicesView() {
                           size="sm" 
                           onClick={(e) => handleDownload(e, invoice)}
                           className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer h-8 w-8 p-0 rounded-full"
-                          title="Tải hóa đơn"
+                          title="Tải hóa đơn (Mẫu 1)"
                         >
                           <Download className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={(e) => handleDelete(e, invoice)}
+                          className="text-slate-500 hover:text-red-600 hover:bg-red-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          title="Xóa hóa đơn"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </td>

@@ -12,6 +12,7 @@ Dưới đây là danh sách các tài liệu (dự kiến/đã có) giải thí
 2. **[components.md](./components.md)**: Danh sách các UI components chung (Tailwind, shadcn/ui), quy tắc thiết kế và cách tái sử dụng.
 3. **[api_integration.md](./api_integration.md)**: Cách Frontend kết nối với Backend, quy tắc viết API/Axios và cách xử lý lỗi.
 4. **[styling.md](./styling.md)**: Quy ước về CSS, TailwindCSS, tổ chức Design Tokens và Palette màu sắc.
+5. **[invoice_house_selection.md](./invoice_house_selection.md)**: Logic tự động chọn nhà trọ khi tạo hóa đơn dựa trên trạng thái hóa đơn của các phòng.
 
 ## Cấu trúc thư mục mã nguồn (`frontend/src`)
 

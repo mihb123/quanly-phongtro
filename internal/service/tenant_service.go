@@ -93,7 +93,59 @@ func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 	return strings.Join(paths, ","), nil
 }
 
+func removeAccents(s string) string {
+	s = strings.ToLower(s)
+	reps := []struct {
+		new string
+		old string
+	}{
+		{"a", "àáạảãâầấậẩẫăằắặẳẵ"},
+		{"e", "èéẹẻẽêềếệểễ"},
+		{"i", "ìíịỉĩ"},
+		{"o", "òóọỏõôồốộổỗơờớợởỡ"},
+		{"u", "ùúụủũưừứựửữ"},
+		{"y", "ỳýỵỷỹ"},
+		{"d", "đ"},
+	}
+
+	for _, r := range reps {
+		for _, c := range r.old {
+			s = strings.ReplaceAll(s, string(c), r.new)
+		}
+	}
+
+	cleanName := ""
+	for _, b := range []byte(s) {
+		if (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') {
+			cleanName += string(b)
+		}
+	}
+	return cleanName
+}
+
 func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error) {
+	if in.Email == "" {
+		if in.Phone != "" {
+			in.Email = in.Phone + "@tenant.local"
+		} else {
+			cleanName := removeAccents(in.FullName)
+			if cleanName == "" {
+				cleanName = "guest"
+			}
+			hhmm := time.Now().Format("1504")
+			randomID := uuid.New().String()[:4]
+			in.Email = fmt.Sprintf("%s_%s%s@guest.local", cleanName, hhmm, randomID)
+		}
+	}
+
+	if in.Password == "" {
+		if in.Phone != "" {
+			in.Password = in.Phone
+		} else {
+			in.Password = uuid.New().String()[:8]
+		}
+	}
+
 	if !isValidEmail(in.Email) {
 		return nil, ErrInvalidInput
 	}
@@ -142,6 +194,10 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 
 	err = s.tenants.CreateTenantWithAccount(ctx, newTenant, newRoomTenant)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := s.rooms.UpdateRoomStatus(ctx, in.RoomID, "OCCUPIED"); err != nil {
 		return nil, err
 	}
 

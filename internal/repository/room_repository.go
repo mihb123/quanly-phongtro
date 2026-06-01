@@ -22,7 +22,7 @@ func NewRoomRepository(db *bun.DB) *RoomRepository {
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
 	_, err := r.db.NewInsert().
 		Model(room).
-		Column("house_id", "name", "price", "max_tenants", "status", "electricity_price", "water_price", "wifi_price", "parking_price", "service_price").
+		Column("house_id", "name", "price", "max_tenants", "status", "electricity_price", "water_price", "wifi_price", "parking_price", "service_price", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
@@ -89,7 +89,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	q := r.db.NewUpdate().
 		Model((*model.Room)(nil)).
 		Where("id = ? AND house_id = ?", id, houseID).
-		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, created_at, updated_at")
+		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, created_at, updated_at")
 
 	q.Set("name = ?", params.Name)
 	q.Set("price = ?", params.Price)
@@ -100,10 +100,14 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	q.Set("wifi_price = ?", params.WifiPrice)
 	q.Set("parking_price = ?", params.ParkingPrice)
 	q.Set("service_price = ?", params.ServicePrice)
+	q.Set("extra_person_threshold = ?", params.ExtraPersonThreshold)
+	q.Set("extra_person_fee = ?", params.ExtraPersonFee)
+	q.Set("extra_vehicle_threshold = ?", params.ExtraVehicleThreshold)
+	q.Set("extra_vehicle_fee = ?", params.ExtraVehicleFee)
 	q.Set("updated_at = NOW()")
 
 	var room model.Room
-	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.CreatedAt, &room.UpdatedAt)
+	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.ExtraPersonThreshold, &room.ExtraPersonFee, &room.ExtraVehicleThreshold, &room.ExtraVehicleFee, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound
