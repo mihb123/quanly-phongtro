@@ -72,90 +72,136 @@ function HouseTenantTable({ house }: { house: House }) {
   }
 
   return (
-    <Card className="p-6 bg-white/80 border-slate-200/60 shadow-sm mb-6 relative">
+    <Card className="p-6 bg-card border-border/40 shadow-sm mb-6 relative">
       {isFetchingRoom && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm rounded-lg">
-          <div className="text-slate-500 font-medium">Đang tải thông tin phòng...</div>
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm rounded-lg">
+          <div className="text-muted-foreground font-medium">Đang tải thông tin phòng...</div>
         </div>
       )}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
-        <h2 className="text-xl font-bold flex items-center gap-2 text-slate-800">
-          <Building className="w-5 h-5 text-purple-600" />
+        <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
+          <Building className="w-5 h-5 text-primary" />
           {house.name}
         </h2>
-        <Button onClick={() => setIsSelectRoomModalOpen(true)} variant="default" className="bg-blue-600 hover:bg-blue-700 font-bold gap-2 cursor-pointer">
+        <Button onClick={() => setIsSelectRoomModalOpen(true)} variant="default" className="font-bold gap-2 cursor-pointer shadow-sm">
           <Plus className="w-4 h-4" /> Thêm khách thuê
         </Button>
       </div>
       
-      <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="text-xs text-slate-500 bg-slate-50 uppercase border-b border-slate-200">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Tên khách thuê</th>
-              <th className="px-4 py-3 font-semibold">Phòng đang ở</th>
-              <th className="px-4 py-3 font-semibold">Số điện thoại</th>
-              <th className="px-4 py-3 font-semibold">Ngày bắt đầu ở</th>
-              <th className="px-4 py-3 font-semibold">Tình trạng</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic">
-                  Đang tải dữ liệu...
-                </td>
-              </tr>
-            ) : tenants.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-500 italic">
-                  Chưa có khách thuê nào trong nhà này.
-                </td>
-              </tr>
-            ) : (
-              tenants.map(t => (
-                <tr 
-                  key={t.id} 
-                  className="hover:bg-slate-50/50 transition-colors"
-                >
-                  <td className="px-4 py-3 font-semibold text-slate-800">
-                    <span 
-                      onClick={() => handleTenantClick(t)} 
-                      className="cursor-pointer hover:text-blue-600 hover:underline transition-colors"
-                      title="Sửa người thuê"
+      <div className="overflow-hidden rounded-lg border border-border/60 bg-card">
+        {/* Mobile Card View */}
+        <div className="block md:hidden divide-y divide-border/40">
+          {loading ? (
+            <div className="p-8 text-center text-muted-foreground italic">Đang tải dữ liệu...</div>
+          ) : tenants.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground italic">Chưa có khách thuê nào trong nhà này.</div>
+          ) : (
+            tenants.map(t => (
+              <div key={t.id} className="p-4 hover:bg-secondary/40 transition-colors">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p 
+                      onClick={() => handleTenantClick(t)}
+                      className="font-bold text-primary text-base cursor-pointer hover:underline"
                     >
                       {t.full_name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-slate-700">
-                    <span 
-                      onClick={() => handleRoomClick(t.room_id)} 
-                      className="cursor-pointer hover:text-blue-600 hover:underline transition-colors"
-                      title="Xem danh sách người thuê phòng"
-                    >
-                      {t.room_name || 'N/A'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    <span 
-                      onClick={() => handlePhoneClick(t.phone)} 
-                      className="cursor-pointer hover:text-blue-600 hover:underline transition-colors"
-                      title="Sao chép số điện thoại"
-                    >
-                      {t.phone}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{new Date(t.start_date).toLocaleDateString('vi-VN')}</td>
-                  <td className="px-4 py-3">
+                    </p>
+                    <p className="text-sm font-bold text-foreground mt-0.5">
+                      Phòng: <span onClick={() => handleRoomClick(t.room_id)} className="cursor-pointer hover:text-primary hover:underline">{t.room_name || 'N/A'}</span>
+                    </p>
+                  </div>
+                  <div>
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider">
                       <CheckCircle2 className="w-3 h-3" /> Đang ở
                     </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/40">
+                  <span className="text-xs font-medium text-slate-500">
+                    Từ: {new Date(t.start_date).toLocaleDateString('vi-VN')}
+                  </span>
+                  <span 
+                    onClick={() => handlePhoneClick(t.phone)}
+                    className="text-sm font-medium text-muted-foreground cursor-pointer hover:text-primary transition-colors touch-target px-2 py-1 -mr-2"
+                  >
+                    {t.phone}
+                  </span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="text-xs text-muted-foreground bg-secondary/30 uppercase border-b border-border/60">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Tên khách thuê</th>
+                <th className="px-4 py-3 font-semibold">Phòng đang ở</th>
+                <th className="px-4 py-3 font-semibold">Số điện thoại</th>
+                <th className="px-4 py-3 font-semibold">Ngày bắt đầu ở</th>
+                <th className="px-4 py-3 font-semibold">Tình trạng</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">
+                    Đang tải dữ liệu...
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : tenants.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground italic">
+                    Chưa có khách thuê nào trong nhà này.
+                  </td>
+                </tr>
+              ) : (
+                tenants.map(t => (
+                  <tr 
+                    key={t.id} 
+                    className="hover:bg-secondary/40 transition-colors"
+                  >
+                    <td className="px-4 py-3 font-semibold text-foreground">
+                      <span 
+                        onClick={() => handleTenantClick(t)} 
+                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        title="Sửa người thuê"
+                      >
+                        {t.full_name}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-foreground">
+                      <span 
+                        onClick={() => handleRoomClick(t.room_id)} 
+                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        title="Xem danh sách người thuê phòng"
+                      >
+                        {t.room_name || 'N/A'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <span 
+                        onClick={() => handlePhoneClick(t.phone)} 
+                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        title="Sao chép số điện thoại"
+                      >
+                        {t.phone}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{new Date(t.start_date).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider">
+                        <CheckCircle2 className="w-3 h-3" /> Đang ở
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {isSelectRoomModalOpen && (
@@ -191,15 +237,15 @@ export function TenantsView() {
   const { houses } = useHouseStore()
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
+    <div className="space-y-8 safe-fade-in">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">Danh sách Khách thuê</h1>
-        <p className="text-slate-500 mt-2">Thông tin khách thuê được nhóm theo từng nhà trọ.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Danh sách Khách thuê</h1>
+        <p className="text-muted-foreground mt-2">Thông tin khách thuê được nhóm theo từng nhà trọ.</p>
       </div>
 
       {houses.length === 0 ? (
-        <Card className="p-8 text-center bg-white/80 border-slate-200/60 shadow-sm">
-          <p className="text-slate-500">Bạn chưa có nhà trọ nào để quản lý khách thuê.</p>
+        <Card className="p-8 text-center bg-card border-border/60 shadow-sm">
+          <p className="text-muted-foreground">Bạn chưa có nhà trọ nào để quản lý khách thuê.</p>
         </Card>
       ) : (
         houses.map(house => (

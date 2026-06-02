@@ -40,16 +40,16 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <Card className="w-full max-w-md bg-white shadow-xl border-0 p-6 animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Chọn phòng để thêm khách thuê</h3>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl border border-border/40 p-6 safe-fade-in" onClick={e => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-foreground mb-4">Chọn phòng để thêm khách thuê</h3>
         
         {loading ? (
-          <p className="text-sm text-slate-500 text-center py-4">Đang tải danh sách phòng...</p>
+          <p className="text-sm text-muted-foreground text-center py-4">Đang tải danh sách phòng...</p>
         ) : (
           <div className="space-y-4 max-h-200 overflow-y-auto pr-2">
             {rooms.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-4">Nhà này chưa có phòng nào.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Nhà này chưa có phòng nào.</p>
             ) : (
               rooms.map(r => {
                 const currentTenants = tenants.filter(t => t.room_id === r.id).length
@@ -60,11 +60,11 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
                     key={r.id}
                     onClick={() => onSelect(r)}
                     disabled={isFull}
-                    className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <div>
-                      <span className="font-bold text-slate-700 block">{r.name}</span>
-                      <span className="text-xs text-slate-500 font-semibold">{currentTenants} / {r.max_tenants} người</span>
+                      <span className="font-bold text-foreground block">{r.name}</span>
+                      <span className="text-xs text-muted-foreground font-semibold">{currentTenants} / {r.max_tenants} người</span>
                     </div>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                       {isFull ? 'Đã đầy' : 'Có thể thêm'}

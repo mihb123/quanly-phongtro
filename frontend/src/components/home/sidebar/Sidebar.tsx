@@ -104,7 +104,7 @@ export function Sidebar() {
 
       {contextMenu && (
         <div
-          className="fixed z-[100] bg-white border border-slate-200 shadow-2xl rounded-xl py-1 w-48 animate-in fade-in zoom-in duration-150"
+          className="fixed z-[100] bg-white border border-slate-200 shadow-2xl rounded-xl py-1 w-48 safe-fade-in"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -132,22 +132,22 @@ export function Sidebar() {
         </div>
       )}
 
-      <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-72'} border-r border-slate-200 bg-white/60 backdrop-blur-3xl p-4 flex flex-col gap-6 overflow-y-auto transition-all duration-300 ease-in-out z-20`}>
+      <aside className={`hidden md:flex flex-col gap-6 ${isSidebarCollapsed ? 'w-20' : 'w-72'} border-r border-border bg-card p-4 overflow-y-auto transition-all duration-300 ease-in-out z-20`}>
         <div className="flex flex-col gap-4">
           <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} px-2 h-10`}>
             {!isSidebarCollapsed && (
               <div className="flex items-center gap-3 overflow-hidden">
-                <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-md shadow-purple-500/20">
-                  <Home className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-primary flex items-center justify-center shadow-md shadow-primary/20">
+                  <Home className="w-5 h-5 text-primary-foreground" />
                 </div>
-                <span className="font-bold text-xl tracking-tight text-slate-800 whitespace-nowrap">Trọ Pro</span>
+                <span className="font-bold text-xl tracking-tight text-foreground whitespace-nowrap">Trọ Pro</span>
               </div>
             )}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              className={`h-8 w-8 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg flex-shrink-0 transition-all cursor-pointer ${isSidebarCollapsed ? 'bg-slate-100/50' : ''}`}
+              className={`h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg flex-shrink-0 transition-all cursor-pointer ${isSidebarCollapsed ? 'bg-secondary' : ''}`}
             >
               <ChevronRight className={`w-5 h-5 transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
             </Button>
@@ -170,12 +170,12 @@ export function Sidebar() {
                 setIsHouseListOpen(!isHouseListOpen);
               }}
               className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} w-full px-4 py-3 rounded-xl transition-all duration-300 font-bold cursor-pointer ${!isSidebarCollapsed && isHouseListOpen
-                  ? 'text-slate-800'
-                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
+                  ? 'text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                 } group`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <Building className={`w-5 h-5 flex-shrink-0 ${!isSidebarCollapsed && isHouseListOpen ? 'text-purple-600' : ''}`} />
+                <Building className={`w-5 h-5 flex-shrink-0 ${!isSidebarCollapsed && isHouseListOpen ? 'text-primary' : ''}`} />
                 {!isSidebarCollapsed && <span className="whitespace-nowrap overflow-hidden text-ellipsis">Danh sách nhà trọ</span>}
               </div>
               {!isSidebarCollapsed && <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform duration-300 ${isHouseListOpen ? 'rotate-180' : ''}`} />}
@@ -195,15 +195,15 @@ export function Sidebar() {
                         }}
                         className={`flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all relative overflow-hidden group cursor-pointer ${
                           selectedHouse?.id === house.id && activeTab === 'house_rooms'
-                            ? 'bg-purple-100/50 text-purple-700 shadow-sm shadow-purple-500/10'
-                            : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/80'
+                            ? 'bg-primary/10 text-primary shadow-sm shadow-primary/10'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                           }`}
                       >
                         <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
                           <div className={`w-1.5 h-1.5 rounded-full transition-all ${
                             selectedHouse?.id === house.id && activeTab === 'house_rooms'
-                              ? 'bg-purple-600 scale-100'
-                              : 'bg-slate-300 scale-100 group-hover:bg-slate-400 group-hover:scale-125'
+                              ? 'bg-primary scale-100'
+                              : 'bg-border scale-100 group-hover:bg-muted-foreground group-hover:scale-125'
                             }`} />
                         </div>
                         <span className="whitespace-nowrap overflow-hidden text-ellipsis text-sm font-bold">
@@ -214,10 +214,10 @@ export function Sidebar() {
 
                     <button
                       onClick={() => setShowCreateHouse(true)}
-                      className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 group"
+                      className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-muted-foreground hover:text-foreground hover:bg-secondary group"
                     >
                       <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-                        <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                        <Plus className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                       </div>
                       <span className="text-sm font-bold">Tạo thêm nhà</span>
                     </button>
@@ -225,10 +225,10 @@ export function Sidebar() {
                 ) : (
                   <button
                     onClick={() => setShowCreateHouse(true)}
-                    className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-slate-500 hover:text-slate-800 hover:bg-slate-100/80 border border-dashed border-slate-200 mt-2 group"
+                    className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl transition-all cursor-pointer text-muted-foreground hover:text-foreground hover:bg-secondary border border-dashed border-border mt-2 group"
                   >
                     <div className="w-5 h-5 flex-shrink-0 flex items-center justify-center">
-                      <Plus className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+                      <Plus className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                     </div>
                     <span className="text-sm font-bold">Thêm nhà trọ</span>
                   </button>

@@ -85,26 +85,24 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
       onClick={handleClose}
     >
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" />
-      
       <div 
-        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg overflow-hidden safe-fade-in"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
           <div>
-            <h2 className="text-xl font-extrabold text-slate-800">Sửa hóa đơn</h2>
-            <p className="text-sm font-medium text-slate-500 mt-1">
+            <h2 className="text-xl font-extrabold text-foreground">Sửa hóa đơn</h2>
+            <p className="text-sm font-medium text-muted-foreground mt-1">
               Phòng {invoice.room_name} - Kỳ {invoice.period}
             </p>
           </div>
           <button 
             type="button"
             onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -116,26 +114,26 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
               {!isElectricityFixed && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">
+                    <label className="text-sm font-bold text-foreground">
                       Chỉ số điện cũ
                     </label>
                     <Input 
                       type="number" 
                       {...register('old_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                     />
-                    {errors.old_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.old_electricity_index.message}</p>}
+                    {errors.old_electricity_index && <p className="text-destructive text-xs font-medium">{errors.old_electricity_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">
+                    <label className="text-sm font-bold text-foreground">
                       Chỉ số điện mới
                     </label>
                     <Input 
                       type="number" 
                       {...register('new_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                     />
-                    {errors.new_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.new_electricity_index.message}</p>}
+                    {errors.new_electricity_index && <p className="text-destructive text-xs font-medium">{errors.new_electricity_index.message}</p>}
                   </div>
                 </div>
               )}
@@ -143,26 +141,26 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
               {!isWaterFixed && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">
+                    <label className="text-sm font-bold text-foreground">
                       Chỉ số nước cũ
                     </label>
                     <Input 
                       type="number" 
                       {...register('old_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                     />
-                    {errors.old_water_index && <p className="text-red-500 text-xs font-medium">{errors.old_water_index.message}</p>}
+                    {errors.old_water_index && <p className="text-destructive text-xs font-medium">{errors.old_water_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">
+                    <label className="text-sm font-bold text-foreground">
                       Chỉ số nước mới
                     </label>
                     <Input 
                       type="number" 
                       {...register('new_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                     />
-                    {errors.new_water_index && <p className="text-red-500 text-xs font-medium">{errors.new_water_index.message}</p>}
+                    {errors.new_water_index && <p className="text-destructive text-xs font-medium">{errors.new_water_index.message}</p>}
                   </div>
                 </div>
               )}
@@ -170,7 +168,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
           )}
 
           {(isElectricityFixed || isWaterFixed) && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 font-medium space-y-1">
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-xs text-primary font-medium space-y-1">
               {isElectricityFixed && <p>⚡ Tiền điện tính theo giá cố định</p>}
               {isWaterFixed && <p>💧 Tiền nước tính theo giá cố định</p>}
             </div>
@@ -178,51 +176,51 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Số người ở</label>
+              <label className="text-sm font-bold text-foreground">Số người ở</label>
               <Input 
                 type="number" 
                 {...register('tenant_count', { valueAsNumber: true })}
-                className="h-11 rounded-xl bg-slate-50"
+                className="h-11 rounded-xl border-border bg-background"
               />
-              {errors.tenant_count && <p className="text-red-500 text-xs font-medium">{errors.tenant_count.message}</p>}
+              {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Số lượng xe</label>
+              <label className="text-sm font-bold text-foreground">Số lượng xe</label>
               <Input 
                 type="number" 
                 {...register('vehicle_count', { valueAsNumber: true })}
-                className="h-11 rounded-xl bg-slate-50"
+                className="h-11 rounded-xl border-border bg-background"
               />
-              {errors.vehicle_count && <p className="text-red-500 text-xs font-medium">{errors.vehicle_count.message}</p>}
+              {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Phí khác (VNĐ)</label>
+              <label className="text-sm font-bold text-foreground">Phí khác (VNĐ)</label>
               <Input 
                 type="number" 
                 {...register('other_fee', { valueAsNumber: true })}
-                className="h-11 rounded-xl bg-slate-50"
+                className="h-11 rounded-xl border-border bg-background"
               />
-              {errors.other_fee && <p className="text-red-500 text-xs font-medium">{errors.other_fee.message}</p>}
+              {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Giảm giá (VNĐ)</label>
+              <label className="text-sm font-bold text-foreground">Giảm giá (VNĐ)</label>
               <Input 
                 type="number" 
                 {...register('discount', { valueAsNumber: true })}
-                className="h-11 rounded-xl bg-slate-50"
+                className="h-11 rounded-xl border-border bg-background"
               />
-              {errors.discount && <p className="text-red-500 text-xs font-medium">{errors.discount.message}</p>}
+              {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-slate-100">
+          <div className="flex gap-3 pt-4 border-t border-border/40">
             <Button 
               type="button" 
               variant="outline" 
@@ -234,7 +232,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             <Button 
               type="submit" 
               disabled={isSubmitting}
-              className="flex-1 rounded-xl h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl h-12 shadow-sm font-bold cursor-pointer flex items-center justify-center gap-2 active:scale-95 transition-all"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

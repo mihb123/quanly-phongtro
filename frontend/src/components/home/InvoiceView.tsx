@@ -167,7 +167,7 @@ export function InvoicesView() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in zoom-in duration-300">
+    <div className="space-y-6 safe-fade-in">
       {/* Modals */}
       {showCreateModal && (
         <CreateInvoiceModal onClose={() => setShowCreateModal(false)} />
@@ -206,27 +206,27 @@ export function InvoicesView() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">Quản lý hóa đơn</h1>
-          <p className="text-slate-500 mt-1">Danh sách hóa đơn điện, nước, dịch vụ hàng tháng</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Quản lý hóa đơn</h1>
+          <p className="text-muted-foreground mt-1">Danh sách hóa đơn điện, nước, dịch vụ hàng tháng</p>
         </div>
         <div className="flex items-center gap-3">
-           <Button onClick={() => setShowQuickCreateModal(true)} className="bg-blue-600 hover:bg-blue-700 shadow-md text-white rounded-xl cursor-pointer h-10 px-6 font-bold transition-all active:scale-95 flex items-center gap-2">
+           <Button onClick={() => setShowQuickCreateModal(true)} variant="secondary" className="shadow-sm rounded-xl cursor-pointer px-6 font-bold transition-all active:scale-95 flex items-center gap-2 touch-target">
              <Zap className="w-4 h-4" /> Ghi điện nước nhanh
            </Button>
-           <Button onClick={() => setShowCreateModal(true)} className="bg-purple-600 hover:bg-purple-700 shadow-md text-white rounded-xl cursor-pointer h-10 px-6 font-bold transition-all active:scale-95 flex items-center gap-2">
+           <Button onClick={() => setShowCreateModal(true)} className="shadow-sm rounded-xl cursor-pointer px-6 font-bold transition-all active:scale-95 flex items-center gap-2 touch-target">
              <Plus className="w-4 h-4" /> Tạo hóa đơn
            </Button>
         </div>
       </div>
 
       {/* Top Section: Filters & Compact Stats */}
-      <Card className="bg-white/80 border-slate-200/60 shadow-sm flex flex-col">
+      <Card className="bg-card border-border/60 shadow-sm flex flex-col">
         {/* Filters */}
-        <div className="p-4 border-b border-slate-100 flex flex-wrap items-end gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nhà trọ</label>
+        <div className="p-4 border-b border-border/40 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-end gap-4">
+          <div className="w-full lg:flex-1 lg:min-w-[200px]">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Nhà trọ</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold bg-white"
+              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
               value={invoiceFilter.house_id || ''}
               onChange={(e) => {
                 const newHouseId = e.target.value;
@@ -242,10 +242,10 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <div className="w-[140px] md:w-[160px]">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Phòng</label>
+          <div className="w-full lg:w-[160px]">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Phòng</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold disabled:bg-slate-50 disabled:text-slate-400 bg-white"
+              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:bg-muted disabled:text-muted-foreground bg-background"
               value={invoiceFilter.room_id || ''}
               onChange={(e) => setInvoiceFilter({ room_id: e.target.value })}
               disabled={!invoiceFilter.house_id}
@@ -257,20 +257,20 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <div className="w-[140px] md:w-[160px]">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Kỳ hóa đơn</label>
+          <div className="w-full lg:w-[160px]">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Kỳ hóa đơn</label>
             <input 
               type="month"
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold bg-white"
+              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
               value={invoiceFilter.period || ''}
               onChange={(e) => setInvoiceFilter({ period: e.target.value })}
             />
           </div>
 
-          <div className="w-[140px] md:w-[160px]">
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Trạng thái</label>
+          <div className="w-full lg:w-[160px]">
+            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Trạng thái</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold bg-white"
+              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
               value={invoiceFilter.status || ''}
               onChange={(e) => setInvoiceFilter({ status: e.target.value })}
             >
@@ -280,57 +280,57 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <Button variant="ghost" onClick={handleClearFilter} className="h-9 px-3 text-xs font-bold text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 transition-all ml-auto lg:ml-0">
+          <Button variant="ghost" onClick={handleClearFilter} className="w-full sm:col-span-2 lg:col-span-1 lg:w-auto h-9 px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg flex items-center justify-center gap-1.5 transition-all">
             <FilterX className="w-3.5 h-3.5" />
             Xóa lọc
           </Button>
         </div>
 
         {/* Stats */}
-        <div className="p-4 bg-slate-50/50 flex flex-wrap items-center gap-x-8 gap-y-4 rounded-b-xl border-t border-slate-100/50">
+        <div className="p-4 bg-slate-50/50 grid grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 rounded-b-xl border-t border-slate-100/50">
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/60 flex items-center justify-center shadow-sm">
+             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/60 flex items-center justify-center shadow-sm shrink-0">
                <Receipt className="w-4 h-4 text-slate-600" />
              </div>
-             <div>
-               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tổng hóa đơn</p>
-               <p className="text-base font-extrabold text-slate-800 leading-tight">{stats.totalInvoices}</p>
+             <div className="min-w-0">
+               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Tổng hóa đơn</p>
+               <p className="text-sm sm:text-base font-extrabold text-slate-800 leading-tight truncate">{stats.totalInvoices}</p>
              </div>
           </div>
           
-          <div className="w-px h-8 bg-slate-200 hidden sm:block" />
+          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
           
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200/60 flex items-center justify-center shadow-sm">
+             <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200/60 flex items-center justify-center shadow-sm shrink-0">
                <TrendingUp className="w-4 h-4 text-blue-600" />
              </div>
-             <div>
-               <p className="text-[10px] font-bold text-blue-600/80 uppercase tracking-wider">Tổng dự kiến</p>
-               <p className="text-base font-extrabold text-blue-700 leading-tight">{formatCurrency(stats.expectedRevenue)}</p>
+             <div className="min-w-0">
+               <p className="text-[10px] font-bold text-blue-600/80 uppercase tracking-wider truncate">Tổng dự kiến</p>
+               <p className="text-sm sm:text-base font-extrabold text-blue-700 leading-tight truncate">{formatCurrency(stats.expectedRevenue)}</p>
              </div>
           </div>
           
-          <div className="w-px h-8 bg-slate-200 hidden sm:block" />
+          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
           
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-green-100 border border-green-200/60 flex items-center justify-center shadow-sm">
+             <div className="w-8 h-8 rounded-full bg-green-100 border border-green-200/60 flex items-center justify-center shadow-sm shrink-0">
                <CheckCircle2 className="w-4 h-4 text-green-600" />
              </div>
-             <div>
-               <p className="text-[10px] font-bold text-green-600/80 uppercase tracking-wider">Đã thu</p>
-               <p className="text-base font-extrabold text-green-700 leading-tight">{formatCurrency(stats.collectedRevenue)}</p>
+             <div className="min-w-0">
+               <p className="text-[10px] font-bold text-green-600/80 uppercase tracking-wider truncate">Đã thu</p>
+               <p className="text-sm sm:text-base font-extrabold text-green-700 leading-tight truncate">{formatCurrency(stats.collectedRevenue)}</p>
              </div>
           </div>
           
-          <div className="w-px h-8 bg-slate-200 hidden sm:block" />
+          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
           
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-orange-100 border border-orange-200/60 flex items-center justify-center shadow-sm">
+             <div className="w-8 h-8 rounded-full bg-orange-100 border border-orange-200/60 flex items-center justify-center shadow-sm shrink-0">
                <Clock className="w-4 h-4 text-orange-600" />
              </div>
-             <div>
-               <p className="text-[10px] font-bold text-orange-600/80 uppercase tracking-wider">Chưa thu</p>
-               <p className="text-base font-extrabold text-orange-700 leading-tight">{formatCurrency(stats.unpaidRevenue)}</p>
+             <div className="min-w-0">
+               <p className="text-[10px] font-bold text-orange-600/80 uppercase tracking-wider truncate">Chưa thu</p>
+               <p className="text-sm sm:text-base font-extrabold text-orange-700 leading-tight truncate">{formatCurrency(stats.unpaidRevenue)}</p>
              </div>
           </div>
         </div>
@@ -339,26 +339,91 @@ export function InvoicesView() {
       {/* List */}
       {isLoading ? (
         <div className="text-center py-20">
-          <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto"></div>
-          <p className="text-slate-500 mt-4 font-medium">Đang tải hóa đơn...</p>
+          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
+          <p className="text-muted-foreground mt-4 font-medium">Đang tải hóa đơn...</p>
         </div>
       ) : invoices.length === 0 ? (
         <div className="text-center py-20">
-          <Receipt className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500 italic">Không tìm thấy hóa đơn nào.</p>
+          <Receipt className="w-12 h-12 text-muted mx-auto mb-3" />
+          <p className="text-muted-foreground italic">Không tìm thấy hóa đơn nào.</p>
         </div>
       ) : (
-        <div className="bg-white/80 rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden">
+          {/* Mobile Card View */}
+          <div className="block md:hidden divide-y divide-border/40">
+            {invoices.map(invoice => (
+              <div 
+                key={invoice.id} 
+                onClick={() => setSelectedInvoiceId(invoice.id)}
+                className="p-4 hover:bg-secondary/40 transition-colors cursor-pointer"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-bold text-primary">{(() => {
+                        if (invoiceFilter.house_id) return invoice.room_name;
+                        const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
+                        return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
+                      })()}
+                    </p>
+                    <p className="text-sm font-bold text-foreground mt-0.5">Kỳ: {invoice.period}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-foreground">{formatCurrency(invoice.total_amount)}</p>
+                    <span className={`inline-block mt-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                        invoice.status === 'PAID' 
+                          ? 'bg-green-100 text-green-700 border-green-200' 
+                          : 'bg-red-100 text-red-700 border-red-200'
+                      }`}>
+                      {invoice.status === 'PAID' ? 'Đã thu' : 'Chưa thu'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/40">
+                  <span className="text-xs font-medium text-slate-500">
+                    {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => { e.stopPropagation(); setSelectedInvoiceId(invoice.id); setShowEditModal(true); }}
+                      className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => handleDownload(e, invoice)}
+                      className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={(e) => handleDelete(e, invoice)}
+                      className="text-slate-500 hover:text-red-600 hover:bg-red-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap">Kỳ</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap">Phòng</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-right">Tổng tiền</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">Trạng thái</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap">Ngày tạo</th>
-                  <th className="py-4 px-6 font-bold text-slate-600 text-sm whitespace-nowrap text-center">
+                <tr className="bg-secondary/30 border-b border-border/40">
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Kỳ</th>
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Phòng</th>
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-right">Tổng tiền</th>
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-center">Trạng thái</th>
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Ngày tạo</th>
+                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">
                       Hành động
                       <Button 
@@ -366,7 +431,7 @@ export function InvoicesView() {
                         disabled={invoices.length === 0 || isDownloadingAll}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-100 rounded-full"
+                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-full touch-target"
                         title="Tải tất cả hóa đơn (Mẫu 1)"
                       >
                         {isDownloadingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -375,24 +440,24 @@ export function InvoicesView() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-border/40">
                 {invoices.map(invoice => (
                   <tr 
                     key={invoice.id} 
                     onClick={() => setSelectedInvoiceId(invoice.id)}
-                    className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                    className="hover:bg-secondary/40 transition-colors cursor-pointer group"
                   >
-                    <td className="py-4 px-6 font-bold text-slate-800 whitespace-nowrap">
+                    <td className="py-4 px-6 font-bold text-foreground whitespace-nowrap">
                       {invoice.period}
                     </td>
-                    <td className="py-4 px-6 font-bold text-purple-600 whitespace-nowrap" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
+                    <td className="py-4 px-6 font-bold text-primary whitespace-nowrap" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
                       {(() => {
                         if (invoiceFilter.house_id) return invoice.room_name;
                         const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
                         return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
                       })()}
                     </td>
-                    <td className="py-4 px-6 font-bold text-slate-800 text-right whitespace-nowrap">
+                    <td className="py-4 px-6 font-bold text-foreground text-right whitespace-nowrap">
                       {formatCurrency(invoice.total_amount)}
                     </td>
                     <td className="py-4 px-6 text-center whitespace-nowrap">

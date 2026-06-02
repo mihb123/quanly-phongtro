@@ -106,7 +106,7 @@ export function CreateInvoiceModal({ onClose }: Props) {
     if (watchHouseId) {
       saveSelectedHouse(watchHouseId)
     }
-  }, [watchHouseId]) // Removed saveSelectedHouse from dependency to avoid infinite loop if it changes reference, though it's stable
+  }, [watchHouseId, saveSelectedHouse])
 
   useEffect(() => {
     if (watchHouseId) {
@@ -186,23 +186,21 @@ export function CreateInvoiceModal({ onClose }: Props) {
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
       onClick={onClose}
     >
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" />
-      
       <div 
-        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg overflow-hidden safe-fade-in"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+        <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
           <div>
-            <h2 className="text-xl font-extrabold text-slate-800">Tạo hóa đơn mới</h2>
-            <p className="text-sm font-medium text-slate-500 mt-1">Hóa đơn điện, nước, dịch vụ</p>
+            <h2 className="text-xl font-extrabold text-foreground">Tạo hóa đơn mới</h2>
+            <p className="text-sm font-medium text-muted-foreground mt-1">Hóa đơn điện, nước, dịch vụ</p>
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -211,10 +209,10 @@ export function CreateInvoiceModal({ onClose }: Props) {
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Nhà trọ</label>
+              <label className="text-sm font-bold text-foreground">Nhà trọ</label>
               <select 
                 {...register('house_id')}
-                className="w-full h-11 px-3 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-medium bg-slate-50 disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-xl border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
                 disabled={isHouseLoading}
               >
                 <option value="">-- Chọn nhà trọ --</option>
@@ -222,14 +220,14 @@ export function CreateInvoiceModal({ onClose }: Props) {
                   <option key={h.id} value={h.id}>{h.name}</option>
                 ))}
               </select>
-              {errors.house_id && <p className="text-red-500 text-xs font-medium">{errors.house_id.message}</p>}
+              {errors.house_id && <p className="text-destructive text-xs font-medium">{errors.house_id.message}</p>}
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-slate-700">Phòng</label>
+              <label className="text-sm font-bold text-foreground">Phòng</label>
               <select 
                 {...register('room_id')}
-                className="w-full h-11 px-3 rounded-xl border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-medium bg-slate-50 disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-xl border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
                 disabled={!watchHouseId || isLoadingRoom}
               >
                 <option value="">{isLoadingRoom ? 'Đang tìm phòng...' : '-- Chọn phòng --'}</option>
@@ -237,18 +235,18 @@ export function CreateInvoiceModal({ onClose }: Props) {
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
-              {errors.room_id && <p className="text-red-500 text-xs font-medium">{errors.room_id.message}</p>}
+              {errors.room_id && <p className="text-destructive text-xs font-medium">{errors.room_id.message}</p>}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-slate-700">Kỳ hóa đơn</label>
+            <label className="text-sm font-bold text-foreground">Kỳ hóa đơn</label>
             <Input 
               type="month"
               {...register('period')}
-              className="h-11 rounded-xl bg-slate-50"
+              className="h-11 rounded-xl border-border bg-background"
             />
-            {errors.period && <p className="text-red-500 text-xs font-medium">{errors.period.message}</p>}
+            {errors.period && <p className="text-destructive text-xs font-medium">{errors.period.message}</p>}
           </div>
 
           {/* Chỉ hiển thị input chỉ số khi loại tính phí là USAGE */}
@@ -257,24 +255,24 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isElectricityFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Chỉ số điện cũ (tùy chọn)</label>
+                    <label className="text-sm font-bold text-foreground">Chỉ số điện cũ (tùy chọn)</label>
                     <Input 
                       type="number" 
                       {...register('old_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Tự động tính nếu trống"
                     />
-                    {errors.old_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.old_electricity_index.message}</p>}
+                    {errors.old_electricity_index && <p className="text-destructive text-xs font-medium">{errors.old_electricity_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Chỉ số điện mới</label>
+                    <label className="text-sm font-bold text-foreground">Chỉ số điện mới</label>
                     <Input 
                       type="number" 
                       {...register('new_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Ví dụ: 1520"
                     />
-                    {errors.new_electricity_index && <p className="text-red-500 text-xs font-medium">{errors.new_electricity_index.message}</p>}
+                    {errors.new_electricity_index && <p className="text-destructive text-xs font-medium">{errors.new_electricity_index.message}</p>}
                   </div>
                 </div>
               )}
@@ -282,24 +280,24 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isWaterFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Chỉ số nước cũ (tùy chọn)</label>
+                    <label className="text-sm font-bold text-foreground">Chỉ số nước cũ (tùy chọn)</label>
                     <Input 
                       type="number" 
                       {...register('old_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Tự động tính nếu trống"
                     />
-                    {errors.old_water_index && <p className="text-red-500 text-xs font-medium">{errors.old_water_index.message}</p>}
+                    {errors.old_water_index && <p className="text-destructive text-xs font-medium">{errors.old_water_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Chỉ số nước mới</label>
+                    <label className="text-sm font-bold text-foreground">Chỉ số nước mới</label>
                     <Input 
                       type="number" 
                       {...register('new_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Ví dụ: 105"
                     />
-                    {errors.new_water_index && <p className="text-red-500 text-xs font-medium">{errors.new_water_index.message}</p>}
+                    {errors.new_water_index && <p className="text-destructive text-xs font-medium">{errors.new_water_index.message}</p>}
                   </div>
                 </div>
               )}
@@ -308,7 +306,7 @@ export function CreateInvoiceModal({ onClose }: Props) {
 
           {/* Info khi FIXED */}
           {(isElectricityFixed || isWaterFixed) && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 font-medium space-y-1">
+            <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-xs text-primary font-medium space-y-1">
               {isElectricityFixed && (
                 <p>⚡ Tiền điện tính theo giá mặc định ({selectedHouseData?.electricity_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
               )}
@@ -318,70 +316,70 @@ export function CreateInvoiceModal({ onClose }: Props) {
             </div>
           )}
 
-          <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+          <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
             <button 
               type="button" 
               onClick={() => setIsAdditionalOpen(!isAdditionalOpen)}
-              className="w-full flex justify-between items-center p-4 hover:bg-slate-50 transition-colors focus:outline-none"
+              className="w-full flex justify-between items-center p-4 hover:bg-muted/30 transition-colors focus:outline-none"
             >
-              <span className="text-sm font-bold text-slate-700">Thông tin bổ sung</span>
-              <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${isAdditionalOpen ? 'rotate-180' : ''}`} />
+              <span className="text-sm font-bold text-foreground">Thông tin bổ sung</span>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isAdditionalOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {isAdditionalOpen && (
-              <div className="p-4 pt-0 space-y-4 border-t border-slate-100 mt-1">
+              <div className="p-4 pt-0 space-y-4 border-t border-border/40 mt-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Số người ở</label>
+                    <label className="text-sm font-bold text-foreground">Số người ở</label>
                     <Input 
                       type="number" 
                       {...register('tenant_count', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Ví dụ: 2"
                     />
-                    {errors.tenant_count && <p className="text-red-500 text-xs font-medium">{errors.tenant_count.message}</p>}
+                    {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Số lượng xe</label>
+                    <label className="text-sm font-bold text-foreground">Số lượng xe</label>
                     <Input 
                       type="number" 
                       {...register('vehicle_count', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="Ví dụ: 2"
                     />
-                    {errors.vehicle_count && <p className="text-red-500 text-xs font-medium">{errors.vehicle_count.message}</p>}
+                    {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Phí khác (VNĐ)</label>
+                    <label className="text-sm font-bold text-foreground">Phí khác (VNĐ)</label>
                     <Input 
                       type="number" 
                       {...register('other_fee', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="0"
                     />
-                    {errors.other_fee && <p className="text-red-500 text-xs font-medium">{errors.other_fee.message}</p>}
+                    {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-slate-700">Giảm giá (VNĐ)</label>
+                    <label className="text-sm font-bold text-foreground">Giảm giá (VNĐ)</label>
                     <Input 
                       type="number" 
                       {...register('discount', { valueAsNumber: true })}
-                      className="h-11 rounded-xl bg-slate-50"
+                      className="h-11 rounded-xl border-border bg-background"
                       placeholder="0"
                     />
-                    {errors.discount && <p className="text-red-500 text-xs font-medium">{errors.discount.message}</p>}
+                    {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
                   </div>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-slate-100">
+          <div className="flex gap-3 pt-4 border-t border-border/40">
             <Button 
               type="button" 
               variant="outline" 
@@ -393,7 +391,7 @@ export function CreateInvoiceModal({ onClose }: Props) {
             <Button 
               type="submit" 
               disabled={isSubmitting}
-              className="flex-1 rounded-xl h-12 bg-purple-600 hover:bg-purple-700 text-white font-bold cursor-pointer"
+              className="flex-1 rounded-xl h-12 shadow-sm font-bold cursor-pointer active:scale-95 transition-all"
             >
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Tạo hóa đơn'}
             </Button>

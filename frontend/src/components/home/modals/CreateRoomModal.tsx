@@ -63,18 +63,18 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) onClose()
       }}
     >
-      <Card className="w-full max-w-sm p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
-        <h2 className="text-xl font-bold mb-4 text-slate-800">Thêm phòng mới</h2>
+      <Card className="w-full max-w-sm p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in">
+        <h2 className="text-xl font-bold mb-4 text-foreground">Thêm phòng mới</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label>Tên phòng</Label>
-            <Input {...register('name')} placeholder="vd: Phòng 101" className="border-slate-200" />
-            {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+            <Input {...register('name')} placeholder="vd: Phòng 101" className="border-border" />
+            {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
           </div>
           <div className="space-y-2">
             <Label>Giá thuê (VNĐ)</Label>
@@ -82,17 +82,17 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
               name="price"
               control={control}
               render={({ field }) => (
-                <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200" />
+                <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
               )}
             />
           </div>
           <div className="space-y-2">
             <Label>Số khách thuê tối đa</Label>
-            <Input type="number" min="1" {...register('maxTenants')} className="border-slate-200" />
+            <Input type="number" min="1" {...register('maxTenants')} className="border-border" />
           </div>
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="border-slate-200 text-slate-600">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
+            <Button type="button" variant="outline" onClick={onClose} className="font-bold">Hủy</Button>
+            <Button type="submit" disabled={isLoading} className="shadow-sm font-bold">
               {isLoading ? 'Đang tạo...' : 'Tạo mới'}
             </Button>
           </div>

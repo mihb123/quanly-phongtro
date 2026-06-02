@@ -49,21 +49,16 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 relative overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-purple-200/50 blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-indigo-200/50 blur-3xl" />
-      </div>
-
-      <Card className="w-full max-w-md relative bg-white/80 border-slate-200/60 backdrop-blur-2xl shadow-xl shadow-slate-200/50 overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 relative overflow-hidden">
+      <Card className="w-full max-w-md relative bg-card border border-border/40 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.08)] rounded-2xl overflow-hidden">
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col">
           {/* Header Section */}
           <div className="p-8 pb-6 space-y-2">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-purple-100 border border-purple-200 mb-2">
-              <LogIn className="w-6 h-6 text-purple-600" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 mb-2">
+              <LogIn className="w-6 h-6 text-primary" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">Đăng nhập</h2>
-            <p className="text-slate-500 text-sm">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">Đăng nhập</h2>
+            <p className="text-muted-foreground text-sm">
               Nhập email và mật khẩu của bạn để tiếp tục
             </p>
           </div>
@@ -77,14 +72,14 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 text-sm font-medium">
+              <Label htmlFor="email" className="text-foreground text-sm font-medium">
                 Địa chỉ Email
               </Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="vd: user@example.com"
-                className="bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-purple-500/50 focus:ring-purple-500/20 h-11 transition-all"
+                className="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 h-11 transition-all"
                 {...register('email')}
               />
               {errors.email && (
@@ -93,7 +88,7 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700 text-sm font-medium">
+              <Label htmlFor="password" className="text-foreground text-sm font-medium">
                 Mật khẩu
               </Label>
               <div className="relative">
@@ -101,7 +96,7 @@ export default function LoginPage() {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập mật khẩu"
-                  className="bg-white border-slate-200 text-slate-800 placeholder:text-slate-400 focus:border-purple-500/50 focus:ring-purple-500/20 h-11 pr-10 transition-all"
+                  className="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 h-11 pr-10 transition-all"
                   {...register('password')}
                 />
                 <button
@@ -123,7 +118,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all duration-300 shadow-md shadow-purple-500/20 active:scale-[0.98]"
+              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold transition-all duration-300 shadow-md active:scale-[0.98]"
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">
@@ -135,9 +130,9 @@ export default function LoginPage() {
                 </span>
               ) : 'Đăng nhập'}
             </Button>
-            <p className="text-sm text-slate-500 text-center">
+            <p className="text-sm text-muted-foreground text-center">
               Chưa có tài khoản?{' '}
-              <Link to="/register" className="text-purple-600 hover:text-purple-700 font-medium transition-colors hover:underline underline-offset-4">
+              <Link to="/register" className="text-primary hover:text-primary/90 font-medium transition-colors hover:underline underline-offset-4">
                 Đăng ký ngay
               </Link>
             </p>

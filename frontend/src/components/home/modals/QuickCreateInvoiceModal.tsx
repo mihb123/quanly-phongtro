@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -226,36 +227,36 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const onlyOneColumn = (showElecColumn ? 1 : 0) + (showWaterColumn ? 1 : 0) === 1
 
   // Compute column spans dynamically — use static class names to avoid Tailwind purge
-  const roomSpanClass = 'col-span-2'
-  const vehicleSpanClass = 'col-span-2'
-  const utilitySpanClass = onlyOneColumn ? 'col-span-8' : 'col-span-4'
+  const roomSpanClass = 'md:col-span-2'
+  const vehicleSpanClass = 'md:col-span-2'
+  const utilitySpanClass = onlyOneColumn ? 'md:col-span-8' : 'md:col-span-4'
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-10 overflow-y-auto"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-4xl bg-white shadow-2xl border-0 animate-in zoom-in-95 duration-200 flex flex-col h-full max-h-[90vh]">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+      <Card className="w-full max-w-4xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[90vh]">
+        <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <Zap className="w-5 h-5 text-purple-600" />
+            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <Zap className="w-5 h-5 text-primary" />
               Ghi chỉ số điện nước & Tạo hóa đơn nhanh
             </h2>
-            <p className="text-xs text-slate-500 mt-1">Ghi nhanh chỉ số điện nước mới cho nhiều phòng cùng lúc.</p>
+            <p className="text-xs text-muted-foreground mt-1">Ghi nhanh chỉ số điện nước mới cho nhiều phòng cùng lúc.</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/80">
             <X className="w-5 h-5" />
           </Button>
         </div>
 
-        <div className="p-4 bg-white border-b border-slate-100 flex gap-4 items-end">
-          <div className="flex-1 max-w-[200px]">
-            <label className="block text-xs font-bold text-slate-500 mb-1">Chọn nhà trọ</label>
+        <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
+          <div className="w-full md:flex-1 md:max-w-[200px]">
+            <label className="block text-xs font-bold text-muted-foreground mb-1">Chọn nhà trọ</label>
             <select 
-              className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold disabled:opacity-50"
+              className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:opacity-50 bg-background"
               value={selectedHouseId}
               onChange={(e) => handleHouseChange(e.target.value)}
               disabled={isHouseLoading}
@@ -267,71 +268,72 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
           
-          <div className="flex-1 max-w-[200px]">
-            <label className="block text-xs font-bold text-slate-500 mb-1">Kỳ hóa đơn</label>
+          <div className="w-full md:flex-1 md:max-w-[200px]">
+            <label className="block text-xs font-bold text-muted-foreground mb-1">Kỳ hóa đơn</label>
             <input 
               type="month"
-              className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:border-purple-500 focus:ring focus:ring-purple-200 outline-none transition-all text-sm font-semibold"
+              className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-muted/10">
           {!selectedHouseId ? (
-            <div className="h-full flex flex-col items-center justify-center text-slate-400">
-              <Zap className="w-12 h-12 mb-3 text-slate-300" />
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+              <Zap className="w-12 h-12 mb-3 opacity-20" />
               <p>Vui lòng chọn nhà trọ để bắt đầu ghi điện nước</p>
             </div>
           ) : isFetchingData ? (
             <div className="h-full flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
             </div>
           ) : rooms.length === 0 ? (
-            <div className="text-center text-slate-500 mt-10">Nhà trọ này chưa có phòng nào đang thuê.</div>
+            <div className="text-center text-muted-foreground mt-10">Nhà trọ này chưa có phòng nào đang thuê.</div>
           ) : bothFixed ? (
             /* Both electricity and water are FIXED — just show a save button per room */
             <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700 font-medium">
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-primary font-medium">
                 <p>⚡ Tiền điện tính theo giá mặc định ({selectedHouseData?.electricity_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
                 <p>💧 Tiền nước tính theo giá mặc định ({selectedHouseData?.water_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
-                <p className="mt-2 text-xs text-blue-500">Bấm "Lưu tất cả" để tạo hóa đơn cho các phòng.</p>
+                <p className="mt-2 text-xs text-primary/70">Bấm "Lưu tất cả" để tạo hóa đơn cho các phòng.</p>
               </div>
               
-              <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-100 rounded-lg mt-4">
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg mt-4">
                 <div className={roomSpanClass}>Phòng</div>
-                <div className="col-span-4">Trạng thái</div>
-                <div className="col-span-6 flex items-center gap-2">Số lượng xe (Nhập số xe hiện tại)</div>
+                <div className="md:col-span-4">Trạng thái</div>
+                <div className="md:col-span-6 flex items-center gap-2">Số lượng xe (Nhập số xe hiện tại)</div>
               </div>
 
               <div className="space-y-3">
                 {rooms.map(room => {
                   const data = invoiceData[room.id] || { new_electricity: '', new_water: '', vehicle_count: '', saved: false }
                   return (
-                    <div key={room.id} className={`grid grid-cols-12 gap-4 items-center p-4 rounded-xl bg-white border transition-all ${data.saved ? 'border-green-200 bg-green-50/30' : data.error ? 'border-red-200 bg-red-50/30' : 'border-slate-200 hover:border-purple-300'}`}>
-                      <div className={`${roomSpanClass} font-bold text-slate-700 flex items-center gap-2`}>
+                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center p-4 rounded-xl bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
+                      <div className={`${roomSpanClass} font-bold text-foreground flex items-center gap-2`}>
                         {room.name}
                       </div>
-                      <div className="col-span-4 flex items-center gap-2">
+                      <div className="md:col-span-4 flex items-center gap-2">
                         {data.is_paid ? (
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Đã thu</span>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Đã thu</span>
                         ) : data.saved ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
                         ) : null}
                       </div>
-                      <div className="col-span-6">
+                      <div className="md:col-span-6 flex items-center gap-2">
+                         <span className="md:hidden text-xs font-bold text-muted-foreground w-20">Số xe:</span>
                          <Input
                            type="number"
                            placeholder="Số xe"
                            value={data.vehicle_count}
                            onChange={e => handleInputChange(room.id, 'vehicle_count', e.target.value)}
                            disabled={data.is_paid}
-                           className="h-10 w-24 border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
+                           className="h-10 flex-1 md:w-24 md:flex-none border-border focus:border-primary focus:ring-primary/20 bg-background"
                          />
                       </div>
                       {data.error && (
-                        <div className="col-span-12 mt-1 text-xs text-red-500 font-medium">{data.error}</div>
+                        <div className="md:col-span-12 mt-1 text-xs text-destructive font-medium">{data.error}</div>
                       )}
                     </div>
                   )
@@ -341,7 +343,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           ) : (
             <div className="space-y-4">
               {/* Header row */}
-              <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-100 rounded-lg">
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
                 <div className={roomSpanClass}>Phòng</div>
                 <div className={vehicleSpanClass}>Số lượng xe</div>
                 {showElecColumn && (
@@ -358,7 +360,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
 
               {/* Fixed billing info banner */}
               {(!showElecColumn || !showWaterColumn) && (
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-700 font-medium">
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-xs text-primary font-medium">
                   {!showElecColumn && <p>⚡ Tiền điện tính theo giá mặc định ({selectedHouseData?.electricity_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>}
                   {!showWaterColumn && <p>💧 Tiền nước tính theo giá mặc định ({selectedHouseData?.water_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>}
                 </div>
@@ -374,39 +376,43 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                   const waterUsed = data.new_water ? Number(data.new_water) - oldWater : 0
                   
                   return (
-                    <div key={room.id} className={`grid grid-cols-12 gap-4 items-center p-4 rounded-xl bg-white border transition-all ${data.saved ? 'border-green-200 bg-green-50/30' : data.error ? 'border-red-200 bg-red-50/30' : 'border-slate-200 hover:border-purple-300'}`}>
-                      <div className={`${roomSpanClass} font-bold text-slate-700 flex items-center gap-2`}>
-                        {room.name}
-                        {data.is_paid ? (
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">Đã thu</span>
-                        ) : data.saved ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        ) : null}
+                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 md:items-center p-4 rounded-xl bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
+                      <div className={`${roomSpanClass} font-bold text-foreground flex items-center justify-between gap-2 border-b border-border/40 pb-2 md:border-0 md:pb-0`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg md:text-base">{room.name}</span>
+                          {data.is_paid ? (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground">Đã thu</span>
+                          ) : data.saved ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                          ) : null}
+                        </div>
                       </div>
-                      <div className={vehicleSpanClass}>
+                      <div className={`${vehicleSpanClass} flex items-center gap-2`}>
+                         <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0">Số xe:</span>
                          <Input
                            type="number"
                            placeholder="Số xe"
                            value={data.vehicle_count}
                            onChange={e => handleInputChange(room.id, 'vehicle_count', e.target.value)}
                            disabled={data.is_paid}
-                           className="h-10 w-full border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
+                           className="h-10 w-full border-border focus:border-primary focus:ring-primary/20 bg-background"
                          />
                       </div>
                       {showElecColumn && (
-                        <div className={`${utilitySpanClass} relative`}>
-                          <div className="flex items-center gap-2">
+                        <div className={`${utilitySpanClass} relative flex items-center gap-2`}>
+                          <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5"/> Điện:</span>
+                          <div className="flex items-center gap-2 flex-1">
                             <Input
                               type="number"
                               placeholder="Số mới"
                               value={data.new_electricity}
                               onChange={e => handleInputChange(room.id, 'new_electricity', e.target.value)}
                               disabled={data.is_paid}
-                              className={`h-10 w-28 font-bold ${elecUsed < 0 ? 'text-red-500 border-red-300 focus:ring-red-200' : 'border-slate-200 focus:border-purple-400 focus:ring-purple-400/20'}`}
+                              className={`h-10 flex-1 md:w-28 md:flex-none font-bold bg-background ${elecUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
                             />
-                            <div className="text-sm font-medium text-slate-400">
-                              - <span className="text-slate-500" title="Số cũ">{oldElec}</span> = 
-                              <span className={`ml-1 font-bold ${elecUsed < 0 ? 'text-red-500' : elecUsed > 0 ? 'text-yellow-600' : 'text-slate-600'}`}>
+                            <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                              - <span className="text-foreground/70" title="Số cũ">{oldElec}</span> = 
+                              <span className={`ml-1 font-bold ${elecUsed < 0 ? 'text-destructive' : elecUsed > 0 ? 'text-amber-500' : 'text-foreground'}`}>
                                 {data.new_electricity ? elecUsed : '?'}
                               </span>
                             </div>
@@ -414,19 +420,20 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                         </div>
                       )}
                       {showWaterColumn && (
-                        <div className={`${utilitySpanClass} relative`}>
-                          <div className="flex items-center gap-2">
+                        <div className={`${utilitySpanClass} relative flex items-center gap-2`}>
+                          <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5"/> Nước:</span>
+                          <div className="flex items-center gap-2 flex-1">
                             <Input
                               type="number"
                               placeholder="Số mới"
                               value={data.new_water}
                               onChange={e => handleInputChange(room.id, 'new_water', e.target.value)}
                               disabled={data.is_paid}
-                              className={`h-10 w-28 font-bold ${waterUsed < 0 ? 'text-red-500 border-red-300 focus:ring-red-200' : 'border-slate-200 focus:border-purple-400 focus:ring-purple-400/20'}`}
+                              className={`h-10 flex-1 md:w-28 md:flex-none font-bold bg-background ${waterUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
                             />
-                            <div className="text-sm font-medium text-slate-400">
-                              - <span className="text-slate-500" title="Số cũ">{oldWater}</span> = 
-                              <span className={`ml-1 font-bold ${waterUsed < 0 ? 'text-red-500' : waterUsed > 0 ? 'text-blue-600' : 'text-slate-600'}`}>
+                            <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+                              - <span className="text-foreground/70" title="Số cũ">{oldWater}</span> = 
+                              <span className={`ml-1 font-bold ${waterUsed < 0 ? 'text-destructive' : waterUsed > 0 ? 'text-blue-500' : 'text-foreground'}`}>
                                 {data.new_water ? waterUsed : '?'}
                               </span>
                             </div>
@@ -434,7 +441,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                         </div>
                       )}
                       {data.error && (
-                        <div className="col-span-12 mt-1 text-xs text-red-500 font-medium">
+                        <div className="md:col-span-12 mt-1 text-xs text-destructive font-medium">
                           {data.error}
                         </div>
                       )}
@@ -446,20 +453,21 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-2xl">
-          <Button variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl h-11 px-6 font-bold">
+        <div className="p-6 border-t border-border/40 flex justify-end gap-3 bg-card rounded-b-2xl">
+          <Button variant="outline" onClick={handleClose} className="border-border text-foreground hover:bg-secondary/80 rounded-xl h-11 px-6 font-bold">
             Hủy
           </Button>
           <Button 
             disabled={isLoading || !selectedHouseId || rooms.length === 0}
             onClick={handleSaveAll}
-            className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>
         </div>
       </Card>
       {confirmModal}
-    </div>
+    </div>,
+    document.body
   )
 }

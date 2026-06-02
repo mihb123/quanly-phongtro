@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Building } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -148,42 +149,48 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
     return 'Giá nước mặc định / khối (VNĐ)'
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto pt-20 pb-20"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) onClose()
       }}
     >
-      <Card className="w-full max-w-2xl p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
-        <h2 className="text-xl font-bold mb-4 text-slate-800">Tạo nhà trọ mới & Cấu hình tầng</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <Card className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col">
+        <div className="p-4 md:p-6 border-b border-border/40 shrink-0">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <Building className="w-5 h-5 text-primary" />
+            Tạo nhà trọ mới & Cấu hình tầng
+          </h2>
+        </div>
+        <div className="p-4 md:p-6 overflow-y-auto flex-1">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên nhà trọ</Label>
-              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-slate-200" />
-              {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-border" />
+              {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Địa chỉ</Label>
-              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-slate-200" />
-              {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
+              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-border" />
+              {errors.address && <span className="text-destructive text-xs">{errors.address.message}</span>}
             </div>
             
             {/* Điện */}
-            <div className="space-y-2 col-span-2 bg-yellow-50/50 rounded-xl p-3 border border-yellow-100">
+            <div className="space-y-2 col-span-2 bg-muted/30 rounded-xl p-4 border border-border/50">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-yellow-700">Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-yellow-200 text-sm font-semibold mt-1 bg-white cursor-pointer">
+                  <Label className="text-xs font-bold text-foreground">Cách tính tiền điện</Label>
+                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-yellow-700">Đơn vị tính</Label>
-                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-yellow-200 text-sm font-semibold mt-1 bg-white cursor-pointer">
+                    <Label className="text-xs font-bold text-foreground">Đơn vị tính</Label>
+                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
@@ -196,26 +203,26 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                   name="electricity"
                   control={control}
                   render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
+                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
                   )}
                 />
               </div>
             </div>
 
             {/* Nước */}
-            <div className="space-y-2 col-span-2 bg-blue-50/50 rounded-xl p-3 border border-blue-100">
+            <div className="space-y-2 col-span-2 bg-muted/30 rounded-xl p-4 border border-border/50">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-blue-700">Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-blue-200 text-sm font-semibold mt-1 bg-white cursor-pointer">
+                  <Label className="text-xs font-bold text-foreground">Cách tính tiền nước</Label>
+                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-blue-700">Đơn vị tính</Label>
-                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-blue-200 text-sm font-semibold mt-1 bg-white cursor-pointer">
+                    <Label className="text-xs font-bold text-foreground">Đơn vị tính</Label>
+                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
@@ -228,7 +235,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                   name="water"
                   control={control}
                   render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
+                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
                   )}
                 />
               </div>
@@ -241,7 +248,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                 name="wifi"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
                 )}
               />
             </div>
@@ -251,7 +258,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                 name="parking"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
                 )}
               />
             </div>
@@ -261,70 +268,70 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                 name="service"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
                 )}
               />
             </div>
 
             {/* Phụ thu */}
-            <div className="space-y-2 col-span-2 bg-slate-50/50 rounded-xl p-3 border border-slate-200 mt-2">
-              <Label className="text-xs font-bold text-slate-700 block mb-2">Quy định phụ thu (nếu có)</Label>
+            <div className="space-y-2 col-span-2 bg-secondary/30 rounded-xl p-4 border border-border/50 mt-2">
+              <Label className="text-xs font-bold text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs">Phụ thu nếu quá X người</Label>
+                  <Label className="text-xs text-muted-foreground">Phụ thu nếu quá X người</Label>
                   <div className="flex gap-2">
-                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-slate-200 h-8 w-16" title="Số người miễn phí" />
+                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-border h-8 w-16 bg-background" title="Số người miễn phí" />
                     <Controller
                       name="extra_person_fee"
                       control={control}
                       render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8 flex-1" placeholder="Giá/người (VNĐ)" />
+                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 flex-1 bg-background" placeholder="Giá/người (VNĐ)" />
                       )}
                     />
                   </div>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Phụ thu nếu quá X xe</Label>
+                  <Label className="text-xs text-muted-foreground">Phụ thu nếu quá X xe</Label>
                   <div className="flex gap-2">
-                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-slate-200 h-8 w-16" title="Số xe miễn phí" />
+                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-border h-8 w-16 bg-background" title="Số xe miễn phí" />
                     <Controller
                       name="extra_vehicle_fee"
                       control={control}
                       render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 h-8 flex-1" placeholder="Giá/xe (VNĐ)" />
+                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 flex-1 bg-background" placeholder="Giá/xe (VNĐ)" />
                       )}
                     />
                   </div>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-500 mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
+              <p className="text-[10px] text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
             </div>
           </div>
           
-          <hr className="my-4 border-slate-100" />
-          <div className="space-y-4 bg-slate-50 rounded-xl p-4 border border-slate-100">
-            <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
-              <Building className="w-4 h-4 text-purple-600"/>
+          <hr className="my-4 border-border/50" />
+          <div className="space-y-4 bg-secondary/20 rounded-xl p-4 border border-border/50">
+            <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+              <Building className="w-4 h-4 text-primary"/>
               Cấu trúc số phòng theo tầng
             </h3>
-            <p className="text-xs text-slate-500">Hệ thống sẽ tự động khởi tạo danh sách phòng dựa vào số lượng bạn cấu hình bên dưới. Nhập 0 nếu không muốn auto-generate.</p>
+            <p className="text-xs text-muted-foreground">Hệ thống sẽ tự động khởi tạo danh sách phòng dựa vào số lượng bạn cấu hình bên dưới. Nhập 0 nếu không muốn auto-generate.</p>
             <div className="space-y-2">
               <Label>Số tầng của toà nhà (bao gồm cả trệt/thượng)</Label>
-              <Input type="number" min="0" max="20" value={floorCountStr} onChange={e => handleFloorCountChange(e.target.value)} className="border-slate-200 max-w-[200px]" />
+              <Input type="number" min="0" max="20" value={floorCountStr} onChange={e => handleFloorCountChange(e.target.value)} className="border-border max-w-[200px] bg-background" />
             </div>
             
             {(parseInt(floorCountStr) || 0) > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 bg-white p-3 rounded border border-slate-200 max-h-48 overflow-y-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 bg-background p-3 rounded-lg border border-border max-h-48 overflow-y-auto">
                 {Array.from({ length: parseInt(floorCountStr) || 0 }).map((_, i) => {
                    const floorNo = i + 1;
                    return (
                      <div key={floorNo} className="space-y-1">
-                       <Label className="text-xs text-slate-600">Số phòng Tầng {floorNo}</Label>
+                       <Label className="text-xs text-muted-foreground">Số phòng Tầng {floorNo}</Label>
                        <Input 
                          type="number" min="0" 
                          value={roomsPerFloor[floorNo] ?? 1} 
                          onChange={e => setRoomsPerFloor(prev => ({...prev, [floorNo]: parseInt(e.target.value) || 0}))} 
-                         className="h-8 text-sm border-slate-200" 
+                         className="h-8 text-sm border-border bg-background" 
                        />
                      </div>
                    )
@@ -334,13 +341,15 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="border-slate-200 text-slate-600">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
+            <Button type="button" variant="outline" onClick={onClose} className="font-bold">Hủy</Button>
+            <Button type="submit" disabled={isLoading} className="shadow-sm font-bold">
               {isLoading ? 'Đang khởi tạo...' : 'Xác nhận tạo'}
             </Button>
           </div>
         </form>
+        </div>
       </Card>
-    </div>
+    </div>,
+    document.body
   )
 }

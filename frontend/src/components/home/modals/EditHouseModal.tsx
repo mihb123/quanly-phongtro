@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,16 +121,19 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
     return 'Giá nước mặc định / khối (VNĐ)'
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto pt-20 pb-20"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-2xl p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
-        <h2 className="text-xl font-bold mb-4 text-slate-800">Cập nhật thông tin nhà trọ</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <Card className="w-full max-w-2xl bg-white shadow-xl border-0 safe-fade-in max-h-[95vh] flex flex-col">
+        <div className="p-4 md:p-6 shrink-0 border-b border-border/40">
+          <h2 className="text-xl font-bold text-slate-800">Cập nhật thông tin nhà trọ</h2>
+        </div>
+        <div className="p-4 md:p-6 overflow-y-auto flex-1">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên nhà trọ</Label>
@@ -280,8 +284,10 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
             </Button>
           </div>
         </form>
+        </div>
       </Card>
       {confirmModal}
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react'
-import { Plus, DoorOpen, Pencil, DollarSign, UserPlus, Trash2 } from 'lucide-react'
+import { Plus, DoorOpen, Pencil, DollarSign, UserPlus, Trash2, Building } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
+import { useHouseStore } from '@/data/houseData'
 import { useTenantStore } from '@/data/tenantData'
 import { CreateRoomModal } from './modals/CreateRoomModal'
 import { EditRoomModal } from './modals/EditRoomModal'
 import { TenantRoomModal } from './modals/TenantRoomModal'
 import { ConfirmModal } from './modals/ConfirmModal'
 import { QuickSetRoomPriceModal } from './modals/QuickSetRoomPriceModal'
+import { CreateHouseModal } from './modals/CreateHouseModal'
 import type { Room } from '@/api/room'
 
 export function HouseRoomsView() {
@@ -19,6 +21,7 @@ export function HouseRoomsView() {
 
   const limit = 25
 
+  const [showCreateHouse, setShowCreateHouse] = useState(false)
   const [showCreateRoom, setShowCreateRoom] = useState(false)
   const [editRoom, setEditRoom] = useState<Room | null>(null)
   
@@ -36,10 +39,53 @@ export function HouseRoomsView() {
     }
   }, [selectedHouse, roomPage, fetchRooms, fetchTenants])
 
-  if (!selectedHouse) return null
+  if (!selectedHouse) {
+    return (
+      <div className="space-y-6 safe-fade-in">
+        {showCreateHouse && <CreateHouseModal onClose={() => setShowCreateHouse(false)} />}
+        <div className="flex justify-between items-center border-b border-border pb-6 gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">Chọn nhà trọ</h1>
+            <p className="text-sm md:text-base text-muted-foreground">Vui lòng chọn một nhà trọ để xem danh sách phòng</p>
+          </div>
+          <Button onClick={() => setShowCreateHouse(true)} className="rounded-xl px-4 font-bold flex items-center gap-2 shrink-0">
+             <Plus className="w-4 h-4" /> Tạo nhà
+          </Button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {useHouseStore.getState().houses.map(house => (
+            <Card 
+              key={house.id}
+              onClick={() => {
+                useSelectedStore.getState().selectHouse(house)
+                setRoomPage(1)
+              }}
+              className="p-6 bg-card border-border/40 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-primary/50 group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform shrink-0">
+                  <Building className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors truncate">{house.name}</h3>
+                  <p className="text-sm text-muted-foreground truncate">{house.address || 'Chưa cập nhật địa chỉ'}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+          {useHouseStore.getState().houses.length === 0 && (
+            <div className="col-span-full text-center py-12 text-muted-foreground italic">
+              Chưa có nhà trọ nào. Vui lòng tạo nhà trọ trước.
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="space-y-6 animate-in fade-in zoom-in duration-300">
+    <div className="space-y-6 safe-fade-in">
       {/* Modals */}
       {showCreateRoom && (
         <CreateRoomModal onClose={() => setShowCreateRoom(false)} />
@@ -77,16 +123,21 @@ export function HouseRoomsView() {
         />
       )}
 
-      <div className="flex justify-between items-center border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">{selectedHouse.name}</h1>
-          <p className="text-slate-500 mt-1">{selectedHouse.address}</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-6 gap-4">
+        <div className="flex-1">
+          <div className="flex items-center justify-between md:justify-start gap-3">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground line-clamp-2">{selectedHouse.name}</h1>
+            <Button variant="outline" size="sm" onClick={() => useSelectedStore.getState().selectHouse(null)} className="h-8 px-3 rounded-md text-xs font-semibold md:hidden whitespace-nowrap shrink-0 border-primary/20 text-primary hover:bg-primary/10 touch-target">
+              Đổi nhà
+            </Button>
+          </div>
+          <p className="text-muted-foreground mt-1 line-clamp-2">{selectedHouse.address}</p>
         </div>
-        <div className="flex items-center gap-3">
-           <Button onClick={() => setShowQuickSetPrice(true)} variant="outline" className="border-purple-200 text-purple-600 hover:bg-purple-50 rounded-xl cursor-pointer h-10 px-4 font-bold transition-all active:scale-95 flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 shrink-0">
+           <Button onClick={() => setShowQuickSetPrice(true)} variant="outline" className="flex-1 md:flex-none border-border text-foreground hover:bg-secondary rounded-xl cursor-pointer px-4 font-bold transition-all active:scale-95 flex justify-center items-center gap-2 touch-target">
              <DollarSign className="w-4 h-4" /> Set giá nhanh
            </Button>
-           <Button onClick={() => setShowCreateRoom(true)} className="bg-purple-600 hover:bg-purple-700 shadow-md text-white rounded-xl cursor-pointer h-10 px-6 font-bold transition-all active:scale-95 flex items-center gap-2">
+           <Button onClick={() => setShowCreateRoom(true)} className="flex-1 md:flex-none rounded-xl cursor-pointer px-4 md:px-6 font-bold transition-all active:scale-95 flex justify-center items-center gap-2 touch-target">
              <Plus className="w-4 h-4" /> Thêm phòng
            </Button>
         </div>
@@ -99,41 +150,41 @@ export function HouseRoomsView() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {rooms.map(room => (
-              <Card key={room.id} onClick={() => setEditRoom(room)} className="p-6 bg-white/80 border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer">
+            {rooms.map((room, index) => (
+              <Card key={room.id} onClick={() => setEditRoom(room)} className="p-6 bg-card border-border/40 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer safe-fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: `${index * 50}ms` }}>
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                       <DoorOpen className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg text-slate-800">{room.name}</h3>
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 mt-1 inline-block">
+                      <h3 className="font-bold text-lg text-foreground">{room.name}</h3>
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-secondary text-secondary-foreground border border-border mt-1 inline-block">
                         {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'OCCUPIED' ? 'Đã Thuê' : room.status}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-colors cursor-pointer" title="Thêm khách thuê">
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-50/50 rounded-full transition-colors cursor-pointer" title="Thêm khách thuê">
                       <UserPlus className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="h-8 w-8 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer" title="Sửa thông tin phòng">
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors cursor-pointer" title="Sửa thông tin phòng">
                       <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setRoomToDelete(room) }} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer" title="Xóa phòng">
+                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setRoomToDelete(room) }} className="h-8 w-8 text-muted-foreground hover:text-red-600 hover:bg-red-50/50 rounded-full transition-colors cursor-pointer" title="Xóa phòng">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2 mt-5 text-sm text-slate-600">
-                  <div className="flex justify-between items-center bg-slate-50 p-2 rounded-md">
+                <div className="space-y-2 mt-5 text-sm text-muted-foreground">
+                  <div className="flex justify-between items-center bg-secondary/50 p-2 rounded-md">
                     <span>Giá thuê:</span>
-                    <span className="font-semibold text-slate-800 text-base">{(room.price || 0).toLocaleString()}đ</span>
+                    <span className="font-semibold text-foreground text-base">{(room.price || 0).toLocaleString()}đ</span>
                   </div>
                   <div className="flex justify-between items-center p-2">
                     <span>Số người đang ở:</span>
                     <span 
-                      className="font-semibold text-slate-800 cursor-pointer hover:text-purple-600 hover:underline transition-colors"
+                      className="font-semibold text-foreground cursor-pointer hover:text-primary hover:underline transition-colors"
                       title="Xem danh sách khách thuê"
                       onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('list') }}
                     >

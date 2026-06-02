@@ -86,19 +86,19 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
 
   return (
     <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto pt-20 pb-20"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4 overflow-y-auto pt-20 pb-20"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-xl p-6 bg-white shadow-xl border-0 animate-in zoom-in-95 duration-200">
-        <h2 className="text-xl font-bold mb-4 text-slate-800">Sửa thông tin phòng</h2>
+      <Card className="w-full max-w-xl p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in">
+        <h2 className="text-xl font-bold mb-4 text-foreground">Sửa thông tin phòng</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên phòng</Label>
-              <Input {...register('name')} className="border-slate-200" />
-              {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+              <Input {...register('name')} className="border-border" />
+              {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
             </div>
             <div className="space-y-2">
               <Label>Giá thuê hàng tháng (VNĐ)</Label>
@@ -106,103 +106,103 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                 name="price"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
                 )}
               />
             </div>
             <div className="space-y-2">
               <Label>Số người ở tối đa</Label>
-              <Input type="number" min="1" {...register('maxTenants')} className="border-slate-200" />
+              <Input type="number" min="1" {...register('maxTenants')} className="border-border" />
             </div>
           </div>
           
-          <hr className="my-2 border-slate-100" />
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-             <h3 className="font-bold text-slate-700 text-sm">Tuỳ chỉnh giá phát sinh riêng</h3>
-             <p className="text-xs text-slate-500 mb-3">Nếu để trống, hệ thống sẽ tự động dùng giá mặc định của nhà trọ.</p>
+          <hr className="my-2 border-border/50" />
+          <div className="bg-muted/30 p-4 rounded-xl border border-border/50">
+             <h3 className="font-bold text-foreground text-sm">Tuỳ chỉnh giá phát sinh riêng</h3>
+             <p className="text-xs text-muted-foreground mb-3">Nếu để trống, hệ thống sẽ tự động dùng giá mặc định của nhà trọ.</p>
              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div className="space-y-1">
-                  <Label className="text-xs">Giá điện / số</Label>
+                  <Label className="text-xs text-muted-foreground">Giá điện / số</Label>
                   <Controller
                     name="electricity"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Giá nước</Label>
+                  <Label className="text-xs text-muted-foreground">Giá nước</Label>
                   <Controller
                     name="water"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Giá Wifi</Label>
+                  <Label className="text-xs text-muted-foreground">Giá Wifi</Label>
                   <Controller
                     name="wifi"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Giá gửi xe</Label>
+                  <Label className="text-xs text-muted-foreground">Giá gửi xe</Label>
                   <Controller
                     name="parking"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Giá dịch vụ chung</Label>
+                  <Label className="text-xs text-muted-foreground">Giá dịch vụ chung</Label>
                   <Controller
                     name="service"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-slate-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
               </div>
           </div>
 
-          <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-             <h3 className="font-bold text-amber-800 text-sm">Phụ thu vượt mức</h3>
-             <p className="text-xs text-amber-600 mb-3">Nếu để trống, hệ thống sẽ tự động dùng cấu hình mặc định của nhà trọ.</p>
+          <div className="bg-secondary/30 p-4 rounded-xl border border-border/50">
+             <h3 className="font-bold text-foreground text-sm">Phụ thu vượt mức</h3>
+             <p className="text-xs text-muted-foreground mb-3">Nếu để trống, hệ thống sẽ tự động dùng cấu hình mặc định của nhà trọ.</p>
              <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
-                  <Label className="text-xs">Số người miễn phí</Label>
-                  <Input type="number" min="0" {...register('extraPersonThreshold')} placeholder="Mặc định..." className="h-8 border-amber-200 bg-white" />
+                  <Label className="text-xs text-muted-foreground">Số người miễn phí</Label>
+                  <Input type="number" min="0" {...register('extraPersonThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Phí / người vượt (VNĐ)</Label>
+                  <Label className="text-xs text-muted-foreground">Phí / người vượt (VNĐ)</Label>
                   <Controller
                     name="extraPersonFee"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-amber-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Số xe miễn phí</Label>
-                  <Input type="number" min="0" {...register('extraVehicleThreshold')} placeholder="Mặc định..." className="h-8 border-amber-200 bg-white" />
+                  <Label className="text-xs text-muted-foreground">Số xe miễn phí</Label>
+                  <Input type="number" min="0" {...register('extraVehicleThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Phí / xe vượt (VNĐ)</Label>
+                  <Label className="text-xs text-muted-foreground">Phí / xe vượt (VNĐ)</Label>
                   <Controller
                     name="extraVehicleFee"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-amber-200 bg-white" />
+                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
@@ -210,8 +210,8 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
+            <Button type="button" variant="outline" onClick={handleClose} className="font-bold">Hủy</Button>
+            <Button type="submit" disabled={isLoading} className="shadow-sm font-bold">
               {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>

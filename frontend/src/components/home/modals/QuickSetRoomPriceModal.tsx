@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -116,30 +117,30 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-10 overflow-y-auto"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-3xl bg-white shadow-2xl border-0 animate-in zoom-in-95 duration-200 flex flex-col h-full max-h-[85vh]">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+      <Card className="w-full max-w-3xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[85vh]">
+        <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl">
           <div>
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-purple-600" />
+            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-primary" />
               Sửa giá & công năng phòng nhanh
             </h2>
-            <p className="text-xs text-slate-500 mt-1">Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc.</p>
+            <p className="text-xs text-muted-foreground mt-1">Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc.</p>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary">
             <X className="w-5 h-5" />
           </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-4">
-            <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider bg-slate-50 rounded-lg">
+            <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
               <div className="col-span-3">Tên phòng</div>
               <div className="col-span-4 flex items-center gap-2">
                 <DollarSign className="w-3 h-3" /> Giá thuê (VNĐ)
@@ -152,8 +153,8 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
 
             <div className="space-y-2">
               {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(room => (
-                <div key={room.id} className="grid grid-cols-12 gap-4 items-center p-3 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-all group">
-                  <div className="col-span-3 font-bold text-slate-700 transition-colors" onClick={() => setEditingNameId(room.id)}>
+                <div key={room.id} className="grid grid-cols-12 gap-4 items-center p-3 rounded-xl hover:bg-muted/30 border border-transparent hover:border-border transition-all group">
+                  <div className="col-span-3 font-bold text-foreground transition-colors" onClick={() => setEditingNameId(room.id)}>
                     {editingNameId === room.id ? (
                       <Input
                         autoFocus
@@ -162,10 +163,10 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                         onChange={e => handleInputChange(room.id, 'name', e.target.value)}
                         onBlur={() => setEditingNameId(null)}
                         onKeyDown={e => e.key === 'Enter' && setEditingNameId(null)}
-                        className="h-9 border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
+                        className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
                       />
                     ) : (
-                      <div className="cursor-pointer group-hover:text-purple-600 truncate py-1.5" title="Click để sửa tên phòng">
+                      <div className="cursor-pointer group-hover:text-primary truncate py-1.5" title="Click để sửa tên phòng">
                         {roomData[room.id]?.name || room.name}
                       </div>
                     )}
@@ -175,7 +176,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                       type="text"
                       value={formatNumber(roomData[room.id]?.price || '')}
                       onChange={e => handleInputChange(room.id, 'price', e.target.value.replace(/\D/g, ''))}
-                      className="h-9 border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
+                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
                     />
                   </div>
                   <div className="col-span-3">
@@ -183,14 +184,14 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                       type="number"
                       value={roomData[room.id]?.max_tenants || ''}
                       onChange={e => handleInputChange(room.id, 'max_tenants', e.target.value)}
-                      className="h-9 border-slate-200 focus:border-purple-400 focus:ring-purple-400/20"
+                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
                     />
                   </div>
                   <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" onClick={() => handleDuplicateRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors cursor-pointer" title="Nhân bản">
+                    <Button variant="ghost" size="icon" onClick={() => handleDuplicateRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors cursor-pointer" title="Nhân bản">
                       <Copy className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer" title="Xóa">
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer" title="Xóa">
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -200,20 +201,21 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
-        <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/30 rounded-b-2xl">
-          <Button variant="outline" onClick={handleClose} className="border-slate-200 text-slate-600 hover:bg-white rounded-xl h-11 px-6 font-bold">
+        <div className="p-6 border-t border-border/40 flex justify-end gap-3 bg-muted/30 rounded-b-2xl">
+          <Button variant="outline" onClick={handleClose} className="rounded-xl h-11 px-6 font-bold">
             Hủy
           </Button>
           <Button 
             disabled={isLoading}
             onClick={handleSaveAll}
-            className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+            className="shadow-sm rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>
         </div>
       </Card>
       {confirmModal}
-    </div>
+    </div>,
+    document.body
   )
 }
