@@ -1,8 +1,9 @@
+import { createPortal } from 'react-dom'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, Save } from 'lucide-react'
+import { X, Loader2, Save, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -33,6 +34,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   const { updateInvoice } = useInvoiceStore()
   
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAdditionalOpen, setIsAdditionalOpen] = useState(false)
 
   // Find the house to determine billing type
   const house = useMemo(() => houses.find(h => h.id === invoice.house_id), [houses, invoice.house_id])
@@ -83,13 +85,13 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
     }
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
       onClick={handleClose}
     >
       <div 
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg overflow-hidden safe-fade-in"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg max-h-[90vh] overflow-y-auto safe-fade-in"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
@@ -174,50 +176,63 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Số người ở</label>
-              <Input 
-                type="number" 
-                {...register('tenant_count', { valueAsNumber: true })}
-                className="h-11 rounded-xl border-border bg-background"
-              />
-              {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
-            </div>
+          <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
+            <button 
+              type="button" 
+              onClick={() => setIsAdditionalOpen(!isAdditionalOpen)}
+              className="w-full flex justify-between items-center p-4 hover:bg-muted/30 transition-colors focus:outline-none"
+            >
+              <span className="text-sm font-bold text-foreground">Thông tin bổ sung</span>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isAdditionalOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isAdditionalOpen && (
+              <div className="p-4 pt-0 space-y-4 border-t border-border/40 mt-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-foreground">Số người ở</label>
+                    <Input 
+                      type="number" 
+                      {...register('tenant_count', { valueAsNumber: true })}
+                      className="h-11 rounded-xl border-border bg-background"
+                    />
+                    {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
+                  </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Số lượng xe</label>
-              <Input 
-                type="number" 
-                {...register('vehicle_count', { valueAsNumber: true })}
-                className="h-11 rounded-xl border-border bg-background"
-              />
-              {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
-            </div>
-          </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-foreground">Số lượng xe</label>
+                    <Input 
+                      type="number" 
+                      {...register('vehicle_count', { valueAsNumber: true })}
+                      className="h-11 rounded-xl border-border bg-background"
+                    />
+                    {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
+                  </div>
+                </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Phí khác (VNĐ)</label>
-              <Input 
-                type="number" 
-                {...register('other_fee', { valueAsNumber: true })}
-                className="h-11 rounded-xl border-border bg-background"
-              />
-              {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
-            </div>
-          </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-foreground">Phí khác (VNĐ)</label>
+                    <Input 
+                      type="number" 
+                      {...register('other_fee', { valueAsNumber: true })}
+                      className="h-11 rounded-xl border-border bg-background"
+                    />
+                    {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
+                  </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Giảm giá (VNĐ)</label>
-              <Input 
-                type="number" 
-                {...register('discount', { valueAsNumber: true })}
-                className="h-11 rounded-xl border-border bg-background"
-              />
-              {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
-            </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-foreground">Giảm giá (VNĐ)</label>
+                    <Input 
+                      type="number" 
+                      {...register('discount', { valueAsNumber: true })}
+                      className="h-11 rounded-xl border-border bg-background"
+                    />
+                    {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-border/40">
@@ -248,5 +263,5 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
       </div>
       {confirmModal}
     </div>
-  )
+  , document.body)
 }

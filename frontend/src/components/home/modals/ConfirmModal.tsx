@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,14 +31,14 @@ export function ConfirmModal({
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onCancel, isLoading])
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4 p-4 sm:p-0"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) onCancel()
       }}
     >
-      <Card className="w-full max-w-md p-6 bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in">
+      <Card className="w-full max-w-md p-6 bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in max-h-[90vh] overflow-y-auto">
         <div className="flex flex-col items-center text-center space-y-4">
           <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
             <AlertTriangle className="w-8 h-8 text-red-500" />
@@ -69,5 +70,5 @@ export function ConfirmModal({
         </div>
       </Card>
     </div>
-  )
+  , document.body)
 }

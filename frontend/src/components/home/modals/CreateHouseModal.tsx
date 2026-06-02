@@ -156,7 +156,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget && !isLoading) onClose()
       }}
     >
-      <Card className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col">
+      <Card className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col overflow-y-auto">
         <div className="p-4 md:p-6 border-b border-border/40 shrink-0">
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Building className="w-5 h-5 text-primary" />

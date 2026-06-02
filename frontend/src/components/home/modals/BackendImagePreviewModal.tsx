@@ -26,7 +26,7 @@ export function BackendImagePreviewModal({ imageUrl, filename, title = "Xem trư
       onClick={onClose}
     >
       <div 
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col safe-fade-in"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col safe-fade-in overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b border-border/40">

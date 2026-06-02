@@ -150,7 +150,7 @@ export function HouseRoomsView() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {rooms.map((room, index) => (
+            {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map((room, index) => (
               <Card key={room.id} onClick={() => setEditRoom(room)} className="p-6 bg-card border-border/40 shadow-sm hover:shadow-md transition-shadow group relative cursor-pointer safe-fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: `${index * 50}ms` }}>
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex items-center gap-3">

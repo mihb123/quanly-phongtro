@@ -24,6 +24,7 @@ jobs:
       # ── Phase 1: Pull source code ──────────────────────
       - name: Pull latest source code
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 1] Pull source code"
           cd $PROJECT_DIR
           git fetch origin develop
           git reset --hard origin/develop
@@ -31,17 +32,20 @@ jobs:
       # ── Phase 2: Lint & Build (verify trước khi đổi data) ─
       - name: Lint backend
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint backend"
           cd $PROJECT_DIR
           go vet ./...
 
       - name: Build backend
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Build backend"
           cd $PROJECT_DIR
           go mod download
           go build -o ${SERVICE_NAME}.new ./cmd/api
 
       - name: Lint and build frontend
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Build frontend"
           cd $PROJECT_DIR/frontend
           if command -v pnpm &> /dev/null; then
             pnpm install --frozen-lockfile
@@ -56,12 +60,14 @@ jobs:
       # ── Phase 3: Backup (trước khi deploy) ─────────────
       - name: Backup database
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup database"
           cd $PROJECT_DIR
           chmod +x scripts/backup-db.sh
           ./scripts/backup-db.sh
 
       - name: Backup current binary
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup backend binary"
           cd $PROJECT_DIR
           mkdir -p backup/binary
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
@@ -75,6 +81,7 @@ jobs:
 
       - name: Backup current frontend
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup frontend"
           cd $PROJECT_DIR
           mkdir -p backup/frontend
           FRONTEND_SRC="/var/www/quanly-phongtro"
@@ -90,6 +97,7 @@ jobs:
       # ── Phase 4: Database (chỉ chạy sau khi build OK) ──
       - name: Run database migrations and seed
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 4] Database migrations & seed"
           cd $PROJECT_DIR
           set -a && source .env && set +a
           $HOME/go/bin/migrate -path migrations -database "$POSTGRES_DSN" up
@@ -98,22 +106,26 @@ jobs:
       # ── Phase 5: Deploy ────────────────────────────────
       - name: Deploy backend binary
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy backend binary"
           cd $PROJECT_DIR
           mv ${SERVICE_NAME}.new $SERVICE_NAME
           chmod +x $SERVICE_NAME
 
       - name: Deploy Nginx configuration
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy Nginx configuration"
           sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-available/quanly-phongtro
           sudo /usr/sbin/nginx -t
 
       - name: Deploy frontend to Nginx
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy frontend"
           rsync -a --delete $PROJECT_DIR/frontend/dist/ /var/www/quanly-phongtro/
           sudo /usr/bin/systemctl reload nginx
 
       - name: Restart backend service
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Restart backend service"
           sudo /usr/bin/systemctl restart $SERVICE_NAME
           sleep 2
           sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
@@ -121,6 +133,7 @@ jobs:
       # ── Phase 6: Cleanup backups cũ ────────────────────
       - name: Cleanup old backups
         run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 6] Cleanup backups cũ"
           cd $PROJECT_DIR
           MAX_BACKUPS=5
           for dir in backup/binary backup/frontend; do
@@ -137,3 +150,4 @@ jobs:
               fi
             fi
           done
+          bash $PROJECT_DIR/scripts/notify-telegram.sh "🚀 Toàn bộ quá trình Deploy hoàn tất!"

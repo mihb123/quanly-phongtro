@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,21 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const [roomData, setRoomData] = useState<Record<string, { name: string, price: string, max_tenants: string }>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
+  const [showActionsFor, setShowActionsFor] = useState<string | null>(null)
+  const [preventClick, setPreventClick] = useState(false)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handlePressStart = (roomId: string) => {
+    setPreventClick(false)
+    pressTimer.current = setTimeout(() => {
+      setPreventClick(true)
+      setShowActionsFor(roomId)
+    }, 500)
+  }
+
+  const handlePressEnd = () => {
+    if (pressTimer.current) clearTimeout(pressTimer.current)
+  }
 
   const [isDirty, setIsDirty] = useState(false)
 
@@ -124,7 +139,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-3xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[85vh]">
+      <Card className="w-full max-w-3xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[85vh] overflow-y-auto">
         <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl">
           <div>
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -140,21 +155,44 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-4">
-            <div className="grid grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
-              <div className="col-span-3">Tên phòng</div>
-              <div className="col-span-4 flex items-center gap-2">
-                <DollarSign className="w-3 h-3" /> Giá thuê (VNĐ)
+            <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
+              <div className="col-span-4">Tên phòng</div>
+              <div className="col-span-5 flex items-center gap-1 sm:gap-2">
+                <DollarSign className="w-3 h-3" /> Giá thuê
               </div>
-              <div className="col-span-3 flex items-center gap-2">
-                <Users className="w-3 h-3" /> Số người tối đa
+              <div className="col-span-3 flex items-center gap-1 sm:gap-2 justify-end sm:justify-start">
+                <Users className="w-3 h-3 hidden sm:block" /> Số người
               </div>
-              <div className="col-span-2 text-right">Hành động</div>
             </div>
 
             <div className="space-y-2">
               {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(room => (
-                <div key={room.id} className="grid grid-cols-12 gap-4 items-center p-3 rounded-xl hover:bg-muted/30 border border-transparent hover:border-border transition-all group">
-                  <div className="col-span-3 font-bold text-foreground transition-colors" onClick={() => setEditingNameId(room.id)}>
+                <div key={room.id} className="grid grid-cols-12 gap-3 items-center p-3 rounded-xl hover:bg-muted/30 border border-transparent hover:border-border transition-all relative">
+                  {showActionsFor === room.id && (
+                    <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2 sm:gap-4 shadow-sm border border-border/80">
+                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDuplicateRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-primary border-primary/20 hover:bg-primary/10 font-bold text-xs sm:text-sm">
+                        <Copy className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Nhân bản</span>
+                      </Button>
+                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-destructive border-destructive/20 hover:bg-destructive/10 font-bold text-xs sm:text-sm">
+                        <Trash2 className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Xóa</span>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setShowActionsFor(null); }} className="absolute right-1 sm:right-2 text-muted-foreground hover:bg-secondary rounded-full">
+                        <X className="w-5 h-5"/>
+                      </Button>
+                    </div>
+                  )}
+                  <div 
+                    className="col-span-4 font-bold text-foreground transition-colors touch-target px-0" 
+                    onMouseDown={() => handlePressStart(room.id)}
+                    onMouseUp={handlePressEnd}
+                    onMouseLeave={handlePressEnd}
+                    onTouchStart={() => handlePressStart(room.id)}
+                    onTouchEnd={handlePressEnd}
+                    onClick={() => {
+                      if (!preventClick) setEditingNameId(room.id)
+                    }}
+                    style={{ WebkitTouchCallout: 'none', userSelect: 'none' }}
+                  >
                     {editingNameId === room.id ? (
                       <Input
                         autoFocus
@@ -163,20 +201,20 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                         onChange={e => handleInputChange(room.id, 'name', e.target.value)}
                         onBlur={() => setEditingNameId(null)}
                         onKeyDown={e => e.key === 'Enter' && setEditingNameId(null)}
-                        className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
+                        className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm"
                       />
                     ) : (
-                      <div className="cursor-pointer group-hover:text-primary truncate py-1.5" title="Click để sửa tên phòng">
+                      <div className="cursor-pointer hover:text-primary truncate py-1.5" title="Nhấn để sửa tên, nhấn giữ để hiện thao tác">
                         {roomData[room.id]?.name || room.name}
                       </div>
                     )}
                   </div>
-                  <div className="col-span-4">
+                  <div className="col-span-5">
                     <Input
                       type="text"
                       value={formatNumber(roomData[room.id]?.price || '')}
                       onChange={e => handleInputChange(room.id, 'price', e.target.value.replace(/\D/g, ''))}
-                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
+                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm font-semibold"
                     />
                   </div>
                   <div className="col-span-3">
@@ -184,16 +222,8 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                       type="number"
                       value={roomData[room.id]?.max_tenants || ''}
                       onChange={e => handleInputChange(room.id, 'max_tenants', e.target.value)}
-                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background"
+                      className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm text-center"
                     />
-                  </div>
-                  <div className="col-span-2 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon" onClick={() => handleDuplicateRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full transition-colors cursor-pointer" title="Nhân bản">
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRoom(room)} disabled={isLoading} tabIndex={-1} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-colors cursor-pointer" title="Xóa">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
                   </div>
                 </div>
               ))}

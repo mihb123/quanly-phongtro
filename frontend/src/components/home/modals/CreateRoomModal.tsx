@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -61,14 +62,14 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4 p-4 sm:p-0"
       onMouseDown={e => {
         if (e.target === e.currentTarget && !isLoading) onClose()
       }}
     >
-      <Card className="w-full max-w-sm p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in">
+      <Card className="w-full max-w-sm p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold mb-4 text-foreground">Thêm phòng mới</h2>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
@@ -99,5 +100,5 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
         </form>
       </Card>
     </div>
-  )
+  , document.body)
 }

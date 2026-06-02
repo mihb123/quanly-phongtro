@@ -199,12 +199,12 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   return createPortal(
     <>
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
       onClick={onClose}
     >
       <div 
         ref={printRef}
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col safe-fade-in"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-2xl max-h-[90vh]  flex flex-col safe-fade-in overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -184,13 +185,13 @@ export function CreateInvoiceModal({ onClose }: Props) {
     }
   }
 
-  return (
+  return createPortal(
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
       onClick={onClose}
     >
       <div 
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg overflow-hidden safe-fade-in"
+        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg  safe-fade-in max-h-[90vh] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
@@ -399,5 +400,5 @@ export function CreateInvoiceModal({ onClose }: Props) {
         </form>
       </div>
     </div>
-  )
+  , document.body)
 }

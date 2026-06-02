@@ -105,7 +105,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
         onClick={onClose}
       >
         <Card 
-          className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col"
+          className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-6 border-b border-border/40 flex items-center gap-3 bg-muted/30 rounded-t-xl shrink-0">

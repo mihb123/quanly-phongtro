@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,9 +40,9 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose])
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
-      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl border border-border/40 p-6 safe-fade-in" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 sm:p-0" onClick={onClose}>
+      <Card className="w-full max-w-md bg-card text-card-foreground shadow-xl border border-border/40 p-6 safe-fade-in max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h3 className="text-lg font-bold text-foreground mb-4">Chọn phòng để thêm khách thuê</h3>
         
         {loading ? (
@@ -81,5 +82,5 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
         </div>
       </Card>
     </div>
-  )
+  , document.body)
 }

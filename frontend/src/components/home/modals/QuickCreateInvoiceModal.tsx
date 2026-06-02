@@ -238,7 +238,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
         if (e.target === e.currentTarget && !isLoading) handleClose()
       }}
     >
-      <Card className="w-full max-w-4xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[90vh]">
+      <Card className="w-full max-w-4xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl shrink-0">
           <div>
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
@@ -252,34 +252,35 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
 
-        <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
-          <div className="w-full md:flex-1 md:max-w-[200px]">
-            <label className="block text-xs font-bold text-muted-foreground mb-1">Chọn nhà trọ</label>
-            <select 
-              className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:opacity-50 bg-background"
-              value={selectedHouseId}
-              onChange={(e) => handleHouseChange(e.target.value)}
-              disabled={isHouseLoading}
-            >
-              <option value="">-- Chọn nhà trọ --</option>
-              {houses.map(h => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
+        <div className="flex-1 overflow-y-auto bg-muted/10 flex flex-col">
+          <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
+            <div className="w-full md:flex-1 md:max-w-[200px]">
+              <label className="block text-xs font-bold text-muted-foreground mb-1">Chọn nhà trọ</label>
+              <select 
+                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:opacity-50 bg-background"
+                value={selectedHouseId}
+                onChange={(e) => handleHouseChange(e.target.value)}
+                disabled={isHouseLoading}
+              >
+                <option value="">-- Chọn nhà trọ --</option>
+                {houses.map(h => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="w-full md:flex-1 md:max-w-[200px]">
+              <label className="block text-xs font-bold text-muted-foreground mb-1">Kỳ hóa đơn</label>
+              <input 
+                type="month"
+                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+              />
+            </div>
           </div>
-          
-          <div className="w-full md:flex-1 md:max-w-[200px]">
-            <label className="block text-xs font-bold text-muted-foreground mb-1">Kỳ hóa đơn</label>
-            <input 
-              type="month"
-              className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            />
-          </div>
-        </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-muted/10">
+          <div className="flex-1 p-4 md:p-6">
           {!selectedHouseId ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
               <Zap className="w-12 h-12 mb-3 opacity-20" />
@@ -451,6 +452,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
           )}
+          </div>
         </div>
 
         <div className="p-6 border-t border-border/40 flex justify-end gap-3 bg-card rounded-b-2xl">
