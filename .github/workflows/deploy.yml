@@ -30,22 +30,14 @@ jobs:
           git reset --hard origin/develop
 
       # ── Phase 2: Lint & Build (verify trước khi đổi data) ─
-      - name: Lint backend
+      - name: Lint and build (backend & frontend)
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint backend"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Build"
           cd $PROJECT_DIR
           go vet ./...
-
-      - name: Build backend
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Build backend"
-          cd $PROJECT_DIR
           go mod download
           go build -o ${SERVICE_NAME}.new ./cmd/api
-
-      - name: Lint and build frontend
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Build frontend"
+          
           cd $PROJECT_DIR/frontend
           if command -v pnpm &> /dev/null; then
             pnpm install --frozen-lockfile
@@ -58,17 +50,13 @@ jobs:
           fi
 
       # ── Phase 3: Backup (trước khi deploy) ─────────────
-      - name: Backup database
+      - name: Backup database, binary, and frontend
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup database"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup"
           cd $PROJECT_DIR
           chmod +x scripts/backup-db.sh
           ./scripts/backup-db.sh
 
-      - name: Backup current binary
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup backend binary"
-          cd $PROJECT_DIR
           mkdir -p backup/binary
           TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
           GIT_HASH=$(git rev-parse --short HEAD~1 2>/dev/null || echo "unknown")
@@ -79,15 +67,9 @@ jobs:
             echo "⚠️  Không tìm thấy binary hiện tại, bỏ qua backup"
           fi
 
-      - name: Backup current frontend
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup frontend"
-          cd $PROJECT_DIR
           mkdir -p backup/frontend
           FRONTEND_SRC="/var/www/quanly-phongtro"
           if [[ -d "$FRONTEND_SRC" ]] && [[ -n "$(ls -A "$FRONTEND_SRC" 2>/dev/null)" ]]; then
-            TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-            GIT_HASH=$(git rev-parse --short HEAD~1 2>/dev/null || echo "unknown")
             tar -czf "backup/frontend/frontend_${TIMESTAMP}_${GIT_HASH}.tar.gz" -C "$FRONTEND_SRC" .
             echo "✅ Backup frontend thành công"
           else
@@ -104,28 +86,19 @@ jobs:
           go run ./cmd/seed/main.go
 
       # ── Phase 5: Deploy ────────────────────────────────
-      - name: Deploy backend binary
+      - name: Deploy backend, frontend, and nginx
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy backend binary"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy"
           cd $PROJECT_DIR
           mv ${SERVICE_NAME}.new $SERVICE_NAME
           chmod +x $SERVICE_NAME
 
-      - name: Deploy Nginx configuration
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy Nginx configuration"
           sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-available/quanly-phongtro
           sudo /usr/sbin/nginx -t
 
-      - name: Deploy frontend to Nginx
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy frontend"
           rsync -a --delete $PROJECT_DIR/frontend/dist/ /var/www/quanly-phongtro/
           sudo /usr/bin/systemctl reload nginx
 
-      - name: Restart backend service
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Restart backend service"
           sudo /usr/bin/systemctl restart $SERVICE_NAME
           sleep 2
           sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
