@@ -34,10 +34,10 @@ jobs:
         run: |
           source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Test"
           cd $PROJECT_DIR
-          go vet ./...
           go mod download
           go install go.uber.org/mock/mockgen@latest
           make mocks
+          go vet ./...
           go test -v -cover ./internal/security ./internal/service ./internal/handler
 
       # ── Phase 3: Build ─────────────────────────────────
