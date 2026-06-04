@@ -25,9 +25,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "created_at", "updated_at").
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("email = ?", email).
-		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -40,20 +40,80 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &u, nil
 }
 
+func (r *UserRepository) GetAuthUserByEmail(ctx context.Context, email string) (*model.User, error) {
+	var u model.User
+	var role string
+	err := r.db.NewSelect().
+		Model((*model.User)(nil)).
+		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Where("email = ?", email).
+		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+		return nil, fmt.Errorf("get auth user: %w", err)
+	}
+
+	u.Role = model.Role(role)
+	return &u, nil
+}
+
 func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model.User, error) {
 	var u model.User
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "created_at", "updated_at").
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("id = ?", userID).
-		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrNotFound
 		}
 		return nil, fmt.Errorf("get user by id: %w", err)
+	}
+
+	u.Role = model.Role(role)
+	return &u, nil
+}
+
+func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*model.User, error) {
+	var u model.User
+	var role string
+	err := r.db.NewSelect().
+		Model((*model.User)(nil)).
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Where("phone = ?", phone).
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+		return nil, fmt.Errorf("get user by phone: %w", err)
+	}
+
+	u.Role = model.Role(role)
+	return &u, nil
+}
+
+func (r *UserRepository) GetByZaloUserID(ctx context.Context, zaloUserID string) (*model.User, error) {
+	var u model.User
+	var role string
+	err := r.db.NewSelect().
+		Model((*model.User)(nil)).
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Where("zalo_user_id = ?", zaloUserID).
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrNotFound
+		}
+		return nil, fmt.Errorf("get user by zalo user id: %w", err)
 	}
 
 	u.Role = model.Role(role)
@@ -109,7 +169,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 	q := r.db.NewUpdate().
 		Model((*model.User)(nil)).
 		Where("id = ?", userID).
-		Returning("id, email, password_hash, role, full_name, phone, is_activated, created_at, updated_at")
+		Returning("id, email, role, full_name, phone, is_activated, zalo_bot_token, is_zalo_bot_active, zalo_user_id, created_at, updated_at")
 
 	updated := false
 	if input.FullName != nil {
@@ -124,6 +184,18 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 		q.Set("email = ?", *input.Email)
 		updated = true
 	}
+	if input.ZaloBotToken != nil {
+		q.Set("zalo_bot_token = ?", *input.ZaloBotToken)
+		updated = true
+	}
+	if input.IsZaloBotActive != nil {
+		q.Set("is_zalo_bot_active = ?", *input.IsZaloBotActive)
+		updated = true
+	}
+	if input.ZaloUserID != nil {
+		q.Set("zalo_user_id = ?", *input.ZaloUserID)
+		updated = true
+	}
 	if !updated {
 		return r.GetByUserID(ctx, userID)
 	}
@@ -131,7 +203,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 
 	var u model.User
 	var role string
-	err := q.Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.CreatedAt, &u.UpdatedAt)
+	err := q.Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 	
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -142,4 +214,28 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 
 	u.Role = model.Role(role)
 	return &u, nil
+}
+
+// GetAllUsersWithZaloToken returns all users who have a configured Zalo bot token.
+// Used by the cron job to periodically verify token validity.
+func (r *UserRepository) GetAllUsersWithZaloToken(ctx context.Context) ([]model.User, error) {
+	rows, err := r.db.NewSelect().
+		Model((*model.User)(nil)).
+		Column("id", "email", "zalo_bot_token", "is_zalo_bot_active").
+		Where("zalo_bot_token IS NOT NULL AND zalo_bot_token != ''").
+		Rows(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get users with zalo token: %w", err)
+	}
+	defer rows.Close()
+
+	var users []model.User
+	for rows.Next() {
+		var u model.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.ZaloBotToken, &u.IsZaloBotActive); err != nil {
+			return nil, fmt.Errorf("scan user: %w", err)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
 }

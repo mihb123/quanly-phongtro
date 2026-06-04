@@ -21,6 +21,7 @@ type Room struct {
 	ExtraPersonFee        *float64  `json:"extra_person_fee,omitempty"`
 	ExtraVehicleThreshold *int      `json:"extra_vehicle_threshold,omitempty"`
 	ExtraVehicleFee       *float64  `json:"extra_vehicle_fee,omitempty"`
+	GroupChatID           *string   `json:"group_chat_id,omitempty"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
@@ -40,6 +41,7 @@ type UpdateRoomParams struct {
 	ExtraPersonFee        *float64
 	ExtraVehicleThreshold *int
 	ExtraVehicleFee       *float64
+	GroupChatID           *string
 }
 
 type RoomRepository interface {
@@ -52,4 +54,5 @@ type RoomRepository interface {
 	GetMaxTenants(ctx context.Context, roomID string) (int64, error)
 	UpdateRoomStatus(ctx context.Context, roomID, status string) error
 	GetRoomByIDOnly(ctx context.Context, id string) (*Room, error)
+	GetRoomByGroupChatID(ctx context.Context, groupChatID string) (*Room, error)
 }

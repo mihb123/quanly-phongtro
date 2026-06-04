@@ -110,7 +110,7 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
 		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
-		ColumnExpr("t.start_date, t.end_date, t.status").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.room_id = ?", roomID).
 		Where("t.manager_id = ?", managerID).
@@ -144,7 +144,7 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
 		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
-		ColumnExpr("t.start_date, t.end_date, t.status").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		ColumnExpr("rm.name AS room_name").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Join("JOIN rooms AS rm ON rm.id = t.room_id").
@@ -179,7 +179,7 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
 		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
-		ColumnExpr("t.start_date, t.end_date, t.status").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.id = ?", tenantID).
 		Scan(ctx, &ft)
@@ -302,6 +302,64 @@ func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID str
 		return nil, fmt.Errorf("get tenant record by id: %w", err)
 	}
 	return &tenant, nil
+}
+
+// GetTenantByPhoneAndManager retrieves an active tenant by their user phone number and manager ID.
+func (r *TenantRepository) GetTenantByPhoneAndManager(ctx context.Context, managerID, phone string) (*model.Tenant, error) {
+	var tenant model.Tenant
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.*").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Where("u.phone = ?", phone).
+		Where("t.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive)).
+		Scan(ctx, &tenant)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrTenantNotFound
+		}
+		return nil, fmt.Errorf("get tenant by phone: %w", err)
+	}
+	return &tenant, nil
+}
+
+// GetFirstTenantByUserID retrieves the first active tenant profile for a user.
+func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID, userID string) (*model.FullInfoTenant, error) {
+	var ft model.FullInfoTenant
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
+		ColumnExpr("rm.name AS room_name").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Join("JOIN rooms AS rm ON rm.id = t.room_id").
+		Where("t.user_id = ?", userID).
+		Where("t.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive)).
+		Limit(1).
+		Scan(ctx, &ft)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrTenantNotFound
+		}
+		return nil, fmt.Errorf("get first tenant by user id: %w", err)
+	}
+
+	if ft.StartDate != "" {
+		ft.StartDate = ft.StartDate[:10]
+	}
+	if ft.EndDate != "" {
+		ft.EndDate = ft.EndDate[:10]
+	}
+
+	return &ft, nil
 }
 
 // rollbackTenantTx rolls back a tenant transaction and preserves the original cause.

@@ -79,8 +79,13 @@ type LoginOutput struct {
 }
 
 type AuthOutput struct {
-	User        model.User
-	AccessToken string
+	UserID      string `json:"user_id"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	FullName    string `json:"full_name"`
+	Phone       string `json:"phone"`
+	IsActivated bool   `json:"is_activated"`
+	AccessToken string `json:"access_token,omitempty"`
 }
 
 func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository) *AuthServiceImpl {
@@ -139,7 +144,12 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 	}
 
 	return &AuthOutput{
-		User:        *newUser,
+		UserID:      newUser.ID,
+		Email:       newUser.Email,
+		Role:        string(newUser.Role),
+		FullName:    newUser.FullName,
+		Phone:       newUser.Phone,
+		IsActivated: newUser.IsActivated,
 		AccessToken: accessToken,
 	}, nil
 }
@@ -152,7 +162,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, ErrInvalidInput
 	}
 
-	existingUser, err := s.users.GetByEmail(ctx, email)
+	existingUser, err := s.users.GetAuthUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return nil, ErrInvalidCredentials
@@ -250,7 +260,12 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 	}
 
 	return &AuthOutput{
-		User: *user,
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
 	}, nil
 }
 

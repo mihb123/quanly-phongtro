@@ -51,13 +51,32 @@ func main() {
 	tenantService := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
 	tenanHandler := httpHandler.NewTenantHandler(tenantService)
 
+	imageService := service.NewImageService()
 	invoiceService := service.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo)
-	invoiceHandler := httpHandler.NewInvoiceHandler(invoiceService)
+	invoiceHandler := httpHandler.NewInvoiceHandler(invoiceService, imageService)
 
 	houseHandler := httpHandler.NewHouseHandler(houseService, invoiceService)
 	roomHandler := httpHandler.NewRoomHandler(roomService, invoiceService)
 
-	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler)
+	zaloClient := service.NewZaloClient()
+	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, cfg.ZaloBotEncryptionKey)
+	if err != nil {
+		log.Fatalf("failed to init zalo service: %v", err)
+	}
+	webhookBaseURL := "https://" + cfg.AppURL
+	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
+		webhookBaseURL = "https://" + cfg.AppURLDev
+	}
+	zaloHandler := httpHandler.NewZaloHandler(zaloService, webhookBaseURL)
+
+	// Start the Zalo token health check cron (every 4 hours)
+	keyBytes, _ := service.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
+	zaloCron := service.NewZaloCronService(zaloClient, userRepo, keyBytes)
+	zaloCron.Start()
+	// Trigger an immediate check on startup to quickly detect stale tokens
+	go zaloCron.RunNow()
+
+	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler, zaloHandler)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,
@@ -81,4 +100,6 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("shutdown error: %v", err)
 	}
+
+	zaloCron.Stop()
 }

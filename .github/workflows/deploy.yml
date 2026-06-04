@@ -29,13 +29,22 @@ jobs:
           git fetch origin develop
           git reset --hard origin/develop
 
-      # ── Phase 2: Lint & Build (verify trước khi đổi data) ─
-      - name: Lint and build (backend & frontend)
+      # ── Phase 2: Lint & Test ───────────────────────────
+      - name: Lint, generate mocks and run tests
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Build"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Test"
           cd $PROJECT_DIR
           go vet ./...
           go mod download
+          go install go.uber.org/mock/mockgen@latest
+          make mocks
+          go test -v -cover ./internal/security ./internal/service ./internal/handler
+
+      # ── Phase 3: Build ─────────────────────────────────
+      - name: Build backend and frontend
+        run: |
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Build"
+          cd $PROJECT_DIR
           go build -o ${SERVICE_NAME}.new ./cmd/api
           
           cd $PROJECT_DIR/frontend
@@ -49,10 +58,10 @@ jobs:
             npm run build
           fi
 
-      # ── Phase 3: Backup (trước khi deploy) ─────────────
+      # ── Phase 4: Backup (trước khi deploy) ─────────────
       - name: Backup database, binary, and frontend
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Backup"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 4] Backup"
           cd $PROJECT_DIR
           chmod +x scripts/backup-db.sh
           ./scripts/backup-db.sh
@@ -76,19 +85,19 @@ jobs:
             echo "⚠️  Thư mục frontend rỗng hoặc không tồn tại, bỏ qua backup"
           fi
 
-      # ── Phase 4: Database (chỉ chạy sau khi build OK) ──
+      # ── Phase 5: Database (chỉ chạy sau khi build OK) ──
       - name: Run database migrations and seed
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 4] Database migrations & seed"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Database migrations & seed"
           cd $PROJECT_DIR
           set -a && source .env && set +a
           $HOME/go/bin/migrate -path migrations -database "$POSTGRES_DSN" up
           go run ./cmd/seed/main.go
 
-      # ── Phase 5: Deploy ────────────────────────────────
+      # ── Phase 6: Deploy ────────────────────────────────
       - name: Deploy backend, frontend, and nginx
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Deploy"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 6] Deploy"
           cd $PROJECT_DIR
           mv ${SERVICE_NAME}.new $SERVICE_NAME
           chmod +x $SERVICE_NAME
@@ -103,10 +112,10 @@ jobs:
           sleep 2
           sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
 
-      # ── Phase 6: Cleanup backups cũ ────────────────────
+      # ── Phase 7: Cleanup backups cũ ────────────────────
       - name: Cleanup old backups
         run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 6] Cleanup backups cũ"
+          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 7] Cleanup backups cũ"
           cd $PROJECT_DIR
           MAX_BACKUPS=5
           for dir in backup/binary backup/frontend; do

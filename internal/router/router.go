@@ -17,6 +17,7 @@ func New(
 	tokenProvider *security.JWTProvider,
 	tenantHandler *handler.TenantHandler,
 	invoiceHandler *handler.InvoiceHandler,
+	zaloHandler *handler.ZaloHandler,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
@@ -78,6 +79,21 @@ func New(
 		r.Patch("/{id}/unpay", invoiceHandler.UnpayInvoice)
 		r.Delete("/{id}", invoiceHandler.DeleteInvoice)
 	})
+
+	r.Route("/api/v1/zalo", func(r chi.Router) {
+		r.Post("/webhooks/{managerID}", zaloHandler.Webhook)
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware(tokenProvider))
+			r.Use(requireRole("MANAGER"))
+			r.Get("/public-key", zaloHandler.GetPublicKey)
+			r.Get("/config", zaloHandler.GetConfigStatus)
+			r.Post("/config", zaloHandler.SaveConfig)
+			r.Post("/send-message", zaloHandler.SendMessage)
+			r.Post("/invoices/{id}/send", zaloHandler.SendInvoice)
+		})
+	})
+
+	r.Handle("/api/v1/uploads/transactions/*", http.StripPrefix("/api/v1/uploads/transactions/", http.FileServer(http.Dir("uploads/transactions"))))
 
 	return r
 }

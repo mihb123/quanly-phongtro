@@ -200,6 +200,26 @@ func (r *InvoiceRepository) GetUnpaidInvoicesByRoomID(ctx context.Context, roomI
 	return invoices, nil
 }
 
+// GetLatestUnpaidInvoiceByRoomID fetches the most recent unpaid invoice for a specific room.
+func (r *InvoiceRepository) GetLatestUnpaidInvoiceByRoomID(ctx context.Context, roomID string) (*model.Invoice, error) {
+	var invoice model.Invoice
+	err := r.db.NewSelect().
+		Model(&invoice).
+		Where("room_id = ?", roomID).
+		Where("status = ?", model.InvoiceStatusUnpaid).
+		Order("period DESC").
+		Limit(1).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrInvoiceNotFound
+		}
+		return nil, fmt.Errorf("get latest unpaid invoice by room: %w", err)
+	}
+	return &invoice, nil
+}
+
 // UpdateInvoice completely updates an existing invoice.
 func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string, invoice *model.Invoice) error {
 	res, err := r.db.NewUpdate().

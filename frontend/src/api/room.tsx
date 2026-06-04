@@ -16,6 +16,7 @@ export interface Room {
   extra_person_fee?: number
   extra_vehicle_threshold?: number
   extra_vehicle_fee?: number
+  group_chat_id?: string
 }
 
 export const getRoomsByHouseId = async (houseId: string, page: number = 1, limit: number = 25) => {

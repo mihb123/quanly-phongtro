@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2 } from 'lucide-react'
+import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2, Send } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -166,6 +166,23 @@ export function InvoicesView() {
     }
   };
 
+  const handleSendZalo = async (e: React.MouseEvent, invoice: Invoice) => {
+    e.stopPropagation();
+    if (invoice.status === 'PAID') {
+      toast.error('Hóa đơn đã thanh toán', { id: 'send-zalo' });
+      return;
+    }
+    toast.loading('Đang gửi ảnh hóa đơn qua Zalo...', { id: 'send-zalo' });
+    try {
+      await apiClient.post(`/zalo/invoices/${invoice.id}/send`);
+      toast.success('Đã gửi hóa đơn qua Zalo thành công', { id: 'send-zalo' });
+    } catch (error: unknown) {
+      console.error('Lỗi gửi Zalo:', error);
+      const err = error as { response?: { data?: { message?: string } } };
+      toast.error(err.response?.data?.message || 'Không thể gửi qua Zalo', { id: 'send-zalo' });
+    }
+  };
+
   return (
     <div className="space-y-6 safe-fade-in">
       {/* Modals */}
@@ -276,6 +293,7 @@ export function InvoicesView() {
             >
               <option value="">Tất cả</option>
               <option value="UNPAID">Chưa thanh toán</option>
+              <option value="PENDING_VERIFICATION">Chờ xác nhận CK</option>
               <option value="PAID">Đã thanh toán</option>
             </select>
           </div>
@@ -372,9 +390,11 @@ export function InvoicesView() {
                     <span className={`inline-block mt-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
                         invoice.status === 'PAID' 
                           ? 'bg-green-100 text-green-700 border-green-200' 
-                          : 'bg-red-100 text-red-700 border-red-200'
+                          : invoice.status === 'PENDING_VERIFICATION'
+                            ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                            : 'bg-red-100 text-red-700 border-red-200'
                       }`}>
-                      {invoice.status === 'PAID' ? 'Đã thu' : 'Chưa thu'}
+                      {invoice.status === 'PAID' ? 'Đã thu' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thu'}
                     </span>
                   </div>
                 </div>
@@ -399,6 +419,16 @@ export function InvoicesView() {
                     >
                       <Download className="w-4 h-4" />
                     </Button>
+                    {invoice.status !== 'PAID' && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={(e) => handleSendZalo(e, invoice)}
+                        className="text-slate-500 hover:text-green-600 hover:bg-green-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -464,9 +494,11 @@ export function InvoicesView() {
                       <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
                         invoice.status === 'PAID' 
                           ? 'bg-green-100 text-green-700 border-green-200' 
-                          : 'bg-red-100 text-red-700 border-red-200'
+                          : invoice.status === 'PENDING_VERIFICATION'
+                            ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                            : 'bg-red-100 text-red-700 border-red-200'
                       }`}>
-                        {invoice.status === 'PAID' ? 'Đã thu' : 'Chưa thu'}
+                        {invoice.status === 'PAID' ? 'Đã thu' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thu'}
                       </span>
                     </td>
                     <td className="py-4 px-6 text-sm font-medium text-slate-500 whitespace-nowrap">
@@ -496,6 +528,17 @@ export function InvoicesView() {
                         >
                           <Download className="w-4 h-4" />
                         </Button>
+                        {invoice.status !== 'PAID' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={(e) => handleSendZalo(e, invoice)}
+                            className="text-slate-500 hover:text-green-600 hover:bg-green-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                            title="Gửi qua Zalo"
+                          >
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button 
                           variant="ghost" 
                           size="sm" 

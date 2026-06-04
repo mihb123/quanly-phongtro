@@ -49,6 +49,7 @@ type FullInfoTenant struct {
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date,omitempty"`
 	Status       string `json:"status"`
+	ZaloUserID   string `json:"zalo_user_id,omitempty"`
 }
 
 // UpdateTenantInput holds optional fields for tenant profile updates.
@@ -74,4 +75,6 @@ type TenantRepository interface {
 	// Returns the room_id the tenant was in so the caller can decide whether to
 	// update the room status.
 	DeleteTenant(ctx context.Context, tenantID string) (roomID string, err error)
+	GetTenantByPhoneAndManager(ctx context.Context, managerID, phone string) (*Tenant, error)
+	GetFirstTenantByUserID(ctx context.Context, managerID, userID string) (*FullInfoTenant, error)
 }

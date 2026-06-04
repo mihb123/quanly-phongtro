@@ -13,6 +13,12 @@ var (
 	ErrInvalidWaterIndex       = errors.New("new water index must be greater than or equal to old index")
 )
 
+const (
+	InvoiceStatusUnpaid              = "UNPAID"
+	InvoiceStatusPaid                = "PAID"
+	InvoiceStatusPendingVerification = "PENDING_VERIFICATION"
+)
+
 // Invoice represents the invoices table
 type Invoice struct {
 	ID                  string    `json:"id"`
@@ -35,8 +41,9 @@ type Invoice struct {
 	ExtraPersonFee      float64   `json:"extra_person_fee"`
 	ExtraVehicleFee     float64   `json:"extra_vehicle_fee"`
 	TotalAmount         float64   `json:"total_amount"`
-	Status              string    `json:"status"`
-	CreatedAt           time.Time `json:"created_at"`
+	Status               string    `json:"status"`
+	TransactionImagePath *string   `json:"transaction_image_path"`
+	CreatedAt            time.Time `json:"created_at"`
 }
 
 // InvoiceWithRoom includes the room name and house properties from JOIN
@@ -69,6 +76,7 @@ type InvoiceRepository interface {
 	GetLatestInvoiceByRoomID(ctx context.Context, roomID string) (*Invoice, error)
 	GetInvoiceByRoomAndPeriod(ctx context.Context, roomID, period string) (*Invoice, error)
 	GetPreviousInvoice(ctx context.Context, roomID, period string) (*Invoice, error)
+	GetLatestUnpaidInvoiceByRoomID(ctx context.Context, roomID string) (*Invoice, error)
 	GetUnpaidInvoicesByRoomID(ctx context.Context, roomID string) ([]Invoice, error)
 	UpdateInvoice(ctx context.Context, managerID string, invoice *Invoice) error
 	DeleteInvoice(ctx context.Context, managerID, id string) error

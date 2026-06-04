@@ -322,13 +322,28 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
              <div>
                <span className={`px-3 py-1 rounded-full text-sm font-bold border ${
                   invoice.status === 'PAID' 
-                    ? 'bg-green-100 text-green-700 border-green-200' 
-                    : 'bg-red-100 text-red-700 border-red-200'
+                    ? 'bg-green-100 text-green-700 border-green-200'
+                    : invoice.status === 'PENDING_VERIFICATION'
+                      ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
+                      : 'bg-red-100 text-red-700 border-red-200'
                 }`}>
-                  {invoice.status === 'PAID' ? 'Đã thanh toán' : 'Chưa thanh toán'}
+                  {invoice.status === 'PAID' ? 'Đã thanh toán' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thanh toán'}
                 </span>
              </div>
           </div>
+
+          {invoice.transaction_image_path && (
+            <div className="mt-6 border border-border rounded-2xl p-4 bg-muted/10">
+              <h3 className="text-sm font-bold text-foreground mb-4">Ảnh bằng chứng chuyển khoản Zalo</h3>
+              <div className="flex justify-center">
+                <img 
+                  src={`http://localhost:8080/api/v1/uploads/transactions${invoice.transaction_image_path.replace('/uploads/transactions', '')}`} 
+                  alt="Bằng chứng giao dịch" 
+                  className="max-h-[300px] rounded-lg object-contain border border-border shadow-sm"
+                />
+              </div>
+            </div>
+          )}
           
         </div>
 
@@ -358,7 +373,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
           </div>
 
           <div className="flex gap-2 flex-1 justify-end">
-            {invoice.status === 'UNPAID' && (
+            {(invoice.status === 'UNPAID' || invoice.status === 'PENDING_VERIFICATION') && (
               <>
                 {onEdit && (
                   <Button 
@@ -374,7 +389,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                   disabled={isPaying}
                   className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-sm shadow-primary/20 cursor-pointer active:scale-95 px-4"
                 >
-                  {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Đã thu'}
+                  {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận Đã thu'}
                 </Button>
               </>
             )}

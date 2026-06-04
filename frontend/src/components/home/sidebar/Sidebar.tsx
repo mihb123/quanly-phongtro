@@ -59,7 +59,7 @@ export function Sidebar() {
     setActiveTab('house_rooms')
   }
 
-  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants' | 'invoices') => {
+  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'settings') => {
     setActiveTab(tab)
     if (tab !== 'house_rooms') {
         selectHouse(null)
@@ -254,7 +254,8 @@ export function Sidebar() {
           <SidebarItem
             icon={<Settings />}
             label="Cài đặt"
-            onClick={() => { }}
+            active={activeTab === 'settings'}
+            onClick={() => handleTabClick('settings')}
             collapsed={isSidebarCollapsed}
           />
         </nav>

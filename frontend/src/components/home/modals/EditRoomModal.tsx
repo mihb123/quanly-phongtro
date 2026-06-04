@@ -26,6 +26,7 @@ const roomSchema = z.object({
   extraPersonFee: z.string(),
   extraVehicleThreshold: z.string(),
   extraVehicleFee: z.string(),
+  groupChatId: z.string().optional(),
 })
 
 type RoomFormValues = z.infer<typeof roomSchema>
@@ -51,6 +52,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
       extraPersonFee: room.extra_person_fee?.toString() || '',
       extraVehicleThreshold: room.extra_vehicle_threshold?.toString() || '',
       extraVehicleFee: room.extra_vehicle_fee?.toString() || '',
+      groupChatId: room.group_chat_id || '',
     }
   })
 
@@ -76,6 +78,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
         extra_person_fee: values.extraPersonFee !== '' ? parseNumber(values.extraPersonFee) : undefined,
         extra_vehicle_threshold: values.extraVehicleThreshold !== '' ? Number(values.extraVehicleThreshold) : undefined,
         extra_vehicle_fee: values.extraVehicleFee !== '' ? parseNumber(values.extraVehicleFee) : undefined,
+        group_chat_id: values.groupChatId || undefined,
       })
       onClose()
     } catch {
@@ -207,6 +210,15 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                     )}
                   />
                 </div>
+             </div>
+          </div>
+
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+             <h3 className="font-bold text-blue-900 text-sm mb-1">Zalo Bot Auto-linking</h3>
+             <p className="text-xs text-blue-700/80 mb-3">Group Chat ID sẽ tự động cập nhật khi bot được thêm vào nhóm. Bạn có thể sửa thủ công nếu bị lỗi.</p>
+             <div className="space-y-1">
+               <Label className="text-xs text-blue-900">Group Chat ID</Label>
+               <Input {...register('groupChatId')} placeholder="Tự động cập nhật..." className="h-8 border-blue-200 bg-white" />
              </div>
           </div>
 

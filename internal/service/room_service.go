@@ -34,6 +34,7 @@ type UpdateRoomInput struct {
 	ExtraPersonFee        *float64
 	ExtraVehicleThreshold *int
 	ExtraVehicleFee       *float64
+	GroupChatID           *string
 }
 
 type RoomServiceImpl struct {
@@ -127,6 +128,7 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		ExtraPersonFee:        input.ExtraPersonFee,
 		ExtraVehicleThreshold: input.ExtraVehicleThreshold,
 		ExtraVehicleFee:       input.ExtraVehicleFee,
+		GroupChatID:           input.GroupChatID,
 	}
 
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)

@@ -28,3 +28,4 @@
 uploads/*
 .kilo
 !nginx.conf
+mock/

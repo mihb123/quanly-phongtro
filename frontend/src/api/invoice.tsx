@@ -27,7 +27,8 @@ export interface Invoice {
   extra_vehicle_threshold: number;
   extra_vehicle_fee_unit: number;
   total_amount: number;
-  status: string;
+  status: string; // 'UNPAID', 'PAID', 'PENDING_VERIFICATION'
+  transaction_image_path?: string | null;
   created_at: string;
 }
 
