@@ -2,6 +2,9 @@ package service_test
 
 import (
 	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
@@ -9,160 +12,433 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
 
-func TestZaloService_GetZaloConfigStatus(t *testing.T) {
+func ptr[T any](v T) *T { return &v }
+
+type zaloMocks struct {
+	ctrl        *gomock.Controller
+	zaloClient  *mock_service.MockZaloClient
+	userRepo    *mock_model.MockUserRepository
+	roomRepo    *mock_model.MockRoomRepository
+	tenantRepo  *mock_model.MockTenantRepository
+	houseRepo   *mock_model.MockHouseRepository
+	invoiceRepo *mock_model.MockInvoiceRepository
+	imgSvc      *mock_service.MockImageService
+	svc         service.ZaloService
+	tsvc        service.ZaloServiceTesting
+	encKey      []byte
+}
+
+func setupZaloServiceTest(t *testing.T) *zaloMocks {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	userRepo := mock_model.NewMockUserRepository(ctrl)
-	roomRepo := mock_model.NewMockRoomRepository(ctrl)
-	tenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	houseRepo := mock_model.NewMockHouseRepository(ctrl)
-	zaloClient := mock_service.NewMockZaloClient(ctrl)
-
-	encKey := "z123456789abcdef0123456789abcdef" // 32 bytes
-
-	svc, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, nil, nil, encKey)
-	if err != nil {
-		t.Fatalf("failed to init service: %v", err)
+	m := &zaloMocks{
+		ctrl:        ctrl,
+		zaloClient:  mock_service.NewMockZaloClient(ctrl),
+		userRepo:    mock_model.NewMockUserRepository(ctrl),
+		roomRepo:    mock_model.NewMockRoomRepository(ctrl),
+		tenantRepo:  mock_model.NewMockTenantRepository(ctrl),
+		houseRepo:   mock_model.NewMockHouseRepository(ctrl),
+		invoiceRepo: mock_model.NewMockInvoiceRepository(ctrl),
+		imgSvc:      mock_service.NewMockImageService(ctrl),
 	}
 
-	ctx := context.Background()
-	managerID := "manager1"
+	encKeyStr := "z123456789abcdef0123456789abcdef"
+	svc, err := service.NewZaloService(m.zaloClient, m.userRepo, m.roomRepo, m.tenantRepo, m.houseRepo, m.invoiceRepo, m.imgSvc, encKeyStr)
+	assert.NoError(t, err)
 
-	// Test case: user exists, token is set
-	token := "some-token"
-	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken:    &token,
-		IsZaloBotActive: true,
-	}, nil)
+	m.svc = svc
+	m.tsvc = service.CastToTesting(svc)
+	m.encKey = service.GetEncryptionKey(svc)
+	return m
+}
 
-	hasConfig, err := svc.GetZaloConfigStatus(ctx, managerID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+func TestDecodeEncryptionKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		key     string
+		wantErr bool
+	}{
+		{"valid hex 32 bytes", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", false},
+		{"valid raw 32 bytes", "z123456789abcdef0123456789abcdef", false},
+		{"invalid hex length", "0123456789abcdef", true},
+		{"invalid raw length", "short", true},
 	}
-	if !hasConfig.HasConfig {
-		t.Errorf("expected has_config true, got false")
-	}
-	if !hasConfig.IsActive {
-		t.Errorf("expected is_active true, got false")
-	}
-
-	// Test case: user exists, token is nil
-	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken: nil,
-	}, nil)
-
-	hasConfig, err = svc.GetZaloConfigStatus(ctx, managerID)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if hasConfig.HasConfig {
-		t.Errorf("expected has_config false, got true")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.DecodeEncryptionKey(tt.key)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 
-func TestZaloService_SaveZaloConfig(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	userRepo := mock_model.NewMockUserRepository(ctrl)
-	roomRepo := mock_model.NewMockRoomRepository(ctrl)
-	tenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	houseRepo := mock_model.NewMockHouseRepository(ctrl)
-	zaloClient := mock_service.NewMockZaloClient(ctrl)
-
-	encKey := "z123456789abcdef0123456789abcdef"
-
-	svc, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, nil, nil, encKey)
-	if err != nil {
-		t.Fatalf("failed to init service: %v", err)
-	}
-
+func TestSaveZaloConfig(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
 	ctx := context.Background()
-	managerID := "manager1"
-	botToken := "bot-token-123"
 
-	// Mock GetMe to return success
-	zaloClient.EXPECT().GetMe(ctx, botToken).Return(&service.ZaloAppInfo{
-		AppID: "123",
-	}, nil)
-
-	zaloClient.EXPECT().SetWebhook(ctx, botToken, "http://test", "secret-xyz").Return(nil)
-
-	// Mock UpdateUser to succeed. It should be called with encrypted tokens.
-	userRepo.EXPECT().UpdateUser(ctx, managerID, gomock.Any()).DoAndReturn(func(ctx context.Context, id string, input model.UpdateUserInput) (*model.User, error) {
-		if input.ZaloBotToken == nil {
-			t.Errorf("expected tokens to be set")
-		}
-		// Verify we can decrypt it back
-		decToken, _ := security.Decrypt(*input.ZaloBotToken, []byte(encKey))
-		if decToken != botToken {
-			t.Errorf("expected decrypted token %s, got %s", botToken, decToken)
-		}
-		return &model.User{}, nil
-	})
-
-	err = svc.SaveZaloConfig(ctx, managerID, botToken, "http://test", "secret-xyz")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "success",
+			setup: func() {
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&service.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(nil)
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "get me error",
+			setup: func() {
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(nil, errors.New("err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "set webhook error",
+			setup: func() {
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&service.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(errors.New("err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "db error",
+			setup: func() {
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&service.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(nil)
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(nil, errors.New("db err"))
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			err := m.svc.SaveZaloConfig(ctx, "m1", "token", "webhook", "secret")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }
 
-func TestZaloService_HandleWebhook(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	userRepo := mock_model.NewMockUserRepository(ctrl)
-	roomRepo := mock_model.NewMockRoomRepository(ctrl)
-	tenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	houseRepo := mock_model.NewMockHouseRepository(ctrl)
-	zaloClient := mock_service.NewMockZaloClient(ctrl)
-
-	encKey := "z123456789abcdef0123456789abcdef"
-
-	svc, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, nil, nil, encKey)
-	if err != nil {
-		t.Fatalf("failed to init service: %v", err)
-	}
-
+func TestGetZaloConfigStatus(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
 	ctx := context.Background()
-	managerID := "manager1"
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
 
-	botToken, _ := security.Encrypt("bot123", []byte(encKey))
+	tests := []struct {
+		name    string
+		setup   func()
+		want    service.ZaloBotStatus
+		wantErr bool
+	}{
+		{
+			name: "success",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, IsZaloBotActive: true, ZaloUserID: ptr("z1")}, nil)
+				m.zaloClient.EXPECT().GetMe(ctx, "bot-token").Return(&service.ZaloAppInfo{AppID: "app1"}, nil)
+			},
+			want:    service.ZaloBotStatus{HasConfig: true, IsActive: true, IsLinked: true, BotID: "app1", ManagerID: "m1"},
+			wantErr: false,
+		},
+		{
+			name: "no config",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
+			},
+			want:    service.ZaloBotStatus{HasConfig: false, IsActive: false, IsLinked: false, ManagerID: "m1"},
+			wantErr: false,
+		},
+		{
+			name: "user repo error",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(nil, errors.New("err"))
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			res, err := m.svc.GetZaloConfigStatus(ctx, "m1")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, res)
+			}
+		})
+	}
+}
 
-	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken:      &botToken,
-	}, nil).AnyTimes()
+func TestGetDecryptedToken(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
 
-	payload := []byte(`{
-		"event_name": "group.bot.add",
-		"group": {
-			"id": "group_999",
-			"name": "P101 Nhà A"
-		}
-	}`)
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+		want    string
+	}{
+		{
+			name: "success",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+			},
+			want: "bot-token",
+		},
+		{
+			name: "db error",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(nil, errors.New("err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "no token",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad token",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: ptr("bad")}, nil)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			res, err := m.tsvc.GetDecryptedToken(ctx, "m1")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, res)
+			}
+		})
+	}
+}
 
-	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{
-		{ID: "house1", Name: "Nhà A"},
-	}, nil)
+func TestSendInvoiceToZalo(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+	inv := &model.InvoiceWithRoom{Invoice: model.Invoice{ID: "i1", RoomID: "r1", Period: "09-2023", TotalAmount: 1000}, RoomName: "101"}
+	room := &model.Room{ID: "r1", GroupChatID: ptr("g1")}
 
-	roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house1").Return([]model.Room{
-		{ID: "room1", Name: "P101"},
-	}, nil)
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "success to group and tenant",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(nil)
+				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "t1"}}, nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "t1", []byte("img"), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "zalo auth error marks token inactive",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("invalid access token -216"))
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
+			},
+			wantErr: true,
+		},
+		{
+			name: "no linked group or tenant",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil) // no group
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{}}, nil) // no tenant
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			err := m.svc.SendInvoiceToZalo(ctx, "m1", "i1")
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
-	// Expect the room to be updated with group_999
-	roomRepo.EXPECT().UpdateRoom(ctx, "room1", "house1", gomock.Any()).DoAndReturn(func(ctx context.Context, id, houseID string, input model.UpdateRoomParams) (*model.Room, error) {
-		if input.GroupChatID == nil || *input.GroupChatID != "group_999" {
-			t.Errorf("expected group chat ID to be group_999")
-		}
-		return &model.Room{}, nil
-	})
+func TestProcessTransactionImage(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
 
-	err = svc.HandleWebhook(ctx, managerID, payload, "some-secret")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
+	// mock image server
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("fake-img"))
+	}))
+	defer ts.Close()
+
+	tests := []struct {
+		name    string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "success",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+				m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(&model.House{}, nil)
+				m.invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "r1").Return(&model.Invoice{ID: "i1", Status: "UNPAID"}, nil)
+				m.invoiceRepo.EXPECT().UpdateInvoice(ctx, "m1", gomock.Any()).Return(nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "g1", gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "room not found",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "no unpaid invoice ignores",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+				m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(&model.House{}, nil)
+				m.invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "r1").Return(nil, model.ErrInvoiceNotFound)
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			err := m.tsvc.ProcessTransactionImage(ctx, "m1", "g1", ts.URL)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestHandleWebhook(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+
+	tests := []struct {
+		name    string
+		payload string
+		setup   func()
+		wantErr bool
+	}{
+		{
+			name: "missing secret",
+			payload: `{}`,
+			setup: func() {},
+			wantErr: true,
+		},
+		{
+			name: "group.bot.add autolink",
+			payload: `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`,
+			setup: func() {
+				m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
+				m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "P101"}}, nil)
+				m.roomRepo.EXPECT().UpdateRoom(ctx, "r1", "h1", gomock.Any()).Return(&model.Room{}, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "private chat kich hoat success",
+			payload: `{"message":{"text":"Kich hoat Manager One","from":{"id":"u1"}}}`,
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{FullName: "Manager One"}, nil)
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "private chat botoi triggers phone request",
+			payload: `{"message":{"text":"botoi","from":{"id":"u1"}}}`,
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not linked"))
+				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+        {
+			name: "private chat phone number links manager",
+			payload: `{"message":{"text":"0912345678","from":{"id":"u1"}}}`,
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not linked"))
+				m.userRepo.EXPECT().GetByPhone(ctx, "0912345678").Return(&model.User{ID: "m1", Role: model.RoleManager}, nil)
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
+				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setup()
+			secretHeader := "secret"
+			if tt.name == "missing secret" {
+				secretHeader = ""
+			}
+			err := m.svc.HandleWebhook(ctx, "m1", []byte(tt.payload), secretHeader)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }

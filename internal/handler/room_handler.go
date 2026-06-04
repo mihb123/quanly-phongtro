@@ -59,7 +59,7 @@ type updateRoomRequest struct {
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
 func getManagerID(r *http.Request, w http.ResponseWriter) (string, bool) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return "", false

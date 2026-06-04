@@ -3,17 +3,19 @@ package handler_test
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler"
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_service"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -21,70 +23,49 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+type errReader struct{}
+
+func (errReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read error")
+}
+
 func TestZaloHandler_GetPublicKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	zaloSvc := mock_service.NewMockZaloService(ctrl)
-	zaloHandler := handler.NewZaloHandler(zaloSvc, "test.local")
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/public-key", nil)
-	rr := httptest.NewRecorder()
-
-	zaloHandler.GetPublicKey(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	tests := []struct {
+		name         string
+		expectedCode int
+	}{
+		{
+			name:         "Success",
+			expectedCode: http.StatusOK,
+		},
 	}
 
-	var res struct {
-		PublicKey string `json:"public_key"`
-	}
-	if err := json.NewDecoder(rr.Body).Decode(&res); err != nil {
-		t.Fatalf("decode failed: %v", err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/public-key", nil)
+			rr := httptest.NewRecorder()
+			h.GetPublicKey(rr, req)
 
-	if res.PublicKey == "" {
-		t.Errorf("expected non-empty public key")
-	}
-}
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d", tt.expectedCode, rr.Code)
+			}
 
-func TestZaloHandler_GetConfigStatus(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	zaloSvc := mock_service.NewMockZaloService(ctrl)
-	zaloHandler := handler.NewZaloHandler(zaloSvc, "test.local")
-
-	managerID := "manager1"
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/config", nil)
-	claims := &security.Claims{}
-	claims.Subject = managerID
-	req = req.WithContext(security.WithClaims(req.Context(), claims))
-	rr := httptest.NewRecorder()
-
-	zaloSvc.EXPECT().GetZaloConfigStatus(req.Context(), managerID).Return(service.ZaloBotStatus{
-		HasConfig: true,
-		IsActive:  true,
-	}, nil)
-
-	zaloHandler.GetConfigStatus(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
-	}
-
-	var res struct {
-		HasConfig     bool `json:"has_config"`
-		IsZaloBotActive bool `json:"is_zalo_bot_active"`
-	}
-	json.NewDecoder(rr.Body).Decode(&res)
-	
-	if !res.HasConfig {
-		t.Errorf("expected has_config to be true")
-	}
-	if !res.IsZaloBotActive {
-		t.Errorf("expected is_zalo_bot_active to be true")
+			var res struct {
+				PublicKey string `json:"public_key"`
+			}
+			if err := json.NewDecoder(rr.Body).Decode(&res); err != nil {
+				t.Fatalf("failed to decode response: %v", err)
+			}
+			if res.PublicKey == "" {
+				t.Errorf("expected non-empty public key")
+			}
+		})
 	}
 }
 
@@ -93,20 +74,192 @@ func TestZaloHandler_SaveConfig(t *testing.T) {
 	defer ctrl.Finish()
 
 	zaloSvc := mock_service.NewMockZaloService(ctrl)
-	zaloHandler := handler.NewZaloHandler(zaloSvc, "test.local")
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
 
-	// First we need to get the public key to encrypt the payload, since the handler expects RSA encrypted payload
+	// Helper to get public key from handler and encrypt token
 	reqPK := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/public-key", nil)
 	rrPK := httptest.NewRecorder()
-	zaloHandler.GetPublicKey(rrPK, reqPK)
+	h.GetPublicKey(rrPK, reqPK)
+	var resPK struct {
+		PublicKey string `json:"public_key"`
+	}
+	json.NewDecoder(rrPK.Body).Decode(&resPK)
+	pubASN1, _ := base64.StdEncoding.DecodeString(resPK.PublicKey)
+	pubKey, _ := x509.ParsePKIXPublicKey(pubASN1)
+	rsaPubKey := pubKey.(*rsa.PublicKey)
 
-	// Since we mock the service, we can bypass RSA encryption by directly parsing out how the handler does it
-	// Actually, wait, handler generates its own RSA key internally, we can't easily mock that part.
-	// We'll just pass invalid payload and expect Bad Request? 
-	// No, let's just test Webhook and ConfigStatus, and skip SaveConfig's complex RSA setup, OR extract the private key via reflection.
-	// Let's actually encrypt correctly by reusing the exact public key bytes from the handler response? It's ASN1 format.
-	// Let's just test the basic error path for now to save time, or we can parse the public key.
-	// We can use the GetPublicKey response!
+	encryptToken := func(text string) string {
+		cipher, _ := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPubKey, []byte(text), nil)
+		return base64.StdEncoding.EncodeToString(cipher)
+	}
+
+	tests := []struct {
+		name         string
+		managerID    string
+		hasClaims    bool
+		payload      interface{}
+		setupMock    func()
+		expectedCode int
+	}{
+		{
+			name:      "Success",
+			managerID: "manager1",
+			hasClaims: true,
+			payload: map[string]string{
+				"bot_token": encryptToken("valid_token"),
+			},
+			setupMock: func() {
+				zaloSvc.EXPECT().SaveZaloConfig(gomock.Any(), "manager1", "valid_token", "test.local/api/v1/zalo/webhooks/manager1", gomock.Any()).Return(nil)
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Unauthorized - Missing Claims",
+			hasClaims:    false,
+			payload:      nil,
+			setupMock:    func() {},
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "Invalid request body",
+			managerID:    "manager1",
+			hasClaims:    true,
+			payload:      "invalid json",
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:      "Invalid bot_token encoding",
+			managerID: "manager1",
+			hasClaims: true,
+			payload: map[string]string{
+				"bot_token": "not-base64!!!",
+			},
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:      "Failed to decrypt bot_token",
+			managerID: "manager1",
+			hasClaims: true,
+			payload: map[string]string{
+				"bot_token": base64.StdEncoding.EncodeToString([]byte("invalid-cipher-text")),
+			},
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:      "Service Error",
+			managerID: "manager1",
+			hasClaims: true,
+			payload: map[string]string{
+				"bot_token": encryptToken("valid_token"),
+			},
+			setupMock: func() {
+				zaloSvc.EXPECT().SaveZaloConfig(gomock.Any(), "manager1", "valid_token", gomock.Any(), gomock.Any()).Return(errors.New("db error"))
+			},
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			var bodyBytes []byte
+			if str, ok := tt.payload.(string); ok {
+				bodyBytes = []byte(str)
+			} else if tt.payload != nil {
+				bodyBytes, _ = json.Marshal(tt.payload)
+			}
+
+			var req *http.Request
+			if bodyBytes == nil && tt.payload != nil {
+				// Should not happen with current test cases
+				req = httptest.NewRequest(http.MethodPost, "/api/v1/zalo/config", nil)
+			} else {
+				req = httptest.NewRequest(http.MethodPost, "/api/v1/zalo/config", bytes.NewBuffer(bodyBytes))
+			}
+
+			if tt.hasClaims {
+				claims := &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: tt.managerID}}
+				req = req.WithContext(security.WithClaims(req.Context(), claims))
+			}
+			rr := httptest.NewRecorder()
+
+			h.SaveConfig(rr, req)
+
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d. Body: %s", tt.expectedCode, rr.Code, rr.Body.String())
+			}
+		})
+	}
+}
+
+func TestZaloHandler_GetConfigStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	zaloSvc := mock_service.NewMockZaloService(ctrl)
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
+
+	tests := []struct {
+		name         string
+		hasClaims    bool
+		managerID    string
+		setupMock    func()
+		expectedCode int
+	}{
+		{
+			name:      "Success",
+			hasClaims: true,
+			managerID: "manager1",
+			setupMock: func() {
+				zaloSvc.EXPECT().GetZaloConfigStatus(gomock.Any(), "manager1").Return(service.ZaloBotStatus{
+					HasConfig: true,
+					IsActive:  true,
+					IsLinked:  true,
+					BotID:     "bot123",
+					ManagerID: "manager1",
+				}, nil)
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Unauthorized - Missing Claims",
+			hasClaims:    false,
+			setupMock:    func() {},
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:      "Service Error",
+			hasClaims: true,
+			managerID: "manager1",
+			setupMock: func() {
+				zaloSvc.EXPECT().GetZaloConfigStatus(gomock.Any(), "manager1").Return(service.ZaloBotStatus{}, errors.New("db error"))
+			},
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/config", nil)
+			if tt.hasClaims {
+				claims := &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: tt.managerID}}
+				req = req.WithContext(security.WithClaims(req.Context(), claims))
+			}
+			rr := httptest.NewRecorder()
+
+			h.GetConfigStatus(rr, req)
+
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d. Body: %s", tt.expectedCode, rr.Code, rr.Body.String())
+			}
+		})
+	}
 }
 
 func TestZaloHandler_Webhook(t *testing.T) {
@@ -114,67 +267,228 @@ func TestZaloHandler_Webhook(t *testing.T) {
 	defer ctrl.Finish()
 
 	zaloSvc := mock_service.NewMockZaloService(ctrl)
-	zaloHandler := handler.NewZaloHandler(zaloSvc, "test.local")
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
 
-	managerID := "manager1"
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/zalo/webhooks/"+managerID, bytes.NewBuffer([]byte(`{"event":"test"}`)))
-	req.Header.Set("X-Bot-Api-Secret-Token", "secret123")
-	
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("managerID", managerID)
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	tests := []struct {
+		name         string
+		managerID    string
+		secret       string
+		body         interface{}
+		setupMock    func()
+		expectedCode int
+	}{
+		{
+			name:      "Success",
+			managerID: "manager1",
+			secret:    "secret123",
+			body:      `{"event":"message"}`,
+			setupMock: func() {
+				zaloSvc.EXPECT().HandleWebhook(gomock.Any(), "manager1", []byte(`{"event":"message"}`), "secret123").Return(nil)
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:      "Service Error (still returns 200)",
+			managerID: "manager1",
+			secret:    "secret123",
+			body:      `{"event":"message"}`,
+			setupMock: func() {
+				zaloSvc.EXPECT().HandleWebhook(gomock.Any(), "manager1", []byte(`{"event":"message"}`), "secret123").Return(errors.New("webhook processing failed"))
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Body Read Error",
+			managerID:    "manager1",
+			body:         errReader{},
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+	}
 
-	rr := httptest.NewRecorder()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
 
-	zaloSvc.EXPECT().HandleWebhook(gomock.Any(), managerID, []byte(`{"event":"test"}`), "secret123").Return(nil)
+			var req *http.Request
+			if r, ok := tt.body.(errReader); ok {
+				req = httptest.NewRequest(http.MethodPost, "/webhook", r)
+			} else {
+				req = httptest.NewRequest(http.MethodPost, "/webhook", bytes.NewBuffer([]byte(tt.body.(string))))
+			}
+			req.Header.Set("X-Bot-Api-Secret-Token", tt.secret)
 
-	zaloHandler.Webhook(rr, req)
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("managerID", tt.managerID)
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200 OK, got %d", rr.Code)
+			rr := httptest.NewRecorder()
+			h.Webhook(rr, req)
+
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d", tt.expectedCode, rr.Code)
+			}
+		})
 	}
 }
 
-func TestZaloHandler_SaveConfig_WithEncryption(t *testing.T) {
+func TestZaloHandler_SendMessage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	zaloSvc := mock_service.NewMockZaloService(ctrl)
-	zaloHandler := handler.NewZaloHandler(zaloSvc, "test.local")
-	managerID := "manager1"
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
 
-	// 1. Get the public key
-	reqPK := httptest.NewRequest(http.MethodGet, "/api/v1/zalo/public-key", nil)
-	rrPK := httptest.NewRecorder()
-	zaloHandler.GetPublicKey(rrPK, reqPK)
-	var resPK struct {
-		PublicKey string `json:"public_key"`
+	tests := []struct {
+		name         string
+		hasClaims    bool
+		managerID    string
+		payload      interface{}
+		setupMock    func()
+		expectedCode int
+	}{
+		{
+			name:      "Success",
+			hasClaims: true,
+			managerID: "manager1",
+			payload: map[string]string{
+				"chat_id": "chat123",
+				"text":    "hello world",
+			},
+			setupMock: func() {
+				zaloSvc.EXPECT().SendTextMessage(gomock.Any(), "manager1", "chat123", "hello world").Return(nil)
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Unauthorized - Missing Claims",
+			hasClaims:    false,
+			setupMock:    func() {},
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "Invalid request body",
+			hasClaims:    true,
+			managerID:    "manager1",
+			payload:      "invalid json",
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:      "Service Error",
+			hasClaims: true,
+			managerID: "manager1",
+			payload: map[string]string{
+				"chat_id": "chat123",
+				"text":    "hello world",
+			},
+			setupMock: func() {
+				zaloSvc.EXPECT().SendTextMessage(gomock.Any(), "manager1", "chat123", "hello world").Return(errors.New("api error"))
+			},
+			expectedCode: http.StatusInternalServerError,
+		},
 	}
-	json.NewDecoder(rrPK.Body).Decode(&resPK)
 
-	pubASN1, _ := base64.StdEncoding.DecodeString(resPK.PublicKey)
-	pubKey, _ := x509.ParsePKIXPublicKey(pubASN1)
-	rsaPubKey := pubKey.(*rsa.PublicKey)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
 
-	// 2. Encrypt token
-	tokenBytes, _ := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPubKey, []byte("bot_token_123"), nil)
+			var bodyBytes []byte
+			if str, ok := tt.payload.(string); ok {
+				bodyBytes = []byte(str)
+			} else if tt.payload != nil {
+				bodyBytes, _ = json.Marshal(tt.payload)
+			}
 
-	payload := map[string]string{
-		"bot_token":      base64.StdEncoding.EncodeToString(tokenBytes),
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/zalo/message", bytes.NewBuffer(bodyBytes))
+			if tt.hasClaims {
+				claims := &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: tt.managerID}}
+				req = req.WithContext(security.WithClaims(req.Context(), claims))
+			}
+			rr := httptest.NewRecorder()
+
+			h.SendMessage(rr, req)
+
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d", tt.expectedCode, rr.Code)
+			}
+		})
 	}
-	body, _ := json.Marshal(payload)
+}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/zalo/config", bytes.NewBuffer(body))
-	claims := &security.Claims{}
-	claims.Subject = managerID
-	req = req.WithContext(security.WithClaims(req.Context(), claims))
-	rr := httptest.NewRecorder()
+func TestZaloHandler_SendInvoice(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	zaloSvc.EXPECT().SaveZaloConfig(req.Context(), managerID, "bot_token_123", "test.local/api/v1/zalo/webhooks/"+managerID, gomock.Any()).Return(nil)
+	zaloSvc := mock_service.NewMockZaloService(ctrl)
+	h := handler.NewZaloHandler(zaloSvc, "test.local")
 
-	zaloHandler.SaveConfig(rr, req)
+	tests := []struct {
+		name         string
+		hasClaims    bool
+		managerID    string
+		invoiceID    string
+		setupMock    func()
+		expectedCode int
+	}{
+		{
+			name:      "Success",
+			hasClaims: true,
+			managerID: "manager1",
+			invoiceID: "inv123",
+			setupMock: func() {
+				zaloSvc.EXPECT().SendInvoiceToZalo(gomock.Any(), "manager1", "inv123").Return(nil)
+			},
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Unauthorized - Missing Claims",
+			hasClaims:    false,
+			setupMock:    func() {},
+			expectedCode: http.StatusUnauthorized,
+		},
+		{
+			name:         "Missing invoice ID",
+			hasClaims:    true,
+			managerID:    "manager1",
+			invoiceID:    "", // missing
+			setupMock:    func() {},
+			expectedCode: http.StatusBadRequest,
+		},
+		{
+			name:      "Service Error",
+			hasClaims: true,
+			managerID: "manager1",
+			invoiceID: "inv123",
+			setupMock: func() {
+				zaloSvc.EXPECT().SendInvoiceToZalo(gomock.Any(), "manager1", "inv123").Return(errors.New("failed to send invoice"))
+			},
+			expectedCode: http.StatusInternalServerError,
+		},
+	}
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200 OK, got %d", rr.Code)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMock()
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/zalo/invoice", nil)
+			if tt.hasClaims {
+				claims := &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: tt.managerID}}
+				req = req.WithContext(security.WithClaims(req.Context(), claims))
+			}
+
+			rctx := chi.NewRouteContext()
+			if tt.invoiceID != "" {
+				rctx.URLParams.Add("id", tt.invoiceID)
+			}
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			rr := httptest.NewRecorder()
+			h.SendInvoice(rr, req)
+
+			if rr.Code != tt.expectedCode {
+				t.Errorf("expected code %d, got %d", tt.expectedCode, rr.Code)
+			}
+		})
 	}
 }

@@ -64,7 +64,7 @@ func (r *OTPCheckRepository) GetOTPCheck(ctx context.Context, email string) (mod
 
 func (r *OTPCheckRepository) BlockOTP(ctx context.Context, email string) error {
 	_, err := r.db.NewUpdate().
-		Model((*model.OTPCheck)(nil)).
+		Model(&model.OTPCheck{}).
 		Set("block_time = NOW()").
 		Where("email = ?", email).
 		Exec(ctx)
@@ -73,7 +73,7 @@ func (r *OTPCheckRepository) BlockOTP(ctx context.Context, email string) error {
 
 func (r *OTPCheckRepository) ResetOTP(ctx context.Context, email string) error {
 	_, err := r.db.NewUpdate().
-		Model((*model.OTPCheck)(nil)).
+		Model(&model.OTPCheck{}).
 		Set("otp_fails = 0").
 		Where("email = ?", email).
 		Exec(ctx)
@@ -82,7 +82,7 @@ func (r *OTPCheckRepository) ResetOTP(ctx context.Context, email string) error {
 
 func (r *OTPCheckRepository) CreateOTPCheck(ctx context.Context, email string) error {
 	_, err := r.db.NewInsert().
-		Model((*model.OTPCheck)(nil)).
+		Model(&model.OTPCheck{}).
 		Value("email", "?", email).
 		Value("otp_fails", "?", 1).
 		Value("block_time", "NOW()").
@@ -92,7 +92,7 @@ func (r *OTPCheckRepository) CreateOTPCheck(ctx context.Context, email string) e
 
 func (r *OTPCheckRepository) IncrementOTPCheck(ctx context.Context, email string, num int64) error {
 	q := r.db.NewUpdate().
-		Model((*model.OTPCheck)(nil)).
+		Model(&model.OTPCheck{}).
 		Set("otp_fails = ?", num).
 		Where("email = ?", email)
 

@@ -45,6 +45,7 @@ export function SettingsView() {
   const [managerId, setManagerId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
+  const [isUpdatingToken, setIsUpdatingToken] = useState(false)
   const { user } = useAuth()
 
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -88,6 +89,7 @@ export function SettingsView() {
 
       toast.success('Cấu hình Zalo Bot thành công')
       setBotToken('')
+      setIsUpdatingToken(false)
       
       // Re-fetch status to get the bot_id and check link status
       const res = await getZaloConfigStatus()
@@ -168,39 +170,55 @@ export function SettingsView() {
           )}
 
           <div className="grid gap-4 mt-6 max-w-xl">
-            <div className="space-y-2">
-              <Label htmlFor="bot-token">Bot Token</Label>
-              <div className="relative">
-                <Input
-                  id="bot-token"
-                  type={showBotToken ? "text" : "password"}
-                  placeholder="Nhập Bot Token"
-                  value={botToken}
-                  onChange={(e) => setBotToken(e.target.value)}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowBotToken(!showBotToken)}
-                >
-                  {showBotToken ? (
-                    <EyeOff className="h-4 w-4 text-slate-500" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-slate-500" />
+            {(!hasConfig || isUpdatingToken) ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="bot-token">Bot Token</Label>
+                  <div className="relative">
+                    <Input
+                      id="bot-token"
+                      type={showBotToken ? "text" : "password"}
+                      placeholder="Nhập Bot Token mới"
+                      value={botToken}
+                      onChange={(e) => setBotToken(e.target.value)}
+                      className="pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowBotToken(!showBotToken)}
+                    >
+                      {showBotToken ? (
+                        <EyeOff className="h-4 w-4 text-slate-500" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-slate-500" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-2">
+                  <Button onClick={handleSave} disabled={loading} className="w-fit">
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Lưu cấu hình
+                  </Button>
+                  {hasConfig && (
+                    <Button variant="outline" onClick={() => {
+                      setIsUpdatingToken(false);
+                      setBotToken('');
+                    }} disabled={loading} className="w-fit">
+                      Hủy
+                    </Button>
                   )}
-                </Button>
-              </div>
-            </div>
-
-
-
-            <Button onClick={handleSave} disabled={loading} className="w-fit mt-2">
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Lưu cấu hình
-            </Button>
+                </div>
+              </>
+            ) : (
+              <Button onClick={() => setIsUpdatingToken(true)} className="w-fit">
+                Cập nhật Bot Token
+              </Button>
+            )}
           </div>
 
           <div className="mt-8 pt-6 border-t">

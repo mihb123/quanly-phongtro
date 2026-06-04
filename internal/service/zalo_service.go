@@ -333,9 +333,9 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		}
 	}
 
-	if strings.HasPrefix(textMsg, "Kich hoat bot cho tai khoan: ") {
-		managerNameToLink := strings.TrimSpace(strings.TrimPrefix(textMsg, "Kich hoat bot cho tai khoan: "))
-		
+	if strings.HasPrefix(textMsg, "Kich hoat") {
+		managerNameToLink := strings.TrimSpace(strings.TrimPrefix(textMsg, "Kich hoat"))
+
 		user, err := s.userRepo.GetByUserID(ctx, managerID)
 		if err == nil && (managerNameToLink == user.FullName || managerNameToLink == managerID) {
 			if user.ZaloUserID != nil && *user.ZaloUserID != "" {
@@ -407,7 +407,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 								fullInfoTenant, err2 := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, user.ID)
 								if err2 == nil && fullInfoTenant != nil {
 									msg = fmt.Sprintf("Xin chào %s - %s. Zalo của bạn đã được liên kết hệ thống quản lý trọ thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
-									
+
 									// Notify Manager
 									if managerUser != nil && managerUser.ZaloUserID != nil && *managerUser.ZaloUserID != "" {
 										mgrMsg := fmt.Sprintf("Khách thuê %s ở phòng %s vừa liên kết Zalo nhận thông báo thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)

@@ -43,9 +43,14 @@ type updateTenantRequest struct {
 func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -140,9 +145,14 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	managerID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -158,9 +168,14 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 
 func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	managerID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -177,9 +192,14 @@ func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Reque
 
 func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	managerID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -272,9 +292,14 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 
 func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	managerID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}

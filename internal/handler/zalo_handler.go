@@ -59,7 +59,7 @@ type ConfigReq struct {
 
 func (h *ZaloHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -101,7 +101,7 @@ func (h *ZaloHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 
 func (h *ZaloHandler) GetConfigStatus(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -149,7 +149,7 @@ func (h *ZaloHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 func (h *ZaloHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -174,7 +174,7 @@ func (h *ZaloHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 func (h *ZaloHandler) SendInvoice(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

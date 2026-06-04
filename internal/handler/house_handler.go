@@ -60,9 +60,14 @@ func NewHouseHandler(service service.HouseService, invoiceService service.Invoic
 
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -110,8 +115,13 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
+	if err != nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -139,8 +149,13 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
+	if err != nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -169,8 +184,13 @@ func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Reque
 
 func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
+	if err != nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -224,8 +244,13 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 
 func (h *HouseHandler) DeleteHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	userID, err := claims.GetSubject()
-	if !ok || err != nil {
+	if err != nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
