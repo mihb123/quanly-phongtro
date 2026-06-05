@@ -1,76 +1,103 @@
 # quanly-phongtro (Clean Architecture)
 
-## Project structure
+A full-stack property management application with a Go backend and a React frontend.
+
+## Project Structure
+
+This is a monorepo containing both the backend and frontend:
 
 ```text
-cmd/api/main.go                             # entrypoint
-internal/model/user                         # entities + repository contract
-internal/service/auth                       # business rules (register/login)
-internal/handler                            # HTTP handlers
-internal/router                             # gorilla/mux route setup
-internal/config                             # env config
-internal/db                                 # postgres connection
-internal/repository                         # postgres repository (pq)
-internal/security                           # bcrypt + jwt implementation
-migrations                                  # SQL schema
+├── cmd/
+│   ├── api/main.go               # Go Backend entrypoint
+│   └── seed/main.go              # Database seeder
+├── internal/                     # Go Backend (Clean Architecture)
+│   ├── model/                    # Entities and Interfaces
+│   ├── handler/                  # HTTP Handlers (chi router)
+│   ├── service/                  # Business Logic & Rules
+│   ├── repository/               # Data Access (Bun ORM)
+│   ├── db/                       # Database connection setup
+│   ├── router/                   # API Routes configuration
+│   ├── security/                 # JWT, bcrypt, encryption
+│   └── mock/                     # Mocks for unit testing
+├── migrations/                   # SQL Schema migrations (golang-migrate)
+└── frontend/                     # React Frontend
+    ├── src/components/           # Reusable UI components (shadcn)
+    ├── src/pages/                # Application views
+    ├── src/router/               # React Router configuration
+    └── src/data/                 # API integration and State (Zustand)
 ```
 
-## Environment
+## Tech Stack
 
-Use `.env.example` as reference:
+### Backend
+- **Language:** Go 1.26
+- **Framework:** chi/v5 (Router)
+- **Database:** PostgreSQL with Bun ORM
+- **Migrations:** golang-migrate
+- **Validation:** go-playground/validator
+- **Security:** bcrypt + JWT
 
-```env
-APP_PORT=8080
-POSTGRES_DSN=postgres://postgres:postgres@localhost:5432/quanly_phongtro?sslmode=disable
-JWT_SECRET=change-me
-JWT_TTL_MINUTES=60
+### Frontend
+- **Framework:** React 19 + Vite
+- **Styling:** Tailwind CSS v4 + Base UI
+- **State Management:** Zustand
+- **Forms:** React Hook Form + Zod
+- **Routing:** React Router DOM v7
+
+## Environment Setup
+
+Use `.env.example` as a reference to create your `.env` file in the root directory:
+```bash
+cp .env.example .env
 ```
 
-## Database Migrations
+## Running the Application
 
-This project uses `golang-migrate` to manage database schema.
+### 1. Database Migrations
 
-### Execute Migrations
+The project uses `golang-migrate` to manage the PostgreSQL database schema.
 
-To apply all pending migrations to the database:
+Apply all pending migrations:
 ```bash
 # Load environment variables from .env
-export $(grep -v '^#' .env | xargs)
+set -a && source .env && set +a
 
 # Run up migrations
 migrate -path migrations -database "$POSTGRES_DSN" up
 ```
 
-### Rollback Migrations
-
-To rollback the last migration:
-```bash
-migrate -path migrations -database "$POSTGRES_DSN" down 1
-```
-
-### Create New Migration
-
-```bash
-migrate create -ext sql -dir migrations -seq name_of_migration
-```
-
-### Seed Data (Optional)
-
-To insert test data:
+*(Optional)* Seed test data:
 ```bash
 go run ./cmd/seed
 ```
 
-## Run
+### 2. Start the Backend (Go)
 
 ```bash
 go run ./cmd/api
 ```
+The API server will start on port `8080` (or whatever `APP_PORT` is set to).
 
-## APIs
+### 3. Start the Frontend (React)
 
-- `POST /api/v1/auth/register`
-  - body: `{"email":"user@example.com","password":"secret123"}`
-- `POST /api/v1/auth/login`
-  - body: `{"email":"user@example.com","password":"secret123"}`
-- `GET /health`
+Open a new terminal window, navigate to the `frontend` directory, and start the Vite development server:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## APIs Summary
+
+The backend exposes a RESTful API under the `/api/v1/` prefix. Key namespaces include:
+
+- **`Auth`** (`/api/v1/auth/*`): Registration, login, token refresh, and email verification.
+- **`House`** (`/api/v1/house/*`): CRUD operations for properties/houses (Managers only).
+- **`Room`** (`/api/v1/room/*`): CRUD operations for individual rooms within a house, including custom pricing and surcharges.
+- **`Tenant`** (`/api/v1/tenant/*`): Tenant registration and management per room/house.
+- **`Invoice`** (`/api/v1/invoice/*`): Generation, tracking, image generation, and payment status of monthly rent/utility invoices.
+- **`Zalo`** (`/api/v1/zalo/*`): Integration with Zalo mini-apps, bots, and webhook handling for notifications.
+- **`Health`** (`/health`): Public health-check endpoint.
+
+*Note: All endpoints (except public auth & health) require a valid JWT Bearer token and appropriate role permissions.*

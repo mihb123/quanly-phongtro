@@ -74,6 +74,16 @@ func TestZaloClient_GetMe(t *testing.T) {
 			},
 			expectError: true,
 		},
+		{
+			name: "HTTP status non-200",
+			roundTripFunc: func(req *http.Request) *http.Response {
+				return &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Body:       io.NopCloser(bytes.NewReader([]byte(`{}`))),
+				}
+			},
+			expectError: true,
+		},
 	}
 
 	client := service.NewZaloClient()
@@ -185,6 +195,32 @@ func TestZaloClient_SendPhoto(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Caption empty", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) *http.Response {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error": 0, "message": "Success"}`))),
+			}
+		}}
+		err := client.SendPhoto(context.Background(), "token", "chat-1", []byte("img"), "")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("HTTP non-200 status", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) *http.Response {
+			return &http.Response{
+				StatusCode: http.StatusInternalServerError,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{}`))),
+			}
+		}}
+		err := client.SendPhoto(context.Background(), "token", "chat-1", []byte("img"), "caption")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
 }
 
 func TestZaloClient_SetWebhook(t *testing.T) {
@@ -230,4 +266,26 @@ func TestZaloClient_SetWebhook(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("OK response but decode error", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) *http.Response {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`invalid json`))),
+			}
+		}}
+		err := client.SetWebhook(context.Background(), "token", "url", "secret")
+		if err == nil { t.Errorf("expected error, got nil") }
+	})
+
+	t.Run("API returns ok=false", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) *http.Response {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"ok": false}`))),
+			}
+		}}
+		err := client.SetWebhook(context.Background(), "token", "url", "secret")
+		if err == nil { t.Errorf("expected error, got nil") }
+	})
 }

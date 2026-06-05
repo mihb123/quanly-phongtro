@@ -191,7 +191,7 @@ func (c *zaloClientImpl) SetWebhook(ctx context.Context, botToken, webhookUrl, s
 		return err
 	}
 
-	if ok, val := res["ok"].(bool); ok && !val {
+	if val, ok := res["ok"].(bool); ok && !val {
 		return fmt.Errorf("zalo api returned error: %+v", res)
 	}
 

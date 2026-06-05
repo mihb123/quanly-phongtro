@@ -102,6 +102,17 @@ func TestZaloCronService_RunNow(t *testing.T) {
 				userRepo.EXPECT().UpdateUser(gomock.Any(), "user-5", gomock.Any()).Return(nil, errors.New("update error"))
 			},
 		},
+		{
+			name: "UpdateUser returns error when marking inactive",
+			users: []model.User{
+				{ID: "user-6", ZaloBotToken: &validToken, IsZaloBotActive: true},
+			},
+			buildStubs: func() {
+				userRepo.EXPECT().GetAllUsersWithZaloToken(gomock.Any()).Return([]model.User{{ID: "user-6", ZaloBotToken: &validToken, IsZaloBotActive: true}}, nil)
+				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(nil, errors.New("api error"))
+				userRepo.EXPECT().UpdateUser(gomock.Any(), "user-6", gomock.Any()).Return(nil, errors.New("update error"))
+			},
+		},
 	}
 
 	for _, tt := range tests {

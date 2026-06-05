@@ -2,6 +2,7 @@ package service_test
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -290,6 +291,64 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "GenerateInvoiceImage fails",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return(nil, errors.New("img err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "SendPhoto fails",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("api err"))
+				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{}, nil)
+			},
+			wantErr: true,
+		},
+		{
+			name: "SendPhoto auth error",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("invalid access token"))
+				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
+			},
+			wantErr: true,
+		},
+		{
+			name: "Send to tenant successfully",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", []byte("img"), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "Send to tenant fails",
+			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
+				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
+				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", []byte("img"), gomock.Any()).Return(errors.New("tenant err"))
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -350,6 +409,36 @@ func TestProcessTransactionImage(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "house not owned",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+				m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(nil, errors.New("err"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "update invoice success",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+				m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(&model.House{}, nil)
+				m.invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "r1").Return(&model.Invoice{ID: "i1", Status: "UNPAID", Period: "05/2026"}, nil)
+				m.invoiceRepo.EXPECT().UpdateInvoice(ctx, "m1", gomock.Any()).Return(nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "g1", gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "update invoice error",
+			setup: func() {
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+				m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(&model.House{}, nil)
+				m.invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "r1").Return(&model.Invoice{ID: "i1", Status: "UNPAID"}, nil)
+				m.invoiceRepo.EXPECT().UpdateInvoice(ctx, "m1", gomock.Any()).Return(errors.New("db err"))
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -362,6 +451,14 @@ func TestProcessTransactionImage(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("image download fails", func(t *testing.T) {
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
+		m.houseRepo.EXPECT().GetByID(ctx, "h1", "m1").Return(&model.House{}, nil)
+		m.invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "r1").Return(&model.Invoice{ID: "i1", Status: "UNPAID"}, nil)
+		err := m.tsvc.ProcessTransactionImage(ctx, "m1", "g1", "http://invalid-url-that-fails")
+		assert.Error(t, err)
+	})
 }
 
 func TestHandleWebhook(t *testing.T) {
@@ -441,4 +538,140 @@ func TestHandleWebhook(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewZaloService(t *testing.T) {
+	_, err := service.NewZaloService(nil, nil, nil, nil, nil, nil, nil, "short")
+	assert.Error(t, err)
+
+	hexKey := hex.EncodeToString([]byte("12345678901234567890123456789012"))
+	svc, err := service.NewZaloService(nil, nil, nil, nil, nil, nil, nil, hexKey)
+	assert.NoError(t, err)
+	assert.NotNil(t, svc)
+}
+
+func TestSendTextMessage(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+
+	t.Run("success", func(t *testing.T) {
+		encToken, _ := security.Encrypt("bot-token", m.encKey)
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "c1", "hello").Return(nil)
+		err := m.svc.SendTextMessage(ctx, "m1", "c1", "hello")
+		assert.NoError(t, err)
+	})
+
+	t.Run("get token error", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(nil, errors.New("err"))
+		err := m.svc.SendTextMessage(ctx, "m1", "c1", "hello")
+		assert.Error(t, err)
+	})
+}
+
+func TestHandleWebhook_AutoLink_Branches(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+
+	t.Run("list rooms error", func(t *testing.T) {
+		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`
+		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
+		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return(nil, errors.New("err"))
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P999 N1"}}`
+		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
+		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "101"}}, nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
+		assert.NoError(t, err)
+	})
+}
+
+func TestSendInvoiceToZalo_Extra(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+	inv := &model.InvoiceWithRoom{
+		Invoice: model.Invoice{ID: "i1", RoomID: "r1", Status: "UNPAID", Period: "05/2026", TotalAmount: 1500000},
+	}
+
+	t.Run("get room fails", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+		m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
+		m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(nil, errors.New("db err"))
+		err := m.svc.SendInvoiceToZalo(ctx, "m1", "i1")
+		assert.Error(t, err)
+	})
+
+	t.Run("get invoice fails", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+		m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(nil, errors.New("db err"))
+		err := m.svc.SendInvoiceToZalo(ctx, "m1", "i1")
+		assert.Error(t, err)
+	})
+}
+
+func TestProcessTransactionImage_Extra(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+
+	t.Run("room error", func(t *testing.T) {
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("err"))
+		err := m.tsvc.ProcessTransactionImage(ctx, "m1", "g1", "img")
+		assert.Error(t, err)
+	})
+}
+
+func TestHandleWebhook_KichHoat(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+
+	t.Run("already linked", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{FullName: "Manager", ZaloUserID: ptr("u2"), ZaloBotToken: &encToken}, nil).Times(2)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"Kich hoat Manager","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("update error", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{FullName: "Manager", ZaloBotToken: &encToken}, nil).Times(2)
+		m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(nil, errors.New("db err"))
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"Kich hoat Manager","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+}
+
+func TestHandleWebhook_Phone(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+
+	t.Run("phone format manager diff id", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("err"))
+		m.userRepo.EXPECT().GetByPhone(ctx, "0912345678").Return(&model.User{ID: "m2", Role: model.RoleManager}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"0912345678","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("tenant manager not linked", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, ZaloUserID: nil}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("err"))
+		m.userRepo.EXPECT().GetByPhone(ctx, "0912345678").Return(&model.User{ID: "t1", Role: "TENANT"}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"0912345678","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
 }

@@ -28,6 +28,7 @@ func createMultipartFileHeader(filename string, content []byte) *multipart.FileH
 	return form.File["file"][0]
 }
 
+
 func setupTenantTestDir() {
 	os.MkdirAll("uploads/tenants", 0755)
 }
@@ -161,6 +162,52 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Auto-generate email from FullName (no phone, no email)", func(t *testing.T) {
+		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
+		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
+		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "OCCUPIED").Return(nil)
+		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{FullName: "John Doe", RoomID: "r1"})
+		if err != nil { t.Errorf("unexpected error: %v", err) }
+	})
+
+	t.Run("Auto-generate email with empty FullName (guest)", func(t *testing.T) {
+		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
+		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
+		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "OCCUPIED").Return(nil)
+		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{FullName: "", RoomID: "r1"})
+		if err != nil { t.Errorf("unexpected error: %v", err) }
+	})
+
+	t.Run("Hash password fails", func(t *testing.T) {
+		hasherErr := &mockPasswordHasher{hashErr: errors.New("hash err")}
+		svcWithErr := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasherErr)
+		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
+		_, err := svcWithErr.RegisterTenant(ctx, service.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
+		if err == nil || err.Error() != "hash err" { t.Errorf("expected hash err, got %v", err) }
+	})
+
+	t.Run("UpdateRoomStatus fails", func(t *testing.T) {
+		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
+		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
+		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "OCCUPIED").Return(errors.New("db error"))
+		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
+		if err == nil || err.Error() != "db error" { t.Errorf("expected db error, got %v", err) }
+	})
+
+	t.Run("Unsupported contract file extension", func(t *testing.T) {
+		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
+		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{
+			Email: "test@example.com", RoomID: "r1",
+			ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.txt", []byte("txt"))},
+		})
+		if err == nil { t.Errorf("expected error, got nil") }
+	})
 }
 
 func TestTenantService_CheckCapicityOfRoom(t *testing.T) {
@@ -329,6 +376,57 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("UpdateTenant repo error", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
+		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(nil, errors.New("db error"))
+		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", service.UpdateTenantInput{FullName: ptr("Name")})
+		if err == nil || err.Error() != "db error" { t.Errorf("expected db error, got %v", err) }
+	})
+
+	t.Run("GetTenantByID (final re-fetch) error", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
+		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(nil, errors.New("db error 2"))
+		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", service.UpdateTenantInput{FullName: ptr("Name")})
+		if err == nil || err.Error() != "db error 2" { t.Errorf("expected db error 2, got %v", err) }
+	})
+
+	t.Run("New CCCD files without kept paths", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1", CCCDPath: "old.png,old2.png"}, nil)
+		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
+		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
+		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", service.UpdateTenantInput{
+			CCCDFiles: []*multipart.FileHeader{createMultipartFileHeader("cccd.png", []byte("img"))},
+		})
+		if err != nil { t.Errorf("unexpected error: %v", err) }
+	})
+
+	t.Run("New contract files with kept paths", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
+		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
+		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", service.UpdateTenantInput{
+			ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
+			KeptContractPaths: ptr("old_contract.pdf"),
+		})
+		if err != nil { t.Errorf("unexpected error: %v", err) }
+	})
+
+	t.Run("New contract files without kept paths", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1", ContractPath: "old_c1.pdf,old_c2.pdf"}, nil)
+		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
+		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
+		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", service.UpdateTenantInput{
+			ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
+		})
+		if err != nil { t.Errorf("unexpected error: %v", err) }
+	})
 }
 
 func TestTenantService_DeleteTenant(t *testing.T) {
@@ -395,4 +493,31 @@ func TestTenantService_DeleteTenant(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("DeactivateUser fails", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		tenantRepo.EXPECT().DeleteTenant(ctx, "t1").Return("r1", nil)
+		userRepo.EXPECT().DeactivateUser(ctx, "u1").Return(errors.New("db error"))
+		err := svc.DeleteTenant(ctx, "m1", "t1")
+		if err == nil || err.Error() != "db error" { t.Errorf("expected db error, got %v", err) }
+	})
+
+	t.Run("GetCurrentNumTenantInRoom fails", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		tenantRepo.EXPECT().DeleteTenant(ctx, "t1").Return("r1", nil)
+		userRepo.EXPECT().DeactivateUser(ctx, "u1").Return(nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(0), errors.New("db error 2"))
+		err := svc.DeleteTenant(ctx, "m1", "t1")
+		if err == nil || err.Error() != "db error 2" { t.Errorf("expected db error 2, got %v", err) }
+	})
+
+	t.Run("UpdateRoomStatus fails (remaining=0 branch)", func(t *testing.T) {
+		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+		tenantRepo.EXPECT().DeleteTenant(ctx, "t1").Return("r1", nil)
+		userRepo.EXPECT().DeactivateUser(ctx, "u1").Return(nil)
+		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(0), nil)
+		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "AVAILABLE").Return(errors.New("db error 3"))
+		err := svc.DeleteTenant(ctx, "m1", "t1")
+		if err == nil || err.Error() != "db error 3" { t.Errorf("expected db error 3, got %v", err) }
+	})
 }

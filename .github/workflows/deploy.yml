@@ -53,6 +53,10 @@ jobs:
       # ── Phase 2: Lint & Test ───────────────────────────
       - name: Lint, generate mocks and run tests
         run: |
+          if [ "${BACKEND_CHANGED}" != "true" ]; then
+            echo "⏭️  Bỏ qua Lint & Test (không có thay đổi Backend)"
+            exit 0
+          fi
           source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Test"
           cd $PROJECT_DIR
           go mod download

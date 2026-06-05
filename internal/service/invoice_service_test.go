@@ -12,6 +12,9 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func ptrFloat(f float64) *float64 { return &f }
+func ptrInt(i int) *int { return &i }
+
 func TestInvoiceServiceImpl_calculateUtilityFee(t *testing.T) {
 	s := &InvoiceServiceImpl{}
 
@@ -420,6 +423,120 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
 			},
 			wantErr: true,
+		},
+		{
+			name:      "GetRoomByIDOnly fails",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(nil, errors.New("db err"))
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "IsHouseOwnedBy fails",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(false, errors.New("db err"))
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "GetByID (house) fails",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(nil, errors.New("db err"))
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "GetPreviousInvoice returns non-ErrInvoiceNotFound",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1"}, nil)
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, errors.New("db err"))
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "GetCurrentNumTenantInRoom fails",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1"}, nil)
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(0), errors.New("db err"))
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "Room has custom prices & Extra fees",
+			managerID: "mgr-1",
+			input: CreateInvoiceInput{
+				RoomID: "room-1", Period: "01/2023", VehicleCount: 2, OtherFee: 50, Discount: 10,
+			},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{
+					ID: "room-1", HouseID: "house-1", Price: 1000,
+					ElectricityPrice: ptrFloat(4000), WaterPrice: ptrFloat(20000),
+					WifiPrice: ptrFloat(50000), ServicePrice: ptrFloat(30000),
+					ParkingPrice: ptrFloat(150000), ExtraPersonFee: ptrFloat(100000),
+					MaxTenants: 2, ExtraPersonThreshold: ptrInt(2), ExtraVehicleThreshold: ptrInt(1),
+					ExtraVehicleFee: ptrFloat(50000),
+				}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1",
+					ElectricityBillingType: "FIXED", WaterBillingType: "FIXED",
+					ElectricityBillingUnit: "PERSON", WaterBillingUnit: "PERSON",
+				}, nil)
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(3), nil) // 3 tenants > max 2 => extra fee
+				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
+				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
+			},
+			wantErr:   false,
+		},
+		{
+			name:      "FIXED billing type with index normalization & invalid water index",
+			managerID: "mgr-1",
+			input: CreateInvoiceInput{
+				RoomID: "room-1", Period: "01/2023", NewWaterIndex: 5,
+			},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1",
+					ElectricityBillingType: "FIXED", WaterBillingType: "USAGE",
+				}, nil)
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(&model.Invoice{NewElectricityIndex: 0, NewWaterIndex: 10}, nil)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(1), nil)
+			},
+			wantErr:   true,
+		},
+		{
+			name:      "GetInvoiceByRoomAndPeriod returns unexpected error",
+			managerID: "mgr-1",
+			input:     CreateInvoiceInput{RoomID: "room-1", Period: "01/2023"},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
+				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, errors.New("db err"))
+			},
+			wantErr:   true,
 		},
 	}
 

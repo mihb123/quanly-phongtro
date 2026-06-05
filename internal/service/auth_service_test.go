@@ -2,6 +2,8 @@ package service_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -121,6 +123,59 @@ func TestAuthService_Register(t *testing.T) {
 			t.Errorf("expected ErrEmailAlreadyExists, got %v", err)
 		}
 	})
+
+	t.Run("GetByEmail returns unexpected error", func(t *testing.T) {
+		input := service.RegisterInput{Email: "test@test.com"}
+		userRepo.EXPECT().GetByEmail(ctx, "test@test.com").Return(nil, errors.New("db error"))
+		_, err := authSvc.Register(ctx, input)
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("Hash password fails", func(t *testing.T) {
+		input := service.RegisterInput{Email: "test@test.com", Password: "pass"}
+		userRepo.EXPECT().GetByEmail(ctx, "test@test.com").Return(nil, model.ErrNotFound)
+		
+		authSvcWithMockHash := service.NewAuthService(userRepo, &mockPasswordHasher{hashErr: errors.New("hash error")}, &mockTokenProvider{}, verifyRepo, &mockEmailSender{}, 5*time.Minute, otpRepo)
+		
+		_, err := authSvcWithMockHash.Register(ctx, input)
+		if err == nil || err.Error() != "hash error" {
+			t.Errorf("expected hash error, got %v", err)
+		}
+	})
+
+	t.Run("Create returns ErrAlreadyExists", func(t *testing.T) {
+		input := service.RegisterInput{Email: "test@test.com", Password: "pass"}
+		userRepo.EXPECT().GetByEmail(ctx, "test@test.com").Return(nil, model.ErrNotFound)
+		userRepo.EXPECT().Create(ctx, gomock.Any()).Return(model.ErrAlreadyExists)
+		_, err := authSvc.Register(ctx, input)
+		if err != service.ErrEmailAlreadyExists {
+			t.Errorf("expected ErrEmailAlreadyExists, got %v", err)
+		}
+	})
+
+	t.Run("Create returns non-duplicate error", func(t *testing.T) {
+		input := service.RegisterInput{Email: "test@test.com", Password: "pass"}
+		userRepo.EXPECT().GetByEmail(ctx, "test@test.com").Return(nil, model.ErrNotFound)
+		userRepo.EXPECT().Create(ctx, gomock.Any()).Return(errors.New("db error"))
+		_, err := authSvc.Register(ctx, input)
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("GenerateAccessToken fails", func(t *testing.T) {
+		input := service.RegisterInput{Email: "test@test.com", Password: "pass"}
+		userRepo.EXPECT().GetByEmail(ctx, "test@test.com").Return(nil, model.ErrNotFound)
+		userRepo.EXPECT().Create(ctx, gomock.Any()).Return(nil)
+		
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{accessErr: errors.New("token error")}, verifyRepo, &mockEmailSender{}, 5*time.Minute, otpRepo)
+		_, err := authSvcWithMockToken.Register(ctx, input)
+		if err == nil || err.Error() != "token error" {
+			t.Errorf("expected token error, got %v", err)
+		}
+	})
 }
 
 func TestAuthService_Login(t *testing.T) {
@@ -165,6 +220,48 @@ func TestAuthService_Login(t *testing.T) {
 			t.Errorf("expected ErrInvalidCredentials, got %v", err)
 		}
 	})
+
+	t.Run("GetAuthUserByEmail returns unexpected error", func(t *testing.T) {
+		input := service.LoginInput{Email: "test@test.com", Password: "pass"}
+		userRepo.EXPECT().GetAuthUserByEmail(ctx, "test@test.com").Return(nil, errors.New("db error"))
+		_, err := authSvc.Login(ctx, input)
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("Wrong password", func(t *testing.T) {
+		input := service.LoginInput{Email: "test@test.com", Password: "wrong"}
+		userRepo.EXPECT().GetAuthUserByEmail(ctx, "test@test.com").Return(&model.User{PasswordHash: "hashed-pass"}, nil)
+		
+		authSvcWithMockHash := service.NewAuthService(userRepo, &mockPasswordHasher{compareErr: errors.New("compare failed")}, &mockTokenProvider{}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockHash.Login(ctx, input)
+		if err != service.ErrInvalidCredentials {
+			t.Errorf("expected ErrInvalidCredentials, got %v", err)
+		}
+	})
+
+	t.Run("GenerateAccessToken fails", func(t *testing.T) {
+		input := service.LoginInput{Email: "test@test.com", Password: "password"}
+		userRepo.EXPECT().GetAuthUserByEmail(ctx, "test@test.com").Return(&model.User{PasswordHash: "hashed-password"}, nil)
+		
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{accessErr: errors.New("token error")}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.Login(ctx, input)
+		if err == nil || err.Error() != "token error" {
+			t.Errorf("expected token error, got %v", err)
+		}
+	})
+
+	t.Run("GenerateRefreshToken fails", func(t *testing.T) {
+		input := service.LoginInput{Email: "test@test.com", Password: "password"}
+		userRepo.EXPECT().GetAuthUserByEmail(ctx, "test@test.com").Return(&model.User{PasswordHash: "hashed-password"}, nil)
+		
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{refreshErr: errors.New("refresh error")}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.Login(ctx, input)
+		if err == nil || err.Error() != "refresh error" {
+			t.Errorf("expected refresh error, got %v", err)
+		}
+	})
 }
 
 func TestAuthService_CreateOTP(t *testing.T) {
@@ -190,6 +287,25 @@ func TestAuthService_CreateOTP(t *testing.T) {
 		err := authSvc.CreateOTP(ctx, "test@test.com")
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
+		}
+	})
+
+	t.Run("CreateOTP repo fails", func(t *testing.T) {
+		verifyRepo.EXPECT().CreateOTP(ctx, gomock.Any()).Return(errors.New("db error"))
+		
+		err := authSvc.CreateOTP(ctx, "test@test.com")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("EmailSender fails", func(t *testing.T) {
+		verifyRepo.EXPECT().CreateOTP(ctx, gomock.Any()).Return(nil)
+		
+		authSvcWithSenderErr := service.NewAuthService(nil, nil, nil, verifyRepo, &mockEmailSender{err: errors.New("send error")}, 5*time.Minute, nil)
+		err := authSvcWithSenderErr.CreateOTP(ctx, "test@test.com")
+		if err == nil || err.Error() != "send error" {
+			t.Errorf("expected send error, got %v", err)
 		}
 	})
 }
@@ -244,6 +360,60 @@ func TestAuthService_VerifyEmail(t *testing.T) {
 			t.Errorf("expected false")
 		}
 	})
+
+	t.Run("GetOTP returns non-ErrNoRows error", func(t *testing.T) {
+		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).Return(errors.New("db error"))
+		
+		_, err := authSvc.VerifyEmail(ctx, "test@test.com", "123456")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("OTP already used", func(t *testing.T) {
+		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, v *model.EmailVerification) error {
+			v.Expires = time.Now().Add(5 * time.Minute)
+			v.IsUsed = true // Already used
+			return nil
+		})
+		
+		ok, err := authSvc.VerifyEmail(ctx, "test@test.com", "123456")
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		if ok {
+			t.Errorf("expected false")
+		}
+	})
+
+	t.Run("UpdateUsedOTP fails", func(t *testing.T) {
+		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, v *model.EmailVerification) error {
+			v.Expires = time.Now().Add(5 * time.Minute)
+			v.IsUsed = false
+			return nil
+		})
+		verifyRepo.EXPECT().UpdateUsedOTP(ctx, gomock.Any()).Return(errors.New("db error"))
+		
+		_, err := authSvc.VerifyEmail(ctx, "test@test.com", "123456")
+		if err == nil || err.Error() != "cannot update used otp" {
+			t.Errorf("expected cannot update used otp, got %v", err)
+		}
+	})
+
+	t.Run("ActivateUser fails", func(t *testing.T) {
+		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, v *model.EmailVerification) error {
+			v.Expires = time.Now().Add(5 * time.Minute)
+			v.IsUsed = false
+			return nil
+		})
+		verifyRepo.EXPECT().UpdateUsedOTP(ctx, gomock.Any()).Return(nil)
+		userRepo.EXPECT().ActivateUser(ctx, "test@test.com").Return(errors.New("activate error"))
+		
+		_, err := authSvc.VerifyEmail(ctx, "test@test.com", "123456")
+		if err == nil || err.Error() != "activate error" {
+			t.Errorf("expected activate error, got %v", err)
+		}
+	})
 }
 
 func TestAuthService_IncrementOTPCheck(t *testing.T) {
@@ -264,6 +434,25 @@ func TestAuthService_IncrementOTPCheck(t *testing.T) {
 		err := authSvc.IncrementOTPCheck(ctx, "test@test.com")
 		if err != nil {
 			t.Errorf("unexpected err: %v", err)
+		}
+	})
+
+	t.Run("GetOTPCheck returns ErrNoRows, CreateOTPCheck fails", func(t *testing.T) {
+		otpRepo.EXPECT().GetOTPCheck(ctx, "test@test.com").Return(model.OTPCheck{}, sql.ErrNoRows)
+		otpRepo.EXPECT().CreateOTPCheck(ctx, "test@test.com").Return(errors.New("db error"))
+
+		err := authSvc.IncrementOTPCheck(ctx, "test@test.com")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("GetOTPCheck returns unexpected error", func(t *testing.T) {
+		otpRepo.EXPECT().GetOTPCheck(ctx, "test@test.com").Return(model.OTPCheck{}, errors.New("db error"))
+
+		err := authSvc.IncrementOTPCheck(ctx, "test@test.com")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
 		}
 	})
 }
@@ -320,6 +509,34 @@ func TestAuthService_IsBlockOTP(t *testing.T) {
 			t.Errorf("expected true")
 		}
 	})
+
+	t.Run("GetOTPCheck returns unexpected error", func(t *testing.T) {
+		otpRepo.EXPECT().GetOTPCheck(ctx, "test@test.com").Return(model.OTPCheck{}, errors.New("db error"))
+		
+		blocked, err := authSvc.IsBlockOTP(ctx, "test@test.com")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+		if !blocked {
+			t.Errorf("expected true on error")
+		}
+	})
+
+	t.Run("ResetOTP fails", func(t *testing.T) {
+		otpRepo.EXPECT().GetOTPCheck(ctx, "test@test.com").Return(model.OTPCheck{
+			OTPFails: 5,
+			BlockTime: time.Now().Add(-20 * time.Minute),
+		}, nil)
+		otpRepo.EXPECT().ResetOTP(ctx, "test@test.com").Return(errors.New("db error"))
+		
+		blocked, err := authSvc.IsBlockOTP(ctx, "test@test.com")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+		if !blocked {
+			t.Errorf("expected true on error")
+		}
+	})
 }
 
 func TestAuthService_RefreshToken(t *testing.T) {
@@ -352,6 +569,68 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			t.Errorf("expected access-token, got %s", res.AccessToken)
 		}
 	})
+
+	t.Run("Parse fails", func(t *testing.T) {
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{parseErr: errors.New("parse error")}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh")
+		if err == nil || err.Error() != "parse error" {
+			t.Errorf("expected parse error, got %v", err)
+		}
+	})
+
+	t.Run("FindByToken fails", func(t *testing.T) {
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{
+			parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+			findErr: errors.New("db error"),
+		}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
+		}
+	})
+
+	t.Run("Token is revoked", func(t *testing.T) {
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{
+			parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+			findRes: true, // revoked
+		}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh")
+		if err != service.ErrInvalidCredentials {
+			t.Errorf("expected ErrInvalidCredentials, got %v", err)
+		}
+	})
+
+	t.Run("GetByUserID fails", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(nil, errors.New("db error"))
+		_, err := authSvc.RefreshToken(ctx, "refresh")
+		if err != service.ErrInvalidCredentials {
+			t.Errorf("expected ErrInvalidCredentials, got %v", err)
+		}
+	})
+
+	t.Run("GenerateAccessToken fails after user lookup", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(&model.User{ID: "u1"}, nil)
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{
+			parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+			accessErr: errors.New("token error"),
+		}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh")
+		if err == nil || err.Error() != "token error" {
+			t.Errorf("expected token error, got %v", err)
+		}
+	})
+
+	t.Run("GenerateRefreshToken fails", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(&model.User{ID: "u1"}, nil)
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{
+			parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+			refreshErr: errors.New("refresh error"),
+		}, nil, nil, 5*time.Minute, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh")
+		if err == nil || err.Error() != "refresh error" {
+			t.Errorf("expected refresh error, got %v", err)
+		}
+	})
 }
 
 func TestAuthService_GetMe(t *testing.T) {
@@ -380,6 +659,24 @@ func TestAuthService_GetMe(t *testing.T) {
 		}
 		if user.UserID != "u1" {
 			t.Errorf("expected user u1, got %v", user.UserID)
+		}
+	})
+
+	t.Run("GetByUserID returns ErrNotFound", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(nil, model.ErrNotFound)
+
+		_, err := authSvc.GetMe(ctx, "u1")
+		if err != service.ErrInvalidCredentials {
+			t.Errorf("expected ErrInvalidCredentials, got %v", err)
+		}
+	})
+
+	t.Run("GetByUserID returns unexpected error", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(nil, errors.New("db error"))
+
+		_, err := authSvc.GetMe(ctx, "u1")
+		if err == nil || err.Error() != "db error" {
+			t.Errorf("expected db error, got %v", err)
 		}
 	})
 }
