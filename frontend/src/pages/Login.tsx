@@ -33,10 +33,30 @@ export default function LoginPage() {
   async function onSubmit(formData: LoginFormValues) {
     setIsLoading(true)
     clearFormError()
+
+    let latitude: number | undefined
+    let longitude: number | undefined
+
+    if (!localStorage.getItem('has_asked_location') && 'geolocation' in navigator) {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+        })
+        latitude = position.coords.latitude
+        longitude = position.coords.longitude
+      } catch (err) {
+        console.warn('Geolocation failed or denied:', err)
+      } finally {
+        localStorage.setItem('has_asked_location', 'true')
+      }
+    }
+
     try {
       await loginAccount({
         email: formData.email,
         password: formData.password,
+        Latitude: latitude,
+        Longitude: longitude,
       })
       const user = await getMe()
       login(user)
@@ -101,6 +121,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                 >

@@ -20,5 +20,9 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />
   }
 
+  if (user && !user.is_activated && window.location.pathname !== '/verify-email') {
+    return <Navigate to="/verify-email" replace />
+  }
+
   return <>{children}</>
 }

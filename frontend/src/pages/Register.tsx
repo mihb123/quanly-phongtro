@@ -13,7 +13,6 @@ import { useFormError } from '@/hooks/useFormError'
 import { useAuth } from '@/contexts/AuthContext'
 
 const registerSchema = z.object({
-  username: z.string().email('Tên đăng nhập phải là định dạng email'),
   email: z.string().email('Email không hợp lệ'),
   password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự'),
   confirmPassword: z.string().min(1, 'Vui lòng nhập lại mật khẩu'),
@@ -39,14 +38,33 @@ export default function RegisterPage() {
   async function onSubmit(formData: RegisterFormValues) {
     setIsLoading(true)
     clearFormError()
+
+    let latitude: number | undefined
+    let longitude: number | undefined
+
+    if (!localStorage.getItem('has_asked_location') && 'geolocation' in navigator) {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
+        })
+        latitude = position.coords.latitude
+        longitude = position.coords.longitude
+      } catch (err) {
+        console.warn('Geolocation failed or denied:', err)
+      } finally {
+        localStorage.setItem('has_asked_location', 'true')
+      }
+    }
+
     try {
       const user = await registerAccount({
-        username: formData.username,
         email: formData.email,
         password: formData.password,
+        Latitude: latitude,
+        Longitude: longitude,
       })
       login(user)
-      navigate('/')
+      navigate('/verify-email')
     } catch (error) {
       handleApiError(error)
     } finally {
@@ -78,22 +96,6 @@ export default function RegisterPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-foreground text-sm font-medium">
-                Tên đăng nhập
-              </Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Nhập tên đăng nhập"
-                className="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 h-11 transition-all"
-                {...register('username')}
-              />
-              {errors.username && (
-                <p className="text-xs text-red-500">{errors.username.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="email" className="text-foreground text-sm font-medium">
                 Email
               </Label>
@@ -123,6 +125,7 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                 >
@@ -148,6 +151,7 @@ export default function RegisterPage() {
                 />
                 <button
                   type="button"
+                  tabIndex={-1}
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                 >

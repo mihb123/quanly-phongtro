@@ -20,6 +20,8 @@ type ZaloCronService struct {
 	encryptionKey []byte
 }
 
+var TokenCheckCronSchedule = "0 */4 * * *"
+
 // NewZaloCronService constructs the cron service and schedules the token health check.
 func NewZaloCronService(client ZaloClient, userRepo model.UserRepository, encryptionKey []byte) *ZaloCronService {
 	c := cron.New(cron.WithLocation(time.UTC))
@@ -30,8 +32,7 @@ func NewZaloCronService(client ZaloClient, userRepo model.UserRepository, encryp
 		encryptionKey: encryptionKey,
 	}
 
-	// Schedule every 4 hours: "0 */4 * * *"
-	_, err := c.AddFunc("0 */4 * * *", func() {
+	_, err := c.AddFunc(TokenCheckCronSchedule, func() {
 		svc.checkAllTokens()
 	})
 	if err != nil {

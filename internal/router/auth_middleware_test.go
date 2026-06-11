@@ -15,7 +15,7 @@ func TestAuthMiddleware(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	jwtRepo := mock_model.NewMockJWTRefreshTokenRepository(ctrl)
+	jwtRepo := mock_model.NewMockAuthSessionRepository(ctrl)
 	jwtProvider := security.NewJWTProvider("access", "refresh", time.Hour, jwtRepo)
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +36,7 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("Valid token in header", func(t *testing.T) {
-		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true)
+		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true, "")
 		
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -50,7 +50,7 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("Valid token in cookie", func(t *testing.T) {
-		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true)
+		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true, "")
 		
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req.AddCookie(&http.Cookie{Name: "access_token", Value: token})
@@ -72,6 +72,33 @@ func TestAuthMiddleware(t *testing.T) {
 
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Missing DPoP proof", func(t *testing.T) {
+		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true, "dummy-jkt")
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+
+		middleware.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Invalid DPoP proof", func(t *testing.T) {
+		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true, "dummy-jkt")
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("DPoP", "invalid-proof")
+		rec := httptest.NewRecorder()
+
+		middleware.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("expected 401, got %d", rec.Code)
 		}
 	})
 }

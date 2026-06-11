@@ -675,3 +675,75 @@ func TestHandleWebhook_Phone(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestIsZaloAuthError(t *testing.T) {
+	assert.False(t, service.IsZaloAuthError(nil))
+	assert.False(t, service.IsZaloAuthError(errors.New("random error")))
+	assert.True(t, service.IsZaloAuthError(errors.New("some error -216")))
+	assert.True(t, service.IsZaloAuthError(errors.New("INVALID ACCESS TOKEN")))
+	assert.True(t, service.IsZaloAuthError(errors.New("unauthorized request")))
+}
+
+func TestHandleWebhook_OtherBranches(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+
+	t.Run("user already linked says botoi as manager", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(&model.User{ID: "m1", Role: model.RoleManager}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"botoi","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("user already linked says botoi as tenant", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(&model.User{ID: "t1", Role: model.RoleTenant}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"botơi","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("user already linked random message", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(&model.User{ID: "t1", Role: model.RoleTenant}, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"hello bot","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+	
+	t.Run("botoi group chat", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return(nil, nil)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "g1", "Bot đã kết nối thành công").Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"event_name":"user_send_text","message":{"text":"botoi","chat":{"id":"g1","title":"G1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+	
+	t.Run("user not linked, random message", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not found"))
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'.").Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"what","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("user not linked, phone not found", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not found"))
+		m.userRepo.EXPECT().GetByPhone(ctx, "0912345678").Return(nil, errors.New("not found"))
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại.").Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"0912345678","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("user not linked, says botoi", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not found"))
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo.").Return(nil)
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"botoi","from":{"id":"u1"}}}`), "secret")
+		assert.NoError(t, err)
+	})
+}

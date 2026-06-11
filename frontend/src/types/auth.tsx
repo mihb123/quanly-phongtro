@@ -1,12 +1,15 @@
 export type RegisterPayload = {
-  username: string
   password: string
   email: string
+  Latitude?: number
+  Longitude?: number
 }
 
 export type LoginPayload = {
   email: string
   password: string
+  Latitude?: number
+  Longitude?: number
 }
 
 export type AuthResponse = {
@@ -25,4 +28,5 @@ export type AuthOutput = {
   full_name?: string
   phone?: string
   is_activated: boolean
+  access_token?: string
 }

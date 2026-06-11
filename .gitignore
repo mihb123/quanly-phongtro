@@ -22,6 +22,7 @@
 !Dockerfile
 !*.sh
 !*.ps1
+!*.mmdb
 
 # Keep gitignore itself
 !.gitignore

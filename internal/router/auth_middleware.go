@@ -16,9 +16,10 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 			// 1. Try to get token from Authorization header
 			authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 			if authHeader != "" {
-				const prefix = "Bearer "
-				if strings.HasPrefix(authHeader, prefix) {
-					token = strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					token = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+				} else if strings.HasPrefix(authHeader, "DPoP ") {
+					token = strings.TrimSpace(strings.TrimPrefix(authHeader, "DPoP "))
 				}
 			}
 
@@ -41,6 +42,24 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 				logger.Warn(r, http.StatusBadRequest, "invalid access token", err)
 				writeError(w, http.StatusBadRequest, "invalid token")
 				return
+			}
+
+			if jkt, ok := claims.Cnf["jkt"]; ok && jkt != "" {
+				dpopProof := r.Header.Get("DPoP")
+				if dpopProof == "" {
+					logger.Warn(r, http.StatusUnauthorized, "missing DPoP proof for DPoP bound token", nil)
+					writeError(w, http.StatusUnauthorized, "missing DPoP proof")
+					return
+				}
+
+				htu := r.URL.Path
+
+				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, htu, token)
+				if err != nil || derivedJkt != jkt {
+					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof", err)
+					writeError(w, http.StatusUnauthorized, "invalid DPoP proof")
+					return
+				}
 			}
 
 			ctx := security.WithClaims(r.Context(), claims)

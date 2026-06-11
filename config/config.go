@@ -26,6 +26,7 @@ type Config struct {
 	MailFromName          string
 	OTPEXpireMinutes      time.Duration
 	ZaloBotEncryptionKey  string
+	GoogleMapAPIKey       string
 }
 
 func Load() (*Config, error) {
@@ -49,6 +50,7 @@ func Load() (*Config, error) {
 	mailFromName := getOrDefault("MAIL_FROM_NAME", "Go App")
 	otpExpireMinutes := os.Getenv("OTP_EXPIRE_MINIUTES")
 	zaloBotEncryptionKey := os.Getenv("ZALO_BOT_ENCRYPTION_KEY")
+	googleMapAPIKey := os.Getenv("GOOGLE_MAP_API_KEY")
 
 	if smtpUsername == "" {
 		return nil, errors.New("SMTP_USERNAME is required")
@@ -101,6 +103,7 @@ func Load() (*Config, error) {
 		MailFromEmail:         mailFromEmail,
 		MailFromName:          mailFromName,
 		ZaloBotEncryptionKey:  zaloBotEncryptionKey,
+		GoogleMapAPIKey:       googleMapAPIKey,
 	}, nil
 }
 

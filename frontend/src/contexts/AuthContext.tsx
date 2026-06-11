@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { getMe, logout as logoutApi } from '@/api/auth'
+import { getMe, logout as logoutApi, refreshToken } from '@/api/auth'
 import type { AuthOutput } from '@/types/auth'
 
 interface AuthContextType {
@@ -18,6 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function loadUser() {
       try {
+        await refreshToken()
         const data = await getMe()
         setUser(data)
       } catch {

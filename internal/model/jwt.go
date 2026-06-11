@@ -5,16 +5,21 @@ import (
 	"time"
 )
 
-type JWTRefreshToken struct {
-	ID           string
-	UserID       string
-	RefreshToken string
-	Revoked      bool
-	CreatedAt    time.Time
+type AuthSession struct {
+	ID           string    `bun:",pk,type:uuid,default:gen_random_uuid()"`
+	UserID       string    `bun:"user_id"`
+	RefreshToken string    `bun:"refresh_token"`
+	Revoked      bool      `bun:"revoked"`
+	IPAddress    string    `bun:"ip_address"`
+	UserAgent    string    `bun:"user_agent"`
+	Location     string    `bun:"location"`
+	JKT          string    `bun:"jkt"`
+	CreatedAt    time.Time `bun:"created_at"`
+	ExpiresAt    time.Time `bun:"expires_at"`
 }
 
-type JWTRefreshTokenRepository interface {
-	Create(ctx context.Context, token *JWTRefreshToken) error
-	FindByToken(ctx context.Context, token, userID string) (bool, error)
+type AuthSessionRepository interface {
+	Create(ctx context.Context, session *AuthSession) error
+	FindByToken(ctx context.Context, token, userID string) (*AuthSession, error)
 	Revoke(ctx context.Context, token, userID string) error
 }

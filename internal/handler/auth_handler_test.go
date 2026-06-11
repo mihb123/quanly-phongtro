@@ -27,7 +27,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "Happy path",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any()).Return(&service.AuthOutput{}, nil)
+				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.LoginOutput{}, nil)
 			},
 			wantStatus: http.StatusCreated,
 		},
@@ -47,7 +47,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "Service error - Email already exists",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any()).Return(nil, service.ErrEmailAlreadyExists)
+				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrEmailAlreadyExists)
 			},
 			wantStatus: http.StatusConflict,
 		},
@@ -55,7 +55,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "Service error - Invalid input",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidInput)
+				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidInput)
 			},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -63,7 +63,7 @@ func TestAuthHandler_Register(t *testing.T) {
 			name: "Service error - Unexpected error",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
+				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantStatus: http.StatusInternalServerError,
 		},
@@ -102,7 +102,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Happy path",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any()).Return(&service.LoginOutput{
+				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.LoginOutput{
 					AccessToken:  "access",
 					RefreshToken: "refresh",
 				}, nil)
@@ -125,7 +125,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Service error - Invalid credentials",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidCredentials)
+				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidCredentials)
 			},
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -133,7 +133,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Service error - Invalid input",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidInput)
+				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidInput)
 			},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -141,7 +141,7 @@ func TestAuthHandler_Login(t *testing.T) {
 			name: "Service error - Unexpected error",
 			body: `{"email": "test@test.local", "password": "password123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
+				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantStatus: http.StatusInternalServerError,
 		},
@@ -180,7 +180,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			name: "Happy path",
 			body: `{"refresh_token": "token123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123").Return(&service.LoginOutput{
+				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123", gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.LoginOutput{
 					AccessToken:  "access",
 					RefreshToken: "refresh",
 				}, nil)
@@ -203,7 +203,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			name: "Service error - Invalid refresh token",
 			body: `{"refresh_token": "token123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123").Return(nil, service.ErrInvalidCredentials)
+				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123", gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidCredentials)
 			},
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -211,7 +211,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			name: "Service error - Invalid input",
 			body: `{"refresh_token": "token123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123").Return(nil, service.ErrInvalidInput)
+				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123", gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, service.ErrInvalidInput)
 			},
 			wantStatus: http.StatusBadRequest,
 		},
@@ -219,7 +219,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			name: "Service error - Unexpected error",
 			body: `{"refresh_token": "token123"}`,
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
-				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123").Return(nil, errors.New("some error"))
+				mockSvc.EXPECT().RefreshToken(gomock.Any(), "token123", gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("some error"))
 			},
 			wantStatus: http.StatusInternalServerError,
 		},
@@ -235,7 +235,10 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 
 			h := handler.NewAuthHandler(mockSvc)
 
-			req := httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBuffer([]byte(tt.body)))
+			req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+			if tt.body != "invalid json" && tt.body != "{}" && tt.body != "" {
+				req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "token123"})
+			}
 			rec := httptest.NewRecorder()
 
 			h.RefreshToken(rec, req)
@@ -433,7 +436,7 @@ func TestAuthHandler_VerifyEmail(t *testing.T) {
 			},
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
 				mockSvc.EXPECT().IsBlockOTP(gomock.Any(), "test@test.local").Return(false, nil)
-				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456").Return(true, nil)
+				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456", gomock.Any()).Return("access_token", true, nil)
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -509,7 +512,7 @@ func TestAuthHandler_VerifyEmail(t *testing.T) {
 			},
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
 				mockSvc.EXPECT().IsBlockOTP(gomock.Any(), "test@test.local").Return(false, nil)
-				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456").Return(false, errors.New("db error"))
+				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456", gomock.Any()).Return("", false, errors.New("service error"))
 			},
 			wantStatus: http.StatusInternalServerError,
 		},
@@ -522,7 +525,7 @@ func TestAuthHandler_VerifyEmail(t *testing.T) {
 			},
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
 				mockSvc.EXPECT().IsBlockOTP(gomock.Any(), "test@test.local").Return(false, nil)
-				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456").Return(false, nil)
+				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456", gomock.Any()).Return("", false, nil)
 				mockSvc.EXPECT().IncrementOTPCheck(gomock.Any(), "test@test.local").Return(nil)
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -536,7 +539,7 @@ func TestAuthHandler_VerifyEmail(t *testing.T) {
 			},
 			mockSetup: func(mockSvc *mock_service.MockAuthService) {
 				mockSvc.EXPECT().IsBlockOTP(gomock.Any(), "test@test.local").Return(false, nil)
-				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456").Return(false, nil)
+				mockSvc.EXPECT().VerifyEmail(gomock.Any(), "test@test.local", "123456", gomock.Any()).Return("", false, nil)
 				mockSvc.EXPECT().IncrementOTPCheck(gomock.Any(), "test@test.local").Return(errors.New("db error"))
 			},
 			wantStatus: http.StatusUnauthorized,
