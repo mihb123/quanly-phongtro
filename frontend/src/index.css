@@ -48,83 +48,135 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* =========================================
+   PALETTES / DESIGN TOKENS
+   Cold Luxury (Monochrome + Cobalt Blue)
+========================================= */
+
 :root {
-    --background: oklch(1 0 0);
+    /* --- Core Colors --- */
+    --background: oklch(0.985 0.002 240);
     --foreground: oklch(0.145 0 0);
+
+    /* --- Surfaces / Cards --- */
     --card: oklch(1 0 0);
     --card-foreground: oklch(0.145 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
+
+    /* --- Brand Accents --- */
+    --primary: oklch(0.55 0.22 260); /* Vibrant Cobalt Blue */
+    --primary-foreground: oklch(0.98 0 0);
+    
+    --secondary: oklch(0.96 0.005 240);
+    --secondary-foreground: oklch(0.20 0.01 240);
+
+    /* --- UI States --- */
+    --muted: oklch(0.96 0.005 240);
+    --muted-foreground: oklch(0.55 0.01 240);
+    
+    --accent: oklch(0.96 0.005 240);
+    --accent-foreground: oklch(0.20 0.01 240);
+    
+    --destructive: oklch(0.57 0.18 25);
+    --border: oklch(0.90 0.01 240);
+    --input: oklch(0.90 0.01 240);
+    --ring: oklch(0.55 0.22 260);
+
+    /* Chart colors */
+    --chart-1: oklch(0.64 0.15 25);
+    --chart-2: oklch(0.60 0.11 180);
+    --chart-3: oklch(0.55 0.22 260);
+    --chart-4: oklch(0.75 0.14 85);
+    --chart-5: oklch(0.70 0.12 35);
+    
+    /* Variables */
+    --radius: 0.5rem;
+
+    /* --- Sidebar --- */
+    --sidebar: oklch(0.985 0.002 240);
     --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-primary: oklch(0.55 0.22 260);
+    --sidebar-primary-foreground: oklch(0.98 0 0);
+    --sidebar-accent: oklch(0.94 0.005 240);
+    --sidebar-accent-foreground: oklch(0.145 0 0);
+    --sidebar-border: oklch(0.90 0.01 240);
+    --sidebar-ring: oklch(0.55 0.22 260);
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: oklch(0.12 0.01 240); /* Off-black */
+    --foreground: oklch(0.95 0.01 240);
+    --card: oklch(0.15 0.01 240);
+    --card-foreground: oklch(0.95 0.01 240);
+    --popover: oklch(0.15 0.01 240);
+    --popover-foreground: oklch(0.95 0.01 240);
+    --primary: oklch(0.70 0.15 260); /* Softer Cobalt for dark mode */
+    --primary-foreground: oklch(0.10 0.01 240);
+    --secondary: oklch(0.20 0.02 240);
+    --secondary-foreground: oklch(0.95 0.01 240);
+    --muted: oklch(0.20 0.02 240);
+    --muted-foreground: oklch(0.65 0.01 240);
+    --accent: oklch(0.20 0.02 240);
+    --accent-foreground: oklch(0.95 0.01 240);
+    --destructive: oklch(0.65 0.18 25);
+    --border: oklch(0.25 0.02 240);
+    --input: oklch(0.25 0.02 240);
+    --ring: oklch(0.70 0.15 260);
+    --chart-1: oklch(0.64 0.15 25);
+    --chart-2: oklch(0.60 0.11 180);
+    --chart-3: oklch(0.70 0.15 260);
+    --chart-4: oklch(0.75 0.14 85);
+    --chart-5: oklch(0.70 0.12 35);
+    --sidebar: oklch(0.12 0.01 240);
+    --sidebar-foreground: oklch(0.95 0.01 240);
+    --sidebar-primary: oklch(0.70 0.15 260);
+    --sidebar-primary-foreground: oklch(0.10 0.01 240);
+    --sidebar-accent: oklch(0.20 0.02 240);
+    --sidebar-accent-foreground: oklch(0.95 0.01 240);
+    --sidebar-border: oklch(0.25 0.02 240);
+    --sidebar-ring: oklch(0.70 0.15 260);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
+  }
   body {
-    @apply bg-background text-foreground;
-    }
+    @apply bg-background text-foreground overscroll-none;
+  }
   html {
     @apply font-sans;
-    }
+  }
+  /* Prevent iOS zoom on inputs */
+  input, textarea, select {
+    @apply text-base md:text-sm;
+  }
+}
+
+@layer components {
+  /* Mobile First: Form elements and buttons must have min-height 44px for touch target */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] p-2 flex items-center justify-center;
+  }
+
+  /* Reusable card for list items on mobile */
+  .mobile-card {
+    @apply bg-card border border-border/50 rounded-xl p-4 shadow-sm flex flex-col gap-2;
+  }
+
+  /* Safe area padding for bottom nav */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Safe fade in without transform context for mobile select bug */
+  .safe-fade-in {
+    animation: safeFadeIn 300ms ease-out both;
+  }
+}
+
+@keyframes safeFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

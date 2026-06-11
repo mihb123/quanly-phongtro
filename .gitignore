@@ -18,12 +18,15 @@
 !*.css
 !*.svg
 !*.ico
-!*.png
-!*.jpg
 !Makefile
 !Dockerfile
 !*.sh
 !*.ps1
+!*.mmdb
 
 # Keep gitignore itself
 !.gitignore
+uploads/*
+.kilo
+!nginx.conf
+mock/

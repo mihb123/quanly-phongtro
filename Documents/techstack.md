@@ -20,3 +20,4 @@ Dự án sử dụng các công nghệ hiện đại nhằm đảm bảo hiệu 
 ## 4. Công cụ hỗ trợ và Tooling
 - **Version Control**: Git / GitHub.
 - **Đóng gói dự án**: Docker / Docker Compose.
+- **Live Reload**: [Air](https://github.com/air-verse/air) (Tự động restart server khi code thay đổi).

@@ -1,0 +1,3 @@
+ALTER TABLE auth_sessions ADD COLUMN latitude DOUBLE PRECISION NULL;
+ALTER TABLE auth_sessions ADD COLUMN longitude DOUBLE PRECISION NULL;
+ALTER TABLE auth_sessions ADD COLUMN geocoding_source VARCHAR(50) NULL;

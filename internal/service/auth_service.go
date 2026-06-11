@@ -27,10 +27,10 @@ type PasswordHasher interface {
 }
 
 type TokenProvider interface {
-	GenerateAccessToken(role, email, userID string, isActivated bool) (string, error)
-	GenerateRefreshToken(ctx context.Context, userID string) (string, error)
+	GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error)
+	GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error)
 	RevokeRefreshToken(ctx context.Context, token string, userID string) error
-	FindByToken(ctx context.Context, token string, userID string) (bool, error)
+	FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error)
 	GetAccessTokenTTL() time.Duration
 	Parse(tokenString string, tokenType string) (*security.Claims, error)
 }
@@ -47,29 +47,44 @@ type AuthServiceImpl struct {
 	emailSender       EmailSender
 	OTPExpiresIn      time.Duration
 	otpCheck          model.OTPCheckRepository
+	geoip             GeoIPService
+	geocoding         GeocodingService
 }
 
 type AuthService interface {
-	Register(ctx context.Context, in RegisterInput) (*AuthOutput, error)
-	Login(ctx context.Context, in LoginInput) (*LoginOutput, error)
-	RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error)
+	Register(ctx context.Context, in RegisterInput, ipAddress, userAgent, jkt string) (*LoginOutput, error)
+	Login(ctx context.Context, in LoginInput, ipAddress, userAgent, jkt string) (*LoginOutput, error)
+	RefreshToken(ctx context.Context, refreshToken, ipAddress, userAgent, jkt string) (*LoginOutput, error)
+	Logout(ctx context.Context, refreshToken string) error
 	GetMe(ctx context.Context, userID string) (*AuthOutput, error)
 	CreateOTP(ctx context.Context, email string) error
-	VerifyEmail(ctx context.Context, email, otp string) (bool, error)
+	VerifyEmail(ctx context.Context, email, otp, jkt string) (string, bool, error)
 	IncrementOTPCheck(ctx context.Context, email string) error
 	IsBlockOTP(ctx context.Context, email string) (bool, error)
+	UpdateProfile(ctx context.Context, userID string, in UpdateProfileInput) (*AuthOutput, error)
+}
+
+type UpdateProfileInput struct {
+	FullName        *string `json:"full_name"`
+	Phone           *string `json:"phone"`
+	OldPassword     *string `json:"old_password"`
+	Password        *string `json:"password"`
 }
 
 type RegisterInput struct {
-	Email    string
-	Password string
-	FullName string
-	Phone    string
+	Email     string
+	Password  string
+	FullName  string
+	Phone     string
+	Latitude  *float64
+	Longitude *float64
 }
 
 type LoginInput struct {
-	Email    string
-	Password string
+	Email     string
+	Password  string
+	Latitude  *float64
+	Longitude *float64
 }
 
 type LoginOutput struct {
@@ -82,13 +97,13 @@ type AuthOutput struct {
 	UserID      string `json:"user_id"`
 	Email       string `json:"email"`
 	Role        string `json:"role"`
-	FullName    string `json:"full_name,omitempty"`
-	Phone       string `json:"phone,omitempty"`
+	FullName    string `json:"full_name"`
+	Phone       string `json:"phone"`
 	IsActivated bool   `json:"is_activated"`
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token,omitempty"`
 }
 
-func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository) *AuthServiceImpl {
+func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens TokenProvider, verifyEmailRepo model.EmailVerificationRepository, emailSender EmailSender, otpExpiresIn time.Duration, otpCheck model.OTPCheckRepository, geoip GeoIPService, geocoding GeocodingService) *AuthServiceImpl {
 	return &AuthServiceImpl{
 		users:             users,
 		hasher:            hasher,
@@ -97,16 +112,15 @@ func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens To
 		emailSender:       emailSender,
 		OTPExpiresIn:      otpExpiresIn,
 		otpCheck:          otpCheck,
+		geoip:             geoip,
+		geocoding:         geocoding,
 	}
 }
 
-func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*AuthOutput, error) {
+func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
 	email := strings.TrimSpace(strings.ToLower(in.Email))
-	password := strings.TrimSpace(in.Password)
-	fullName := strings.TrimSpace(in.FullName)
-	phone := strings.TrimSpace(in.Phone)
 
-	if !isValidEmail(email) || len(password) < 6 {
+	if !isValidEmail(email) {
 		return nil, ErrInvalidInput
 	}
 
@@ -119,17 +133,17 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	passwordHash, err := s.hasher.Hash(password)
+	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
 		return nil, err
 	}
 
 	newUser := &model.User{
-		Email:        email,
+		Email:        in.Email,
 		PasswordHash: passwordHash,
 		Role:         model.RoleManager,
-		FullName:     fullName,
-		Phone:        phone,
+		FullName:     in.FullName,
+		Phone:        in.Phone,
 		IsActivated:  false,
 	}
 
@@ -141,23 +155,39 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput) (*Auth
 		return nil, err
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(string(newUser.Role), newUser.Email, newUser.ID, newUser.IsActivated)
+	accessToken, err := s.tokens.GenerateAccessToken(string(newUser.Role), newUser.Email, newUser.ID, newUser.IsActivated, jkt)
 	if err != nil {
 		return nil, err
 	}
 
-	return &AuthOutput{
-		UserID:      newUser.ID,
-		Email:       newUser.Email,
-		Role:        string(newUser.Role),
-		FullName:    newUser.FullName,
-		Phone:       newUser.Phone,
-		IsActivated: newUser.IsActivated,
-		AccessToken: accessToken,
+	location := "Unknown"
+	var geocodingSource *string
+	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
+		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
+			location = addr
+			geocodingSource = &source
+		} else if s.geoip != nil {
+			location = s.geoip.LookupLocation(ipAddress)
+		}
+	} else if s.geoip != nil {
+		location = s.geoip.LookupLocation(ipAddress)
+	}
+
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
+	if err != nil {
+		return nil, err
+	}
+
+	ttl := s.tokens.GetAccessTokenTTL()
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(ttl.Seconds()),
 	}, nil
 }
 
-func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutput, error) {
+func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
 	email := strings.TrimSpace(strings.ToLower(in.Email))
 	password := strings.TrimSpace(in.Password)
 
@@ -165,7 +195,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, ErrInvalidInput
 	}
 
-	existingUser, err := s.users.GetByEmail(ctx, email)
+	existingUser, err := s.users.GetAuthUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return nil, ErrInvalidCredentials
@@ -174,16 +204,29 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput) (*LoginOutpu
 		return nil, err
 	}
 
-	if err := s.hasher.Compare(existingUser.PasswordHash, password); err != nil {
+	if err := s.hasher.Compare(existingUser.PasswordHash, in.Password); err != nil {
 		return nil, ErrInvalidCredentials
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(string(existingUser.Role), existingUser.Email, existingUser.ID, existingUser.IsActivated)
+	accessToken, err := s.tokens.GenerateAccessToken(string(existingUser.Role), existingUser.Email, existingUser.ID, existingUser.IsActivated, jkt)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID)
+	location := "Unknown"
+	var geocodingSource *string
+	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
+		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
+			location = addr
+			geocodingSource = &source
+		} else if s.geoip != nil {
+			location = s.geoip.LookupLocation(ipAddress)
+		}
+	} else if s.geoip != nil {
+		location = s.geoip.LookupLocation(ipAddress)
+	}
+
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +254,7 @@ func generateSixDigitOTP() (string, error) {
 	return fmt.Sprintf("%06d", n.Int64()), nil
 }
 
-func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string) (*LoginOutput, error) {
+func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
 	claims, err := s.tokens.Parse(refreshToken, "refresh")
 	if err != nil {
 		return nil, err
@@ -222,12 +265,16 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		return nil, err
 	}
 
-	isRevoked, err := s.tokens.FindByToken(ctx, refreshToken, userID)
+	session, err := s.tokens.FindByToken(ctx, refreshToken, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	if isRevoked {
+	if session == nil || session.Revoked || time.Now().After(session.ExpiresAt) {
+		return nil, ErrInvalidCredentials
+	}
+
+	if session.JKT != jkt && session.JKT != "" {
 		return nil, ErrInvalidCredentials
 	}
 	user, err := s.users.GetByUserID(ctx, userID)
@@ -236,12 +283,17 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		return nil, ErrInvalidCredentials
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, user.IsActivated)
+	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, user.IsActivated, jkt)
 	if err != nil {
 		return nil, err
 	}
 
-	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID)
+	location := "Unknown"
+	if s.geoip != nil {
+		location = s.geoip.LookupLocation(ipAddress)
+	}
+
+	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt, nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,6 +303,21 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken string)
 		RefreshToken: newRefreshToken,
 		ExpiresIn:    int64(s.tokens.GetAccessTokenTTL().Seconds()),
 	}, nil
+}
+
+func (s *AuthServiceImpl) Logout(ctx context.Context, refreshToken string) error {
+	claims, err := s.tokens.Parse(refreshToken, "refresh")
+	if err != nil {
+		// If it's already invalid/expired, we don't care
+		return nil
+	}
+
+	userID, err := claims.GetSubject()
+	if err != nil {
+		return nil
+	}
+
+	return s.tokens.RevokeRefreshToken(ctx, refreshToken, userID)
 }
 
 func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput, error) {
@@ -299,7 +366,7 @@ func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err erro
 	return nil
 }
 
-func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (bool, error) {
+func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp, jkt string) (string, bool, error) {
 	emailVeri := &model.EmailVerification{
 		Email: email,
 		OTP:   otp,
@@ -308,24 +375,34 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp string) (b
 	err := s.emailVerification.GetOTP(ctx, emailVeri)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return false, nil
+			return "", false, nil
 		}
-		return false, err
+		return "", false, err
 	}
 	if time.Since(emailVeri.Expires) > s.OTPExpiresIn || emailVeri.IsUsed {
-		return false, nil
+		return "", false, nil
 	}
 
 	err = s.emailVerification.UpdateUsedOTP(ctx, emailVeri)
 	if err != nil {
-		return false, errors.New("cannot update used otp")
+		return "", false, errors.New("cannot update used otp")
 	}
 	err = s.users.ActivateUser(ctx, emailVeri.Email)
 	if err != nil {
-		return false, err
+		return "", false, err
 	}
-	return true, nil
 
+	user, err := s.users.GetByEmail(ctx, email)
+	if err != nil {
+		return "", false, err
+	}
+
+	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, true, jkt)
+	if err != nil {
+		return "", false, err
+	}
+
+	return accessToken, true, nil
 }
 
 func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) error {
@@ -362,3 +439,46 @@ func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, e
 	}
 	return false, nil
 }
+
+func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in UpdateProfileInput) (*AuthOutput, error) {
+	updateInput := model.UpdateUserInput{
+		FullName: in.FullName,
+		Phone:    in.Phone,
+	}
+
+	if in.Password != nil && *in.Password != "" {
+		if in.OldPassword == nil || *in.OldPassword == "" {
+			return nil, fmt.Errorf("old password is required to set a new password: %w", ErrInvalidInput)
+		}
+
+		user, err := s.users.GetByUserID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+
+		if err := s.hasher.Compare(user.PasswordHash, *in.OldPassword); err != nil {
+			return nil, fmt.Errorf("invalid old password: %w", ErrInvalidCredentials)
+		}
+
+		hash, err := s.hasher.Hash(*in.Password)
+		if err != nil {
+			return nil, fmt.Errorf("hash password failed: %w", err)
+		}
+		updateInput.PasswordHash = &hash
+	}
+
+	user, err := s.users.UpdateUser(ctx, userID, updateInput)
+	if err != nil {
+		return nil, fmt.Errorf("update user failed: %w", err)
+	}
+
+	return &AuthOutput{
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
+	}, nil
+}
+

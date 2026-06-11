@@ -1,0 +1,28 @@
+# Backend DPoP Implementation Tasks
+
+- `[x]` **Explore current database migration setup**
+  - Check how Bun ORM migrations are handled in the project.
+- `[x]` **Create Migration for `auth_sessions`**
+  - Rename table `jwt_refresh_tokens` to `auth_sessions` (or create new if preferred, but plan says upgrade).
+  - Add columns: `ip_address`, `user_agent`, `jkt`, `expires_at`.
+- `[x]` **Update Database Models & Repositories**
+  - Update `internal/model/jwt.go` (or `auth_session.go`) structure.
+  - Update `internal/repository/jwt_refresh_token.go` to handle new columns and name.
+- `[x]` **Implement `internal/security/dpop.go`**
+  - Create DPoP parsing and verification logic using `golang-jwt/jwt/v5`.
+  - Implement `sync.Map` based replay cache for `jti`.
+- `[x]` **Update `internal/security/jwt.go`**
+  - Add `Cnf` to JWT `Claims`.
+  - Update `GenerateAccessToken` and `GenerateRefreshToken` to accept `jkt`.
+- `[x]` **Update `internal/service/auth_service.go`**
+  - Update `Login`, `Register`, and `RefreshToken` to take device info (`IP`, `UserAgent`) and `jkt`.
+- `[x]` **Update `internal/handler/auth_handler.go`**
+  - Extract `DPoP` header, parse JWK to get `jkt`.
+  - Pass `IPAddress` (from `r.RemoteAddr` or headers) and `UserAgent` to service.
+- `[x]` **Update `internal/router/auth_middleware.go`**
+  - Verify DPoP proof signature, `htu`, `htm`.
+  - Verify access token `cnf.jkt` against DPoP public key thumbprint.
+- `[x]` **Update Tests & Verify**
+  - Fix compiler errors in tests.
+  - Add tests for `auth_middleware.go` DPoP logic.
+  - Run `go test` to ensure full backend coverage.

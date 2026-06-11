@@ -11,6 +11,9 @@ import (
 
 type Config struct {
 	AppPort               string
+	AppEnv                string
+	AppURL                string
+	AppURLDev             string
 	PostgresDSN           string
 	AccessTokenJWTSecret  string
 	RefreshTokenJWTSecret string
@@ -22,6 +25,8 @@ type Config struct {
 	MailFromEmail         string
 	MailFromName          string
 	OTPEXpireMinutes      time.Duration
+	ZaloBotEncryptionKey  string
+	GoogleMapAPIKey       string
 }
 
 func Load() (*Config, error) {
@@ -30,6 +35,9 @@ func Load() (*Config, error) {
 	}
 
 	appPort := getOrDefault("APP_PORT", "8080")
+	appEnv := getOrDefault("APP_ENV", "prod")
+	appURL := getOrDefault("APP_URL", "localhost:8080")
+	appURLDev := os.Getenv("APP_URL_DEV")
 	postgresDSN := os.Getenv("POSTGRES_DSN")
 	accessTokenJWTSecret := os.Getenv("ACCESS_TOKEN_JWT_SECRET")
 	refreshTokenJWTSecret := os.Getenv("REFRESH_TOKEN_JWT_SECRET")
@@ -41,6 +49,8 @@ func Load() (*Config, error) {
 	mailFromEmail := getOrDefault("MAIL_FROM_EMAIL", "no-reply@example.com")
 	mailFromName := getOrDefault("MAIL_FROM_NAME", "Go App")
 	otpExpireMinutes := os.Getenv("OTP_EXPIRE_MINIUTES")
+	zaloBotEncryptionKey := os.Getenv("ZALO_BOT_ENCRYPTION_KEY")
+	googleMapAPIKey := os.Getenv("GOOGLE_MAP_API_KEY")
 
 	if smtpUsername == "" {
 		return nil, errors.New("SMTP_USERNAME is required")
@@ -48,6 +58,10 @@ func Load() (*Config, error) {
 
 	if smtpPassword == "" {
 		return nil, errors.New("SMTP_PASSWORD is required")
+	}
+
+	if zaloBotEncryptionKey == "" {
+		return nil, errors.New("ZALO_BOT_ENCRYPTION_KEY is required")
 	}
 
 	if postgresDSN == "" {
@@ -74,6 +88,9 @@ func Load() (*Config, error) {
 
 	return &Config{
 		AppPort:               appPort,
+		AppEnv:                appEnv,
+		AppURL:                appURL,
+		AppURLDev:             appURLDev,
 		PostgresDSN:           postgresDSN,
 		AccessTokenJWTSecret:  accessTokenJWTSecret,
 		RefreshTokenJWTSecret: refreshTokenJWTSecret,
@@ -85,6 +102,8 @@ func Load() (*Config, error) {
 		SMTPPassword:          smtpPassword,
 		MailFromEmail:         mailFromEmail,
 		MailFromName:          mailFromName,
+		ZaloBotEncryptionKey:  zaloBotEncryptionKey,
+		GoogleMapAPIKey:       googleMapAPIKey,
 	}, nil
 }
 

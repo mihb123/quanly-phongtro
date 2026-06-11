@@ -4,6 +4,8 @@ import RegisterPage from '@/pages/Register'
 import HomePage from '@/pages/Home'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
+import VerifyEmailPage from '@/pages/VerifyEmail'
+
 const router = createBrowserRouter([
   {
     path: '/',
@@ -20,6 +22,14 @@ const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  {
+    path: '/verify-email',
+    element: (
+      <ProtectedRoute>
+        <VerifyEmailPage />
+      </ProtectedRoute>
+    ),
   },
 ])
 

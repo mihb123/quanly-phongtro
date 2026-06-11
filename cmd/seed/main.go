@@ -40,14 +40,14 @@ func main() {
 	}{
 		{
 			email:    "manager@test.com",
-			password: "password123",
+			password: "password12300",
 			role:     model.RoleManager,
 			fullName: "Test Manager",
 			phone:    "0123456789",
 		},
 		{
 			email:    "tenant@test.com",
-			password: "password123",
+			password: "password12300",
 			role:     model.RoleTenant,
 			fullName: "Test Tenant",
 			phone:    "0987654321",

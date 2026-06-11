@@ -7,40 +7,59 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type RoomHandler struct {
-	roomService service.RoomService
+	roomService    service.RoomService
+	invoiceService service.InvoiceService
 }
 
-func NewRoomHandler(roomService service.RoomService) *RoomHandler {
-	return &RoomHandler{roomService: roomService}
+func NewRoomHandler(roomService service.RoomService, invoiceService service.InvoiceService) *RoomHandler {
+	return &RoomHandler{roomService: roomService, invoiceService: invoiceService}
 }
 
 type createRoomRequest struct {
-	HouseID     string `json:"house_id" validate:"required"`
-	Name        string `json:"name" validate:"required"`
-	Price       int64  `json:"price" validate:"gte=0"`
-	MaxTennants int    `json:"max_tennants" validate:"gte=1"`
-	Status      string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID               string   `json:"house_id" validate:"required"`
+	Name                  string   `json:"name" validate:"required"`
+	Price                 int64    `json:"price" validate:"gte=0"`
+	MaxTenants            int      `json:"max_tenants" validate:"gte=1"`
+	Status                string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice      *float64 `json:"electricity_price,omitempty"`
+	WaterPrice            *float64 `json:"water_price,omitempty"`
+	WifiPrice             *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice          *float64 `json:"parking_price,omitempty"`
+	ServicePrice          *float64 `json:"service_price,omitempty"`
+	ExtraPersonThreshold  *int     `json:"extra_person_threshold,omitempty"`
+	ExtraPersonFee        *float64 `json:"extra_person_fee,omitempty"`
+	ExtraVehicleThreshold *int     `json:"extra_vehicle_threshold,omitempty"`
+	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
 }
 
 type updateRoomRequest struct {
-	HouseID     string  `json:"house_id" validate:"required"`
-	Name        *string `json:"name"`
-	Price       *int64  `json:"price" validate:"omitempty,gte=0"`
-	MaxTennants *int    `json:"max_tennants" validate:"omitempty,gte=1"`
-	Status      *string `json:"status" validate:"omitempty,oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	HouseID               string   `json:"house_id" validate:"required"`
+	Name                  string   `json:"name" validate:"required"`
+	Price                 int64    `json:"price" validate:"gte=0"`
+	MaxTenants            int      `json:"max_tenants" validate:"gte=1"`
+	Status                string   `json:"status" validate:"oneof=AVAILABLE OCCUPIED MAINTENANCE"`
+	ElectricityPrice      *float64 `json:"electricity_price,omitempty"`
+	WaterPrice            *float64 `json:"water_price,omitempty"`
+	WifiPrice             *float64 `json:"wifi_price,omitempty"`
+	ParkingPrice          *float64 `json:"parking_price,omitempty"`
+	ServicePrice          *float64 `json:"service_price,omitempty"`
+	ExtraPersonThreshold  *int     `json:"extra_person_threshold,omitempty"`
+	ExtraPersonFee        *float64 `json:"extra_person_fee,omitempty"`
+	ExtraVehicleThreshold *int     `json:"extra_vehicle_threshold,omitempty"`
+	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
 }
 
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
 func getManagerID(r *http.Request, w http.ResponseWriter) (string, bool) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return "", false
@@ -96,11 +115,20 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room := &model.Room{
-		HouseID:     req.HouseID,
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      status,
+		HouseID:               req.HouseID,
+		Name:                  req.Name,
+		Price:                 req.Price,
+		MaxTenants:            req.MaxTenants,
+		Status:                status,
+		ElectricityPrice:      req.ElectricityPrice,
+		WaterPrice:            req.WaterPrice,
+		WifiPrice:             req.WifiPrice,
+		ParkingPrice:          req.ParkingPrice,
+		ServicePrice:          req.ServicePrice,
+		ExtraPersonThreshold:  req.ExtraPersonThreshold,
+		ExtraPersonFee:        req.ExtraPersonFee,
+		ExtraVehicleThreshold: req.ExtraVehicleThreshold,
+		ExtraVehicleFee:       req.ExtraVehicleFee,
 	}
 
 	if err := h.roomService.CreateRoom(r.Context(), room, managerID); err != nil {
@@ -129,7 +157,7 @@ func (h *RoomHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	}
 	limitInt, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil || limitInt < 1 {
-		limitInt = 10
+		limitInt = 25
 	}
 
 	rooms, err := h.roomService.ListRoomsByHouseID(r.Context(), houseID, managerID, pageInt, limitInt)
@@ -184,15 +212,31 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	room, err := h.roomService.UpdateRoom(r.Context(), id, req.HouseID, managerID, service.UpdateRoomInput{
-		Name:        req.Name,
-		Price:       req.Price,
-		MaxTennants: req.MaxTennants,
-		Status:      req.Status,
+		Name:                  req.Name,
+		Price:                 req.Price,
+		MaxTenants:            req.MaxTenants,
+		Status:                req.Status,
+		ElectricityPrice:      req.ElectricityPrice,
+		WaterPrice:            req.WaterPrice,
+		WifiPrice:             req.WifiPrice,
+		ParkingPrice:          req.ParkingPrice,
+		ServicePrice:          req.ServicePrice,
+		ExtraPersonThreshold:  req.ExtraPersonThreshold,
+		ExtraPersonFee:        req.ExtraPersonFee,
+		ExtraVehicleThreshold: req.ExtraVehicleThreshold,
+		ExtraVehicleFee:       req.ExtraVehicleFee,
 	})
 	if err != nil {
 		handleRoomError(w, r, err)
 		return
 	}
+
+	// Trigger recalculation for UNPAID invoices when room is updated
+	err = h.invoiceService.RecalculateUnpaidInvoicesByRoom(r.Context(), managerID, id)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after room update", err)
+	}
+
 	writeJSON(w, http.StatusOK, room, "")
 }
 

@@ -7,13 +7,15 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
 type Claims struct {
-	IsActivated bool   `json:"is_activated"`
-	Email       string `json:"email"`
-	Role        string `json:"role"`
+	IsActivated bool              `json:"is_activated"`
+	Email       string            `json:"email"`
+	Role        string            `json:"role"`
+	Cnf         map[string]string `json:"cnf,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -21,10 +23,10 @@ type JWTProvider struct {
 	accessSecret  []byte
 	refreshSecret []byte
 	ttl           time.Duration
-	jwtRepo       model.JWTRefreshTokenRepository
+	jwtRepo       model.AuthSessionRepository
 }
 
-func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRepo model.JWTRefreshTokenRepository) *JWTProvider {
+func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRepo model.AuthSessionRepository) *JWTProvider {
 	return &JWTProvider{
 		accessSecret:  []byte(accessSecret),
 		refreshSecret: []byte(refreshSecret),
@@ -33,12 +35,19 @@ func NewJWTProvider(accessSecret, refreshSecret string, ttl time.Duration, jwtRe
 	}
 }
 
-func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivated bool) (string, error) {
+func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error) {
+	var cnf map[string]string
+	if jkt != "" {
+		cnf = map[string]string{"jkt": jkt}
+	}
+
 	claims := Claims{
 		IsActivated: isActivated,
 		Email:       email,
 		Role:        role,
+		Cnf:         cnf,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(p.ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -49,11 +58,20 @@ func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivate
 	return token.SignedString(p.accessSecret)
 }
 
-func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID string) (string, error) {
+func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error) {
+	var cnf map[string]string
+	if jkt != "" {
+		cnf = map[string]string{"jkt": jkt}
+	}
+
+	expiresAt := time.Now().Add(p.ttl * 24 * 30)
+
 	claims := jwt.MapClaims{
+		"jti": uuid.New().String(),
 		"sub": userID,
-		"exp": time.Now().Add(p.ttl * 24 * 30).Unix(),
+		"exp": expiresAt.Unix(),
 		"iat": time.Now().Unix(),
+		"cnf": cnf,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -62,11 +80,19 @@ func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID string) (
 		return "", err
 	}
 
-	refreshToken := &model.JWTRefreshToken{
-		UserID:       userID,
-		RefreshToken: signedToken,
+	session := &model.AuthSession{
+		UserID:          userID,
+		RefreshToken:    signedToken,
+		IPAddress:       ipAddress,
+		UserAgent:       userAgent,
+		Location:        location,
+		Latitude:        latitude,
+		Longitude:       longitude,
+		GeocodingSource: geocodingSource,
+		JKT:             jkt,
+		ExpiresAt:       expiresAt,
 	}
-	if err := p.jwtRepo.Create(ctx, refreshToken); err != nil {
+	if err := p.jwtRepo.Create(ctx, session); err != nil {
 		return "", err
 	}
 
@@ -77,7 +103,7 @@ func (p *JWTProvider) RevokeRefreshToken(ctx context.Context, token string, user
 	return p.jwtRepo.Revoke(ctx, token, userID)
 }
 
-func (p *JWTProvider) FindByToken(ctx context.Context, token string, userID string) (bool, error) {
+func (p *JWTProvider) FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error) {
 	return p.jwtRepo.FindByToken(ctx, token, userID)
 }
 

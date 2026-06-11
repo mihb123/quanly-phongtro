@@ -3,11 +3,13 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"strings"
 
-	"github.com/mihb123/quanly-phongtro/internal/logger"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type AuthHandler struct {
@@ -21,13 +23,21 @@ type refreshTokenRequest struct {
 type registerRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=6"`
-	FullName string `json:"full_name"`
-	Phone    string `json:"phone"`
+	FullName  string   `json:"full_name"`
+	Phone     string   `json:"phone"`
+	Latitude  *float64 `json:"Latitude"`
+	Longitude *float64 `json:"Longitude"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+	Email     string   `json:"email" validate:"required,email"`
+	Password  string   `json:"password" validate:"required"`
+	Latitude  *float64 `json:"Latitude"`
+	Longitude *float64 `json:"Longitude"`
+}
+
+type verifyEmailRequest struct {
+	OTP string `json:"otp" validate:"required"`
 }
 
 func NewAuthHandler(service service.AuthService) *AuthHandler {
@@ -48,12 +58,29 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ipAddress := getClientIP(r)
+	userAgent := r.UserAgent()
+	dpopProof := r.Header.Get("DPoP")
+	
+	jkt := ""
+	if dpopProof != "" {
+		var err error
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		if err != nil {
+			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
+			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			return
+		}
+	}
+
 	output, err := h.service.Register(r.Context(), service.RegisterInput{
-		Email:    req.Email,
-		Password: req.Password,
-		FullName: req.FullName,
-		Phone:    req.Phone,
-	})
+		Email:     strings.TrimSpace(strings.ToLower(req.Email)),
+		Password:  strings.TrimSpace(req.Password),
+		FullName:  strings.TrimSpace(req.FullName),
+		Phone:     strings.TrimSpace(req.Phone),
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+	}, ipAddress, userAgent, jkt)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
@@ -70,6 +97,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusCreated, output, "registered successfully")
 }
 
@@ -87,10 +115,27 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ipAddress := getClientIP(r)
+	userAgent := r.UserAgent()
+	dpopProof := r.Header.Get("DPoP")
+	
+	jkt := ""
+	if dpopProof != "" {
+		var err error
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		if err != nil {
+			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
+			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			return
+		}
+	}
+
 	output, err := h.service.Login(r.Context(), service.LoginInput{
-		Email:    req.Email,
-		Password: req.Password,
-	})
+		Email:     strings.TrimSpace(strings.ToLower(req.Email)),
+		Password:  strings.TrimSpace(req.Password),
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+	}, ipAddress, userAgent, jkt)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
@@ -112,20 +157,30 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	var req refreshTokenRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	cookie, err := r.Cookie("refresh_token")
+	if err != nil || cookie.Value == "" {
+		logger.Warn(r, http.StatusBadRequest, "missing refresh token cookie", nil)
+		writeError(w, http.StatusBadRequest, "missing refresh token cookie")
 		return
 	}
+	refreshTokenStr := cookie.Value
 
-	if err := validateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+	ipAddress := getClientIP(r)
+	userAgent := r.UserAgent()
+	dpopProof := r.Header.Get("DPoP")
+	
+	jkt := ""
+	if dpopProof != "" {
+		var err error
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		if err != nil {
+			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
+			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			return
+		}
 	}
 
-	output, err := h.service.RefreshToken(r.Context(), req.RefreshToken)
+	output, err := h.service.RefreshToken(r.Context(), refreshTokenStr, ipAddress, userAgent, jkt)
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrInvalidInput):
@@ -136,7 +191,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "invalid credentials")
 		default:
 			logger.Error(r, http.StatusInternalServerError, "unexpected error during token refresh", err)
-			writeError(w, http.StatusInternalServerError, "internal server error")
+			writeError(w, http.StatusInternalServerError, err.Error())
 		}
 		return
 	}
@@ -166,7 +221,41 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user, "get user successfully")
 }
 
+func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication token")
+		return
+	}
+
+	userID, err := claims.GetSubject()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "invalid token")
+		return
+	}
+
+	var req service.UpdateProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	user, err := h.service.UpdateProfile(r.Context(), userID, req)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "update profile failed", err)
+		writeError(w, http.StatusInternalServerError, "update profile failed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, user, "profile updated successfully")
+}
+
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("refresh_token")
+	if err == nil && cookie.Value != "" {
+		_ = h.service.Logout(r.Context(), cookie.Value)
+	}
 	clearTokenCookies(w)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -252,9 +341,7 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "account is already activated")
 		return
 	}
-	var req struct {
-		OTP string `json:"otp" validate:"required"`
-	}
+	var req verifyEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Warn(r, http.StatusBadRequest, "invalid body request", err)
 		writeError(w, http.StatusBadRequest, "invalid body request")
@@ -277,7 +364,12 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "too many request")
 		return
 	}
-	ok, err = h.service.VerifyEmail(r.Context(), claims.Email, req.OTP)
+	jkt := ""
+	if claims.Cnf != nil {
+		jkt = claims.Cnf["jkt"]
+	}
+
+	accessToken, ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP, jkt)
 	if err != nil {
 		logger.Error(r, http.StatusInternalServerError, "failed to verify email", err)
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -293,5 +385,23 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, nil, "successs")
+	// Read existing refresh token cookie so we don't clear it
+	refreshToken := ""
+	if cookie, err := r.Cookie("refresh_token"); err == nil {
+		refreshToken = cookie.Value
+	}
+
+	setTokenCookies(w, accessToken, refreshToken)
+	writeJSON(w, http.StatusOK, map[string]string{"access_token": accessToken}, "email verified successfully")
+}
+
+func getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return strings.Split(xff, ",")[0]
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr // Fallback to raw if not ip:port
+	}
+	return host
 }

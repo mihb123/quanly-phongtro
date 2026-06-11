@@ -25,6 +25,14 @@ Mỗi user (MANAGER) có thể quản lý nhiều nhà trọ.
 - `default_wifi_price`: Decimal.
 - `default_parking_price`: Decimal.
 - `default_service_price`: Decimal.
+- `electricity_billing_type`: Varchar (VD: 'USAGE', 'FIXED').
+- `water_billing_type`: Varchar (VD: 'USAGE', 'FIXED').
+- `electricity_billing_unit`: Varchar (VD: 'ROOM', 'PERSON').
+- `water_billing_unit`: Varchar (VD: 'ROOM', 'PERSON').
+- `extra_person_threshold`: Integer (Số người mặc định không tính phụ phí).
+- `extra_person_fee`: Decimal (Phí thu thêm cho mỗi người vượt mức).
+- `extra_vehicle_threshold`: Integer (Số xe mặc định không tính phụ phí).
+- `extra_vehicle_fee`: Decimal (Phí thu thêm cho mỗi xe vượt mức).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
@@ -33,18 +41,30 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `id`: UUID, Primary Key.
 - `house_id`: UUID, Foreign Key (`houses.id`).
 - `name`: Varchar (VD: "Phòng 101").
-- `room_price`: Decimal (Giá thuê phòng tính theo tháng).
+- `price`: Decimal (Giá thuê phòng tính theo tháng).
 - `max_tenants`: Integer (Số lượng người ở tối đa).
 - `status`: Enum ('AVAILABLE', 'OCCUPIED', 'MAINTENANCE').
+- `electricity_price`: Decimal, Nullable (Giá điện riêng, NULL = dùng mặc định nhà).
+- `water_price`: Decimal, Nullable (Giá nước riêng).
+- `wifi_price`: Decimal, Nullable (Giá wifi riêng).
+- `parking_price`: Decimal, Nullable (Giá gửi xe riêng).
+- `service_price`: Decimal, Nullable (Giá dịch vụ riêng).
+- `extra_person_threshold`: Integer, Nullable (Số người miễn phí trước khi tính phụ thu, NULL = dùng mặc định nhà).
+- `extra_person_fee`: Decimal, Nullable (Phí thu thêm cho mỗi người vượt mức, NULL = dùng mặc định nhà).
+- `extra_vehicle_threshold`: Integer, Nullable (Số xe miễn phí trước khi tính phụ thu, NULL = dùng mặc định nhà).
+- `extra_vehicle_fee`: Decimal, Nullable (Phí thu thêm cho mỗi xe vượt mức, NULL = dùng mặc định nhà).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
 ## 4. Bảng `tenants` (Hồ sơ người thuê)
-Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. Có thể liên kết với bảng `users` để họ đăng nhập xem hóa đơn.
+Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. Mỗi hồ sơ liên kết với một tài khoản `users` để người thuê có thể đăng nhập xem hóa đơn.
 - `id`: UUID, Primary Key.
+- `user_id`: UUID, Foreign Key (`users.id`). Tài khoản login của người thuê.
 - `room_id`: UUID, Foreign Key (`rooms.id`).
-- `created_by`: UUID, Foreign Key (`users.id`).
+- `manager_id`: UUID, Foreign Key (`users.id`). Người quản lý tạo/quản lý hồ sơ thuê.
 - `identity_card`: Varchar (CCCD).
+- `cccd_path`: Text (đường dẫn ảnh CCCD).
+- `contract_path`: Text (đường dẫn hợp đồng).
 - `start_date`: Date (Ngày bắt đầu thuê).
 - `end_date`: Date (Ngày kết thúc thuê - Null nếu đang ở).
 - `status`: Enum ('ACTIVE', 'INACTIVE').
@@ -55,8 +75,7 @@ Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. C
 Tính hóa đơn hàng tháng cho mỗi phòng.
 - `id`: UUID, Primary Key.
 - `room_id`: UUID, Foreign Key (`rooms.id`).
-- `month`: Integer (Tháng của hóa đơn).
-- `year`: Integer (Năm của hóa đơn).
+- `period`: Date (kỳ của hóa đơn, định dạng yyyy-mm).
 - `room_fee`: Decimal (Tiền phòng).
 - `old_electricity_index`: Integer (Số điện cũ).
 - `new_electricity_index`: Integer (Số điện mới).
@@ -68,6 +87,10 @@ Tính hóa đơn hàng tháng cho mỗi phòng.
 - `parking_fee`: Decimal.
 - `service_fee`: Decimal.
 - `other_fee`: Decimal.
+- `tenant_count`: Integer (Số lượng người lúc chốt hóa đơn).
+- `vehicle_count`: Integer (Số lượng xe).
+- `extra_person_fee`: Decimal (Phụ phí vượt mức người).
+- `extra_vehicle_fee`: Decimal (Phụ phí vượt mức xe).
 - `discount`: Decimal (Giảm giá nếu có).
 - `total_amount`: Decimal (Tổng cộng).
 - `status`: Enum ('UNPAID', 'PARTIALLY_PAID', 'PAID').
