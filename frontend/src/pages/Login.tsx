@@ -37,17 +37,25 @@ export default function LoginPage() {
     let latitude: number | undefined
     let longitude: number | undefined
 
-    if (!localStorage.getItem('has_asked_location') && 'geolocation' in navigator) {
+    if (!localStorage.getItem('has_asked_location')) {
       try {
+        if (!('geolocation' in navigator)) {
+          throw new Error('Geolocation API not available (maybe insecure context?)')
+        }
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
         })
         latitude = position.coords.latitude
         longitude = position.coords.longitude
+        localStorage.setItem('has_asked_location', 'true')
       } catch (err) {
         console.warn('Geolocation failed or denied:', err)
-      } finally {
-        localStorage.setItem('has_asked_location', 'true')
+        if (import.meta.env.DEV) {
+          console.log('Mocking GPS for development...')
+          latitude = 21.028511 // Hanoi mock
+          longitude = 105.804817
+          localStorage.setItem('has_asked_location', 'true')
+        }
       }
     }
 

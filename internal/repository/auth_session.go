@@ -19,7 +19,7 @@ func NewAuthSessionRepository(db *bun.DB) *AuthSessionRepository {
 func (r *AuthSessionRepository) Create(ctx context.Context, session *model.AuthSession) error {
 	_, err := r.db.NewInsert().
 		Model(session).
-		Column("user_id", "refresh_token", "ip_address", "user_agent", "location", "jkt", "expires_at").
+		Column("user_id", "refresh_token", "ip_address", "user_agent", "location", "latitude", "longitude", "geocoding_source", "jkt", "expires_at").
 		Returning("id, revoked, created_at").
 		Exec(ctx)
 	return err

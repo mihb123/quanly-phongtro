@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Home, LogOut, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt } from 'lucide-react'
+import { Home, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
+import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
 
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
@@ -16,8 +16,7 @@ import type { House } from '@/api/house'
 import { Plus } from 'lucide-react'
 
 export function Sidebar() {
-  const { logout } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth()
 
   const { houses, fetchHouses, deleteHouse } = useHouseStore()
   const { 
@@ -26,6 +25,7 @@ export function Sidebar() {
   } = useSelectedStore()
 
   const [showCreateHouse, setShowCreateHouse] = useState(false)
+  const [showUpdateProfile, setShowUpdateProfile] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, house: House } | null>(null)
   const [houseToDelete, setHouseToDelete] = useState<House | null>(null)
   const [houseToEdit, setHouseToEdit] = useState<House | null>(null)
@@ -66,8 +66,28 @@ export function Sidebar() {
     }
   }
 
+  // Auto collapse sidebar on smaller screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1000) {
+        setIsSidebarCollapsed(true)
+      } else {
+        setIsSidebarCollapsed(false)
+      }
+    }
+    
+    // Initial check on mount
+    handleResize()
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [setIsSidebarCollapsed])
+
   return (
     <>
+      {showUpdateProfile && (
+        <UpdateProfileModal onClose={() => setShowUpdateProfile(false)} />
+      )}
       {showCreateHouse && (
         <CreateHouseModal onClose={() => setShowCreateHouse(false)} />
       )}
@@ -140,7 +160,7 @@ export function Sidebar() {
                 <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-primary flex items-center justify-center shadow-md shadow-primary/20">
                   <Home className="w-5 h-5 text-primary-foreground" />
                 </div>
-                <span className="font-bold text-xl tracking-tight text-foreground whitespace-nowrap">Trọ Pro</span>
+                <span className="font-bold text-xl tracking-tight text-foreground whitespace-nowrap">Phòng trọ</span>
               </div>
             )}
             <Button
@@ -157,7 +177,7 @@ export function Sidebar() {
         <nav className="flex-1 flex flex-col gap-2">
           <SidebarItem
             icon={<LayoutDashboard />}
-            label="Dashboard"
+            label="Tổng quan"
             active={activeTab === 'dashboard'}
             onClick={() => handleTabClick('dashboard')}
             collapsed={isSidebarCollapsed}
@@ -260,17 +280,24 @@ export function Sidebar() {
           />
         </nav>
 
-        <Button
-          variant="ghost"
-          className={`w-full ${isSidebarCollapsed ? 'justify-center' : 'justify-start'} gap-3 text-slate-500 hover:text-red-500 hover:bg-red-50 mt-10 p-4 transition-all duration-300 cursor-pointer`}
-          onClick={async () => {
-            await logout()
-            navigate('/login')
-          }}
-        >
-          <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!isSidebarCollapsed && <span className="font-bold">Đăng xuất</span>}
-        </Button>
+        <div className="mt-auto flex flex-col gap-2 pt-4">
+          {user && (
+            <button
+              onClick={() => setShowUpdateProfile(true)}
+              className={`flex items-center gap-3 w-full p-2 rounded-xl hover:bg-secondary transition-colors cursor-pointer text-left ${isSidebarCollapsed ? 'justify-center' : ''}`}
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 border border-primary/20">
+                <span className="text-primary font-bold text-lg">{user.full_name?.charAt(0).toUpperCase() || user.email.charAt(0).toUpperCase()}</span>
+              </div>
+              {!isSidebarCollapsed && (
+                <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+                  <span className="text-sm font-bold text-foreground truncate">{user.full_name || 'Tài khoản'}</span>
+                  <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                </div>
+              )}
+            </button>
+          )}
+        </div>
       </aside>
     </>
   )

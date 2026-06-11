@@ -35,6 +35,7 @@ func New(
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
 		r.With(authMiddleware(tokenProvider)).Get("/me", authHandler.GetMe)
+		r.With(authMiddleware(tokenProvider)).Patch("/me", authHandler.UpdateMe)
 		r.Post("/logout", authHandler.Logout)
 	})
 

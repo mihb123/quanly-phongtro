@@ -184,6 +184,10 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 		q.Set("email = ?", *input.Email)
 		updated = true
 	}
+	if input.PasswordHash != nil {
+		q.Set("password_hash = ?", *input.PasswordHash)
+		updated = true
+	}
 	if input.ZaloBotToken != nil {
 		q.Set("zalo_bot_token = ?", *input.ZaloBotToken)
 		updated = true

@@ -8,7 +8,7 @@ import (
 )
 
 type GeocodingService interface {
-	ReverseGeocode(lat, lng float64) (string, error)
+	ReverseGeocode(lat, lng float64) (string, string, error)
 }
 
 type geocodingServiceImpl struct {
@@ -25,11 +25,16 @@ func NewGeocodingService(apiKey string) GeocodingService {
 	}
 }
 
-func (s *geocodingServiceImpl) ReverseGeocode(lat, lng float64) (string, error) {
+func (s *geocodingServiceImpl) ReverseGeocode(lat, lng float64) (string, string, error) {
 	if s.apiKey != "" {
-		return s.googleMapsReverseGeocode(lat, lng)
+		addr, err := s.googleMapsReverseGeocode(lat, lng)
+		if err == nil {
+			return addr, "google", nil
+		}
+		// Fallback to OSM if Google Maps fails
 	}
-	return s.osmReverseGeocode(lat, lng)
+	addr, err := s.osmReverseGeocode(lat, lng)
+	return addr, "osm", err
 }
 
 var (

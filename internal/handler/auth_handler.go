@@ -221,6 +221,36 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, user, "get user successfully")
 }
 
+func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "missing authentication token")
+		return
+	}
+
+	userID, err := claims.GetSubject()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "invalid token")
+		return
+	}
+
+	var req service.UpdateProfileInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	user, err := h.service.UpdateProfile(r.Context(), userID, req)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "update profile failed", err)
+		writeError(w, http.StatusInternalServerError, "update profile failed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, user, "profile updated successfully")
+}
+
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("refresh_token")
 	if err == nil && cookie.Value != "" {

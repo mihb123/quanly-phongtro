@@ -26,7 +26,16 @@ export type AuthOutput = {
   email: string
   role: string
   full_name?: string
-  phone?: string
+  phone: string
   is_activated: boolean
   access_token?: string
+  zalo_bot_token?: string
+  is_zalo_bot_active?: boolean
+}
+
+export interface UpdateProfilePayload {
+  full_name?: string
+  phone?: string
+  old_password?: string
+  password?: string
 }

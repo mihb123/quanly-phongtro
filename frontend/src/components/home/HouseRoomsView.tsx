@@ -159,7 +159,7 @@ export function HouseRoomsView() {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg text-foreground">{room.name}</h3>
-                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-secondary text-secondary-foreground border border-border mt-1 inline-block">
+                      <span className="text-xs font-semibold px-2 py-1 rounded-full bg-secondary text-secondary-foreground border border-border mt-1 inline-block whitespace-nowrap">
                         {room.status === 'AVAILABLE' ? 'Trống' : room.status === 'OCCUPIED' ? 'Đã Thuê' : room.status}
                       </span>
                     </div>

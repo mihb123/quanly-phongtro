@@ -5,6 +5,7 @@ import type {
   LoginPayload,
   RegisterPayload,
   AuthOutput,
+  UpdateProfilePayload,
 } from '@/types/auth'
 
 export const register = async (payload: RegisterPayload) => {
@@ -50,6 +51,9 @@ export const refreshToken = async () => {
 
 export const getMe = () =>
   apiClient.get<{ data: AuthOutput }>('/auth/me').then((res) => res.data.data)
+
+export const updateProfile = (payload: UpdateProfilePayload) =>
+  apiClient.patch<{ data: AuthOutput }>('/auth/me', payload).then((res) => res.data.data)
 
 export const logout = () =>
   apiClient.post<{ data: void }>('/auth/logout').then((res) => res.data.data)

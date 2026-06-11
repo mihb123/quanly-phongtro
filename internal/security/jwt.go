@@ -58,7 +58,7 @@ func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivate
 	return token.SignedString(p.accessSecret)
 }
 
-func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string) (string, error) {
+func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error) {
 	var cnf map[string]string
 	if jkt != "" {
 		cnf = map[string]string{"jkt": jkt}
@@ -81,13 +81,16 @@ func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddres
 	}
 
 	session := &model.AuthSession{
-		UserID:       userID,
-		RefreshToken: signedToken,
-		IPAddress:    ipAddress,
-		UserAgent:    userAgent,
-		Location:     location,
-		JKT:          jkt,
-		ExpiresAt:    expiresAt,
+		UserID:          userID,
+		RefreshToken:    signedToken,
+		IPAddress:       ipAddress,
+		UserAgent:       userAgent,
+		Location:        location,
+		Latitude:        latitude,
+		Longitude:       longitude,
+		GeocodingSource: geocodingSource,
+		JKT:             jkt,
+		ExpiresAt:       expiresAt,
 	}
 	if err := p.jwtRepo.Create(ctx, session); err != nil {
 		return "", err

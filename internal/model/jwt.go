@@ -12,8 +12,11 @@ type AuthSession struct {
 	Revoked      bool      `bun:"revoked"`
 	IPAddress    string    `bun:"ip_address"`
 	UserAgent    string    `bun:"user_agent"`
-	Location     string    `bun:"location"`
-	JKT          string    `bun:"jkt"`
+	Location        string    `bun:"location"`
+	Latitude        *float64  `bun:"latitude"`
+	Longitude       *float64  `bun:"longitude"`
+	GeocodingSource *string   `bun:"geocoding_source"`
+	JKT             string    `bun:"jkt"`
 	CreatedAt    time.Time `bun:"created_at"`
 	ExpiresAt    time.Time `bun:"expires_at"`
 }

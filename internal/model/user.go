@@ -53,6 +53,7 @@ type UpdateUserInput struct {
 	FullName          *string
 	Phone             *string
 	Email             *string
+	PasswordHash      *string
 	IsActivated       *bool
 	ZaloBotToken      *string
 	IsZaloBotActive   *bool

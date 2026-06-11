@@ -239,7 +239,7 @@ export function SettingsView() {
               <div className="flex gap-3">
                 <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center flex-shrink-0 font-bold">3</div>
                 <div>
-                  <p>Tạo một Group Chat Zalo, <strong>đặt tên group theo đúng cú pháp</strong> <code>&lt;Tên Phòng&gt; &lt;Tên Nhà&gt;</code> (VD: <code>P101 679QT</code>) và thêm Bot vào nhóm.</p>
+                  <p>Tạo một Group Chat Zalo, <strong>đặt tên group theo đúng cú pháp</strong> <code>&lt;Tên Phòng&gt; &lt;Tên Nhà&gt;</code> (VD: <code>P101 105 Phan Văn Trị</code>) và thêm Bot vào nhóm.</p>
                   <p className="text-muted-foreground mt-1">Hệ thống sẽ tự động nhận diện và liên kết Group Zalo với phòng tương ứng.</p>
                 </div>
               </div>

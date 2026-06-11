@@ -28,7 +28,7 @@ type PasswordHasher interface {
 
 type TokenProvider interface {
 	GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error)
-	GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string) (string, error)
+	GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error)
 	RevokeRefreshToken(ctx context.Context, token string, userID string) error
 	FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error)
 	GetAccessTokenTTL() time.Duration
@@ -61,6 +61,14 @@ type AuthService interface {
 	VerifyEmail(ctx context.Context, email, otp, jkt string) (string, bool, error)
 	IncrementOTPCheck(ctx context.Context, email string) error
 	IsBlockOTP(ctx context.Context, email string) (bool, error)
+	UpdateProfile(ctx context.Context, userID string, in UpdateProfileInput) (*AuthOutput, error)
+}
+
+type UpdateProfileInput struct {
+	FullName        *string `json:"full_name"`
+	Phone           *string `json:"phone"`
+	OldPassword     *string `json:"old_password"`
+	Password        *string `json:"password"`
 }
 
 type RegisterInput struct {
@@ -153,9 +161,11 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 	}
 
 	location := "Unknown"
+	var geocodingSource *string
 	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
-		if addr, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
+		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
 			location = addr
+			geocodingSource = &source
 		} else if s.geoip != nil {
 			location = s.geoip.LookupLocation(ipAddress)
 		}
@@ -163,7 +173,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 		location = s.geoip.LookupLocation(ipAddress)
 	}
 
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt)
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
 	if err != nil {
 		return nil, err
 	}
@@ -203,11 +213,12 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 		return nil, err
 	}
 
-
 	location := "Unknown"
+	var geocodingSource *string
 	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
-		if addr, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
+		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
 			location = addr
+			geocodingSource = &source
 		} else if s.geoip != nil {
 			location = s.geoip.LookupLocation(ipAddress)
 		}
@@ -215,7 +226,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 		location = s.geoip.LookupLocation(ipAddress)
 	}
 
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt)
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
 	if err != nil {
 		return nil, err
 	}
@@ -277,13 +288,12 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddr
 		return nil, err
 	}
 
-
 	location := "Unknown"
 	if s.geoip != nil {
 		location = s.geoip.LookupLocation(ipAddress)
 	}
 
-	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt)
+	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt, nil, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -429,3 +439,46 @@ func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, e
 	}
 	return false, nil
 }
+
+func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in UpdateProfileInput) (*AuthOutput, error) {
+	updateInput := model.UpdateUserInput{
+		FullName: in.FullName,
+		Phone:    in.Phone,
+	}
+
+	if in.Password != nil && *in.Password != "" {
+		if in.OldPassword == nil || *in.OldPassword == "" {
+			return nil, fmt.Errorf("old password is required to set a new password: %w", ErrInvalidInput)
+		}
+
+		user, err := s.users.GetByUserID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("user not found: %w", err)
+		}
+
+		if err := s.hasher.Compare(user.PasswordHash, *in.OldPassword); err != nil {
+			return nil, fmt.Errorf("invalid old password: %w", ErrInvalidCredentials)
+		}
+
+		hash, err := s.hasher.Hash(*in.Password)
+		if err != nil {
+			return nil, fmt.Errorf("hash password failed: %w", err)
+		}
+		updateInput.PasswordHash = &hash
+	}
+
+	user, err := s.users.UpdateUser(ctx, userID, updateInput)
+	if err != nil {
+		return nil, fmt.Errorf("update user failed: %w", err)
+	}
+
+	return &AuthOutput{
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
+	}, nil
+}
+

@@ -32,19 +32,23 @@ func (m *mockPasswordHasher) Compare(hash, password string) error {
 }
 
 type mockTokenProvider struct {
-	accessErr  error
-	refreshErr error
-	revokeErr  error
-	findRes    *model.AuthSession
-	findErr    error
-	parseRes   *security.Claims
-	parseErr   error
+	accessErr          error
+	refreshErr         error
+	generateRefreshErr error
+	revokeErr          error
+	findRes            *model.AuthSession
+	findErr            error
+	parseRes           *security.Claims
+	parseErr           error
 }
 
 func (m *mockTokenProvider) GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error) {
 	return "access-token", m.accessErr
 }
-func (m *mockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string) (string, error) {
+func (m *mockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error) {
+	if m.generateRefreshErr != nil {
+		return "", m.generateRefreshErr
+	}
 	return "refresh-token", m.refreshErr
 }
 func (m *mockTokenProvider) RevokeRefreshToken(ctx context.Context, token string, userID string) error {

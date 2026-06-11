@@ -7,6 +7,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (user: AuthOutput) => void
   logout: () => void
+  updateUser: (user: AuthOutput) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -31,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = (user: AuthOutput) => setUser(user)
+  const updateUser = (user: AuthOutput) => setUser(user)
   const logout = async () => {
     try {
       await logoutApi()
@@ -42,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )
