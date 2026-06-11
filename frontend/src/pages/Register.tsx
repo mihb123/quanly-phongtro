@@ -42,11 +42,25 @@ export default function RegisterPage() {
     let latitude: number | undefined
     let longitude: number | undefined
 
-    if (!localStorage.getItem('has_asked_location')) {
-      try {
-        if (!('geolocation' in navigator)) {
-          throw new Error('Geolocation API not available (maybe insecure context?)')
+    let shouldFetchLocation = false
+
+    if ('geolocation' in navigator) {
+      if (!localStorage.getItem('has_asked_location')) {
+        shouldFetchLocation = true
+      } else if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'geolocation' })
+          if (permission.state === 'granted') {
+            shouldFetchLocation = true
+          }
+        } catch (e) {
+          console.warn('Could not query geolocation permission:', e)
         }
+      }
+    }
+
+    if (shouldFetchLocation) {
+      try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
         })
