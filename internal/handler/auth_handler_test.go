@@ -32,6 +32,22 @@ func TestAuthHandler_Register(t *testing.T) {
 			wantStatus: http.StatusCreated,
 		},
 		{
+			name: "Happy path with location",
+			body: `{"email": "test@test.local", "password": "password123", "Latitude": 21.0, "Longitude": 105.0}`,
+			mockSetup: func(mockSvc *mock_service.MockAuthService) {
+				mockSvc.EXPECT().Register(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, in service.RegisterInput, ip, ua, jkt string) (*service.LoginOutput, error) {
+					if in.Latitude == nil || *in.Latitude != 21.0 {
+						return nil, errors.New("missing or incorrect Latitude")
+					}
+					if in.Longitude == nil || *in.Longitude != 105.0 {
+						return nil, errors.New("missing or incorrect Longitude")
+					}
+					return &service.LoginOutput{}, nil
+				})
+			},
+			wantStatus: http.StatusCreated,
+		},
+		{
 			name:       "Invalid body format",
 			body:       `invalid json`,
 			mockSetup:  func(mockSvc *mock_service.MockAuthService) {},
@@ -106,6 +122,25 @@ func TestAuthHandler_Login(t *testing.T) {
 					AccessToken:  "access",
 					RefreshToken: "refresh",
 				}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "Happy path with location",
+			body: `{"email": "test@test.local", "password": "password123", "Latitude": 21.0, "Longitude": 105.0}`,
+			mockSetup: func(mockSvc *mock_service.MockAuthService) {
+				mockSvc.EXPECT().Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, in service.LoginInput, ip, ua, jkt string) (*service.LoginOutput, error) {
+					if in.Latitude == nil || *in.Latitude != 21.0 {
+						return nil, errors.New("missing or incorrect Latitude")
+					}
+					if in.Longitude == nil || *in.Longitude != 105.0 {
+						return nil, errors.New("missing or incorrect Longitude")
+					}
+					return &service.LoginOutput{
+						AccessToken:  "access",
+						RefreshToken: "refresh",
+					}, nil
+				})
 			},
 			wantStatus: http.StatusOK,
 		},
