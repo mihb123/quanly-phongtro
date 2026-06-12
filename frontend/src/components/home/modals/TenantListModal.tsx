@@ -14,9 +14,10 @@ interface TenantListModalProps {
   onClose: () => void
   onAdd: () => void
   onEdit: (tenant: Tenant) => void
+  onDataChange?: () => void
 }
 
-export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModalProps) {
+export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: TenantListModalProps) {
   const {
     tenants,
     isLoading: isDeleting,
@@ -31,6 +32,7 @@ export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModa
 
   const onDelete = async (tenantId: string) => {
     await handleDeleteTenant(tenantId, room.id)
+    if (onDataChange) onDataChange()
     if (tenants.length <= 1) {
       onClose()
     }

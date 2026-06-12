@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { type House } from '@/api/house'
 
-type TabType = 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'settings'
+export type TabType = 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'revenue' | 'settings'
 
 interface SelectedDataState {
   selectedHouse: House | null

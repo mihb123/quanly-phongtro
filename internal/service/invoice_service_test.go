@@ -86,7 +86,7 @@ func TestInvoiceService_GetInvoice(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil)
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -135,7 +135,7 @@ func TestInvoiceService_ListInvoices(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil)
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -186,7 +186,7 @@ func TestInvoiceService_PayInvoice(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil)
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -248,7 +248,7 @@ func TestInvoiceService_DeleteInvoice(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil)
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -314,7 +314,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
 	
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo)
+	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -558,7 +558,7 @@ func TestInvoiceService_UnpayInvoice(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil)
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -624,7 +624,7 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
 	
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo)
+	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -691,7 +691,7 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
 	
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo)
+	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
 	tests := []struct {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Home, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt } from 'lucide-react'
+import { Home, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
@@ -59,7 +59,7 @@ export function Sidebar() {
     setActiveTab('house_rooms')
   }
 
-  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'settings') => {
+  const handleTabClick = (tab: 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'revenue' | 'settings') => {
     setActiveTab(tab)
     if (tab !== 'house_rooms') {
         selectHouse(null)
@@ -269,6 +269,13 @@ export function Sidebar() {
             label="Hóa đơn"
             active={activeTab === 'invoices'}
             onClick={() => handleTabClick('invoices')}
+            collapsed={isSidebarCollapsed}
+          />
+          <SidebarItem
+            icon={<Wallet />}
+            label="Doanh thu"
+            active={activeTab === 'revenue'}
+            onClick={() => handleTabClick('revenue')}
             collapsed={isSidebarCollapsed}
           />
           <SidebarItem

@@ -5,6 +5,7 @@ import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useInvoiceStore } from '@/data/invoiceData'
 import { useTenantStore } from '@/data/tenantData'
+import { useHouseCostStore } from '@/data/houseCostData'
 import { useSelectedStore } from '@/data/selectedData'
 import { CreateHouseModal } from './modals/CreateHouseModal'
 import { type Room } from '@/api/room'
@@ -19,15 +20,17 @@ export function DashboardView() {
   const { getRoomsByHouse } = useRoomStore()
   const { tenantsByHouse, fetchTenants } = useTenantStore()
   const { invoices, fetchInvoices } = useInvoiceStore()
+  const { summaries, period, fetchSummaries } = useHouseCostStore()
   const { setActiveTab, selectHouse } = useSelectedStore()
 
   const [allRooms, setAllRooms] = useState<(Room & { houseName?: string })[]>([])
   const [isLoadingData, setIsLoadingData] = useState(true)
 
-  // Fetch invoices on mount
+  // Fetch invoices and summaries on mount
   useEffect(() => {
     fetchInvoices()
-  }, [fetchInvoices])
+    fetchSummaries()
+  }, [fetchInvoices, fetchSummaries, period])
 
   // Fetch rooms for all houses to calculate occupancy and get available rooms
   useEffect(() => {
@@ -106,6 +109,11 @@ export function DashboardView() {
   const availableRooms = allRooms.filter(r => r.status === 'AVAILABLE');
   const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
 
+  // Calculate aggregated profit for current period
+  const totalProfit = useMemo(() => {
+    return (summaries || []).reduce((sum, s) => sum + s.profit, 0);
+  }, [summaries]);
+
   const navigateToHouse = (houseId: string) => {
     const house = houses.find(h => h.id === houseId) || null;
     selectHouse(house);
@@ -140,6 +148,24 @@ export function DashboardView() {
 
       {/* Balanced 4-Column Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Lợi nhuận ròng Card */}
+        <div 
+          onClick={() => setActiveTab('revenue')}
+          className="bg-card border border-border/60 rounded-2xl p-4 sm:p-5 shadow-sm cursor-pointer hover:bg-secondary/20 transition-colors"
+        >
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+            <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full ${totalProfit >= 0 ? 'bg-primary/20' : 'bg-rose-100'} flex items-center justify-center shrink-0`}>
+              <TrendingUp className={`w-3 h-3 sm:w-4 sm:h-4 ${totalProfit >= 0 ? 'text-primary' : 'text-rose-600'}`} />
+            </div>
+            <h3 className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider line-clamp-1">Lợi nhuận ròng</h3>
+          </div>
+          <p className={`text-lg sm:text-2xl font-extrabold truncate ${totalProfit >= 0 ? 'text-primary' : 'text-rose-600'}`}>
+            {formatCurrency(totalProfit)}
+          </p>
+          <div className="flex items-center gap-1 sm:gap-1.5 mt-1.5 sm:mt-2 text-[10px] sm:text-xs font-medium text-muted-foreground">
+            <span className="truncate">Kỳ: {period}</span>
+          </div>
+        </div>
         <div className="bg-card border border-border/60 rounded-2xl p-4 sm:p-5 shadow-sm">
           <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
             <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">

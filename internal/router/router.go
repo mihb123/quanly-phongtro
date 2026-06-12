@@ -18,6 +18,7 @@ func New(
 	tenantHandler *handler.TenantHandler,
 	invoiceHandler *handler.InvoiceHandler,
 	zaloHandler *handler.ZaloHandler,
+	houseCostHandler *handler.HouseCostHandler,
 ) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
@@ -92,6 +93,20 @@ func New(
 			r.Post("/send-message", zaloHandler.SendMessage)
 			r.Post("/invoices/{id}/send", zaloHandler.SendInvoice)
 		})
+	})
+
+	r.Route("/api/v1/house-cost", func(r chi.Router) {
+		r.Use(authMiddleware(tokenProvider))
+		r.Use(requireRole("MANAGER"))
+		r.Post("/", houseCostHandler.CreateMonthlyCost)
+		r.Get("/", houseCostHandler.GetMonthlyCost)
+		r.Patch("/{id}", houseCostHandler.UpdateMonthlyCost)
+	})
+
+	r.Route("/api/v1/revenue-summary", func(r chi.Router) {
+		r.Use(authMiddleware(tokenProvider))
+		r.Use(requireRole("MANAGER"))
+		r.Get("/", houseCostHandler.GetRevenueSummaries)
 	})
 
 	r.Handle("/api/v1/uploads/transactions/*", http.StripPrefix("/api/v1/uploads/transactions/", http.FileServer(http.Dir("uploads/transactions"))))

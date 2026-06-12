@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
@@ -22,11 +24,15 @@ type HouseService interface {
 }
 
 type HouseServiceImpl struct {
-	houseRepo model.HouseRepository
+	houseRepo     model.HouseRepository
+	houseCostRepo model.HouseCostRepository
 }
 
-func NewHouseServiceImpt(houseRepo model.HouseRepository) HouseService {
-	return &HouseServiceImpl{houseRepo: houseRepo}
+func NewHouseServiceImpt(houseRepo model.HouseRepository, houseCostRepo model.HouseCostRepository) HouseService {
+	return &HouseServiceImpl{
+		houseRepo:     houseRepo,
+		houseCostRepo: houseCostRepo,
+	}
 }
 
 type UpdateHouseInput struct {
@@ -48,7 +54,22 @@ type UpdateHouseInput struct {
 }
 
 func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
-	return h.houseRepo.CreateHouse(ctx, house)
+	err := h.houseRepo.CreateHouse(ctx, house)
+	if err == nil && h.houseCostRepo != nil {
+		// Seed default house cost for the current period
+		now := time.Now()
+		period := now.Format("2006-01")
+		cost := &model.HouseCost{
+			ID:         uuid.New().String(),
+			HouseID:    house.ID,
+			Period:     period,
+			ExtraCosts: []model.ExtraCost{},
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		_ = h.houseCostRepo.Create(ctx, cost)
+	}
+	return err
 }
 
 func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error) {

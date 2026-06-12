@@ -34,18 +34,20 @@ type InvoiceService interface {
 }
 
 type InvoiceServiceImpl struct {
-	invoiceRepo model.InvoiceRepository
-	roomRepo    model.RoomRepository
-	houseRepo   model.HouseRepository
-	tenantRepo  model.TenantRepository
+	invoiceRepo   model.InvoiceRepository
+	roomRepo      model.RoomRepository
+	houseRepo     model.HouseRepository
+	tenantRepo    model.TenantRepository
+	eventBus      EventBus
 }
 
-func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository) InvoiceService {
+func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, eventBus EventBus) InvoiceService {
 	return &InvoiceServiceImpl{
-		invoiceRepo: invoiceRepo,
-		roomRepo:    roomRepo,
-		houseRepo:   houseRepo,
-		tenantRepo:  tenantRepo,
+		invoiceRepo:   invoiceRepo,
+		roomRepo:      roomRepo,
+		houseRepo:     houseRepo,
+		tenantRepo:    tenantRepo,
+		eventBus:      eventBus,
 	}
 }
 
@@ -231,6 +233,13 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		}
 	}
 
+	if s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: room.HouseID,
+			Period:  input.Period,
+		})
+	}
+
 	return s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoice.ID)
 }
 
@@ -252,7 +261,14 @@ func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceI
 		return nil, errors.New("invoice is already paid")
 	}
 
-	return s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
+	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return res, err
 }
 
 func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error) {
@@ -265,7 +281,14 @@ func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoic
 		return nil, errors.New("invoice is already unpaid")
 	}
 
-	return s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
+	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return res, err
 }
 
 func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoiceID string) error {
@@ -278,7 +301,14 @@ func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoi
 		return errors.New("cannot delete a paid invoice")
 	}
 
-	return s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
+	err = s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return err
 }
 
 func (s *InvoiceServiceImpl) calculateUtilityFee(billingType, billingUnit string, defaultPrice float64, newIndex, oldIndex int, tenantCount int) (float64, error) {

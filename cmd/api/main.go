@@ -43,8 +43,27 @@ func main() {
 	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
 	authHandler := httpHandler.NewAuthHandler(authService)
 
+	houseCostRepo := repository.NewHouseCostRepository(sqlDB)
+	revenueSummaryRepo := repository.NewRevenueSummaryRepository(sqlDB)
+
+	revenueWorker := service.NewRevenueWorker(revenueSummaryRepo, houseCostRepo)
+	revenueWorker.Start()
+	// defer revenueWorker.Stop() // will stop before shutdown
+
+	eventBus := service.NewEventBus()
+	eventBus.Subscribe(service.EventInvoiceChanged, func(payload interface{}) {
+		if p, ok := payload.(service.RevenueSummaryPayload); ok {
+			revenueWorker.Enqueue(p.HouseID, p.Period)
+		}
+	})
+	eventBus.Subscribe(service.EventHouseCostChanged, func(payload interface{}) {
+		if p, ok := payload.(service.RevenueSummaryPayload); ok {
+			revenueWorker.Enqueue(p.HouseID, p.Period)
+		}
+	})
+
 	houseRepo := repository.NewHouseRepository(sqlDB)
-	houseService := service.NewHouseServiceImpt(houseRepo)
+	houseService := service.NewHouseServiceImpt(houseRepo, houseCostRepo)
 	invoiceRepo := repository.NewInvoiceRepository(sqlDB)
 	
 	roomRepo := repository.NewRoomRepository(sqlDB)
@@ -55,11 +74,14 @@ func main() {
 	tenanHandler := httpHandler.NewTenantHandler(tenantService)
 
 	imageService := service.NewImageService()
-	invoiceService := service.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo)
+	invoiceService := service.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo, eventBus)
 	invoiceHandler := httpHandler.NewInvoiceHandler(invoiceService, imageService)
 
 	houseHandler := httpHandler.NewHouseHandler(houseService, invoiceService)
 	roomHandler := httpHandler.NewRoomHandler(roomService, invoiceService)
+
+	houseCostService := service.NewHouseCostService(houseCostRepo, houseRepo, eventBus, revenueSummaryRepo)
+	houseCostHandler := httpHandler.NewHouseCostHandler(houseCostService)
 
 	zaloClient := service.NewZaloClient()
 	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, cfg.ZaloBotEncryptionKey)
@@ -79,7 +101,7 @@ func main() {
 	// Trigger an immediate check on startup to quickly detect stale tokens
 	go zaloCron.RunNow()
 
-	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler, zaloHandler)
+	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler, zaloHandler, houseCostHandler)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,
@@ -104,5 +126,6 @@ func main() {
 		log.Printf("shutdown error: %v", err)
 	}
 
+	revenueWorker.Stop()
 	zaloCron.Stop()
 }

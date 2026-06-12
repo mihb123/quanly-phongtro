@@ -16,7 +16,8 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_model.NewMockHouseRepository(ctrl)
-	houseService := service.NewHouseServiceImpt(mockRepo)
+	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
+	houseService := service.NewHouseServiceImpt(mockRepo, mockCostRepo)
 	ctx := context.Background()
 
 	house := &model.House{
@@ -25,6 +26,7 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	}
 
 	mockRepo.EXPECT().CreateHouse(ctx, house).Return(nil)
+	mockCostRepo.EXPECT().Create(ctx, gomock.Any()).Return(nil)
 
 	err := houseService.CreateHouse(ctx, house)
 	if err != nil {
@@ -46,7 +48,7 @@ func TestHouseService_GetHouseByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_model.NewMockHouseRepository(ctrl)
-	houseService := service.NewHouseServiceImpt(mockRepo)
+	houseService := service.NewHouseServiceImpt(mockRepo, nil)
 	ctx := context.Background()
 
 	t.Run("Happy path", func(t *testing.T) {
@@ -92,7 +94,7 @@ func TestHouseService_ListHouseByManagerID(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_model.NewMockHouseRepository(ctrl)
-	houseService := service.NewHouseServiceImpt(mockRepo)
+	houseService := service.NewHouseServiceImpt(mockRepo, nil)
 	ctx := context.Background()
 
 	t.Run("Happy path", func(t *testing.T) {
@@ -126,7 +128,7 @@ func TestHouseService_UpdateHouse(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_model.NewMockHouseRepository(ctrl)
-	houseService := service.NewHouseServiceImpt(mockRepo)
+	houseService := service.NewHouseServiceImpt(mockRepo, nil)
 	ctx := context.Background()
 
 	t.Run("Happy path", func(t *testing.T) {
@@ -170,7 +172,7 @@ func TestHouseService_DeleteHouse(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock_model.NewMockHouseRepository(ctrl)
-	houseService := service.NewHouseServiceImpt(mockRepo)
+	houseService := service.NewHouseServiceImpt(mockRepo, nil)
 	ctx := context.Background()
 
 	t.Run("Happy path", func(t *testing.T) {
