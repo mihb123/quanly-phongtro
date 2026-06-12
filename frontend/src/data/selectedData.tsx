@@ -12,16 +12,21 @@ interface SelectedDataState {
   setActiveTab: (tab: TabType) => void
   setIsHouseListOpen: (open: boolean) => void
   setIsSidebarCollapsed: (collapsed: boolean) => void
+  tabChangeInterceptor: ((nextTab: TabType) => boolean) | null
+  setTabChangeInterceptor: (interceptor: ((nextTab: TabType) => boolean) | null) => void
 }
 
 const savedTab = localStorage.getItem('home_active_tab') as TabType | null
 const savedHouseId = localStorage.getItem('home_selected_house_id')
 
-export const useSelectedStore = create<SelectedDataState>((set) => ({
+export const useSelectedStore = create<SelectedDataState>((set, get) => ({
   selectedHouse: null, // this will be hydrated in Home.tsx after fetchHouses
   activeTab: savedTab || 'dashboard',
   isHouseListOpen: !!savedHouseId,
   isSidebarCollapsed: false,
+  tabChangeInterceptor: null,
+  
+  setTabChangeInterceptor: (interceptor) => set({ tabChangeInterceptor: interceptor }),
   
   selectHouse: (house: House | null) => {
     set({ selectedHouse: house })
@@ -33,6 +38,10 @@ export const useSelectedStore = create<SelectedDataState>((set) => ({
   },
   
   setActiveTab: (tab: TabType) => {
+    const interceptor = get().tabChangeInterceptor;
+    if (interceptor && !interceptor(tab)) {
+      return; // Interceptor rejected the tab change
+    }
     set({ activeTab: tab })
     localStorage.setItem('home_active_tab', tab)
   },

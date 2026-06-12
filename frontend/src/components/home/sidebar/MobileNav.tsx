@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Users, Receipt, Settings, Wallet } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Receipt, Wallet } from 'lucide-react'
 import { useSelectedStore } from '@/data/selectedData'
 
 export function MobileNav() {
@@ -9,8 +9,7 @@ export function MobileNav() {
     { id: 'house_rooms', icon: Building2, label: 'Nhà trọ' },
     { id: 'tenants', icon: Users, label: 'Khách thuê' },
     { id: 'invoices', icon: Receipt, label: 'Hóa đơn' },
-    { id: 'revenue', icon: Wallet, label: 'Doanh thu' },
-    { id: 'settings', icon: Settings, label: 'Cài đặt' }
+    { id: 'revenue', icon: Wallet, label: 'Doanh thu' }
   ] as const
 
   return (

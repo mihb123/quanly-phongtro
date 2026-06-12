@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { Home } from 'lucide-react'
+import { Home, Settings } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
+import { useSelectedStore } from '@/data/selectedData'
+
 export function MobileHeader() {
   const { user } = useAuth()
   const [showUpdateProfile, setShowUpdateProfile] = useState(false)
+  const { setActiveTab } = useSelectedStore()
 
   return (
     <>
@@ -23,7 +26,12 @@ export function MobileHeader() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors active:scale-95 cursor-pointer"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
 
           {user && (
             <button

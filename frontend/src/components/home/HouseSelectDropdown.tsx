@@ -23,14 +23,14 @@ export function HouseSelectDropdown({
   onSelectAll
 }: HouseSelectDropdownProps) {
   return (
-    <div className="relative inline-flex items-center">
+    <div className="relative w-full sm:w-auto">
       <button
         onClick={() => onOpenChange(!isOpen)}
-        className="flex items-center justify-between w-64 bg-secondary/30 border border-border/50 text-foreground py-2.5 px-4 rounded-xl font-bold shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-secondary/50"
+        className="flex items-center justify-between w-full sm:w-48 bg-background hover:bg-accent hover:text-accent-foreground border border-input text-foreground h-10 px-3 sm:px-4 py-2 rounded-md text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors cursor-pointer overflow-hidden"
       >
-        <div className="flex items-center gap-2 overflow-hidden">
-          <Building className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span className="truncate">
+        <div className="flex items-center gap-2 overflow-hidden min-w-0">
+          <Building className="w-4 h-4 text-muted-foreground shrink-0" />
+          <span className="truncate whitespace-nowrap">
             {selectedHouseIds.length === houses.length && houses.length > 0
               ? "Tất cả các nhà"
               : selectedHouseIds.length === 0

@@ -1,6 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useHouseCostStore } from '@/data/houseCostData';
 import { useHouseStore } from '@/data/houseData';
+import { useSelectedStore, type TabType } from '@/data/selectedData';
+import { useDirtyConfirm } from '@/hooks/useDirtyConfirm';
 import type { HouseCost, ExtraCost } from '@/api/houseCost';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,8 +15,6 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 };
-
-
 
 export function RevenueView() {
   const { houses, fetchHouses } = useHouseStore();
@@ -32,10 +32,52 @@ export function RevenueView() {
     fetchCosts,
     fetchSummaries
   } = useHouseCostStore();
+  const setActiveTab = useSelectedStore(s => s.setActiveTab);
+  const setTabChangeInterceptor = useSelectedStore(s => s.setTabChangeInterceptor);
 
   const [editState, setEditState] = useState<Record<string, Partial<HouseCost>>>({});
   const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
   const [isHouseSelectOpen, setIsHouseSelectOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const hasAnyEdits = Object.keys(editState).length > 0;
+
+  const handleDiscard = useCallback(() => {
+    setEditState({});
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  }, [pendingAction]);
+
+  const { handleClose: triggerConfirm, confirmModal } = useDirtyConfirm(
+    hasAnyEdits,
+    handleDiscard
+  );
+
+  const interceptorRef = useRef<((nextTab: TabType) => boolean)>(() => true);
+
+  useEffect(() => {
+    interceptorRef.current = (nextTab: TabType) => {
+      if (Object.keys(editState).length > 0) {
+        setPendingAction(() => () => {
+          setTabChangeInterceptor(null);
+          setActiveTab(nextTab);
+        });
+        triggerConfirm();
+        return false;
+      }
+      return true;
+    };
+  }, [editState, setActiveTab, setTabChangeInterceptor, triggerConfirm]);
+
+  useEffect(() => {
+    const handler = (nextTab: TabType) => interceptorRef.current(nextTab);
+    setTabChangeInterceptor(handler);
+    return () => {
+      setTabChangeInterceptor(null);
+    };
+  }, [setTabChangeInterceptor]);
 
   useEffect(() => {
     fetchHouses();
@@ -70,6 +112,40 @@ export function RevenueView() {
       profit: totalRev - totalCost
     };
   }, [summaries]);
+
+  const handleHouseToggleRequest = (houseId: string) => {
+    if (hasAnyEdits) {
+      setPendingAction(() => () => handleHouseToggle(houseId));
+      triggerConfirm();
+    } else {
+      handleHouseToggle(houseId);
+    }
+  };
+
+  const handleSelectAllRequest = () => {
+    const action = () => {
+      if (selectedHouseIds.length === houses.length) {
+        setSelectedHouseIds([]);
+      } else {
+        setSelectedHouseIds(houses.map(h => h.id));
+      }
+    };
+    if (hasAnyEdits) {
+      setPendingAction(() => action);
+      triggerConfirm();
+    } else {
+      action();
+    }
+  };
+
+  const handlePeriodChange = (newPeriod: string) => {
+    if (hasAnyEdits) {
+      setPendingAction(() => () => setPeriod(newPeriod));
+      triggerConfirm();
+    } else {
+      setPeriod(newPeriod);
+    }
+  };
 
   const handleHouseToggle = (houseId: string) => {
     if (selectedHouseIds.includes(houseId)) {
@@ -192,94 +268,76 @@ export function RevenueView() {
 
   return (
     <div className="space-y-8 safe-fade-in pb-12">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-border/40 pb-6">
+      {/* Header & Filters */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-            <Wallet className="w-8 h-8 text-primary" />
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
+            <Wallet className="w-7 h-7 md:w-8 md:h-8 text-primary" />
             Doanh thu
           </h1>
-          <p className="text-muted-foreground mt-2 font-medium">
+          <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2 font-medium">
             Theo dõi dòng tiền, chi phí vận hành và lợi nhuận ròng.
           </p>
         </div>
-        <div className="shrink-0 flex items-center gap-3 bg-secondary/30 p-1.5 rounded-xl border border-border/40">
-          <Calendar className="w-4 h-4 text-muted-foreground ml-2" />
-          <Input 
-            type="month" 
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-            className="border-none bg-transparent shadow-none focus-visible:ring-0 w-36 font-semibold"
-          />
+        <div className="flex w-full md:w-auto items-center gap-2 md:gap-3">
+          <div className="flex-1 md:flex-none flex items-center gap-2 bg-background hover:bg-accent hover:text-accent-foreground border border-input text-foreground h-10 px-2 md:px-4 py-2 rounded-md shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring overflow-hidden min-w-0">
+            <Calendar className="w-4 h-4 text-muted-foreground shrink-0 hidden sm:block" />
+            <Input 
+              type="month" 
+              value={period}
+              onChange={(e) => handlePeriodChange(e.target.value)}
+              className="border-none bg-transparent shadow-none focus-visible:ring-0 w-full md:w-[120px] min-w-0 font-medium h-full p-0 text-sm text-center sm:text-left"
+            />
+          </div>
+          <div className="flex-1 md:flex-none min-w-0">
+            <HouseSelectDropdown
+              houses={houses}
+              selectedHouseIds={selectedHouseIds}
+              isOpen={isHouseSelectOpen}
+              onOpenChange={setIsHouseSelectOpen}
+              onToggleHouse={handleHouseToggleRequest}
+              onSelectAll={handleSelectAllRequest}
+            />
+          </div>
         </div>
-      </div>
-
-      {/* House Filter */}
-      <div className="flex items-center gap-3">
-        <HouseSelectDropdown
-          houses={houses}
-          selectedHouseIds={selectedHouseIds}
-          isOpen={isHouseSelectOpen}
-          onOpenChange={setIsHouseSelectOpen}
-          onToggleHouse={handleHouseToggle}
-          onSelectAll={() => {
-            if (selectedHouseIds.length === houses.length) {
-              setSelectedHouseIds([]);
-            } else {
-              setSelectedHouseIds(houses.map(h => h.id));
-            }
-          }}
-        />
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <TrendingUp className="w-24 h-24 text-emerald-500" />
-          </div>
-          <div className="flex items-center gap-3 mb-4 relative z-10">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Tổng Doanh Thu</h3>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng Doanh Thu</h3>
           </div>
-          <p className="text-3xl font-extrabold text-foreground relative z-10">
+          <p className="text-2xl font-extrabold text-foreground">
             {isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.totalRevenue)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground mt-2">Từ hóa đơn đã thanh toán</p>
         </div>
 
-        <div className="bg-card border border-border/60 rounded-2xl p-6 shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <TrendingDown className="w-24 h-24 text-rose-500" />
-          </div>
-          <div className="flex items-center gap-3 mb-4 relative z-10">
-            <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-              <TrendingDown className="w-5 h-5 text-rose-600" />
+        <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+              <TrendingDown className="w-4 h-4 text-rose-600" />
             </div>
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Tổng Chi Phí</h3>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng Chi Phí</h3>
           </div>
-          <p className="text-3xl font-extrabold text-foreground relative z-10">
+          <p className="text-2xl font-extrabold text-foreground">
             {isLoadingSummaries || isLoadingCosts ? '...' : formatCurrency(aggregatedSummary.totalCost)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground mt-2">Chi phí vận hành các nhà</p>
         </div>
 
-        <div className={`bg-gradient-to-br ${aggregatedSummary.profit >= 0 ? 'from-primary/10 to-primary/5 border-primary/20' : 'from-rose-500/10 to-rose-500/5 border-rose-500/20'} border rounded-2xl p-6 shadow-sm relative overflow-hidden`}>
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <DollarSign className={`w-24 h-24 ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-500'}`} />
-          </div>
-          <div className="flex items-center gap-3 mb-4 relative z-10">
-            <div className={`w-10 h-10 rounded-full ${aggregatedSummary.profit >= 0 ? 'bg-primary/20' : 'bg-rose-500/20'} flex items-center justify-center shrink-0`}>
-              <DollarSign className={`w-5 h-5 ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`} />
+        <div className={`bg-gradient-to-br ${aggregatedSummary.profit >= 0 ? 'from-primary/10 to-primary/5 border-primary/20' : 'from-rose-500/10 to-rose-500/5 border-rose-500/20'} border rounded-xl p-4 shadow-sm`}>
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`w-8 h-8 rounded-full ${aggregatedSummary.profit >= 0 ? 'bg-primary/20' : 'bg-rose-500/20'} flex items-center justify-center shrink-0`}>
+              <DollarSign className={`w-4 h-4 ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`} />
             </div>
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Lợi Nhuận Ròng</h3>
+            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Lợi Nhuận Ròng</h3>
           </div>
-          <p className={`text-3xl font-extrabold relative z-10 ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`}>
+          <p className={`text-2xl font-extrabold ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`}>
             {isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.profit)}
           </p>
-          <p className="text-xs font-medium text-muted-foreground mt-2">Tổng thu trừ đi tổng chi</p>
         </div>
       </div>
 
@@ -456,6 +514,7 @@ export function RevenueView() {
           </p>
         </div>
       )}
+      {confirmModal}
     </div>
   );
 }
