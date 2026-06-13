@@ -18,6 +18,11 @@ var userColumns = []string{
 	"zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at",
 }
 
+var userColumnsWithPassword = []string{
+	"id", "email", "password_hash", "role", "full_name", "phone", "is_activated",
+	"zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at",
+}
+
 func newUserRow(id string) *sqlmock.Rows {
 	return sqlmock.NewRows(userColumns).AddRow(
 		id, "test@test.com", "manager", "Test User", "123456", true,
@@ -169,7 +174,11 @@ func TestUserRepository_GetByUserID(t *testing.T) {
 			name:   "Happy path",
 			userID: "user-1",
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(newUserRow("user-1"))
+				rows := sqlmock.NewRows(userColumnsWithPassword).AddRow(
+					"user-1", "test@test.com", "", "manager", "Test User", "123456", true,
+					"", "", false, "", time.Now(), time.Now(),
+				)
+				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)
 			},
 			check: func(t *testing.T, user *model.User, err error) {
 				if err != nil {
@@ -439,8 +448,8 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 			userID: "user-1",
 			input:  model.UpdateUserInput{},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows(userColumns).AddRow(
-					"user-1", "test@test.com", "manager", "Old Name", "123456", true,
+				rows := sqlmock.NewRows(userColumnsWithPassword).AddRow(
+					"user-1", "test@test.com", "", "manager", "Old Name", "123456", true,
 					"", "", false, "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)

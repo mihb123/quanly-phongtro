@@ -52,6 +52,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
 
 	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
 		ZaloBotToken: &botToken,
+		ZaloUserID:   ptr("manager-zalo"),
 	}, nil).AnyTimes()
 
 	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(&model.Room{
@@ -124,6 +125,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 
 	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
 		ZaloBotToken: &botToken,
+		ZaloUserID:   ptr("manager-zalo"),
 	}, nil).AnyTimes()
 
 	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{}, nil)

@@ -19,7 +19,10 @@ jobs:
     steps:
       # ── Phase 0: Khởi tạo biến môi trường ──────────────
       - name: Set project directory
-        run: echo "PROJECT_DIR=$HOME/quanly-phongtro" >> $GITHUB_ENV
+        run: |
+          echo "PROJECT_DIR=$HOME/quanly-phongtro" >> $GITHUB_ENV
+          echo "/usr/local/go/bin" >> $GITHUB_PATH
+          echo "$HOME/go/bin" >> $GITHUB_PATH
 
       # ── Phase 1: Pull source code ──────────────────────────
       - name: Pull latest source code

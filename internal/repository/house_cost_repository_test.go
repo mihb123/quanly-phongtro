@@ -3,6 +3,7 @@ package repository_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -34,6 +35,12 @@ func TestHouseCostRepository_Create(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
+
+	mock.ExpectQuery(`INSERT INTO "house_costs"`).WillReturnError(errors.New("duplicate key value violates unique constraint"))
+	err = repo.Create(ctx, cost)
+	if err == nil || err.Error() != "house cost record already exists for this period" {
+		t.Errorf("expected duplicate error, got %v", err)
+	}
 }
 
 func TestHouseCostRepository_GetByHouseAndPeriod(t *testing.T) {
@@ -62,6 +69,12 @@ func TestHouseCostRepository_GetByHouseAndPeriod(t *testing.T) {
 	if err == nil || err.Error() != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
 	}
+
+	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(errors.New("db error"))
+	_, err = repo.GetByHouseAndPeriod(ctx, "house-1", "2023-12")
+	if err == nil {
+		t.Errorf("expected db error")
+	}
 }
 
 func TestHouseCostRepository_GetLatestByHouseID(t *testing.T) {
@@ -89,6 +102,12 @@ func TestHouseCostRepository_GetLatestByHouseID(t *testing.T) {
 	_, err = repo.GetLatestByHouseID(ctx, "house-2")
 	if err == nil || err.Error() != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
+	}
+
+	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(errors.New("db error"))
+	_, err = repo.GetLatestByHouseID(ctx, "house-3")
+	if err == nil {
+		t.Errorf("expected db error")
 	}
 }
 
@@ -121,6 +140,12 @@ func TestHouseCostRepository_ListByHouseIDs(t *testing.T) {
 	if len(costs) != 2 {
 		t.Errorf("expected 2 costs")
 	}
+
+	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(errors.New("db error"))
+	_, err = repo.ListByHouseIDs(ctx, []string{"house-1"}, "2023-10")
+	if err == nil {
+		t.Errorf("expected db error")
+	}
 }
 
 func TestHouseCostRepository_Update(t *testing.T) {
@@ -149,5 +174,42 @@ func TestHouseCostRepository_Update(t *testing.T) {
 	err = repo.Update(ctx, cost)
 	if err == nil || err.Error() != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
+	}
+
+	mock.ExpectExec(`UPDATE "house_costs"`).WillReturnError(errors.New("db error"))
+	err = repo.Update(ctx, cost)
+	if err == nil {
+		t.Errorf("expected db error")
+	}
+}
+
+// TestHouseCostRepository_Delete covers successful deletion and not-found handling.
+func TestHouseCostRepository_Delete(t *testing.T) {
+	bunDB, mock := setupTestDB(t)
+	defer bunDB.Close()
+
+	repo := repository.NewHouseCostRepository(bunDB)
+	ctx := context.Background()
+
+	mock.ExpectExec(`DELETE FROM "house_costs"`).WillReturnResult(sqlmock.NewResult(0, 1))
+	err := repo.Delete(ctx, "cost-1", "house-1")
+	if err != nil {
+		t.Errorf("error was not expected: %s", err)
+	}
+
+	mock.ExpectExec(`DELETE FROM "house_costs"`).WillReturnResult(sqlmock.NewResult(0, 0))
+	err = repo.Delete(ctx, "cost-1", "house-1")
+	if err == nil || err.Error() != "house cost not found" {
+		t.Errorf("expected house cost not found, got %v", err)
+	}
+
+	mock.ExpectExec(`DELETE FROM "house_costs"`).WillReturnError(errors.New("db error"))
+	err = repo.Delete(ctx, "cost-1", "house-1")
+	if err == nil {
+		t.Errorf("expected db error")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }

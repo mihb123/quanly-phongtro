@@ -355,6 +355,171 @@ func TestAuthHandler_GetMe(t *testing.T) {
 	}
 }
 
+// TestAuthHandler_AuthRequestEdges covers DPoP and forwarded-IP branches shared by auth routes.
+func TestAuthHandler_AuthRequestEdges(t *testing.T) {
+	t.Run("Register invalid DPoP", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		h := handler.NewAuthHandler(mockSvc)
+
+		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
+		req.Header.Set("DPoP", "invalid")
+		rec := httptest.NewRecorder()
+
+		h.Register(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+	})
+
+	t.Run("Login invalid DPoP", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		h := handler.NewAuthHandler(mockSvc)
+
+		req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
+		req.Header.Set("DPoP", "invalid")
+		rec := httptest.NewRecorder()
+
+		h.Login(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+	})
+
+	t.Run("Refresh invalid DPoP", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		h := handler.NewAuthHandler(mockSvc)
+
+		req := httptest.NewRequest(http.MethodPost, "/refresh", nil)
+		req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "token123"})
+		req.Header.Set("DPoP", "invalid")
+		rec := httptest.NewRecorder()
+
+		h.RefreshToken(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+		}
+	})
+
+	t.Run("Register uses X-Forwarded-For", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		mockSvc.EXPECT().
+			Register(gomock.Any(), gomock.Any(), "203.0.113.1", gomock.Any(), gomock.Any()).
+			Return(&service.LoginOutput{}, nil)
+
+		h := handler.NewAuthHandler(mockSvc)
+		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
+		req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.2")
+		rec := httptest.NewRecorder()
+
+		h.Register(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+		}
+	})
+}
+
+func TestAuthHandler_UpdateMe(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		setupCtx   func(req *http.Request) *http.Request
+		mockSetup  func(mockSvc *mock_service.MockAuthService)
+		wantStatus int
+	}{
+		{
+			name: "Happy path",
+			body: `{"full_name": "New Name", "phone": "0912345678"}`,
+			setupCtx: func(req *http.Request) *http.Request {
+				claims := &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{Subject: "user-1"},
+				}
+				return req.WithContext(security.WithClaims(req.Context(), claims))
+			},
+			mockSetup: func(mockSvc *mock_service.MockAuthService) {
+				mockSvc.EXPECT().
+					UpdateProfile(gomock.Any(), "user-1", gomock.Any()).
+					Return(&service.AuthOutput{UserID: "user-1", FullName: "New Name"}, nil)
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "Unauthorized - missing claims",
+			body: `{"full_name": "New Name"}`,
+			setupCtx: func(req *http.Request) *http.Request {
+				return req
+			},
+			mockSetup:  func(mockSvc *mock_service.MockAuthService) {},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "Invalid body format",
+			body: `invalid json`,
+			setupCtx: func(req *http.Request) *http.Request {
+				claims := &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{Subject: "user-1"},
+				}
+				return req.WithContext(security.WithClaims(req.Context(), claims))
+			},
+			mockSetup:  func(mockSvc *mock_service.MockAuthService) {},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Service error",
+			body: `{"full_name": "New Name"}`,
+			setupCtx: func(req *http.Request) *http.Request {
+				claims := &security.Claims{
+					RegisteredClaims: jwt.RegisteredClaims{Subject: "user-1"},
+				}
+				return req.WithContext(security.WithClaims(req.Context(), claims))
+			},
+			mockSetup: func(mockSvc *mock_service.MockAuthService) {
+				mockSvc.EXPECT().
+					UpdateProfile(gomock.Any(), "user-1", gomock.Any()).
+					Return(nil, errors.New("db error"))
+			},
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockSvc := mock_service.NewMockAuthService(ctrl)
+			tt.mockSetup(mockSvc)
+
+			h := handler.NewAuthHandler(mockSvc)
+
+			req := httptest.NewRequest(http.MethodPatch, "/me", bytes.NewBuffer([]byte(tt.body)))
+			req = tt.setupCtx(req)
+			rec := httptest.NewRecorder()
+
+			h.UpdateMe(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("expected status %d, got %d", tt.wantStatus, rec.Code)
+			}
+		})
+	}
+}
+
 func TestAuthHandler_Logout(t *testing.T) {
 	t.Run("Happy path", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -364,6 +529,25 @@ func TestAuthHandler_Logout(t *testing.T) {
 		h := handler.NewAuthHandler(mockSvc)
 
 		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		rec := httptest.NewRecorder()
+
+		h.Logout(rec, req)
+
+		if rec.Code != http.StatusNoContent {
+			t.Errorf("expected status %d, got %d", http.StatusNoContent, rec.Code)
+		}
+	})
+
+	t.Run("Revokes refresh cookie", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		mockSvc.EXPECT().Logout(gomock.Any(), "refresh-token").Return(nil)
+		h := handler.NewAuthHandler(mockSvc)
+
+		req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+		req.AddCookie(&http.Cookie{Name: "refresh_token", Value: "refresh-token"})
 		rec := httptest.NewRecorder()
 
 		h.Logout(rec, req)

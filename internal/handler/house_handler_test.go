@@ -60,17 +60,17 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 		},
 		{
-			name:      "Unauthorized",
-			setupAuth: func(req *http.Request) *http.Request { return req },
-			reqBody:   map[string]interface{}{},
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			reqBody:        map[string]interface{}{},
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:      "Invalid body",
-			setupAuth: withValidClaims,
-			rawBody:   "{invalid json",
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			name:           "Invalid body",
+			setupAuth:      withValidClaims,
+			rawBody:        "{invalid json",
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -79,7 +79,7 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 			reqBody: map[string]interface{}{
 				"name": "House 1", // missing address and other required fields
 			},
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -148,10 +148,10 @@ func TestHouseHandler_GetHouseByID(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:      "Unauthorized",
-			setupAuth: func(req *http.Request) *http.Request { return req },
-			houseID:   "house-1",
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			houseID:        "house-1",
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
@@ -236,10 +236,10 @@ func TestHouseHandler_ListHouseByManagerID(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:        "Unauthorized",
-			setupAuth:   func(req *http.Request) *http.Request { return req },
-			queryParams: "",
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			queryParams:    "",
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
@@ -316,19 +316,19 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:      "Unauthorized",
-			setupAuth: func(req *http.Request) *http.Request { return req },
-			houseID:   "house-1",
-			reqBody:   map[string]interface{}{},
-			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			houseID:        "house-1",
+			reqBody:        map[string]interface{}{},
+			mockBehavior:   func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{
-			name:      "Invalid body",
-			setupAuth: withValidClaims,
-			houseID:   "house-1",
-			rawBody:   "{invalid json",
-			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
+			name:           "Invalid body",
+			setupAuth:      withValidClaims,
+			houseID:        "house-1",
+			rawBody:        "{invalid json",
+			mockBehavior:   func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -338,7 +338,7 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			reqBody: map[string]interface{}{
 				"name": "Updated House", // missing address
 			},
-			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
+			mockBehavior:   func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {},
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
@@ -407,10 +407,10 @@ func TestHouseHandler_DeleteHouse(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:      "Unauthorized",
-			setupAuth: func(req *http.Request) *http.Request { return req },
-			houseID:   "house-1",
-			mockBehavior: func(svc *mock_service.MockHouseService) {},
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			houseID:        "house-1",
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
 			expectedStatus: http.StatusUnauthorized,
 		},
 		{

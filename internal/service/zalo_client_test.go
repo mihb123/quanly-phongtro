@@ -105,6 +105,12 @@ func TestZaloClient_GetMe(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Invalid request URL", func(t *testing.T) {
+		if _, err := client.GetMe(context.Background(), "\n"); err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
 }
 
 func TestZaloClient_SendMessage(t *testing.T) {
@@ -166,6 +172,39 @@ func TestZaloClient_SendMessage(t *testing.T) {
 			return nil, context.DeadlineExceeded
 		}}
 		err := client.SendMessage(context.Background(), "token", "chat-1", "hello")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Invalid JSON response", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`invalid json`))),
+			}, nil
+		}}
+		err := client.SendMessage(context.Background(), "token", "chat-1", "hello")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("API returns ok=false", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"ok": false}`))),
+			}, nil
+		}}
+		err := client.SendMessage(context.Background(), "token", "chat-1", "hello")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Invalid request URL", func(t *testing.T) {
+		err := client.SendMessage(context.Background(), "\n", "chat-1", "hello")
 		if err == nil {
 			t.Errorf("expected error, got nil")
 		}
@@ -261,6 +300,39 @@ func TestZaloClient_SendPhoto(t *testing.T) {
 			t.Errorf("expected error, got nil")
 		}
 	})
+
+	t.Run("Invalid JSON response", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`invalid json`))),
+			}, nil
+		}}
+		err := client.SendPhoto(context.Background(), "token", "chat-1", "https://example.com/invoice.png", "caption")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("API returns ok=false", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"ok": false}`))),
+			}, nil
+		}}
+		err := client.SendPhoto(context.Background(), "token", "chat-1", "https://example.com/invoice.png", "caption")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Invalid request URL", func(t *testing.T) {
+		err := client.SendPhoto(context.Background(), "\n", "chat-1", "https://example.com/invoice.png", "caption")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
 }
 
 func TestZaloClient_SetWebhook(t *testing.T) {
@@ -328,6 +400,23 @@ func TestZaloClient_SetWebhook(t *testing.T) {
 			}, nil
 		}}
 		err := client.SetWebhook(context.Background(), "token", "url", "secret")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Network error", func(t *testing.T) {
+		http.DefaultTransport = &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+			return nil, context.DeadlineExceeded
+		}}
+		err := client.SetWebhook(context.Background(), "token", "url", "secret")
+		if err == nil {
+			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Invalid request URL", func(t *testing.T) {
+		err := client.SetWebhook(context.Background(), "\n", "url", "secret")
 		if err == nil {
 			t.Errorf("expected error, got nil")
 		}

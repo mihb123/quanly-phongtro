@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -13,7 +14,7 @@ import (
 )
 
 func ptrFloat(f float64) *float64 { return &f }
-func ptrInt(i int) *int { return &i }
+func ptrInt(i int) *int           { return &i }
 
 func TestInvoiceServiceImpl_calculateUtilityFee(t *testing.T) {
 	s := &InvoiceServiceImpl{}
@@ -243,6 +244,63 @@ func TestInvoiceService_PayInvoice(t *testing.T) {
 	}
 }
 
+// TestInvoiceService_StatusChangesPublishEvents covers event publishing for status changes.
+func TestInvoiceService_StatusChangesPublishEvents(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
+	eventBus := NewEventBus()
+	received := make(chan interface{}, 3)
+	eventBus.Subscribe(EventInvoiceChanged, func(payload interface{}) {
+		received <- payload
+	})
+	s := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, eventBus)
+	ctx := context.Background()
+
+	mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", "pay-1").Return(&model.InvoiceWithRoom{
+		Invoice: model.Invoice{Status: "UNPAID", Period: "2023-10"},
+		HouseID: "house-1",
+	}, nil)
+	mockInvoiceRepo.EXPECT().UpdateInvoiceStatus(ctx, "mgr-1", "pay-1", "PAID").Return(&model.Invoice{Status: "PAID"}, nil)
+
+	if _, err := s.PayInvoice(ctx, "mgr-1", "pay-1"); err != nil {
+		t.Fatalf("pay invoice: %v", err)
+	}
+
+	mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", "unpay-1").Return(&model.InvoiceWithRoom{
+		Invoice: model.Invoice{Status: "PAID", Period: "2023-10"},
+		HouseID: "house-1",
+	}, nil)
+	mockInvoiceRepo.EXPECT().UpdateInvoiceStatus(ctx, "mgr-1", "unpay-1", "UNPAID").Return(&model.Invoice{Status: "UNPAID"}, nil)
+
+	if _, err := s.UnpayInvoice(ctx, "mgr-1", "unpay-1"); err != nil {
+		t.Fatalf("unpay invoice: %v", err)
+	}
+
+	mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", "delete-1").Return(&model.InvoiceWithRoom{
+		Invoice: model.Invoice{Status: "UNPAID", Period: "2023-10"},
+		HouseID: "house-1",
+	}, nil)
+	mockInvoiceRepo.EXPECT().DeleteInvoice(ctx, "mgr-1", "delete-1").Return(nil)
+
+	if err := s.DeleteInvoice(ctx, "mgr-1", "delete-1"); err != nil {
+		t.Fatalf("delete invoice: %v", err)
+	}
+
+	for i := 0; i < 3; i++ {
+		select {
+		case value := <-received:
+			payload, ok := value.(RevenueSummaryPayload)
+			if !ok || payload.HouseID != "house-1" || payload.Period != "2023-10" {
+				t.Fatalf("unexpected payload: %+v", value)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("expected invoice changed event")
+		}
+	}
+}
+
 func TestInvoiceService_DeleteInvoice(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -313,7 +371,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	
+
 	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
@@ -328,19 +386,19 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 			name:      "Happy path - Create new invoice",
 			managerID: "mgr-1",
 			input: CreateInvoiceInput{
-				RoomID: "room-1",
-				Period: "01/2023",
+				RoomID:              "room-1",
+				Period:              "01/2023",
 				NewElectricityIndex: 100,
-				NewWaterIndex: 10,
+				NewWaterIndex:       10,
 			},
 			setupMock: func() {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
-				
+
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
-				
+
 				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
 				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
@@ -348,22 +406,44 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:      "Update existing unpaid invoice",
+			name:      "Create invoice repo error",
 			managerID: "mgr-1",
 			input: CreateInvoiceInput{
-				RoomID: "room-1",
-				Period: "01/2023",
+				RoomID:              "room-1",
+				Period:              "01/2023",
 				NewElectricityIndex: 100,
-				NewWaterIndex: 10,
+				NewWaterIndex:       10,
 			},
 			setupMock: func() {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
-				
+
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
-				
+
+				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(errors.New("db error"))
+			},
+			wantErr: true,
+		},
+		{
+			name:      "Update existing unpaid invoice",
+			managerID: "mgr-1",
+			input: CreateInvoiceInput{
+				RoomID:              "room-1",
+				Period:              "01/2023",
+				NewElectricityIndex: 100,
+				NewWaterIndex:       10,
+			},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
+
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
+
 				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(&model.Invoice{ID: "inv-1", Status: "UNPAID"}, nil)
 				mockInvoiceRepo.EXPECT().UpdateInvoice(ctx, "mgr-1", gomock.Any()).Return(nil)
 				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
@@ -371,22 +451,44 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:      "Cannot edit a paid invoice",
+			name:      "Update existing unpaid invoice error",
 			managerID: "mgr-1",
 			input: CreateInvoiceInput{
-				RoomID: "room-1",
-				Period: "01/2023",
+				RoomID:              "room-1",
+				Period:              "01/2023",
 				NewElectricityIndex: 100,
-				NewWaterIndex: 10,
+				NewWaterIndex:       10,
 			},
 			setupMock: func() {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
-				
+
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
-				
+
+				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(&model.Invoice{ID: "inv-1", Status: "UNPAID"}, nil)
+				mockInvoiceRepo.EXPECT().UpdateInvoice(ctx, "mgr-1", gomock.Any()).Return(errors.New("db error"))
+			},
+			wantErr: true,
+		},
+		{
+			name:      "Cannot edit a paid invoice",
+			managerID: "mgr-1",
+			input: CreateInvoiceInput{
+				RoomID:              "room-1",
+				Period:              "01/2023",
+				NewElectricityIndex: 100,
+				NewWaterIndex:       10,
+			},
+			setupMock: func() {
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
+
+				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
+
 				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(&model.Invoice{ID: "inv-1", Status: "PAID"}, nil)
 			},
 			wantErr: true,
@@ -408,16 +510,16 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 			name:      "Invalid electricity index (less than old index)",
 			managerID: "mgr-1",
 			input: CreateInvoiceInput{
-				RoomID: "room-1",
-				Period: "01/2023",
+				RoomID:              "room-1",
+				Period:              "01/2023",
 				NewElectricityIndex: 50,
-				NewWaterIndex: 10,
+				NewWaterIndex:       10,
 			},
 			setupMock: func() {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
-				
+
 				// Previous invoice had index 60
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(&model.Invoice{NewElectricityIndex: 60, NewWaterIndex: 5}, nil)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
@@ -431,7 +533,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 			setupMock: func() {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(nil, errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "IsHouseOwnedBy fails",
@@ -441,7 +543,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1"}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(false, errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "GetByID (house) fails",
@@ -452,7 +554,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(nil, errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "GetPreviousInvoice returns non-ErrInvoiceNotFound",
@@ -464,7 +566,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1"}, nil)
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "GetCurrentNumTenantInRoom fails",
@@ -477,7 +579,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(0), errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "Room has custom prices & Extra fees",
@@ -505,7 +607,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
 				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
 			},
-			wantErr:   false,
+			wantErr: false,
 		},
 		{
 			name:      "FIXED billing type with index normalization & invalid water index",
@@ -522,7 +624,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(&model.Invoice{NewElectricityIndex: 0, NewWaterIndex: 10}, nil)
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(1), nil)
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 		{
 			name:      "GetInvoiceByRoomAndPeriod returns unexpected error",
@@ -536,7 +638,7 @@ func TestInvoiceService_CreateInvoice(t *testing.T) {
 				mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
 				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, errors.New("db err"))
 			},
-			wantErr:   true,
+			wantErr: true,
 		},
 	}
 
@@ -615,6 +717,54 @@ func TestInvoiceService_UnpayInvoice(t *testing.T) {
 	}
 }
 
+// TestInvoiceService_CreateInvoicePublishesEvent covers create-invoice recalculation events.
+func TestInvoiceService_CreateInvoicePublishesEvent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
+	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
+	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
+	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
+	eventBus := NewEventBus()
+	received := make(chan interface{}, 1)
+	eventBus.Subscribe(EventInvoiceChanged, func(payload interface{}) {
+		received <- payload
+	})
+
+	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, eventBus)
+	ctx := context.Background()
+	input := CreateInvoiceInput{
+		RoomID:              "room-1",
+		Period:              "01/2023",
+		NewElectricityIndex: 100,
+		NewWaterIndex:       10,
+	}
+
+	mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
+	mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
+	mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
+	mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+	mockTenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "room-1").Return(int64(2), nil)
+	mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
+	mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
+	mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
+
+	if _, err := s.CreateInvoice(ctx, "mgr-1", input); err != nil {
+		t.Fatalf("create invoice: %v", err)
+	}
+
+	select {
+	case value := <-received:
+		payload, ok := value.(RevenueSummaryPayload)
+		if !ok || payload.HouseID != "house-1" || payload.Period != "01/2023" {
+			t.Fatalf("unexpected payload: %+v", value)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected invoice changed event")
+	}
+}
+
 func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -623,7 +773,7 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	
+
 	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
@@ -645,13 +795,13 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 						OldWaterIndex: 5, NewWaterIndex: 10, OtherFee: 0, Discount: 0, VehicleCount: 1, TenantCount: 2,
 					},
 				}, nil)
-				
+
 				// Inside CreateInvoice calls
 				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
 				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
 				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
-				
+
 				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
 				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
 				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
@@ -666,6 +816,21 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return(nil, errors.New("db error"))
 			},
 			wantErr: true,
+		},
+		{
+			name:      "CreateInvoice error is logged and ignored",
+			managerID: "mgr-1",
+			roomID:    "room-1",
+			setupMock: func() {
+				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{
+					{
+						RoomID: "room-1", Period: "01/2023", OldElectricityIndex: 10, NewElectricityIndex: 20,
+						OldWaterIndex: 5, NewWaterIndex: 10, OtherFee: 0, Discount: 0, VehicleCount: 1, TenantCount: 2,
+					},
+				}, nil)
+				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(nil, errors.New("room repo error"))
+			},
+			wantErr: false,
 		},
 	}
 
@@ -690,7 +855,7 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
 	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
 	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
 	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	
+
 	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
 	ctx := context.Background()
 
@@ -709,7 +874,7 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
 				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return([]model.Room{
 					{ID: "room-1"},
 				}, nil)
-				
+
 				// RecalculateUnpaidInvoicesByRoom calls
 				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{}, nil)
 			},
@@ -723,6 +888,16 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
 				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return(nil, errors.New("db error"))
 			},
 			wantErr: true,
+		},
+		{
+			name:      "Room recalculation error is logged and ignored",
+			managerID: "mgr-1",
+			houseID:   "house-1",
+			setupMock: func() {
+				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return([]model.Room{{ID: "room-1"}}, nil)
+				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return(nil, errors.New("db error"))
+			},
+			wantErr: false,
 		},
 	}
 

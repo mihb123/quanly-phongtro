@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
-	"go.uber.org/mock/gomock"
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"go.uber.org/mock/gomock"
 )
 
 func TestRevenueWorker_ProcessEvent(t *testing.T) {
@@ -80,4 +81,52 @@ func TestRevenueWorker_ProcessEvent_NoCostAndNoRevenue(t *testing.T) {
 
 	// Call synchronously
 	worker.processEvent(event)
+}
+
+// TestRevenueWorker_StartStopAndEnqueue covers the async worker loop.
+func TestRevenueWorker_StartStopAndEnqueue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
+	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
+	worker := NewRevenueWorker(mockSummaryRepo, mockCostRepo)
+	done := make(chan struct{}, 1)
+
+	mockSummaryRepo.EXPECT().
+		CalculateRevenue(gomock.Any(), "house-1", "2023-10").
+		Return(1000.0, nil)
+	mockCostRepo.EXPECT().
+		GetByHouseAndPeriod(gomock.Any(), "house-1", "2023-10").
+		Return(&model.HouseCost{TotalCost: 250.0}, nil)
+	mockSummaryRepo.EXPECT().
+		Upsert(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, summary *model.HouseRevenueSummary) error {
+			if summary.Profit != 750 {
+				t.Errorf("expected profit 750, got %v", summary.Profit)
+			}
+			done <- struct{}{}
+			return nil
+		})
+
+	worker.Start()
+	worker.Enqueue("house-1", "2023-10")
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("expected worker to process event")
+	}
+
+	worker.Stop()
+}
+
+// TestRevenueWorker_EnqueueDropsWhenFull covers the non-blocking full-channel branch.
+func TestRevenueWorker_EnqueueDropsWhenFull(t *testing.T) {
+	worker := NewRevenueWorker(nil, nil)
+	for i := 0; i < cap(worker.eventChannel); i++ {
+		worker.Enqueue("house-1", "2023-10")
+	}
+
+	worker.Enqueue("house-1", "2023-10")
 }

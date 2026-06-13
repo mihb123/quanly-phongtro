@@ -448,20 +448,18 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		}
 	}
 
-	if strings.HasPrefix(webhookCtx.text, "Kich hoat") {
-		managerNameToLink := strings.TrimSpace(strings.TrimPrefix(webhookCtx.text, "Kich hoat"))
-
-		if managerNameToLink == user.FullName || managerNameToLink == managerID {
-			if user.ZaloUserID != nil && *user.ZaloUserID != "" {
-				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "⚠️ Tài khoản này đã được liên kết với một thiết bị khác. Không thể liên kết lại.")
-				return nil
-			}
-
-			_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
-			if err == nil {
-				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
+	if user.ZaloUserID == nil || *user.ZaloUserID == "" {
+		if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && webhookCtx.text != "" {
+			hasher := security.NewBcryptHasher()
+			if err := hasher.Compare(user.PasswordHash, webhookCtx.text); err == nil {
+				_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
+				if err == nil {
+					_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
+				} else {
+					_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
+				}
 			} else {
-				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
+				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "Manager cần nhập mật khẩu để kích hoạt tài khoản")
 			}
 		}
 		return nil

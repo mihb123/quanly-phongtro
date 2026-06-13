@@ -65,9 +65,9 @@ func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("id = ?", userID).
-		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
