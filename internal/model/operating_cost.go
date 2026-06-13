@@ -9,6 +9,7 @@ import (
 type ExtraCost struct {
 	Name   string  `json:"name"`
 	Amount float64 `json:"amount"`
+	Note   string  `json:"note"`
 }
 
 // HouseCost stores monthly operating costs for a house

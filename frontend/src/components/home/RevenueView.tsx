@@ -4,13 +4,14 @@ import { useHouseStore } from '@/data/houseData';
 import { useSelectedStore, type TabType } from '@/data/selectedData';
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm';
 import type { HouseCost, ExtraCost } from '@/api/houseCost';
-import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle, Maximize2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import { HouseSelectDropdown } from './HouseSelectDropdown';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { EditNoteModal } from './modals/EditNoteModal';
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -39,6 +40,7 @@ export function RevenueView() {
   const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
   const [isHouseSelectOpen, setIsHouseSelectOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const [editingNoteFor, setEditingNoteFor] = useState<{houseId: string, index: number} | null>(null);
 
   const hasAnyEdits = Object.keys(editState).length > 0;
 
@@ -184,8 +186,10 @@ export function RevenueView() {
     
     if (field === 'amount') {
       newExtras[index] = { ...newExtras[index], amount: typeof value === 'string' ? (parseFloat(value) || 0) : value };
-    } else {
+    } else if (field === 'name') {
       newExtras[index] = { ...newExtras[index], name: value as string };
+    } else {
+      newExtras[index] = { ...newExtras[index], note: value as string };
     }
 
     setEditState(prev => ({
@@ -206,25 +210,33 @@ export function RevenueView() {
       ...prev,
       [houseId]: {
         ...prev[houseId],
-        extra_costs: [...currentEdits, { name: 'Chi phí mới', amount: 0 }]
+        extra_costs: [...currentEdits, { name: 'Chi phí mới', amount: 0, note: '' }]
       }
     }));
   };
 
-  const handleRemoveExtraCost = (houseId: string, index: number) => {
+  const handleRemoveExtraCost = async (houseId: string, index: number) => {
     const cost = costs[houseId];
     if (!cost) return;
     
     const currentEdits = editState[houseId]?.extra_costs || cost.extra_costs || [];
     const newExtras = currentEdits.filter((_, i) => i !== index);
     
-    setEditState(prev => ({
-      ...prev,
-      [houseId]: {
-        ...prev[houseId],
-        extra_costs: newExtras
-      }
-    }));
+    // Auto-save immediately upon deletion
+    const editsToSave = { ...(editState[houseId] || {}), extra_costs: newExtras };
+
+    setIsSaving(prev => ({ ...prev, [houseId]: true }));
+    try {
+      await updateCost(cost.id, houseId, editsToSave);
+      const newEditState = { ...editState };
+      delete newEditState[houseId];
+      setEditState(newEditState);
+      toast.success('Đã xóa chi phí');
+    } catch {
+      toast.error('Không thể xóa chi phí.');
+    } finally {
+      setIsSaving(prev => ({ ...prev, [houseId]: false }));
+    }
   };
 
   const handleSaveCost = async (houseId: string) => {
@@ -384,26 +396,27 @@ export function RevenueView() {
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b border-border/50">
                       <tr>
-                        <th className="px-6 py-4 font-bold">Loại chi phí</th>
-                        <th className="px-6 py-4 font-bold">Phân loại</th>
-                        <th className="px-6 py-4 font-bold">Số tiền (VND)</th>
-                        <th className="px-6 py-4 font-bold text-right w-16"></th>
+                        <th className="px-6 py-4 font-bold w-[25%] min-w-[100px]">Loại chi phí</th>
+                        <th className="px-6 py-4 font-bold w-[15%] whitespace-nowrap min-w-[100px]">Phân loại</th>
+                        <th className="px-6 py-4 font-bold w-[20%] min-w-[120px]">Số tiền (VND)</th>
+                        <th className="px-6 py-4 font-bold w-[25%] min-w-[200px]">Ghi chú</th>
+                        <th className="px-6 py-4 font-bold text-right w-[5%] min-w-[60px]"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/30">
                       {/* Fixed Layout Costs */}
                       {[
-                        { key: 'rent', label: 'Tiền thuê nhà (khoán)', type: 'Cố định' },
+                        { key: 'rent', label: 'Tiền thuê nhà', type: 'Cố định' },
                         { key: 'electricity', label: 'Tiền điện', type: 'Biến đổi' },
                         { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
-                        { key: 'wifi', label: 'Tiền WiFi/Internet', type: 'Cố định' },
+                        { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
                         { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
                         { key: 'maintenance', label: 'Tiền bảo trì, sửa chữa', type: 'Biến đổi' },
                       ].map((item) => (
                         <tr key={item.key} className="hover:bg-secondary/20 transition-colors group">
                           <td className="px-6 py-4 font-semibold text-foreground">{item.label}</td>
                           <td className="px-6 py-4">
-                            <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${item.type === 'Cố định' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                            <span className={`inline-flex whitespace-nowrap px-2.5 py-1 text-[10px] font-bold rounded-full ${item.type === 'Cố định' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                               {item.type}
                             </span>
                           </td>
@@ -414,6 +427,7 @@ export function RevenueView() {
                               className="w-40 font-semibold focus-visible:ring-primary h-9 rounded-lg"
                             />
                           </td>
+                          <td className="px-6 py-4"></td>
                           <td className="px-6 py-4"></td>
                         </tr>
                       ))}
@@ -426,11 +440,11 @@ export function RevenueView() {
                               value={extra.name}
                               onChange={(e) => handleExtraCostChange(selectedHouseIds[0], index, 'name', e.target.value)}
                               placeholder="Tên chi phí..."
-                              className="font-semibold focus-visible:ring-primary h-9 rounded-lg"
+                              className="w-full min-w-[150px] font-semibold focus-visible:ring-primary h-9 rounded-lg"
                             />
                           </td>
                           <td className="px-6 py-4">
-                            <span className="px-2.5 py-1 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700">Tùy chỉnh</span>
+                            <span className="inline-flex whitespace-nowrap px-2.5 py-1 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700">Tùy chỉnh</span>
                           </td>
                           <td className="px-6 py-3">
                             <CurrencyInput
@@ -438,6 +452,14 @@ export function RevenueView() {
                               onChange={(val) => handleExtraCostChange(selectedHouseIds[0], index, 'amount', val)}
                               className="w-40 font-semibold focus-visible:ring-primary h-9 rounded-lg"
                             />
+                          </td>
+                          <td className="px-6 py-3">
+                            <div 
+                              onClick={() => setEditingNoteFor({ houseId: selectedHouseIds[0], index })}
+                              className={`w-full min-w-[250px] font-medium min-h-[36px] p-2.5 text-sm cursor-pointer rounded-lg hover:bg-secondary/50 transition-colors whitespace-pre-wrap leading-relaxed ${extra.note ? 'text-foreground' : 'text-muted-foreground italic'}`}
+                            >
+                              {extra.note || 'Bấm để thêm ghi chú...'}
+                            </div>
                           </td>
                           <td className="px-6 py-3 text-right">
                             <Button 
@@ -451,11 +473,22 @@ export function RevenueView() {
                           </td>
                         </tr>
                       ))}
+                      <tr>
+                        <td colSpan={5} className="px-6 py-3">
+                          <Button 
+                            variant="ghost" 
+                            onClick={() => handleAddExtraCost(selectedHouseIds[0])}
+                            className="text-primary hover:text-primary/80 hover:bg-primary/10 font-bold -ml-2"
+                          >
+                            <Plus className="w-4 h-4 mr-2" /> Thêm chi phí khác
+                          </Button>
+                        </td>
+                      </tr>
                     </tbody>
                     <tfoot className="bg-primary/5 border-t-2 border-primary/20">
                       <tr>
                         <td colSpan={2} className="px-6 py-5 font-extrabold text-foreground text-right uppercase tracking-wider">Tổng cộng chi phí:</td>
-                        <td colSpan={2} className="px-6 py-5 font-extrabold text-rose-600 text-xl">
+                        <td colSpan={3} className="px-6 py-5 font-extrabold text-rose-600 text-xl">
                           {formatCurrency(
                             (getActiveCostValue(selectedHouseIds[0], 'rent') as number) +
                             (getActiveCostValue(selectedHouseIds[0], 'electricity') as number) +
@@ -469,26 +502,6 @@ export function RevenueView() {
                       </tr>
                     </tfoot>
                   </table>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleAddExtraCost(selectedHouseIds[0])}
-                    className="rounded-xl border-dashed border-2 hover:bg-secondary font-semibold"
-                  >
-                    <Plus className="w-4 h-4 mr-2" /> Thêm chi phí khác
-                  </Button>
-                  
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-muted-foreground">Ghi chú chung:</span>
-                    <Input
-                      value={getActiveCostValue(selectedHouseIds[0], 'note') as string}
-                      onChange={(e) => handleFieldChange(selectedHouseIds[0], 'note', e.target.value)}
-                      placeholder="Ghi chú thêm cho tháng này..."
-                      className="w-64 font-medium focus-visible:ring-primary rounded-lg"
-                    />
-                  </div>
                 </div>
               </div>
             )}
@@ -515,6 +528,18 @@ export function RevenueView() {
         </div>
       )}
       {confirmModal}
+
+      {/* Note Editing Modal */}
+      {editingNoteFor && (
+        <EditNoteModal
+          initialNote={getActiveExtraCosts(editingNoteFor.houseId)[editingNoteFor.index]?.note || ''}
+          onSave={(note) => {
+            handleExtraCostChange(editingNoteFor.houseId, editingNoteFor.index, 'note', note);
+            setEditingNoteFor(null);
+          }}
+          onClose={() => setEditingNoteFor(null)}
+        />
+      )}
     </div>
   );
 }

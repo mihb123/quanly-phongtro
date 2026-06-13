@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface ExtraCost {
   name: string;
   amount: number;
+  note?: string;
 }
 
 export interface HouseCost {
