@@ -107,16 +107,28 @@ jobs:
           source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 6] Deploy"
           cd $PROJECT_DIR
           
-          mv ${SERVICE_NAME}.new $SERVICE_NAME
+          if [[ -f "${SERVICE_NAME}.new" ]]; then
+            mv ${SERVICE_NAME}.new $SERVICE_NAME
+          elif [[ -f "$SERVICE_NAME" ]]; then
+            echo "Không tìm thấy ${SERVICE_NAME}.new, dùng binary hiện có"
+          else
+            echo "Không tìm thấy binary để deploy"
+            exit 1
+          fi
+
           chmod +x $SERVICE_NAME
+          sudo /usr/bin/cp $PROJECT_DIR/.github/systemd/${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
+          sudo /usr/bin/systemctl daemon-reload
+          sudo /usr/bin/systemctl enable $SERVICE_NAME
           sudo /usr/bin/systemctl restart $SERVICE_NAME
           sleep 2
           sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
 
           sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-available/quanly-phongtro
+          sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-enabled/quanly-phongtro
           sudo /usr/sbin/nginx -t
 
-          rsync -a --delete $PROJECT_DIR/frontend/dist/ /var/www/quanly-phongtro/
+          sudo /usr/bin/cp -aT $PROJECT_DIR/frontend/dist /var/www/quanly-phongtro
           
           sudo /usr/bin/systemctl reload nginx
 
