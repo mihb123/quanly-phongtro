@@ -110,6 +110,7 @@ func New(
 	})
 
 	r.Handle("/api/v1/uploads/transactions/*", http.StripPrefix("/api/v1/uploads/transactions/", http.FileServer(http.Dir("uploads/transactions"))))
+	r.Handle("/api/v1/uploads/zalo-invoices/*", http.StripPrefix("/api/v1/uploads/zalo-invoices/", http.FileServer(http.Dir("uploads/zalo-invoices"))))
 
 	return r
 }

@@ -43,6 +43,7 @@ type zaloServiceImpl struct {
 	invoiceRepo   model.InvoiceRepository
 	imageService  ImageService
 	encryptionKey []byte
+	publicBaseURL string
 }
 
 // DecodeEncryptionKey decodes the hex or raw 32-byte encryption key string used for Zalo tokens.
@@ -60,10 +61,15 @@ func DecodeEncryptionKey(hexKey string) ([]byte, error) {
 	return keyBytes, nil
 }
 
-func NewZaloService(client ZaloClient, userRepo model.UserRepository, roomRepo model.RoomRepository, tenantRepo model.TenantRepository, houseRepo model.HouseRepository, invoiceRepo model.InvoiceRepository, imageService ImageService, hexKey string) (ZaloService, error) {
+func NewZaloService(client ZaloClient, userRepo model.UserRepository, roomRepo model.RoomRepository, tenantRepo model.TenantRepository, houseRepo model.HouseRepository, invoiceRepo model.InvoiceRepository, imageService ImageService, hexKey string, publicBaseURL ...string) (ZaloService, error) {
 	keyBytes, err := DecodeEncryptionKey(hexKey)
 	if err != nil {
 		return nil, err
+	}
+
+	baseURL := "http://localhost:8080"
+	if len(publicBaseURL) > 0 && publicBaseURL[0] != "" {
+		baseURL = strings.TrimRight(publicBaseURL[0], "/")
 	}
 
 	return &zaloServiceImpl{
@@ -75,6 +81,7 @@ func NewZaloService(client ZaloClient, userRepo model.UserRepository, roomRepo m
 		invoiceRepo:   invoiceRepo,
 		imageService:  imageService,
 		encryptionKey: keyBytes,
+		publicBaseURL: baseURL,
 	}, nil
 }
 
@@ -89,17 +96,22 @@ func (s *zaloServiceImpl) SaveZaloConfig(ctx context.Context, managerID, botToke
 		return fmt.Errorf("set webhook failed: %v", err)
 	}
 
-	// 3. Encrypt token
+	// 3. Encrypt token and webhook secret
 	encToken, err := security.Encrypt(botToken, s.encryptionKey)
 	if err != nil {
 		return fmt.Errorf("encrypt token: %v", err)
+	}
+	encSecret, err := security.Encrypt(secretToken, s.encryptionKey)
+	if err != nil {
+		return fmt.Errorf("encrypt webhook secret: %v", err)
 	}
 
 	// 4. Save to DB and mark bot as active
 	active := true
 	input := model.UpdateUserInput{
-		ZaloBotToken:    &encToken,
-		IsZaloBotActive: &active,
+		ZaloBotToken:      &encToken,
+		ZaloWebhookSecret: &encSecret,
+		IsZaloBotActive:   &active,
 	}
 
 	_, err = s.userRepo.UpdateUser(ctx, managerID, input)
@@ -188,6 +200,10 @@ func (s *zaloServiceImpl) SendInvoiceToZalo(ctx context.Context, managerID, invo
 	if err != nil {
 		return fmt.Errorf("generate image: %w", err)
 	}
+	photoURL, err := s.saveZaloInvoiceImage(invoice.ID, imageBytes)
+	if err != nil {
+		return fmt.Errorf("save zalo invoice image: %w", err)
+	}
 
 	caption := fmt.Sprintf("Hóa đơn tiền nhà tháng %s cho phòng %s.\nTổng tiền: %s", invoice.Period, invoice.RoomName, formatCurrencyToVND(invoice.TotalAmount))
 
@@ -195,7 +211,7 @@ func (s *zaloServiceImpl) SendInvoiceToZalo(ctx context.Context, managerID, invo
 
 	// Send to Group Chat
 	if room.GroupChatID != nil && *room.GroupChatID != "" {
-		err := s.client.SendPhoto(ctx, botToken, *room.GroupChatID, imageBytes, caption)
+		err := s.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption)
 		if err != nil {
 			if isZaloAuthError(err) {
 				s.markTokenInactive(ctx, managerID)
@@ -210,7 +226,7 @@ func (s *zaloServiceImpl) SendInvoiceToZalo(ctx context.Context, managerID, invo
 	if err == nil {
 		for _, t := range tenants {
 			if t.ZaloUserID != "" {
-				err := s.client.SendPhoto(ctx, botToken, t.ZaloUserID, imageBytes, caption)
+				err := s.client.SendPhoto(ctx, botToken, t.ZaloUserID, photoURL, caption)
 				if err != nil {
 					sendErrors = append(sendErrors, fmt.Sprintf("tenant %s error: %v", t.FullName, err))
 				}
@@ -239,22 +255,170 @@ func (s *zaloServiceImpl) SendInvoiceToZalo(ctx context.Context, managerID, invo
 	return nil
 }
 
-func (s *zaloServiceImpl) generateDeterministicSecret(managerID string) string {
-	return managerID[:min(12, len(managerID))]
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
+// saveZaloInvoiceImage stores a generated invoice image at a public URL that Zalo can fetch.
+func (s *zaloServiceImpl) saveZaloInvoiceImage(invoiceID string, imageBytes []byte) (string, error) {
+	dir := "uploads/zalo-invoices"
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("mkdir: %w", err)
 	}
-	return b
+
+	fileName := fmt.Sprintf("%s_%s.png", invoiceID, uuid.NewString())
+	filePath := filepath.Join(dir, fileName)
+	if err := os.WriteFile(filePath, imageBytes, 0644); err != nil {
+		return "", fmt.Errorf("write file: %w", err)
+	}
+
+	return fmt.Sprintf("%s/api/v1/uploads/zalo-invoices/%s", s.publicBaseURL, fileName), nil
 }
 
-func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, body []byte, secretTokenHeader string) error {
+type webhookMessageContext struct {
+	eventName   string
+	message     map[string]interface{}
+	senderID    string
+	chatID      string
+	replyChatID string
+	groupName   string
+	isGroupChat bool
+	text        string
+	photoURL    string
+}
+
+// normalizeWebhookPayload unwraps Zalo's current webhook envelope while keeping old test payloads valid.
+func normalizeWebhookPayload(payload map[string]interface{}) map[string]interface{} {
+	result, ok := payload["result"].(map[string]interface{})
+	if !ok {
+		return payload
+	}
+	return result
+}
+
+// stringFromMap reads a JSON string or number field as the string ID used by Zalo.
+func stringFromMap(value map[string]interface{}, key string) string {
+	raw, ok := value[key]
+	if !ok {
+		return ""
+	}
+	switch v := raw.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	default:
+		return ""
+	}
+}
+
+// mapFromMap returns a nested JSON object from a generic decoded webhook payload.
+func mapFromMap(value map[string]interface{}, key string) map[string]interface{} {
+	nested, ok := value[key].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	return nested
+}
+
+// webhookContextFromPayload extracts the fields this service needs from official and legacy Zalo payloads.
+func webhookContextFromPayload(payload map[string]interface{}) webhookMessageContext {
+	message := mapFromMap(payload, "message")
+	eventName, _ := payload["event_name"].(string)
+
+	ctx := webhookMessageContext{
+		eventName: eventName,
+		message:   message,
+	}
+
+	if sender := mapFromMap(payload, "sender"); sender != nil {
+		ctx.senderID = stringFromMap(sender, "id")
+	}
+	if message != nil {
+		if from := mapFromMap(message, "from"); from != nil {
+			ctx.senderID = stringFromMap(from, "id")
+		}
+		if text, ok := message["text"].(string); ok {
+			ctx.text = strings.TrimSpace(text)
+		}
+		if photo, ok := message["photo"].(string); ok {
+			ctx.photoURL = photo
+		}
+	}
+
+	if group := mapFromMap(payload, "group"); group != nil {
+		ctx.isGroupChat = true
+		ctx.chatID = stringFromMap(group, "id")
+		if name, ok := group["name"].(string); ok {
+			ctx.groupName = name
+		}
+	}
+	if message != nil {
+		if chat := mapFromMap(message, "chat"); chat != nil {
+			ctx.chatID = stringFromMap(chat, "id")
+			if title, ok := chat["title"].(string); ok && title != "" {
+				ctx.groupName = title
+			}
+			if name, ok := chat["name"].(string); ok && name != "" {
+				ctx.groupName = name
+			}
+			if chatType, ok := chat["chat_type"].(string); ok && strings.EqualFold(chatType, "GROUP") {
+				ctx.isGroupChat = true
+			}
+		}
+	}
+	if ctx.groupName != "" && ctx.chatID != "" && ctx.chatID != ctx.senderID {
+		ctx.isGroupChat = true
+	}
+	if ctx.chatID == ctx.senderID && !ctx.isGroupChat {
+		ctx.chatID = ""
+	}
+	if ctx.chatID != "" {
+		ctx.replyChatID = ctx.chatID
+	} else {
+		ctx.replyChatID = ctx.senderID
+	}
+	if ctx.isGroupChat {
+		ctx.replyChatID = ctx.chatID
+	}
+
+	if ctx.photoURL == "" && message != nil {
+		if attachments, ok := message["attachments"].([]interface{}); ok {
+			for _, att := range attachments {
+				attMap, ok := att.(map[string]interface{})
+				if !ok || attMap["type"] != "image" {
+					continue
+				}
+				payloadMap := mapFromMap(attMap, "payload")
+				if payloadMap == nil {
+					continue
+				}
+				if urlStr, ok := payloadMap["url"].(string); ok && urlStr != "" {
+					ctx.photoURL = urlStr
+					break
+				}
+			}
+		}
+	}
+
+	return ctx
+}
+
+// verifyWebhookSecret validates configured Zalo webhook secrets and permits legacy configs without a saved secret.
+func (s *zaloServiceImpl) verifyWebhookSecret(user *model.User, secretTokenHeader string) error {
 	if secretTokenHeader == "" {
 		return errors.New("missing webhook secret token")
 	}
+	if user.ZaloWebhookSecret == nil || *user.ZaloWebhookSecret == "" {
+		return nil
+	}
+	plainSecret, err := security.Decrypt(*user.ZaloWebhookSecret, s.encryptionKey)
+	if err != nil {
+		return fmt.Errorf("decrypt webhook secret failed: %w", err)
+	}
+	if plainSecret != secretTokenHeader {
+		return errors.New("invalid webhook secret token")
+	}
+	return nil
+}
 
+func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, body []byte, secretTokenHeader string) error {
 	fmt.Printf("Webhook received for manager %s. Payload: %s\n", managerID, string(body))
 
 	var payload map[string]interface{}
@@ -263,110 +427,60 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		return err
 	}
 
-	eventName, _ := payload["event_name"].(string)
+	payload = normalizeWebhookPayload(payload)
+	webhookCtx := webhookContextFromPayload(payload)
 
-	var groupChatID string
-	var groupName string
-	var senderID string
+	if secretTokenHeader == "" {
+		return errors.New("missing webhook secret token")
+	}
 
-	if sender, ok := payload["sender"].(map[string]interface{}); ok {
-		if id, ok := sender["id"].(string); ok {
-			senderID = id
-		} else if idFloat, ok := sender["id"].(float64); ok {
-			senderID = fmt.Sprintf("%.0f", idFloat)
-		}
-	} else if msgInfo, ok := payload["message"].(map[string]interface{}); ok {
-		if from, ok := msgInfo["from"].(map[string]interface{}); ok {
-			if id, ok := from["id"].(string); ok {
-				senderID = id
-			} else if idFloat, ok := from["id"].(float64); ok {
-				senderID = fmt.Sprintf("%.0f", idFloat)
-			}
+	user, err := s.userRepo.GetByUserID(ctx, managerID)
+	if err != nil {
+		return err
+	}
+	if err := s.verifyWebhookSecret(user, secretTokenHeader); err != nil {
+		return err
+	}
+
+	if webhookCtx.eventName == "group.bot.add" || webhookCtx.isGroupChat {
+		if webhookCtx.groupName != "" && webhookCtx.chatID != "" {
+			_ = s.autoLinkRoom(ctx, managerID, webhookCtx.chatID, webhookCtx.groupName)
 		}
 	}
 
-	isGroupChat := false
+	if strings.HasPrefix(webhookCtx.text, "Kich hoat") {
+		managerNameToLink := strings.TrimSpace(strings.TrimPrefix(webhookCtx.text, "Kich hoat"))
 
-	// Attempt extraction based on common patterns
-	if groupInfo, ok := payload["group"].(map[string]interface{}); ok {
-		isGroupChat = true
-		if id, ok := groupInfo["id"].(string); ok {
-			groupChatID = id
-		} else if idFloat, ok := groupInfo["id"].(float64); ok {
-			groupChatID = fmt.Sprintf("%.0f", idFloat)
-		}
-		if name, ok := groupInfo["name"].(string); ok {
-			groupName = name
-		}
-	} else if messageInfo, ok := payload["message"].(map[string]interface{}); ok {
-		if chatInfo, ok := messageInfo["chat"].(map[string]interface{}); ok {
-			if id, ok := chatInfo["id"].(string); ok {
-				groupChatID = id
-			} else if idFloat, ok := chatInfo["id"].(float64); ok {
-				groupChatID = fmt.Sprintf("%.0f", idFloat)
-			}
-			if title, ok := chatInfo["title"].(string); ok {
-				groupName = title
-				if title != "" {
-					isGroupChat = true
-				}
-			}
-		}
-	}
-
-	// If it has a groupChatID but it's the same as senderID, it's likely a private chat (some APIs behave this way)
-	if groupChatID == senderID {
-		isGroupChat = false
-		groupChatID = "" // clear it to be safe
-	}
-
-	var textMsg string
-	if msgInfo, ok := payload["message"].(map[string]interface{}); ok {
-		if txt, ok := msgInfo["text"].(string); ok {
-			textMsg = strings.TrimSpace(txt)
-		}
-	}
-
-	if eventName == "group.bot.add" || isGroupChat {
-		if groupName != "" && groupChatID != "" {
-			_ = s.autoLinkRoom(ctx, managerID, groupChatID, groupName)
-		}
-	}
-
-	if strings.HasPrefix(textMsg, "Kich hoat") {
-		managerNameToLink := strings.TrimSpace(strings.TrimPrefix(textMsg, "Kich hoat"))
-
-		user, err := s.userRepo.GetByUserID(ctx, managerID)
-		if err == nil && (managerNameToLink == user.FullName || managerNameToLink == managerID) {
+		if managerNameToLink == user.FullName || managerNameToLink == managerID {
 			if user.ZaloUserID != nil && *user.ZaloUserID != "" {
-				_ = s.SendTextMessage(ctx, managerID, senderID, "⚠️ Tài khoản này đã được liên kết với một thiết bị khác. Không thể liên kết lại.")
+				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "⚠️ Tài khoản này đã được liên kết với một thiết bị khác. Không thể liên kết lại.")
 				return nil
 			}
 
-			_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &senderID})
+			_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
 			if err == nil {
-				_ = s.SendTextMessage(ctx, managerID, senderID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
+				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
 			} else {
-				_ = s.SendTextMessage(ctx, managerID, senderID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
+				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
 			}
 		}
 		return nil
 	}
 
-	cleanText := strings.ToLower(strings.ReplaceAll(textMsg, " ", ""))
+	cleanText := strings.ToLower(strings.ReplaceAll(webhookCtx.text, " ", ""))
 
-	if !isGroupChat && senderID != "" && textMsg != "" {
+	if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && webhookCtx.text != "" {
 		botToken, err := s.getDecryptedToken(ctx, managerID)
 		if err != nil {
 			fmt.Printf("Webhook error: failed to get decrypted token for manager %s: %v\n", managerID, err)
 		} else {
-			linkedUser, err := s.userRepo.GetByZaloUserID(ctx, senderID)
+			linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
 			if err != nil {
-				cleanPhone := strings.ReplaceAll(textMsg, " ", "")
+				cleanPhone := strings.ReplaceAll(webhookCtx.text, " ", "")
 				isPhoneFormat := (strings.HasPrefix(cleanPhone, "0") && len(cleanPhone) == 10) || (strings.HasPrefix(cleanPhone, "+84") && len(cleanPhone) == 12)
 
 				if cleanText == "botoi" || cleanText == "botơi" {
-					if err := s.client.SendMessage(ctx, botToken, senderID, "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo."); err != nil {
+					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo."); err != nil {
 						fmt.Printf("Webhook SendMessage error: %v\n", err)
 					}
 				} else if isPhoneFormat {
@@ -378,18 +492,18 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 					if err == nil && user != nil {
 						// 1. Prevent hijacking an already linked account
 						if user.ZaloUserID != nil && *user.ZaloUserID != "" {
-							if err := s.client.SendMessage(ctx, botToken, senderID, "Số điện thoại này đã được liên kết với một tài khoản Zalo. Nếu có sai sót, vui lòng liên hệ quản lý."); err != nil {
+							if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này đã được liên kết với một tài khoản Zalo. Nếu có sai sót, vui lòng liên hệ quản lý."); err != nil {
 								fmt.Printf("Webhook SendMessage error: %v\n", err)
 							}
 						} else if user.Role == model.RoleManager {
 							// 2. Only allow the manager who owns the bot to link their manager account
 							if user.ID != managerID {
-								if err := s.client.SendMessage(ctx, botToken, senderID, "Bạn không thể liên kết tài khoản quản lý của người khác vào bot này."); err != nil {
+								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Bạn không thể liên kết tài khoản quản lý của người khác vào bot này."); err != nil {
 									fmt.Printf("Webhook SendMessage error: %v\n", err)
 								}
 							} else {
-								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &senderID})
-								if err := s.client.SendMessage(ctx, botToken, senderID, "Liên kết tài khoản quản lý thành công! Từ giờ hệ thống sẽ gửi các thông báo quan trọng qua đây."); err != nil {
+								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
+								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Liên kết tài khoản quản lý thành công! Từ giờ hệ thống sẽ gửi các thông báo quan trọng qua đây."); err != nil {
 									fmt.Printf("Webhook SendMessage error: %v\n", err)
 								}
 							}
@@ -397,12 +511,12 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 							// 3. For Tenants, enforce that the Manager must be linked first
 							managerUser, errMgr := s.userRepo.GetByUserID(ctx, managerID)
 							if errMgr == nil && managerUser != nil && (managerUser.ZaloUserID == nil || *managerUser.ZaloUserID == "") {
-								if err := s.client.SendMessage(ctx, botToken, senderID, "Hệ thống đang trong quá trình thiết lập. Quản lý cần liên kết tài khoản trước khi khách thuê có thể sử dụng."); err != nil {
+								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Hệ thống đang trong quá trình thiết lập. Quản lý cần liên kết tài khoản trước khi khách thuê có thể sử dụng."); err != nil {
 									fmt.Printf("Webhook SendMessage error: %v\n", err)
 								}
 							} else {
 								// Tenant linked successfully
-								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &senderID})
+								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
 								msg := "Liên kết tài khoản thành công! Từ giờ bạn sẽ nhận được thông báo qua Zalo."
 								fullInfoTenant, err2 := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, user.ID)
 								if err2 == nil && fullInfoTenant != nil {
@@ -415,18 +529,18 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 									}
 								}
 
-								if err := s.client.SendMessage(ctx, botToken, senderID, msg); err != nil {
+								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, msg); err != nil {
 									fmt.Printf("Webhook SendMessage error: %v\n", err)
 								}
 							}
 						}
 					} else {
-						if err := s.client.SendMessage(ctx, botToken, senderID, "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại."); err != nil {
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại."); err != nil {
 							fmt.Printf("Webhook SendMessage error: %v\n", err)
 						}
 					}
 				} else {
-					if err := s.client.SendMessage(ctx, botToken, senderID, "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'."); err != nil {
+					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'."); err != nil {
 						fmt.Printf("Webhook SendMessage error: %v\n", err)
 					}
 				}
@@ -434,16 +548,16 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 				// User is already linked
 				if cleanText == "botoi" || cleanText == "botơi" {
 					if linkedUser.Role == model.RoleManager {
-						if err := s.client.SendMessage(ctx, botToken, senderID, "Tài khoản quản lý của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản quản lý của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
 							fmt.Printf("Webhook SendMessage error: %v\n", err)
 						}
 					} else {
-						if err := s.client.SendMessage(ctx, botToken, senderID, "Tài khoản của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
 							fmt.Printf("Webhook SendMessage error: %v\n", err)
 						}
 					}
 				} else {
-					if err := s.client.SendMessage(ctx, botToken, senderID, "Tài khoản của bạn đã được liên kết. Nếu cần hỗ trợ, vui lòng liên hệ quản lý."); err != nil {
+					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết. Nếu cần hỗ trợ, vui lòng liên hệ quản lý."); err != nil {
 						fmt.Printf("Webhook SendMessage error: %v\n", err)
 					}
 				}
@@ -452,27 +566,9 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	// Handle image attachment for transaction proof in group chat
-	if isGroupChat && groupChatID != "" {
-		var imgURL string
-		if msgInfo, ok := payload["message"].(map[string]interface{}); ok {
-			if attachments, ok := msgInfo["attachments"].([]interface{}); ok {
-				for _, att := range attachments {
-					if attMap, ok := att.(map[string]interface{}); ok {
-						if attMap["type"] == "image" {
-							if pl, ok := attMap["payload"].(map[string]interface{}); ok {
-								if urlStr, ok := pl["url"].(string); ok && urlStr != "" {
-									imgURL = urlStr
-									break
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if imgURL != "" {
-			err := s.processTransactionImage(ctx, managerID, groupChatID, imgURL)
+	if webhookCtx.isGroupChat && webhookCtx.chatID != "" {
+		if webhookCtx.photoURL != "" {
+			err := s.processTransactionImage(ctx, managerID, webhookCtx.chatID, webhookCtx.photoURL)
 			if err != nil {
 				// We can just log it, don't fail the webhook
 				fmt.Printf("Error processing transaction image: %v\n", err)
@@ -482,7 +578,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		if cleanText == "botoi" || cleanText == "botơi" {
 			botToken, err := s.getDecryptedToken(ctx, managerID)
 			if err == nil {
-				_ = s.client.SendMessage(ctx, botToken, groupChatID, "Bot đã kết nối thành công")
+				_ = s.client.SendMessage(ctx, botToken, webhookCtx.chatID, "Bot đã kết nối thành công")
 			}
 		}
 	}

@@ -65,7 +65,7 @@ func main() {
 	houseRepo := repository.NewHouseRepository(sqlDB)
 	houseService := service.NewHouseServiceImpt(houseRepo, houseCostRepo)
 	invoiceRepo := repository.NewInvoiceRepository(sqlDB)
-	
+
 	roomRepo := repository.NewRoomRepository(sqlDB)
 	roomService := service.NewRoomService(roomRepo, houseRepo)
 
@@ -84,13 +84,13 @@ func main() {
 	houseCostHandler := httpHandler.NewHouseCostHandler(houseCostService)
 
 	zaloClient := service.NewZaloClient()
-	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, cfg.ZaloBotEncryptionKey)
-	if err != nil {
-		log.Fatalf("failed to init zalo service: %v", err)
-	}
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev
+	}
+	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, cfg.ZaloBotEncryptionKey, webhookBaseURL)
+	if err != nil {
+		log.Fatalf("failed to init zalo service: %v", err)
 	}
 	zaloHandler := httpHandler.NewZaloHandler(zaloService, webhookBaseURL)
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
@@ -34,6 +35,10 @@ type zaloMocks struct {
 }
 
 func setupZaloServiceTest(t *testing.T) *zaloMocks {
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads/zalo-invoices")
+	})
+
 	ctrl := gomock.NewController(t)
 	m := &zaloMocks{
 		ctrl:        ctrl,
@@ -262,9 +267,9 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "t1"}}, nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "t1", []byte("img"), gomock.Any()).Return(nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "t1", gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -275,7 +280,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("invalid access token -216"))
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("invalid access token -216"))
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
 			},
 			wantErr: true,
@@ -308,7 +313,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("api err"))
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("api err"))
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{}, nil)
 			},
 			wantErr: true,
@@ -320,7 +325,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", []byte("img"), gomock.Any()).Return(errors.New("invalid access token"))
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("invalid access token"))
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
 			},
 			wantErr: true,
@@ -333,7 +338,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", []byte("img"), gomock.Any()).Return(nil)
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -345,7 +350,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", []byte("img"), gomock.Any()).Return(errors.New("tenant err"))
+				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", gomock.Any(), gomock.Any()).Return(errors.New("tenant err"))
 			},
 			wantErr: true,
 		},
@@ -474,15 +479,16 @@ func TestHandleWebhook(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "missing secret",
+			name:    "missing secret",
 			payload: `{}`,
-			setup: func() {},
+			setup:   func() {},
 			wantErr: true,
 		},
 		{
-			name: "group.bot.add autolink",
+			name:    "group.bot.add autolink",
 			payload: `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`,
 			setup: func() {
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
 				m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 				m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "P101"}}, nil)
 				m.roomRepo.EXPECT().UpdateRoom(ctx, "r1", "h1", gomock.Any()).Return(&model.Room{}, nil)
@@ -490,7 +496,7 @@ func TestHandleWebhook(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "private chat kich hoat success",
+			name:    "private chat kich hoat success",
 			payload: `{"message":{"text":"Kich hoat Manager One","from":{"id":"u1"}}}`,
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{FullName: "Manager One"}, nil)
@@ -501,20 +507,20 @@ func TestHandleWebhook(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "private chat botoi triggers phone request",
+			name:    "private chat botoi triggers phone request",
 			payload: `{"message":{"text":"botoi","from":{"id":"u1"}}}`,
 			setup: func() {
-				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).Times(2)
 				m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not linked"))
 				m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
-        {
-			name: "private chat phone number links manager",
+		{
+			name:    "private chat phone number links manager",
 			payload: `{"message":{"text":"0912345678","from":{"id":"u1"}}}`,
 			setup: func() {
-				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).Times(2)
 				m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not linked"))
 				m.userRepo.EXPECT().GetByPhone(ctx, "0912345678").Return(&model.User{ID: "m1", Role: model.RoleManager}, nil)
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
@@ -538,6 +544,41 @@ func TestHandleWebhook(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleWebhook_OfficialZaloPayload(t *testing.T) {
+	m := setupZaloServiceTest(t)
+	defer m.ctrl.Finish()
+	ctx := context.Background()
+	encToken, _ := security.Encrypt("bot-token", m.encKey)
+	encSecret, _ := security.Encrypt("secret", m.encKey)
+
+	t.Run("private text under result replies to chat id", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, ZaloWebhookSecret: &encSecret}, nil).Times(2)
+		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not linked"))
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "u1", "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo.").Return(nil)
+
+		payload := `{"ok":true,"result":{"event_name":"message.text.received","message":{"from":{"id":"u1"},"chat":{"id":"u1","chat_type":"PRIVATE"},"text":"botoi"}}}`
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("group text under result replies to group chat id", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, ZaloWebhookSecret: &encSecret}, nil).Times(2)
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "group-1", "Bot đã kết nối thành công").Return(nil)
+
+		payload := `{"ok":true,"result":{"event_name":"message.text.received","message":{"from":{"id":"u1"},"chat":{"id":"group-1","chat_type":"GROUP"},"text":"bot ơi"}}}`
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "secret")
+		assert.NoError(t, err)
+	})
+
+	t.Run("invalid saved secret rejects webhook", func(t *testing.T) {
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloWebhookSecret: &encSecret}, nil)
+
+		payload := `{"ok":true,"result":{"event_name":"message.text.received","message":{"from":{"id":"u1"},"chat":{"id":"u1","chat_type":"PRIVATE"},"text":"botoi"}}}`
+		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "wrong")
+		assert.Error(t, err)
+	})
 }
 
 func TestNewZaloService(t *testing.T) {
@@ -577,6 +618,7 @@ func TestHandleWebhook_AutoLink_Branches(t *testing.T) {
 
 	t.Run("list rooms error", func(t *testing.T) {
 		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return(nil, errors.New("err"))
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
@@ -585,6 +627,7 @@ func TestHandleWebhook_AutoLink_Branches(t *testing.T) {
 
 	t.Run("no match", func(t *testing.T) {
 		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P999 N1"}}`
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "101"}}, nil)
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
@@ -713,7 +756,7 @@ func TestHandleWebhook_OtherBranches(t *testing.T) {
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"message":{"text":"hello bot","from":{"id":"u1"}}}`), "secret")
 		assert.NoError(t, err)
 	})
-	
+
 	t.Run("botoi group chat", func(t *testing.T) {
 		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return(nil, nil)
@@ -721,7 +764,7 @@ func TestHandleWebhook_OtherBranches(t *testing.T) {
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"event_name":"user_send_text","message":{"text":"botoi","chat":{"id":"g1","title":"G1"}}}`), "secret")
 		assert.NoError(t, err)
 	})
-	
+
 	t.Run("user not linked, random message", func(t *testing.T) {
 		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil).AnyTimes()
 		m.userRepo.EXPECT().GetByZaloUserID(ctx, "u1").Return(nil, errors.New("not found"))

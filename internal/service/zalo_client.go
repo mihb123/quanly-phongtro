@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 )
 
@@ -18,7 +17,7 @@ type ZaloAppInfo struct {
 type ZaloClient interface {
 	GetMe(ctx context.Context, botToken string) (*ZaloAppInfo, error)
 	SendMessage(ctx context.Context, botToken, chatID, text string) error
-	SendPhoto(ctx context.Context, botToken, chatID string, imageBytes []byte, caption string) error
+	SendPhoto(ctx context.Context, botToken, chatID, photoURL, caption string) error
 	SetWebhook(ctx context.Context, botToken, webhookUrl, secretToken string) error
 }
 
@@ -49,13 +48,12 @@ func (c *zaloClientImpl) GetMe(ctx context.Context, botToken string) (*ZaloAppIn
 		return nil, fmt.Errorf("zalo api error: status %d", resp.StatusCode)
 	}
 
-
 	// Actually let's just decode into a map and log or parse what we can
 	var generic map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&generic); err != nil {
 		return nil, err
 	}
-	
+
 	// Check for Zalo structure
 	if errCode, ok := generic["error"].(float64); ok && errCode != 0 {
 		return nil, fmt.Errorf("zalo api returned error: %v", generic["message"])
@@ -70,18 +68,18 @@ func (c *zaloClientImpl) GetMe(ctx context.Context, botToken string) (*ZaloAppIn
 			appInfo.DisplayName = name
 		}
 	}
-	
+
 	return appInfo, nil
 }
 
 func (c *zaloClientImpl) SendMessage(ctx context.Context, botToken, chatID, text string) error {
 	url := fmt.Sprintf("https://bot-api.zaloplatforms.com/bot%s/sendMessage", botToken)
-	
+
 	body := map[string]interface{}{
 		"chat_id": chatID,
 		"text":    text,
 	}
-	
+
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err
@@ -100,48 +98,45 @@ func (c *zaloClientImpl) SendMessage(ctx context.Context, botToken, chatID, text
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("zalo api error: status %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	var res map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return err
+	}
+	if val, ok := res["ok"].(bool); ok && !val {
+		return fmt.Errorf("zalo api returned error: %+v", res)
+	}
+	if errCode, ok := res["error"].(float64); ok && errCode != 0 {
+		return fmt.Errorf("zalo api returned error: %+v", res)
 	}
 
 	return nil
 }
 
-func (c *zaloClientImpl) SendPhoto(ctx context.Context, botToken, chatID string, imageBytes []byte, caption string) error {
-	url := fmt.Sprintf("https://bot-api.zaloplatforms.com/bot%s/sendMessage", botToken)
+func (c *zaloClientImpl) SendPhoto(ctx context.Context, botToken, chatID, photoURL, caption string) error {
+	url := fmt.Sprintf("https://bot-api.zaloplatforms.com/bot%s/sendPhoto", botToken)
 
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-
-	// Add chat_id
-	if err := writer.WriteField("chat_id", chatID); err != nil {
-		return err
+	body := map[string]interface{}{
+		"chat_id": chatID,
+		"photo":   photoURL,
 	}
-
-	// Add text (caption)
 	if caption != "" {
-		if err := writer.WriteField("text", caption); err != nil {
-			return err
-		}
+		body["caption"] = caption
 	}
 
-	// Add file
-	part, err := writer.CreateFormFile("file", "invoice.png")
+	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(part, bytes.NewReader(imageBytes)); err != nil {
-		return err
-	}
 
-	if err := writer.Close(); err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -150,7 +145,19 @@ func (c *zaloClientImpl) SendPhoto(ctx context.Context, botToken, chatID string,
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("zalo api error: status %d", resp.StatusCode)
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
+	}
+
+	var res map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return err
+	}
+	if val, ok := res["ok"].(bool); ok && !val {
+		return fmt.Errorf("zalo api returned error: %+v", res)
+	}
+	if errCode, ok := res["error"].(float64); ok && errCode != 0 {
+		return fmt.Errorf("zalo api returned error: %+v", res)
 	}
 
 	return nil
@@ -158,12 +165,12 @@ func (c *zaloClientImpl) SendPhoto(ctx context.Context, botToken, chatID string,
 
 func (c *zaloClientImpl) SetWebhook(ctx context.Context, botToken, webhookUrl, secretToken string) error {
 	url := fmt.Sprintf("https://bot-api.zaloplatforms.com/bot%s/setWebhook", botToken)
-	
+
 	body := map[string]interface{}{
-		"url": webhookUrl,
+		"url":          webhookUrl,
 		"secret_token": secretToken,
 	}
-	
+
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
@@ -16,6 +17,10 @@ import (
 )
 
 func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads")
+	})
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -46,7 +51,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
 	botToken, _ := security.Encrypt("bot123", []byte(encKey))
 
 	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken:      &botToken,
+		ZaloBotToken: &botToken,
 	}, nil).AnyTimes()
 
 	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(&model.Room{
@@ -118,7 +123,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 	botToken, _ := security.Encrypt("bot123", []byte(encKey))
 
 	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken:      &botToken,
+		ZaloBotToken: &botToken,
 	}, nil).AnyTimes()
 
 	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{}, nil)
@@ -150,6 +155,10 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 }
 
 func TestZaloService_SendInvoiceToZalo(t *testing.T) {
+	t.Cleanup(func() {
+		_ = os.RemoveAll("uploads/zalo-invoices")
+	})
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -170,7 +179,7 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 	botToken, _ := security.Encrypt("bot123", []byte(encKey))
 
 	userRepo.EXPECT().GetByUserID(ctx, managerID).Return(&model.User{
-		ZaloBotToken:      &botToken,
+		ZaloBotToken: &botToken,
 	}, nil)
 
 	invoice := &model.InvoiceWithRoom{
@@ -189,13 +198,13 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 
 	imageService.EXPECT().GenerateInvoiceImage(ctx, invoice).Return([]byte("fake-png"), nil)
 
-	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "group_123", []byte("fake-png"), gomock.Any()).Return(nil)
+	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "group_123", gomock.Any(), gomock.Any()).Return(nil)
 
 	tenantRepo.EXPECT().ListTenantByRoomID(ctx, managerID, "room1").Return([]model.FullInfoTenant{
 		{ZaloUserID: "user_123", FullName: "Tenant A"},
 	}, nil)
 
-	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "user_123", []byte("fake-png"), gomock.Any()).Return(nil)
+	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "user_123", gomock.Any(), gomock.Any()).Return(nil)
 
 	err := svc.SendInvoiceToZalo(ctx, managerID, invoiceID)
 	if err != nil {
