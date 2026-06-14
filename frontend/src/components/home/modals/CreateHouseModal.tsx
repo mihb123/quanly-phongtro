@@ -95,7 +95,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
   const onSubmit = async (values: HouseFormValues) => {
     setIsLoading(true)
     try {
-      const house = await createHouse({ 
+      const res = await createHouse({ 
          name: values.name, 
          house_code: values.house_code,
          address: values.address,
@@ -114,10 +114,12 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
          extra_vehicle_fee: parseNumber(values.extra_vehicle_fee),
       })
 
-      if (!house) {
-        setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
+      if (!res.success) {
+        setError('house_code', { message: res.error || 'Mã nhà đã tồn tại hoặc không hợp lệ' })
         return
       }
+      
+      const house = res.house!
 
       const promises = []
       const floors = parseInt(floorCountStr) || 0
@@ -141,7 +143,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
       }
       onClose()
     } catch {
-      setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
+      setError('house_code', { message: 'Lỗi khi thêm nhà!' })
     } finally {
       setIsLoading(false)
     }

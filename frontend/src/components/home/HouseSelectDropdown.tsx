@@ -49,14 +49,16 @@ export function HouseSelectDropdown({
             className="fixed inset-0 z-10" 
             onClick={() => onOpenChange(false)} 
           />
-          <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-lg z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
+          <div className="absolute top-full left-0 mt-2 min-w-[16rem] w-max max-w-[90vw] sm:max-w-md bg-card border border-border rounded-xl shadow-lg z-20 py-2 animate-in fade-in zoom-in-95 duration-200">
             {houses.length > 1 && (
               <button
                 onClick={onSelectAll}
-                className="w-full flex items-center justify-between px-4 py-2 hover:bg-secondary/50 transition-colors text-left font-bold text-primary"
+                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 transition-colors text-left font-bold text-primary"
               >
-                <span>Tất cả các nhà</span>
-                {selectedHouseIds.length === houses.length && <Check className="w-4 h-4" />}
+                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${selectedHouseIds.length === houses.length ? 'bg-primary border-primary text-primary-foreground' : 'border-primary/50'}`}>
+                  {selectedHouseIds.length === houses.length && <Check className="w-3 h-3" />}
+                </div>
+                <span className="flex-1 break-words">Tất cả các nhà</span>
               </button>
             )}
             {houses.length > 1 && <div className="h-px bg-border/50 my-1 mx-2" />}
@@ -67,12 +69,14 @@ export function HouseSelectDropdown({
                   <button
                     key={house.id}
                     onClick={() => onToggleHouse(house.id)}
-                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-secondary/50 transition-colors text-left"
+                    className="w-full flex items-start gap-3 px-4 py-2 hover:bg-secondary/50 transition-colors text-left"
                   >
-                    <span className={`font-medium ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    <div className={`mt-0.5 w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-input'}`}>
+                      {isSelected && <Check className="w-3 h-3" />}
+                    </div>
+                    <span className={`font-medium flex-1 break-words ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
                       {house.name}
                     </span>
-                    {isSelected && <Check className="w-4 h-4 text-primary" />}
                   </button>
                 );
               })}

@@ -63,7 +63,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
   const onSubmit = async (values: RoomFormValues) => {
     setIsLoading(true)
     try {
-      await updateRoomStore(room.id, { 
+      const res = await updateRoomStore(room.id, { 
         house_id: house.id, 
         name: values.name, 
         price: parseNumber(values.price), 
@@ -80,7 +80,11 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
         extra_vehicle_fee: values.extraVehicleFee !== '' ? parseNumber(values.extraVehicleFee) : undefined,
         group_chat_id: values.groupChatId || undefined,
       })
-      onClose()
+      if (res.success) {
+        onClose()
+      } else {
+        alert(res.error || "Lỗi khi cập nhật phòng, vui lòng kiểm tra lại thông tin!")
+      }
     } catch {
       alert("Lỗi khi cập nhật phòng, vui lòng kiểm tra lại thông tin!")
     } finally {

@@ -106,15 +106,15 @@ export function Sidebar() {
           onCancel={() => setHouseToDelete(null)}
           onConfirm={async () => {
             setIsDeleting(true)
-            const success = await deleteHouse(houseToDelete.id)
-            if (success) {
+            const res = await deleteHouse(houseToDelete.id)
+            if (res.success) {
               await fetchHouses()
               if (selectedHouse?.id === houseToDelete.id) {
                 selectHouse(null)
                 setActiveTab('dashboard')
               }
             } else {
-              alert("Lỗi khi xóa nhà trọ, vui lòng thử lại!")
+              alert(res.error || "Lỗi khi xóa nhà trọ, vui lòng thử lại!")
             }
             setIsDeleting(false)
             setHouseToDelete(null)

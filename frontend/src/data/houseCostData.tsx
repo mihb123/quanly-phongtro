@@ -15,8 +15,8 @@ interface HouseCostState {
   setPeriod: (period: string) => void;
   fetchCosts: () => Promise<void>;
   fetchSummaries: () => Promise<void>;
-  createCostForHouse: (houseId: string) => Promise<void>;
-  updateCost: (id: string, houseId: string, payload: Partial<HouseCost>) => Promise<void>;
+  createCostForHouse: (houseId: string) => Promise<{success: boolean, error?: string}>;
+  updateCost: (id: string, houseId: string, payload: Partial<HouseCost>) => Promise<{success: boolean, error?: string}>;
 }
 
 const getCurrentPeriod = () => {
@@ -121,9 +121,11 @@ export const useHouseCostStore = create<HouseCostState>()(
           summaries: newSummaries
         };
       });
+      return { success: true };
     } catch (error) {
-      console.error('Failed to create monthly cost:', error);
-      throw error;
+      const err = error as Error & { response?: { data?: { message?: string } } };
+      console.error('Failed to create monthly cost:', err);
+      return { success: false, error: err?.response?.data?.message || err?.message || 'Lỗi khi tạo chi phí' };
     }
   },
 
@@ -192,9 +194,11 @@ export const useHouseCostStore = create<HouseCostState>()(
           summaries: newSummaries
         };
       });
+      return { success: true };
       } catch (error) {
-        console.error('Failed to update house cost:', error);
-        throw error;
+        const err = error as Error & { response?: { data?: { message?: string } } };
+        console.error('Failed to update house cost:', err);
+        return { success: false, error: err?.response?.data?.message || err?.message || 'Lỗi khi cập nhật chi phí' };
       }
     },
   }),

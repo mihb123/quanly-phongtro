@@ -115,7 +115,10 @@ export function HouseRoomsView() {
           onCancel={() => setRoomToDelete(null)}
           onConfirm={async () => {
             setIsDeleting(true)
-            await deleteRoom(roomToDelete.id, roomToDelete.house_id)
+            const res = await deleteRoom(roomToDelete.id, roomToDelete.house_id)
+            if (!res.success) {
+              alert(res.error || "Lỗi khi xóa phòng trọ!")
+            }
             setIsDeleting(false)
             setRoomToDelete(null)
             useRoomStore.getState().refreshCurrentRooms()

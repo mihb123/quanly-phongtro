@@ -15,9 +15,9 @@ import { getFileName, isImagePath } from '@/utils/file'
 
 const tenantSchema = z.object({
   fullName: z.string().min(1, 'Bắt buộc'),
-  phone: z.string().min(1, 'Bắt buộc'),
+  phone: z.string().optional().or(z.literal('')),
   email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
-  identityCard: z.string().min(1, 'Bắt buộc'),
+  identityCard: z.string().optional().or(z.literal('')),
   startDate: z.string(),
 })
 
@@ -76,9 +76,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
       const formData = new FormData()
       formData.append('room_id', room.id)
       formData.append('full_name', values.fullName)
-      formData.append('phone', values.phone)
+      formData.append('phone', values.phone || '')
       if (values.email) formData.append('email', values.email)
-      formData.append('identity_card', values.identityCard)
+      formData.append('identity_card', values.identityCard || '')
       formData.append('start_date', values.startDate)
       
       cccdFiles.forEach(f => formData.append('cccd_file', f))
@@ -89,8 +89,12 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
       formData.append('kept_contract_paths', existingContractPaths.join(','))
       formData.append('kept_contract_paths_empty', existingContractPaths.length === 0 ? 'true' : 'false')
 
-      await updateTenant(tenant.id, formData)
-      onSuccess()
+      const res = await updateTenant(tenant.id, formData)
+      if (res.success) {
+        onSuccess()
+      } else {
+        alert(res.error || "Lỗi khi sửa người thuê!")
+      }
     } catch {
       alert("Lỗi khi sửa người thuê!")
     } finally {
@@ -130,7 +134,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                   {errors.fullName && <span className="text-destructive text-xs">{errors.fullName.message}</span>}
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <Label>Số điện thoại <span className="text-destructive">*</span></Label>
+                  <Label>Số điện thoại</Label>
                   <Input {...register('phone')} placeholder="09..." className="border-border bg-background" />
                   {errors.phone && <span className="text-destructive text-xs">{errors.phone.message}</span>}
                 </div>
@@ -140,7 +144,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                   {errors.email && <span className="text-destructive text-xs">{errors.email.message}</span>}
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <Label>Căn cước công dân <span className="text-destructive">*</span></Label>
+                  <Label>Căn cước công dân</Label>
                   <Input {...register('identityCard')} placeholder="12 số CCCD" className="border-border bg-background" />
                   {errors.identityCard && <span className="text-destructive text-xs">{errors.identityCard.message}</span>}
                 </div>

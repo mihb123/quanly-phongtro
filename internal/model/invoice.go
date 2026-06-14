@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	ErrInvoiceNotFound         = errors.New("invoice not found")
-	ErrDuplicateInvoice        = errors.New("duplicate invoice for this room and period")
-	ErrInvalidElectricityIndex = errors.New("new electricity index must be greater than or equal to old index")
-	ErrInvalidWaterIndex       = errors.New("new water index must be greater than or equal to old index")
+	ErrInvoiceNotFound         = errors.New("không tìm thấy hóa đơn")
+	ErrDuplicateInvoice        = errors.New("hóa đơn cho phòng và tháng này đã tồn tại")
+	ErrInvalidElectricityIndex = errors.New("số điện mới phải lớn hơn hoặc bằng số điện cũ")
+	ErrInvalidWaterIndex       = errors.New("số nước mới phải lớn hơn hoặc bằng số nước cũ")
 )
 
 const (

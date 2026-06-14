@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	ErrMaxTenans      = errors.New("the room is full of capacity")
-	ErrTenantNotFound = errors.New("tenant not found")
-	ErrUnauthorized   = errors.New("unauthorized: manager does not own this tenant")
+	ErrMaxTenans          = errors.New("the room is full of capacity")
+	ErrTenantNotFound     = errors.New("tenant not found")
+	ErrUnauthorized       = errors.New("unauthorized: manager does not own this tenant")
+	ErrPhoneAlreadyExists = errors.New("Số điện thoại đã bị trùng lặp")
 )
 
 type TenantStatus string

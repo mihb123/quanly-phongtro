@@ -132,6 +132,9 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrInvalidInput):
 			logger.Warn(r, http.StatusBadRequest, "invalid input", err)
 			writeError(w, http.StatusBadRequest, "invalid input")
+		case errors.Is(err, model.ErrPhoneAlreadyExists):
+			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
 			logger.Error(r, http.StatusInternalServerError, "failed to register tenant", err)
 			writeError(w, http.StatusInternalServerError, "internal server error")
@@ -280,6 +283,9 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		case errors.Is(err, model.ErrUnauthorized):
 			logger.Warn(r, http.StatusForbidden, "manager does not own tenant", err)
 			writeError(w, http.StatusForbidden, "forbidden: you do not manage this tenant")
+		case errors.Is(err, model.ErrPhoneAlreadyExists):
+			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
 			logger.Error(r, http.StatusInternalServerError, "failed to update tenant", err)
 			writeError(w, http.StatusInternalServerError, "internal server error")

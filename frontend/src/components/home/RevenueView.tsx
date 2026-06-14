@@ -169,8 +169,12 @@ export function RevenueView() {
 
   const handleCreateMonthCost = async (houseId: string) => {
     try {
-      await createCostForHouse(houseId);
-      toast.success('Tạo chi phí tháng mới thành công');
+      const res = await createCostForHouse(houseId);
+      if (res.success) {
+        toast.success('Tạo chi phí tháng mới thành công');
+      } else {
+        toast.error(res.error || 'Không thể tạo chi phí hoặc đã tồn tại chi phí cho kỳ này.');
+      }
     } catch {
       toast.error('Không thể tạo chi phí hoặc đã tồn tại chi phí cho kỳ này.');
     }
@@ -237,11 +241,15 @@ export function RevenueView() {
 
     setIsSaving(prev => ({ ...prev, [houseId]: true }));
     try {
-      await updateCost(cost.id, houseId, editsToSave);
-      const newEditState = { ...editState };
-      delete newEditState[houseId];
-      setEditState(newEditState);
-      toast.success('Đã xóa chi phí');
+      const res = await updateCost(cost.id, houseId, editsToSave);
+      if (res.success) {
+        const newEditState = { ...editState };
+        delete newEditState[houseId];
+        setEditState(newEditState);
+        toast.success('Đã xóa chi phí');
+      } else {
+        toast.error(res.error || 'Không thể xóa chi phí.');
+      }
     } catch {
       toast.error('Không thể xóa chi phí.');
     } finally {
@@ -258,11 +266,15 @@ export function RevenueView() {
 
     setIsSaving(prev => ({ ...prev, [houseId]: true }));
     try {
-      await updateCost(cost.id, houseId, edits);
-      const newEditState = { ...editState };
-      delete newEditState[houseId];
-      setEditState(newEditState);
-      toast.success('Lưu chi phí thành công');
+      const res = await updateCost(cost.id, houseId, edits);
+      if (res.success) {
+        const newEditState = { ...editState };
+        delete newEditState[houseId];
+        setEditState(newEditState);
+        toast.success('Lưu chi phí thành công');
+      } else {
+        toast.error(res.error || 'Không thể lưu thay đổi.');
+      }
     } catch {
       toast.error('Không thể lưu thay đổi.');
     } finally {

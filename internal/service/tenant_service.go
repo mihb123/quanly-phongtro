@@ -150,6 +150,13 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		return nil, ErrInvalidInput
 	}
 
+	if in.Phone != "" {
+		existingUser, err := s.users.GetByPhone(ctx, in.Phone)
+		if err == nil && existingUser != nil {
+			return nil, model.ErrPhoneAlreadyExists
+		}
+	}
+
 	ok, err := s.CheckCapicityOfRoom(ctx, in.RoomID)
 	if err != nil {
 		return nil, err
@@ -252,6 +259,13 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 	existing, err := s.tenants.GetTenantByID(ctx, managerID, tenantID)
 	if err != nil {
 		return nil, err
+	}
+
+	if in.Phone != nil && *in.Phone != "" && *in.Phone != existing.Phone {
+		existingUser, err := s.users.GetByPhone(ctx, *in.Phone)
+		if err == nil && existingUser != nil && existingUser.ID != existing.UserID {
+			return nil, model.ErrPhoneAlreadyExists
+		}
 	}
 
 	userInput := model.UpdateUserInput{

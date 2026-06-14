@@ -47,14 +47,18 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   const onSubmit = async (values: CreateRoomFormValues) => {
     setIsLoading(true)
     try {
-      await createRoomStore({ 
+      const res = await createRoomStore({ 
         house_id: houseId, 
         name: values.name, 
         price: parseNumber(values.price), 
         max_tenants: Number(values.maxTenants),
         status: 'AVAILABLE'
       })
-      onClose()
+      if (res.success) {
+        onClose()
+      } else {
+        alert(res.error || "Lỗi khi thêm phòng, vui lòng kiểm tra lại thông tin!")
+      }
     } catch {
       alert("Lỗi khi thêm phòng, vui lòng kiểm tra lại thông tin!")
     } finally {

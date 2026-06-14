@@ -75,7 +75,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
   const onSubmit = async (values: HouseFormValues) => {
     setIsLoading(true)
     try {
-      const updatedHouse = await updateHouse(house.id, { 
+      const res = await updateHouse(house.id, { 
          name: values.name, 
          house_code: values.house_code,
          address: values.address,
@@ -94,16 +94,16 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
          extra_vehicle_fee: parseNumber(values.extra_vehicle_fee),
       })
 
-      if (updatedHouse) {
-        if (selectedHouse?.id === updatedHouse.id) {
-          selectHouse(updatedHouse)
+      if (res.success && res.house) {
+        if (selectedHouse?.id === res.house.id) {
+          selectHouse(res.house)
         }
         onClose()
       } else {
-        setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
+        setError('house_code', { message: res.error || 'Mã nhà đã tồn tại hoặc không hợp lệ' })
       }
     } catch {
-      setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
+      setError('house_code', { message: 'Lỗi khi sửa nhà!' })
     } finally {
       setIsLoading(false)
     }

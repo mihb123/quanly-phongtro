@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"sort"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -37,6 +38,7 @@ type utilityUpdateRequest struct {
 	HasNewIndex    bool
 	ForcedPeriod   string
 	AllowOverwrite bool
+	IsBatch        bool
 }
 
 type utilityUpdateResult struct {
@@ -143,6 +145,15 @@ func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context
 		}
 		return true, s.processPendingData(ctx, managerID, webhookCtx, pending.PendingData, stringFromPending(pending.PendingData, "period"), true)
 	case model.PendingActionAwaitPeriod:
+		if parsed.Type == CommandConfirm {
+			if period := onlyPeriodFromPendingOptions(pending.PendingData); period != "" {
+				if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
+					return true, err
+				}
+				return true, s.processPendingData(ctx, managerID, webhookCtx, pending.PendingData, period, false)
+			}
+		}
+
 		if parsed.Type != CommandPeriodSelect {
 			return true, s.sendTextMessage(ctx, managerID, chatID, "Vui lòng nhắn '#<số tháng>' theo lựa chọn đã gửi, hoặc '#huy' để hủy.")
 		}
@@ -358,6 +369,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 			HasNewIndex:    entry.HasNewIndex,
 			ForcedPeriod:   forcedPeriod,
 			AllowOverwrite: allowOverwrite,
+			IsBatch:        true,
 		})
 		if pendingCreated {
 			return nil
@@ -415,6 +427,19 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 	}
 	invoice, err := s.invoiceService.CreateInvoice(ctx, managerID, input)
 	if err != nil {
+		if !req.IsBatch && (errors.Is(err, model.ErrInvalidElectricityIndex) || errors.Is(err, model.ErrInvalidWaterIndex)) {
+			data := map[string]any{
+				"command_scope": "single",
+				"utility_type":  req.UtilityType,
+				"room_id":       req.Room.ID,
+				"period":        resolution.Period,
+			}
+			if pErr := s.replacePending(ctx, managerID, webhookCtx, req.Room.ID, model.PendingActionAwaitUtility, data); pErr != nil {
+				return utilityUpdateResult{}, false, pErr
+			}
+			msg := fmt.Sprintf("%s\nVui lòng nhập lại bằng cú pháp: #%s <số đúng> hoặc #huy để hủy.", err.Error(), req.UtilityType)
+			return utilityUpdateResult{}, true, s.sendTextMessage(ctx, managerID, chatID, msg)
+		}
 		return utilityUpdateResult{}, false, err
 	}
 
@@ -483,24 +508,29 @@ func (s *zaloInvoiceCommandServiceImpl) resolvePeriod(ctx context.Context, roomI
 		return periodResolution{Period: forcedPeriod}, nil
 	}
 
-	latestInvoice, err := s.invoiceRepo.GetLatestInvoiceByRoomID(ctx, roomID)
-	if err != nil {
-		if errors.Is(err, model.ErrInvoiceNotFound) {
-			return periodResolution{NeedsSelection: true, Options: currentPeriodOptions(time.Now())}, nil
+	now := time.Now()
+	prev := now.AddDate(0, -1, 0)
+	next := now.AddDate(0, 1, 0)
+
+	candidates := []time.Time{prev, now, next}
+	options := make(map[string]string)
+
+	for _, t := range candidates {
+		period := t.Format("2006-01")
+		existing, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, roomID, period)
+		if err != nil && !errors.Is(err, model.ErrInvoiceNotFound) {
+			return periodResolution{}, err
 		}
-		return periodResolution{}, err
+		if existing == nil {
+			options[strconv.Itoa(int(t.Month()))] = period
+		}
 	}
 
-	currentPeriod := time.Now().Format("2006-01")
-	if latestInvoice.Period >= currentPeriod {
-		return periodResolution{Period: latestInvoice.Period}, nil
+	if len(options) == 0 {
+		return periodResolution{Period: now.Format("2006-01")}, nil
 	}
 
-	nextPeriod, err := addMonthToPeriod(latestInvoice.Period)
-	if err != nil {
-		return periodResolution{}, err
-	}
-	return periodResolution{Period: nextPeriod}, nil
+	return periodResolution{NeedsSelection: true, Options: options}, nil
 }
 
 // buildInvoiceInput preserves existing or previous invoice values around one changed utility.
@@ -579,8 +609,7 @@ func (s *zaloInvoiceCommandServiceImpl) respondAfterSingleUpdate(ctx context.Con
 		_ = s.sendTextMessage(ctx, managerID, chatID, "Đã tạo hóa đơn nhưng chưa gửi được ảnh: "+err.Error())
 		return nil
 	}
-	message := fmt.Sprintf("Hóa đơn tháng %s cho %s. Tổng tiền: %s", result.Period, result.RoomName, formatCurrencyToVND(result.Invoice.TotalAmount))
-	return s.sendTextMessage(ctx, managerID, chatID, message)
+	return nil
 }
 
 // respondAfterBatchUpdate sends a compact manager summary and photos for completed invoices.
@@ -829,23 +858,27 @@ func addMonthToPeriod(period string) (string, error) {
 	return parsed.AddDate(0, 1, 0).Format("2006-01"), nil
 }
 
-// currentPeriodOptions returns previous and current month choices for rooms without invoices.
-func currentPeriodOptions(now time.Time) map[string]string {
-	previous := now.AddDate(0, -1, 0)
-	return map[string]string{
-		strconv.Itoa(int(previous.Month())): previous.Format("2006-01"),
-		strconv.Itoa(int(now.Month())):      now.Format("2006-01"),
+// periodSelectionMessage builds the prompt for period selection.
+func periodSelectionMessage(targetName string, options map[string]string) string {
+	if len(options) == 1 {
+		for _, period := range options {
+			return fmt.Sprintf("Bạn muốn tạo hóa đơn tháng %s cho %s đúng không?\nNhắn '#ok' để tiếp tục, hoặc '#huy' để hủy.", displayPeriod(period), targetName)
+		}
 	}
-}
 
-// periodSelectionMessage builds the prompt for rooms without an invoice history.
-func periodSelectionMessage(roomName string, options map[string]string) string {
 	lines := []string{
-		fmt.Sprintf("%s chưa có hóa đơn trước đó.", roomName),
-		"Bạn muốn tạo hóa đơn cho tháng nào?",
+		fmt.Sprintf("Bạn muốn tạo hóa đơn cho tháng nào cho %s?", targetName),
 	}
-	for month, period := range options {
-		lines = append(lines, fmt.Sprintf("Nhắn '#%s' cho tháng %s", month, displayPeriod(period)))
+	var months []int
+	for mStr := range options {
+		if m, err := strconv.Atoi(mStr); err == nil {
+			months = append(months, m)
+		}
+	}
+	sort.Ints(months)
+	for _, m := range months {
+		period := options[strconv.Itoa(m)]
+		lines = append(lines, fmt.Sprintf("Nhắn '#%d' cho tháng %s", m, displayPeriod(period)))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -875,6 +908,23 @@ func periodFromPendingOptions(data map[string]any, month int) string {
 	}
 	value, _ := optionsRaw[strconv.Itoa(month)].(string)
 	return value
+}
+
+// onlyPeriodFromPendingOptions returns the single period if there is exactly one option.
+func onlyPeriodFromPendingOptions(data map[string]any) string {
+	if optionsRaw, ok := data["period_options"].(map[string]any); ok && len(optionsRaw) == 1 {
+		for _, v := range optionsRaw {
+			if str, ok := v.(string); ok {
+				return str
+			}
+		}
+	}
+	if optionsStr, ok := data["period_options"].(map[string]string); ok && len(optionsStr) == 1 {
+		for _, v := range optionsStr {
+			return v
+		}
+	}
+	return ""
 }
 
 // stringFromPending reads a string value from pending JSON data.

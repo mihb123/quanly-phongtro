@@ -48,10 +48,8 @@
     "typescript-eslint": "^8.57.0",
     "vite": "^8.0.1"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "puppeteer",
-      "msw"
-    ]
-  }
+  "pnpm.onlyBuiltDependencies": [
+    "puppeteer",
+    "msw"
+  ]
 }

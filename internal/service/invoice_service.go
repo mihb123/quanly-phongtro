@@ -139,17 +139,16 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		return nil, err
 	}
 
-	// For FIXED billing, indices are not meaningful — keep them equal so usage = 0
 	if house.ElectricityBillingType == "FIXED" {
 		input.NewElectricityIndex = oldElecIndex
 	} else if input.NewElectricityIndex < oldElecIndex {
-		return nil, model.ErrInvalidElectricityIndex
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex)
 	}
 
 	if house.WaterBillingType == "FIXED" {
 		input.NewWaterIndex = oldWaterIndex
 	} else if input.NewWaterIndex < oldWaterIndex {
-		return nil, model.ErrInvalidWaterIndex
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex)
 	}
 
 	roomFee := float64(room.Price)

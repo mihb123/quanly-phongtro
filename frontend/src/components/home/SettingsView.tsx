@@ -130,11 +130,16 @@ export function SettingsView() {
               {hasConfig ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
               <div>
                 <p className="font-semibold">{hasConfig ? 'Đã kết nối Zalo Bot' : 'Chưa cấu hình Zalo Bot'}</p>
-                <p className="text-sm opacity-90">
-                  {hasConfig 
-                    ? 'Hệ thống đã sẵn sàng gửi tin nhắn qua Zalo. Bạn có thể cập nhật Token bên dưới nếu cần thiết.' 
-                    : 'Vui lòng cung cấp Bot Token để kích hoạt tính năng.'}
-                </p>
+                <div className="text-sm opacity-90 space-y-1 mt-1">
+                  {hasConfig ? (
+                    <p>Hệ thống đã sẵn sàng gửi tin nhắn qua Zalo. Bạn có thể cập nhật Token bên dưới nếu cần thiết.</p>
+                  ) : (
+                    <>
+                      <p>Vui lòng cung cấp Bot Token để kích hoạt tính năng.</p>
+                      <p className="text-amber-800/80 mt-1">Ví dụ: <code className="bg-amber-100/50 px-1.5 py-0.5 rounded text-xs select-all">3222869841698766763:HzJWlMaZQhWSpFuMNRIxjvXGazROeiWrQwSQpsxWtSEnyMQgsThHgKIHjoglfRfa</code></p>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

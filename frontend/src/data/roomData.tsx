@@ -11,9 +11,9 @@ interface RoomDataState {
   setRoomPage: (page: number) => void
   fetchRooms: (houseId: string, page: number) => Promise<void>
   refreshCurrentRooms: () => Promise<void>
-  deleteRoom: (roomId: string, houseId: string) => Promise<boolean>
-  createRoom: (payload: Partial<Room>) => Promise<boolean>
-  updateRoom: (roomId: string, payload: Partial<Room>) => Promise<boolean>
+  deleteRoom: (roomId: string, houseId: string) => Promise<{success: boolean, error?: string}>
+  createRoom: (payload: Partial<Room>) => Promise<{success: boolean, error?: string}>
+  updateRoom: (roomId: string, payload: Partial<Room>) => Promise<{success: boolean, error?: string}>
   getRoomsByHouse: (houseId: string) => Promise<Room[]>
 }
 
@@ -48,15 +48,16 @@ export const useRoomStore = create<RoomDataState>((set, get) => ({
 
     try {
       await deleteRoom(roomId, houseId)
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to delete room", err)
       if (previousRoom) {
         set(state => ({
           rooms: [...state.rooms, previousRoom!].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
         }))
       }
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi xóa phòng!" }
     }
   },
   createRoom: async (payload: Partial<Room>) => {
@@ -84,11 +85,12 @@ export const useRoomStore = create<RoomDataState>((set, get) => ({
       set(state => ({
         rooms: state.rooms.map(r => r.id === tempId ? createdRoom : r)
       }))
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to create room", err)
       set(state => ({ rooms: state.rooms.filter(r => r.id !== tempId) }))
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi thêm phòng!" }
     }
   },
   updateRoom: async (roomId: string, payload: Partial<Room>) => {
@@ -107,15 +109,16 @@ export const useRoomStore = create<RoomDataState>((set, get) => ({
       }))
       // Refetch invoices to reflect the price change in unpaid invoices
       useInvoiceStore.getState().fetchInvoices()
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to update room", err)
       if (previousRoom) {
         set(state => ({
           rooms: state.rooms.map(r => r.id === roomId ? previousRoom! : r).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
         }))
       }
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi sửa phòng!" }
     }
   },
   getRoomsByHouse: async (houseId: string) => {
