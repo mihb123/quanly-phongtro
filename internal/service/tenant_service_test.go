@@ -73,6 +73,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 				ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
 			},
 			setup: func() {
+				userRepo.EXPECT().GetByPhone(ctx, "0123456789").Return(nil, errors.New("not found"))
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 				tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -89,6 +90,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 				RoomID:    "r1",
 			},
 			setup: func() {
+				userRepo.EXPECT().GetByPhone(ctx, "0999999999").Return(nil, errors.New("not found"))
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 				tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -341,6 +343,7 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 			},
 			setup: func() {
 				tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
+				userRepo.EXPECT().GetByPhone(ctx, "123").Return(nil, errors.New("not found"))
 				userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
 				tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
 				tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
