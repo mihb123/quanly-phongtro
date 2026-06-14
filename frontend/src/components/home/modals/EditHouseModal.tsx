@@ -12,9 +12,11 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { House } from '@/api/house'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
+import { HOUSE_CODE_PATTERN } from '@/utils/houseCode'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
+  house_code: z.string().min(1, 'Bắt buộc').max(12, 'Tối đa 12 ký tự').regex(HOUSE_CODE_PATTERN, 'Chỉ dùng chữ, số, dấu gạch ngang hoặc gạch dưới'),
   address: z.string().min(1, 'Bắt buộc'),
   electricity: z.string(),
   water: z.string(),
@@ -42,10 +44,11 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
   const { updateHouse } = useHouseStore()
   const { selectedHouse, selectHouse } = useSelectedStore()
   
-  const { register, handleSubmit, control, watch, formState: { errors, isDirty } } = useForm<HouseFormValues>({
+  const { register, handleSubmit, control, watch, setError, formState: { errors, isDirty } } = useForm<HouseFormValues>({
     resolver: zodResolver(houseSchema),
     defaultValues: {
       name: house.name || '',
+      house_code: house.house_code || '',
       address: house.address || '',
       electricity: house.default_electricity_price?.toString() || '0',
       water: house.default_water_price?.toString() || '0',
@@ -74,6 +77,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
     try {
       const updatedHouse = await updateHouse(house.id, { 
          name: values.name, 
+         house_code: values.house_code,
          address: values.address,
          default_electricity_price: parseNumber(values.electricity),
          default_water_price: parseNumber(values.water),
@@ -96,10 +100,10 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
         }
         onClose()
       } else {
-        alert("Lỗi khi cập nhật nhà trọ, vui lòng kiểm tra lại!")
+        setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
       }
     } catch {
-      alert("Lỗi khi cập nhật nhà trọ, vui lòng kiểm tra lại!")
+      setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
     } finally {
       setIsLoading(false)
     }
@@ -139,6 +143,11 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
               <Label>Tên nhà trọ</Label>
               <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-slate-200" />
               {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label>Mã nhà (House Code)</Label>
+              <Input {...register('house_code')} placeholder="vd: ntcg" maxLength={12} className="border-slate-200" />
+              {errors.house_code && <span className="text-red-500 text-xs">{errors.house_code.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Địa chỉ</Label>

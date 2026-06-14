@@ -37,6 +37,7 @@ func NewHouseServiceImpt(houseRepo model.HouseRepository, houseCostRepo model.Ho
 
 type UpdateHouseInput struct {
 	Name                    string
+	HouseCode               string
 	Address                 string
 	DefaultElectricityPrice float64
 	DefaultWaterPrice       float64
@@ -99,6 +100,7 @@ func (h *HouseServiceImpl) ListHouseByManagerID(ctx context.Context, managerID s
 func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error) {
 	updateHouseParams := model.UpdateHouseParams{
 		Name:                    input.Name,
+		HouseCode:               input.HouseCode,
 		Address:                 input.Address,
 		DefaultElectricityPrice: input.DefaultElectricityPrice,
 		DefaultWaterPrice:       input.DefaultWaterPrice,

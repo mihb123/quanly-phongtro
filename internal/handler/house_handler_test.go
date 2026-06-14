@@ -48,6 +48,7 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 			setupAuth: withValidClaims,
 			reqBody: map[string]interface{}{
 				"name":                     "House 1",
+				"house_code":               "h1",
 				"address":                  "123 Street",
 				"electricity_billing_type": "USAGE",
 				"water_billing_type":       "USAGE",
@@ -87,6 +88,7 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 			setupAuth: withValidClaims,
 			reqBody: map[string]interface{}{
 				"name":                     "House 1",
+				"house_code":               "h1",
 				"address":                  "123 Street",
 				"electricity_billing_type": "USAGE",
 				"water_billing_type":       "USAGE",
@@ -292,8 +294,9 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			setupAuth: withValidClaims,
 			houseID:   "house-1",
 			reqBody: map[string]interface{}{
-				"name":    "Updated House",
-				"address": "456 Street",
+				"name":       "Updated House",
+				"house_code": "h1",
+				"address":    "456 Street",
 			},
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(&model.House{}, nil)
@@ -306,8 +309,9 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			setupAuth: withValidClaims,
 			houseID:   "house-1",
 			reqBody: map[string]interface{}{
-				"name":    "Updated House",
-				"address": "456 Street",
+				"name":       "Updated House",
+				"house_code": "h1",
+				"address":    "456 Street",
 			},
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(&model.House{}, nil)
@@ -346,8 +350,9 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			setupAuth: withValidClaims,
 			houseID:   "house-1",
 			reqBody: map[string]interface{}{
-				"name":    "Updated House",
-				"address": "456 Street",
+				"name":       "Updated House",
+				"house_code": "h1",
+				"address":    "456 Street",
 			},
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(nil, errors.New("db error"))

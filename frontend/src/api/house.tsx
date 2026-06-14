@@ -4,6 +4,7 @@ export interface House {
   id: string
   manager_id: string
   name: string
+  house_code: string
   address: string
   default_electricity_price?: number
   default_water_price?: number

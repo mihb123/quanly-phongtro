@@ -4,7 +4,7 @@ import { useHouseStore } from '@/data/houseData';
 import { useSelectedStore, type TabType } from '@/data/selectedData';
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm';
 import type { HouseCost, ExtraCost } from '@/api/houseCost';
-import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle, Maximize2, X } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,11 +95,21 @@ export function RevenueView() {
   }, []);
 
   useEffect(() => {
-    if (selectedHouseIds.length === 0 && houses.length > 0) {
+    if (houses.length === 0) return;
+
+    const availableHouseIds = new Set(houses.map(house => house.id));
+    const availableSelectedHouseIds = selectedHouseIds.filter(id => availableHouseIds.has(id));
+
+    if (availableSelectedHouseIds.length === 0) {
       // Mặc định chọn 1 house mới nhất (house đầu tiên)
       setSelectedHouseIds([houses[0].id]);
+      return;
     }
-  }, [houses, selectedHouseIds.length, setSelectedHouseIds]);
+
+    if (availableSelectedHouseIds.length !== selectedHouseIds.length) {
+      setSelectedHouseIds(availableSelectedHouseIds);
+    }
+  }, [houses, selectedHouseIds, setSelectedHouseIds]);
 
   const aggregatedSummary = useMemo(() => {
     let totalRev = 0;

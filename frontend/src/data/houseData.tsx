@@ -64,6 +64,7 @@ export const useHouseStore = create<HouseDataState>((set) => ({
       id: tempId,
       manager_id: '',
       name: payload.name || '',
+      house_code: payload.house_code || '',
       address: payload.address || '',
       default_electricity_price: payload.default_electricity_price || 0,
       default_water_price: payload.default_water_price || 0,

@@ -11,9 +11,11 @@ import { formatNumber, parseNumber } from '@/utils/format'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { HOUSE_CODE_PATTERN, generateHouseCode } from '@/utils/houseCode'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
+  house_code: z.string().min(1, 'Bắt buộc').max(12, 'Tối đa 12 ký tự').regex(HOUSE_CODE_PATTERN, 'Chỉ dùng chữ, số, dấu gạch ngang hoặc gạch dưới'),
   address: z.string().min(1, 'Bắt buộc'),
   electricity: z.string(),
   water: z.string(),
@@ -36,10 +38,11 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
   const { createHouse } = useHouseStore()
   const createRoom = useRoomStore(state => state.createRoom)
   
-  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<HouseFormValues>({
+  const { register, handleSubmit, control, watch, setValue, setError, formState: { errors } } = useForm<HouseFormValues>({
     resolver: zodResolver(houseSchema),
     defaultValues: {
       name: '',
+      house_code: '',
       address: '',
       electricity: '0',
       water: '0',
@@ -59,10 +62,12 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
 
   const electricityBillingType = watch('electricity_billing_type')
   const waterBillingType = watch('water_billing_type')
+  const houseName = watch('name')
 
   const [floorCountStr, setFloorCountStr] = useState('0')
   const [roomsPerFloor, setRoomsPerFloor] = useState<Record<number, number>>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [isHouseCodeTouched, setIsHouseCodeTouched] = useState(false)
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -71,6 +76,11 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', handleEsc)
     return () => window.removeEventListener('keydown', handleEsc)
   }, [onClose, isLoading])
+
+  useEffect(() => {
+    if (isHouseCodeTouched) return
+    setValue('house_code', generateHouseCode(houseName), { shouldValidate: houseName.trim().length > 0 })
+  }, [houseName, isHouseCodeTouched, setValue])
 
   const handleFloorCountChange = (val: string) => {
     setFloorCountStr(val);
@@ -87,6 +97,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
     try {
       const house = await createHouse({ 
          name: values.name, 
+         house_code: values.house_code,
          address: values.address,
          default_electricity_price: parseNumber(values.electricity),
          default_water_price: parseNumber(values.water),
@@ -103,7 +114,10 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
          extra_vehicle_fee: parseNumber(values.extra_vehicle_fee),
       })
 
-      if (!house) throw new Error("Create house failed")
+      if (!house) {
+        setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
+        return
+      }
 
       const promises = []
       const floors = parseInt(floorCountStr) || 0
@@ -127,7 +141,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
       }
       onClose()
     } catch {
-      alert("Lỗi khi tạo nhà trọ, vui lòng kiểm tra lại!")
+      setError('house_code', { message: 'Mã nhà đã tồn tại hoặc không hợp lệ' })
     } finally {
       setIsLoading(false)
     }
@@ -170,6 +184,16 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
               <Label>Tên nhà trọ</Label>
               <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-border" />
               {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label>Mã nhà (House Code)</Label>
+              <Input
+                {...register('house_code', { onChange: () => setIsHouseCodeTouched(true) })}
+                placeholder="vd: ntcg"
+                maxLength={12}
+                className="border-border"
+              />
+              {errors.house_code && <span className="text-destructive text-xs">{errors.house_code.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Địa chỉ</Label>

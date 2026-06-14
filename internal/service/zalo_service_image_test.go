@@ -189,11 +189,12 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 			ID:     invoiceID,
 			RoomID: "room1",
 		},
+		HouseID: "house1",
 	}
 	invoiceRepo.EXPECT().GetInvoiceByID(ctx, managerID, invoiceID).Return(invoice, nil)
 
 	groupID := "group_123"
-	roomRepo.EXPECT().GetRoomByID(ctx, managerID, "room1").Return(&model.Room{
+	roomRepo.EXPECT().GetRoomByID(ctx, "room1", "house1").Return(&model.Room{
 		ID:          "room1",
 		GroupChatID: &groupID,
 	}, nil)
@@ -201,12 +202,6 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 	imageService.EXPECT().GenerateInvoiceImage(ctx, invoice).Return([]byte("fake-png"), nil)
 
 	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "group_123", gomock.Any(), gomock.Any()).Return(nil)
-
-	tenantRepo.EXPECT().ListTenantByRoomID(ctx, managerID, "room1").Return([]model.FullInfoTenant{
-		{ZaloUserID: "user_123", FullName: "Tenant A"},
-	}, nil)
-
-	zaloClient.EXPECT().SendPhoto(ctx, "bot123", "user_123", gomock.Any(), gomock.Any()).Return(nil)
 
 	err := svc.SendInvoiceToZalo(ctx, managerID, invoiceID)
 	if err != nil {

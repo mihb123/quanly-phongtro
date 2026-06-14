@@ -252,7 +252,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 	defer m.ctrl.Finish()
 	ctx := context.Background()
 	encToken, _ := security.Encrypt("bot-token", m.encKey)
-	inv := &model.InvoiceWithRoom{Invoice: model.Invoice{ID: "i1", RoomID: "r1", Period: "09-2023", TotalAmount: 1000}, RoomName: "101"}
+	inv := &model.InvoiceWithRoom{Invoice: model.Invoice{ID: "i1", RoomID: "r1", Period: "09-2023", TotalAmount: 1000}, RoomName: "101", HouseID: "h1"}
 	room := &model.Room{ID: "r1", GroupChatID: ptr("g1")}
 
 	tests := []struct {
@@ -261,15 +261,13 @@ func TestSendInvoiceToZalo(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "success to group and tenant",
+			name: "success to group only",
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(room, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(nil)
-				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "t1"}}, nil)
-				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "t1", gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -278,7 +276,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(room, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(room, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("invalid access token -216"))
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
@@ -290,7 +288,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil) // no group
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1"}, nil) // no group
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{}}, nil) // no tenant
 			},
@@ -301,7 +299,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return(nil, errors.New("img err"))
 			},
 			wantErr: true,
@@ -311,10 +309,9 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("api err"))
-				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{}, nil)
 			},
 			wantErr: true,
 		},
@@ -323,7 +320,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1", GroupChatID: ptr("g1")}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "g1", gomock.Any(), gomock.Any()).Return(errors.New("invalid access token"))
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
@@ -335,7 +332,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1"}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", gomock.Any(), gomock.Any()).Return(nil)
@@ -347,7 +344,7 @@ func TestSendInvoiceToZalo(t *testing.T) {
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 				m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-				m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
+				m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(&model.Room{ID: "r1"}, nil)
 				m.imgSvc.EXPECT().GenerateInvoiceImage(ctx, inv).Return([]byte("img"), nil)
 				m.tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{ZaloUserID: "u1"}}, nil)
 				m.zaloClient.EXPECT().SendPhoto(ctx, "bot-token", "u1", gomock.Any(), gomock.Any()).Return(errors.New("tenant err"))
@@ -851,12 +848,13 @@ func TestSendInvoiceToZalo_Extra(t *testing.T) {
 	encToken, _ := security.Encrypt("bot-token", m.encKey)
 	inv := &model.InvoiceWithRoom{
 		Invoice: model.Invoice{ID: "i1", RoomID: "r1", Status: "UNPAID", Period: "05/2026", TotalAmount: 1500000},
+		HouseID: "h1",
 	}
 
 	t.Run("get room fails", func(t *testing.T) {
 		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken}, nil)
 		m.invoiceRepo.EXPECT().GetInvoiceByID(ctx, "m1", "i1").Return(inv, nil)
-		m.roomRepo.EXPECT().GetRoomByID(ctx, "m1", "r1").Return(nil, errors.New("db err"))
+		m.roomRepo.EXPECT().GetRoomByID(ctx, "r1", "h1").Return(nil, errors.New("db err"))
 		err := m.svc.SendInvoiceToZalo(ctx, "m1", "i1")
 		assert.Error(t, err)
 	})

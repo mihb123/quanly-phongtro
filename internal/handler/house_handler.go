@@ -20,6 +20,7 @@ type HouseHandler struct {
 
 type createHouseRequest struct {
 	Name                    string  `json:"name" validate:"required"`
+	HouseCode               string  `json:"house_code" validate:"required,max=12,housecode"`
 	Address                 string  `json:"address" validate:"required"`
 	DefaultElectricityPrice float64 `json:"default_electricity_price" validate:"gte=0"`
 	DefaultWaterPrice       float64 `json:"default_water_price" validate:"gte=0"`
@@ -38,6 +39,7 @@ type createHouseRequest struct {
 
 type updateHouseRequest struct {
 	Name                    string  `json:"name" validate:"required"`
+	HouseCode               string  `json:"house_code" validate:"required,max=12,housecode"`
 	Address                 string  `json:"address" validate:"required"`
 	DefaultElectricityPrice float64 `json:"default_electricity_price" validate:"gte=0"`
 	DefaultWaterPrice       float64 `json:"default_water_price" validate:"gte=0"`
@@ -87,6 +89,7 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 
 	house := &model.House{
 		Name:                    req.Name,
+		HouseCode:               req.HouseCode,
 		ManagerID:               userID,
 		Address:                 req.Address,
 		DefaultElectricityPrice: req.DefaultElectricityPrice,
@@ -210,6 +213,7 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	}
 	updateHouseInput := service.UpdateHouseInput{
 		Name:                    req.Name,
+		HouseCode:               req.HouseCode,
 		Address:                 req.Address,
 		DefaultElectricityPrice: req.DefaultElectricityPrice,
 		DefaultWaterPrice:       req.DefaultWaterPrice,

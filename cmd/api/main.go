@@ -92,10 +92,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init zalo service: %v", err)
 	}
+	keyBytes, err := service.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
+	if err != nil {
+		log.Fatalf("decode zalo encryption key: %v", err)
+	}
+	pendingInvoiceUpdateRepo := repository.NewPendingInvoiceUpdateRepository(sqlDB)
+	zaloInvoiceCommandService := service.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, keyBytes, webhookBaseURL)
+	if configurableZaloService, ok := zaloService.(interface {
+		SetInvoiceCommandService(service.ZaloInvoiceCommandService)
+	}); ok {
+		configurableZaloService.SetInvoiceCommandService(zaloInvoiceCommandService)
+	}
 	zaloHandler := httpHandler.NewZaloHandler(zaloService, webhookBaseURL)
 
 	// Start the Zalo token health check cron (every 4 hours)
-	keyBytes, _ := service.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
 	zaloCron := service.NewZaloCronService(zaloClient, userRepo, keyBytes)
 	zaloCron.Start()
 	// Trigger an immediate check on startup to quickly detect stale tokens

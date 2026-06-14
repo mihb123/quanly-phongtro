@@ -35,15 +35,16 @@ type ZaloBotStatus struct {
 }
 
 type zaloServiceImpl struct {
-	client        ZaloClient
-	userRepo      model.UserRepository
-	roomRepo      model.RoomRepository
-	tenantRepo    model.TenantRepository
-	houseRepo     model.HouseRepository
-	invoiceRepo   model.InvoiceRepository
-	imageService  ImageService
-	encryptionKey []byte
-	publicBaseURL string
+	client                ZaloClient
+	userRepo              model.UserRepository
+	roomRepo              model.RoomRepository
+	tenantRepo            model.TenantRepository
+	houseRepo             model.HouseRepository
+	invoiceRepo           model.InvoiceRepository
+	imageService          ImageService
+	invoiceCommandService ZaloInvoiceCommandService
+	encryptionKey         []byte
+	publicBaseURL         string
 }
 
 // DecodeEncryptionKey decodes the hex or raw 32-byte encryption key string used for Zalo tokens.
@@ -83,6 +84,11 @@ func NewZaloService(client ZaloClient, userRepo model.UserRepository, roomRepo m
 		encryptionKey: keyBytes,
 		publicBaseURL: baseURL,
 	}, nil
+}
+
+// SetInvoiceCommandService attaches the optional invoice chat command handler.
+func (s *zaloServiceImpl) SetInvoiceCommandService(commandService ZaloInvoiceCommandService) {
+	s.invoiceCommandService = commandService
 }
 
 func (s *zaloServiceImpl) SaveZaloConfig(ctx context.Context, managerID, botToken, webhookUrl, secretToken string) error {
@@ -181,94 +187,17 @@ func (s *zaloServiceImpl) SendTextMessage(ctx context.Context, managerID, chatID
 }
 
 func (s *zaloServiceImpl) SendInvoiceToZalo(ctx context.Context, managerID, invoiceID string) error {
-	botToken, err := s.getDecryptedToken(ctx, managerID)
-	if err != nil {
-		return err
-	}
-
-	invoice, err := s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
-	if err != nil {
-		return err
-	}
-
-	room, err := s.roomRepo.GetRoomByID(ctx, managerID, invoice.RoomID)
-	if err != nil {
-		return err
-	}
-
-	imageBytes, err := s.imageService.GenerateInvoiceImage(ctx, invoice)
-	if err != nil {
-		return fmt.Errorf("generate image: %w", err)
-	}
-	photoURL, err := s.saveZaloInvoiceImage(invoice.ID, imageBytes)
-	if err != nil {
-		return fmt.Errorf("save zalo invoice image: %w", err)
-	}
-
-	caption := fmt.Sprintf("Hóa đơn tiền nhà tháng %s cho phòng %s.\nTổng tiền: %s", invoice.Period, invoice.RoomName, formatCurrencyToVND(invoice.TotalAmount))
-
-	var sendErrors []string
-
-	// Send to Group Chat
-	if room.GroupChatID != nil && *room.GroupChatID != "" {
-		err := s.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption)
-		if err != nil {
-			if isZaloAuthError(err) {
-				s.markTokenInactive(ctx, managerID)
-				return fmt.Errorf("zalo bot token is invalid or expired")
-			}
-			sendErrors = append(sendErrors, fmt.Sprintf("group chat error: %v", err))
-		}
-	}
-
-	// Send to active tenants' Private Chats
-	tenants, err := s.tenantRepo.ListTenantByRoomID(ctx, managerID, invoice.RoomID)
-	if err == nil {
-		for _, t := range tenants {
-			if t.ZaloUserID != "" {
-				err := s.client.SendPhoto(ctx, botToken, t.ZaloUserID, photoURL, caption)
-				if err != nil {
-					sendErrors = append(sendErrors, fmt.Sprintf("tenant %s error: %v", t.FullName, err))
-				}
-			}
-		}
-	}
-
-	// If neither group chat nor any private chat exists, return error
-	if (room.GroupChatID == nil || *room.GroupChatID == "") && len(sendErrors) == 0 {
-		hasLinkedTenant := false
-		for _, t := range tenants {
-			if t.ZaloUserID != "" {
-				hasLinkedTenant = true
-				break
-			}
-		}
-		if !hasLinkedTenant {
-			return errors.New("room does not have a linked zalo group chat or any linked tenant")
-		}
-	}
-
-	if len(sendErrors) > 0 {
-		return fmt.Errorf("some messages failed: %s", strings.Join(sendErrors, ", "))
-	}
-
-	return nil
-}
-
-// saveZaloInvoiceImage stores a generated invoice image at a public URL that Zalo can fetch.
-func (s *zaloServiceImpl) saveZaloInvoiceImage(invoiceID string, imageBytes []byte) (string, error) {
-	dir := "uploads/zalo-invoices"
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("mkdir: %w", err)
-	}
-
-	fileName := fmt.Sprintf("%s_%s.png", invoiceID, uuid.NewString())
-	filePath := filepath.Join(dir, fileName)
-	if err := os.WriteFile(filePath, imageBytes, 0644); err != nil {
-		return "", fmt.Errorf("write file: %w", err)
-	}
-
-	return fmt.Sprintf("%s/api/v1/uploads/zalo-invoices/%s", s.publicBaseURL, fileName), nil
+	return deliverInvoiceToZalo(ctx, zaloInvoiceDeliveryDeps{
+		client:            s.client,
+		userRepo:          s.userRepo,
+		roomRepo:          s.roomRepo,
+		tenantRepo:        s.tenantRepo,
+		invoiceRepo:       s.invoiceRepo,
+		imageService:      s.imageService,
+		encryptionKey:     s.encryptionKey,
+		publicBaseURL:     s.publicBaseURL,
+		markTokenInactive: s.markTokenInactive,
+	}, managerID, invoiceID)
 }
 
 type webhookMessageContext struct {
@@ -466,6 +395,16 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	cleanText := strings.ToLower(strings.ReplaceAll(webhookCtx.text, " ", ""))
+
+	if s.invoiceCommandService != nil && webhookCtx.text != "" {
+		chatID := commandChatID(webhookCtx)
+		if isInvoiceCommandText(webhookCtx.text) || s.invoiceCommandService.HasPendingState(ctx, managerID, chatID) {
+			if err := s.invoiceCommandService.HandleInvoiceCommand(ctx, managerID, webhookCtx); err != nil {
+				fmt.Printf("Invoice command error: %v\n", err)
+			}
+			return nil
+		}
+	}
 
 	if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && webhookCtx.text != "" {
 		botToken, err := s.getDecryptedToken(ctx, managerID)

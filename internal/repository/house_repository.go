@@ -21,7 +21,7 @@ func NewHouseRepository(db *bun.DB) *HouseRepository {
 func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error {
 	_, err := r.db.NewInsert().
 		Model(h).
-		Column("manager_id", "name", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee").
+		Column("manager_id", "name", "house_code", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
@@ -41,6 +41,22 @@ func (r *HouseRepository) GetByID(ctx context.Context, id, managerID string) (*m
 			return nil, model.ErrHouseNotFound
 		}
 		return nil, fmt.Errorf("get house by id: %w", err)
+	}
+	return &h, nil
+}
+
+// GetHouseByCode finds a house by its short code within a manager's houses.
+func (r *HouseRepository) GetHouseByCode(ctx context.Context, managerID, houseCode string) (*model.House, error) {
+	var h model.House
+	err := r.db.NewSelect().
+		Model(&h).
+		Where("manager_id = ? AND LOWER(house_code) = LOWER(?)", managerID, houseCode).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrHouseNotFound
+		}
+		return nil, fmt.Errorf("get house by code: %w", err)
 	}
 	return &h, nil
 }
@@ -69,9 +85,10 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 	q := r.db.NewUpdate().
 		Model((*model.House)(nil)).
 		Where("id = ? AND manager_id = ?", id, managerID).
-		Returning("id, manager_id, name, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price, electricity_billing_type, water_billing_type, electricity_billing_unit, water_billing_unit, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, created_at, updated_at")
+		Returning("id, manager_id, name, house_code, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price, electricity_billing_type, water_billing_type, electricity_billing_unit, water_billing_unit, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, created_at, updated_at")
 
 	q.Set("name = ?", params.Name)
+	q.Set("house_code = ?", params.HouseCode)
 	q.Set("address = ?", params.Address)
 	q.Set("default_electricity_price = ?", params.DefaultElectricityPrice)
 	q.Set("default_water_price = ?", params.DefaultWaterPrice)
@@ -89,8 +106,8 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 	q.Set("updated_at = NOW()")
 
 	var h model.House
-	err := q.Scan(ctx, &h.ID, &h.ManagerID, &h.Name, &h.Address, &h.DefaultElectricityPrice, &h.DefaultWaterPrice, &h.DefaultWifiPrice, &h.DefaultParkingPrice, &h.DefaultServicePrice, &h.ElectricityBillingType, &h.WaterBillingType, &h.ElectricityBillingUnit, &h.WaterBillingUnit, &h.ExtraPersonThreshold, &h.ExtraPersonFee, &h.ExtraVehicleThreshold, &h.ExtraVehicleFee, &h.CreatedAt, &h.UpdatedAt)
-	
+	err := q.Scan(ctx, &h.ID, &h.ManagerID, &h.Name, &h.HouseCode, &h.Address, &h.DefaultElectricityPrice, &h.DefaultWaterPrice, &h.DefaultWifiPrice, &h.DefaultParkingPrice, &h.DefaultServicePrice, &h.ElectricityBillingType, &h.WaterBillingType, &h.ElectricityBillingUnit, &h.WaterBillingUnit, &h.ExtraPersonThreshold, &h.ExtraPersonFee, &h.ExtraVehicleThreshold, &h.ExtraVehicleFee, &h.CreatedAt, &h.UpdatedAt)
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrHouseNotFound
