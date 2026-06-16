@@ -15,12 +15,7 @@ export const setAccessToken = (token: string) => {
 
 apiClient.interceptors.request.use(async (config) => {
   const method = config.method || 'GET'
-  let url = `${config.baseURL || ''}${config.url || ''}`
-  
-  const queryIndex = url.indexOf('?')
-  if (queryIndex !== -1) {
-    url = url.substring(0, queryIndex)
-  }
+  const url = buildDPoPUrl(config.baseURL || apiClient.defaults.baseURL || '', config.url || '')
   
   try {
     const proof = await getDPoPProof(method, url, currentAccessToken)
@@ -31,3 +26,10 @@ apiClient.interceptors.request.use(async (config) => {
   
   return config
 })
+
+const buildDPoPUrl = (baseURL: string, requestURL: string) => {
+  const absoluteURL = new URL(`${baseURL}${requestURL}`, window.location.origin)
+  absoluteURL.search = ''
+  absoluteURL.hash = ''
+  return absoluteURL.toString()
+}

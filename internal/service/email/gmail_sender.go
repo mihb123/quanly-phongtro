@@ -114,7 +114,7 @@ func (s *GoogleSMTPSender) SendEmail(toEmail string, otpCode string, expiresIn t
 	message.SetHeader("From", message.FormatAddress(s.FromEmail, s.FromName))
 	message.SetHeader("To", toEmail)
 	message.SetHeader("Subject", s.FromName+" - Mã xác thực tài khoản (OTP)")
-	
+
 	// Add plain text version first to reduce spam score
 	message.SetBody("text/plain", "Mã xác thực (OTP) của bạn là: "+otpCode+".\nMã này sẽ hết hạn trong "+strconv.FormatInt(int64(expiresIn.Minutes()), 10)+" phút.\nNếu bạn không yêu cầu mã này, vui lòng bỏ qua email.")
 	// Add HTML alternative

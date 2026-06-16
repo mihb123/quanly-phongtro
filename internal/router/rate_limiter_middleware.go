@@ -22,7 +22,7 @@ var (
 func RateLimiter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims, ok := security.ClaimsFromContext(r.Context())
-		if !ok {
+		if !ok || claims == nil {
 			writeError(w, http.StatusInternalServerError, "cannot parse token")
 			return
 		}
@@ -30,7 +30,7 @@ func RateLimiter(next http.Handler) http.Handler {
 		userID, err := claims.GetSubject()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "cannot parse token")
-
+			return
 		}
 
 		mu.Lock()

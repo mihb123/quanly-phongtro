@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+const zaloClientTimeout = 10 * time.Second
 
 type ZaloAppInfo struct {
 	AppID       string `json:"app_id"`
@@ -27,7 +30,7 @@ type zaloClientImpl struct {
 
 func NewZaloClient() ZaloClient {
 	return &zaloClientImpl{
-		client: &http.Client{},
+		client: &http.Client{Timeout: zaloClientTimeout},
 	}
 }
 
@@ -98,8 +101,7 @@ func (c *zaloClientImpl) SendMessage(ctx context.Context, botToken, chatID, text
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return zaloAPIStatusError(resp)
 	}
 
 	var res map[string]interface{}
@@ -145,8 +147,7 @@ func (c *zaloClientImpl) SendPhoto(ctx context.Context, botToken, chatID, photoU
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return zaloAPIStatusError(resp)
 	}
 
 	var res map[string]interface{}
@@ -189,8 +190,7 @@ func (c *zaloClientImpl) SetWebhook(ctx context.Context, botToken, webhookUrl, s
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
+		return zaloAPIStatusError(resp)
 	}
 
 	var res map[string]interface{}
@@ -203,4 +203,14 @@ func (c *zaloClientImpl) SetWebhook(ctx context.Context, botToken, webhookUrl, s
 	}
 
 	return nil
+}
+
+// zaloAPIStatusError includes the response body when Zalo returns a non-200 status.
+func zaloAPIStatusError(resp *http.Response) error {
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("zalo api error: status %d, read body: %w", resp.StatusCode, err)
+	}
+
+	return fmt.Errorf("zalo api error: status %d, body: %s", resp.StatusCode, string(respBody))
 }

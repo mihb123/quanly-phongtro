@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -201,6 +202,32 @@ func TestAuthHandler_Login(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.wantStatus, rec.Code)
 			}
 		})
+	}
+}
+
+// TestAuthHandler_LoginSetsSecureCookies verifies production cookie hardening is configurable.
+func TestAuthHandler_LoginSetsSecureCookies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSvc := mock_service.NewMockAuthService(ctrl)
+	mockSvc.EXPECT().
+		Login(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(&service.LoginOutput{AccessToken: "access", RefreshToken: "refresh"}, nil)
+
+	h := handler.NewAuthHandler(mockSvc, handler.WithSecureCookies(true))
+	req := httptest.NewRequest(http.MethodPost, "/login", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
+	rec := httptest.NewRecorder()
+
+	h.Login(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	for _, cookie := range rec.Result().Cookies() {
+		if !cookie.Secure {
+			t.Fatalf("cookie %s Secure = false, want true", cookie.Name)
+		}
 	}
 }
 
@@ -412,7 +439,28 @@ func TestAuthHandler_AuthRequestEdges(t *testing.T) {
 		}
 	})
 
-	t.Run("Register uses X-Forwarded-For", func(t *testing.T) {
+	t.Run("Register ignores untrusted X-Forwarded-For", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockSvc := mock_service.NewMockAuthService(ctrl)
+		mockSvc.EXPECT().
+			Register(gomock.Any(), gomock.Any(), "192.0.2.1", gomock.Any(), gomock.Any()).
+			Return(&service.LoginOutput{}, nil)
+
+		h := handler.NewAuthHandler(mockSvc)
+		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
+		req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.2")
+		rec := httptest.NewRecorder()
+
+		h.Register(rec, req)
+
+		if rec.Code != http.StatusCreated {
+			t.Errorf("expected status %d, got %d", http.StatusCreated, rec.Code)
+		}
+	})
+
+	t.Run("Register uses X-Forwarded-For from trusted proxy", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -421,7 +469,8 @@ func TestAuthHandler_AuthRequestEdges(t *testing.T) {
 			Register(gomock.Any(), gomock.Any(), "203.0.113.1", gomock.Any(), gomock.Any()).
 			Return(&service.LoginOutput{}, nil)
 
-		h := handler.NewAuthHandler(mockSvc)
+		trustedProxy := netip.MustParsePrefix("192.0.2.0/24")
+		h := handler.NewAuthHandler(mockSvc, handler.WithTrustedProxies([]netip.Prefix{trustedProxy}))
 		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer([]byte(`{"email": "test@test.local", "password": "password123"}`)))
 		req.Header.Set("X-Forwarded-For", "203.0.113.1, 198.51.100.2")
 		rec := httptest.NewRecorder()

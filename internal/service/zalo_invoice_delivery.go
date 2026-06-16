@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -20,6 +24,7 @@ type zaloInvoiceDeliveryDeps struct {
 	tenantRepo        model.TenantRepository
 	invoiceRepo       model.InvoiceRepository
 	imageService      ImageService
+	paymentService    PaymentService
 	encryptionKey     []byte
 	publicBaseURL     string
 	markTokenInactive func(ctx context.Context, managerID string)
@@ -46,27 +51,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		return err
 	}
 
-	imageBytes, err := deps.imageService.GenerateInvoiceImage(ctx, invoice)
-	if err != nil {
-		return fmt.Errorf("generate image: %w", err)
-	}
-	photoURL, err := saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID, imageBytes)
-	if err != nil {
-		return fmt.Errorf("save zalo invoice image: %w", err)
-	}
-
-	caption := fmt.Sprintf("Hóa đơn tiền nhà tháng %s cho phòng %s.\nTổng tiền: %s", invoice.Period, invoice.RoomName, formatCurrencyToVND(invoice.TotalAmount))
-	if room.GroupChatID != nil && *room.GroupChatID != "" {
-		if err := deps.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption); err != nil {
-			if isZaloAuthError(err) && deps.markTokenInactive != nil {
-				deps.markTokenInactive(ctx, managerID)
-				return fmt.Errorf("zalo bot token is invalid or expired")
-			}
-			return fmt.Errorf("group chat error: %w", err)
-		}
-		return nil
-	}
-
+	// Gather recipients
 	recipients := make([]string, 0, 4)
 	recipientNames := make(map[string]string)
 	if manager.ZaloUserID != nil && *manager.ZaloUserID != "" {
@@ -78,7 +63,12 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	if err != nil {
 		return err
 	}
+
+	var mainTenantName string
 	for _, tenant := range tenants {
+		if mainTenantName == "" {
+			mainTenantName = tenant.FullName
+		}
 		if tenant.ZaloUserID == "" {
 			continue
 		}
@@ -86,8 +76,56 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		recipientNames[tenant.ZaloUserID] = tenant.FullName
 	}
 
-	if len(recipients) == 0 {
+	if (room.GroupChatID == nil || *room.GroupChatID == "") && len(recipients) == 0 {
 		return errors.New("room does not have a linked zalo group chat, linked manager, or linked tenant")
+	}
+
+	// Generate Invoice Image
+	imageBytes, err := deps.imageService.GenerateInvoiceImage(ctx, invoice)
+	if err != nil {
+		return fmt.Errorf("generate image: %w", err)
+	}
+	photoURL, err := saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID, imageBytes)
+	if err != nil {
+		return fmt.Errorf("save zalo invoice image: %w", err)
+	}
+
+	// Generate payment link and QR image.
+	var qrPhotoURL string
+	var checkoutURL string
+	if deps.paymentService != nil && invoice.Status == model.InvoiceStatusUnpaid {
+		paymentLink, err := deps.paymentService.CreatePaymentLinkForInvoice(ctx, managerID, model.PaymentProviderPayOS, invoice, mainTenantName)
+		if err == nil && paymentLink != nil {
+			checkoutURL = paymentLink.CheckoutURL
+			qrBytes, err := downloadQRCodeImage(paymentLink.QRCode)
+			if err == nil {
+				qrPhotoURL, err = saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID+"_qr", qrBytes)
+				if err != nil {
+					fmt.Printf("save payos qr image: %v\n", err)
+				}
+			}
+		}
+	}
+
+	caption := fmt.Sprintf("Hóa đơn tiền nhà tháng %s cho phòng %s.\nTổng tiền: %s", invoice.Period, invoice.RoomName, formatCurrencyToVND(invoice.TotalAmount))
+	qrCaption := ""
+	if qrPhotoURL != "" {
+		qrCaption = fmt.Sprintf("Vui lòng quét mã QR để thanh toán. Hoặc truy cập link: %s", checkoutURL)
+	}
+
+	if room.GroupChatID != nil && *room.GroupChatID != "" {
+		if err := deps.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption); err != nil {
+			if isZaloAuthError(err) && deps.markTokenInactive != nil {
+				deps.markTokenInactive(ctx, managerID)
+				return fmt.Errorf("zalo bot token is invalid or expired")
+			}
+			return fmt.Errorf("group chat error: %w", err)
+		}
+		// Send QR
+		if qrPhotoURL != "" {
+			_ = deps.client.SendPhoto(ctx, botToken, *room.GroupChatID, qrPhotoURL, qrCaption)
+		}
+		return nil
 	}
 
 	var sendErrors []string
@@ -98,6 +136,9 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 				return fmt.Errorf("zalo bot token is invalid or expired")
 			}
 			sendErrors = append(sendErrors, fmt.Sprintf("%s error: %v", recipientNames[recipientID], err))
+		} else if qrPhotoURL != "" {
+			// Send QR
+			_ = deps.client.SendPhoto(ctx, botToken, recipientID, qrPhotoURL, qrCaption)
 		}
 	}
 	if len(sendErrors) > 0 {
@@ -123,7 +164,7 @@ func getDecryptedZaloToken(ctx context.Context, userRepo model.UserRepository, m
 	return user, botToken, nil
 }
 
-// saveZaloInvoiceImage stores a generated invoice image at a public URL that Zalo can fetch.
+// saveZaloInvoiceImage stores a generated invoice image and returns a public URL Zalo can fetch.
 func saveZaloInvoiceImage(publicBaseURL, invoiceID string, imageBytes []byte) (string, error) {
 	dir := "uploads/zalo-invoices"
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -136,5 +177,26 @@ func saveZaloInvoiceImage(publicBaseURL, invoiceID string, imageBytes []byte) (s
 		return "", fmt.Errorf("write file: %w", err)
 	}
 
-	return fmt.Sprintf("%s/api/v1/uploads/zalo-invoices/%s", publicBaseURL, fileName), nil
+	publicPath := fmt.Sprintf("/api/v1/uploads/zalo-invoices/%s", fileName)
+	return publicBaseURL + publicPath, nil
+}
+
+func downloadQRCodeImage(qrCodeText string) ([]byte, error) {
+	urlStr := fmt.Sprintf("https://quickchart.io/qr?text=%s&size=400", url.QueryEscape(qrCodeText))
+	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to download QR code, status: %d", resp.StatusCode)
+	}
+
+	return io.ReadAll(resp.Body)
 }

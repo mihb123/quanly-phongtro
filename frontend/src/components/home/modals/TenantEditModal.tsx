@@ -12,6 +12,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { getFileName, isImagePath } from '@/utils/file'
+import { getProtectedFileObjectUrl } from '@/api/files'
+import { ProtectedFileImage } from './ProtectedFileImage'
 
 const tenantSchema = z.object({
   fullName: z.string().min(1, 'Bắt buộc'),
@@ -39,6 +41,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
   const [existingCccdPaths, setExistingCccdPaths] = useState<string[]>([])
   const [existingContractPaths, setExistingContractPaths] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<TenantFormValues>({
     resolver: zodResolver(tenantSchema),
@@ -69,6 +72,29 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose, selectedImageUrl])
+
+  useEffect(() => {
+    return () => {
+      if (selectedImageUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(selectedImageUrl)
+      }
+    }
+  }, [selectedImageUrl])
+
+  const handleExistingImagePreview = async (path: string) => {
+    setLoadingFilePath(path)
+    try {
+      const objectUrl = await getProtectedFileObjectUrl(path)
+      setSelectedImageUrl((current) => {
+        if (current?.startsWith('blob:')) URL.revokeObjectURL(current)
+        return objectUrl
+      })
+    } catch (error) {
+      console.error('Không tải được file tenant:', error)
+    } finally {
+      setLoadingFilePath(null)
+    }
+  }
 
   const onSubmit = async (values: TenantFormValues) => {
     setIsSubmitting(true)
@@ -176,7 +202,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                                   <span className="text-[10px] font-semibold text-primary truncate">{getFileName(path)}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                  <button type="button" onClick={() => handleExistingImagePreview(path)} disabled={loadingFilePath === path} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer disabled:opacity-50" title="Xem trước">
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   <button type="button" onClick={() => setExistingCccdPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
@@ -187,9 +213,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                               {isImagePath(path) ? (
                                 <div
                                   className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                  onClick={() => handleExistingImagePreview(path)}
                                 >
-                                  <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                  <ProtectedFileImage path={path} alt={getFileName(path)} className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5" />
                                   </div>
@@ -258,7 +284,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {isImagePath(path) && (
-                                    <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                    <button type="button" onClick={() => handleExistingImagePreview(path)} disabled={loadingFilePath === path} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer disabled:opacity-50" title="Xem trước">
                                       <Eye className="w-4 h-4" />
                                     </button>
                                   )}
@@ -270,9 +296,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                               {isImagePath(path) ? (
                                 <div
                                   className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                  onClick={() => handleExistingImagePreview(path)}
                                 >
-                                  <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                  <ProtectedFileImage path={path} alt={getFileName(path)} className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5" />
                                   </div>

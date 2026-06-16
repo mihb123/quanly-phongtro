@@ -3,8 +3,6 @@ package service_test
 import (
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -33,17 +31,12 @@ func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
 
 	encKey := "z123456789abcdef0123456789abcdef"
 
-	svc, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, nil, encKey)
+	svc, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, nil, nil, encKey)
 	if err != nil {
 		t.Fatalf("failed to init service: %v", err)
 	}
 
-	// Create a dummy image server
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("fake-image-data"))
-	}))
-	defer ts.Close()
+	setupZaloImageDownloaderTest(t)
 
 	ctx := context.Background()
 	managerID := "manager1"
@@ -92,7 +85,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
 				{
 					"type": "image",
 					"payload": {
-						"url": "` + ts.URL + `"
+						"url": "https://zalo-image.test/image.jpg"
 					}
 				}
 			]
@@ -116,7 +109,7 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 	zaloClient := mock_service.NewMockZaloClient(ctrl)
 
 	encKey := "z123456789abcdef0123456789abcdef"
-	svc, _ := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, nil, nil, encKey)
+	svc, _ := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, nil, nil, nil, encKey)
 
 	ctx := context.Background()
 	managerID := "manager1"
@@ -172,7 +165,7 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 	zaloClient := mock_service.NewMockZaloClient(ctrl)
 
 	encKey := "z123456789abcdef0123456789abcdef"
-	svc, _ := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, nil, invoiceRepo, imageService, encKey)
+	svc, _ := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, nil, invoiceRepo, imageService, nil, encKey)
 
 	ctx := context.Background()
 	managerID := "manager1"
@@ -198,6 +191,8 @@ func TestZaloService_SendInvoiceToZalo(t *testing.T) {
 		ID:          "room1",
 		GroupChatID: &groupID,
 	}, nil)
+
+	tenantRepo.EXPECT().ListTenantByRoomID(ctx, managerID, "room1").Return([]model.FullInfoTenant{}, nil)
 
 	imageService.EXPECT().GenerateInvoiceImage(ctx, invoice).Return([]byte("fake-png"), nil)
 

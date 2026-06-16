@@ -913,3 +913,24 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
 		})
 	}
 }
+
+// TestInvoiceServiceResolveTransactionImagePath verifies image ownership and traversal checks.
+func TestInvoiceServiceResolveTransactionImagePath(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
+	invoiceService := NewInvoiceService(mockInvoiceRepo, nil, nil, nil, nil)
+
+	mockInvoiceRepo.EXPECT().
+		GetInvoiceByTransactionImagePath(ctx, "mgr-1", "/uploads/transactions/tx.jpg").
+		Return(&model.InvoiceWithRoom{Invoice: model.Invoice{ID: "inv-1"}}, nil)
+
+	filePath, err := invoiceService.ResolveTransactionImagePath(ctx, "mgr-1", "tx.jpg")
+	require.NoError(t, err)
+	require.Equal(t, "uploads/transactions/tx.jpg", filePath)
+
+	_, err = invoiceService.ResolveTransactionImagePath(ctx, "mgr-1", "../secret.jpg")
+	require.ErrorIs(t, err, ErrInvalidInput)
+}

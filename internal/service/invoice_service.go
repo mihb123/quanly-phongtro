@@ -31,23 +31,24 @@ type InvoiceService interface {
 	RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error
 	RecalculateUnpaidInvoicesByHouse(ctx context.Context, managerID, houseID string) error
 	DeleteInvoice(ctx context.Context, managerID, invoiceID string) error
+	ResolveTransactionImagePath(ctx context.Context, managerID, requestPath string) (string, error)
 }
 
 type InvoiceServiceImpl struct {
-	invoiceRepo   model.InvoiceRepository
-	roomRepo      model.RoomRepository
-	houseRepo     model.HouseRepository
-	tenantRepo    model.TenantRepository
-	eventBus      EventBus
+	invoiceRepo model.InvoiceRepository
+	roomRepo    model.RoomRepository
+	houseRepo   model.HouseRepository
+	tenantRepo  model.TenantRepository
+	eventBus    EventBus
 }
 
 func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, eventBus EventBus) InvoiceService {
 	return &InvoiceServiceImpl{
-		invoiceRepo:   invoiceRepo,
-		roomRepo:      roomRepo,
-		houseRepo:     houseRepo,
-		tenantRepo:    tenantRepo,
-		eventBus:      eventBus,
+		invoiceRepo: invoiceRepo,
+		roomRepo:    roomRepo,
+		houseRepo:   houseRepo,
+		tenantRepo:  tenantRepo,
+		eventBus:    eventBus,
 	}
 }
 
@@ -308,6 +309,25 @@ func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoi
 		})
 	}
 	return err
+}
+
+// ResolveTransactionImagePath verifies invoice ownership before returning a local upload path.
+func (s *InvoiceServiceImpl) ResolveTransactionImagePath(ctx context.Context, managerID, requestPath string) (string, error) {
+	fileName, ok := uploadFileName(requestPath)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+
+	storedPath := "/uploads/transactions/" + fileName
+	if _, err := s.invoiceRepo.GetInvoiceByTransactionImagePath(ctx, managerID, storedPath); err != nil {
+		return "", err
+	}
+
+	filePath, ok := uploadFilePath("uploads/transactions", fileName)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+	return filePath, nil
 }
 
 func (s *InvoiceServiceImpl) calculateUtilityFee(billingType, billingUnit string, defaultPrice float64, newIndex, oldIndex int, tenantCount int) (float64, error) {

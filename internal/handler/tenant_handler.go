@@ -111,16 +111,16 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	registerTenantInput := service.RegisterTenantInput{
-		ManagerID:          userID,
-		RoomID:             roomID,
-		FullName:           fullName,
-		Password:           password,
-		Phone:              phone,
-		Email:              email,
-		IdentityCard:       identityCard,
-		StartDate:          startDate,
-		CCCDFiles:          cccdFiles,
-		ContractFiles:      contractFiles,
+		ManagerID:     userID,
+		RoomID:        roomID,
+		FullName:      fullName,
+		Password:      password,
+		Phone:         phone,
+		Email:         email,
+		IdentityCard:  identityCard,
+		StartDate:     startDate,
+		CCCDFiles:     cccdFiles,
+		ContractFiles: contractFiles,
 	}
 
 	user, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
@@ -251,14 +251,14 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	if v := r.FormValue("kept_cccd_paths"); v != "" {
 		in.KeptCCCDPaths = &v
 	} else if r.FormValue("kept_cccd_paths_empty") == "true" {
-        empty := ""
+		empty := ""
 		in.KeptCCCDPaths = &empty
 	}
 
 	if v := r.FormValue("kept_contract_paths"); v != "" {
 		in.KeptContractPaths = &v
 	} else if r.FormValue("kept_contract_paths_empty") == "true" {
-        empty := ""
+		empty := ""
 		in.KeptContractPaths = &empty
 	}
 
@@ -328,4 +328,38 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, nil, "tenant deleted successfully")
+}
+
+// DownloadTenantFile serves a tenant upload after manager ownership is verified.
+func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	managerID, err := claims.GetSubject()
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	fileName := chi.URLParam(r, "*")
+	filePath, err := h.tenantService.ResolveTenantFilePath(r.Context(), managerID, fileName)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInput):
+			writeError(w, http.StatusBadRequest, "invalid file path")
+		case errors.Is(err, model.ErrTenantNotFound), errors.Is(err, model.ErrUnauthorized):
+			writeError(w, http.StatusNotFound, "file not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to resolve tenant file", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	http.ServeFile(w, r, filePath)
 }

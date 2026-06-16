@@ -1,6 +1,10 @@
 package service
 
-import "context"
+import (
+	"context"
+	"net/http"
+	"net/netip"
+)
 
 // Export unexported methods and types for testing
 
@@ -33,4 +37,22 @@ func IsZaloAuthError(err error) bool {
 
 func GetEncryptionKey(s ZaloService) []byte {
 	return s.(*zaloServiceImpl).encryptionKey
+}
+
+// SetZaloImageHTTPClientFactoryForTest replaces the image HTTP client factory during tests.
+func SetZaloImageHTTPClientFactoryForTest(factory func() *http.Client) func() {
+	previous := newZaloImageHTTPClient
+	newZaloImageHTTPClient = factory
+	return func() {
+		newZaloImageHTTPClient = previous
+	}
+}
+
+// SetZaloImageHostResolverForTest replaces the image host resolver during tests.
+func SetZaloImageHostResolverForTest(resolver func(context.Context, string) ([]netip.Addr, error)) func() {
+	previous := resolveZaloImageHost
+	resolveZaloImageHost = resolver
+	return func() {
+		resolveZaloImageHost = previous
+	}
 }

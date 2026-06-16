@@ -61,7 +61,7 @@ func TestGeocodingService_GoogleMaps(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "google maps api status")
 	})
-	
+
 	t.Run("client get error", func(t *testing.T) {
 		old := googleGeocodeBaseURL
 		googleGeocodeBaseURL = "http://127.0.0.1:0"
@@ -136,7 +136,7 @@ func TestGeocodingService_OSM(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "empty display name")
 	})
-	
+
 	t.Run("client do error", func(t *testing.T) {
 		old := osmGeocodeBaseURL
 		osmGeocodeBaseURL = "http://127.0.0.1:0"
@@ -146,7 +146,7 @@ func TestGeocodingService_OSM(t *testing.T) {
 		assert.Error(t, err)
 		osmGeocodeBaseURL = old
 	})
-	
+
 	t.Run("new request error", func(t *testing.T) {
 		old := osmGeocodeBaseURL
 		osmGeocodeBaseURL = "::invalid::"
@@ -188,6 +188,7 @@ func TestGeocodingService_Fallback(t *testing.T) {
 }
 
 type errorTransport struct{}
+
 func (t *errorTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return nil, assert.AnError
 }

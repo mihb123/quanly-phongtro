@@ -65,10 +65,10 @@ type AuthService interface {
 }
 
 type UpdateProfileInput struct {
-	FullName        *string `json:"full_name"`
-	Phone           *string `json:"phone"`
-	OldPassword     *string `json:"old_password"`
-	Password        *string `json:"password"`
+	FullName    *string `json:"full_name"`
+	Phone       *string `json:"phone"`
+	OldPassword *string `json:"old_password"`
+	Password    *string `json:"password"`
 }
 
 type RegisterInput struct {
@@ -481,4 +481,3 @@ func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in U
 		IsActivated: user.IsActivated,
 	}, nil
 }
-

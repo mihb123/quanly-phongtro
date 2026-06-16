@@ -9,7 +9,7 @@ import (
 
 // TestNewZaloService_PublicBaseURL covers optional public base URL normalization.
 func TestNewZaloService_PublicBaseURL(t *testing.T) {
-	svc, err := NewZaloService(nil, nil, nil, nil, nil, nil, nil, "z123456789abcdef0123456789abcdef", "https://example.com/")
+	svc, err := NewZaloService(nil, nil, nil, nil, nil, nil, nil, nil, "z123456789abcdef0123456789abcdef", "https://example.com/")
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)
 	}

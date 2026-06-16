@@ -102,7 +102,7 @@ func VerifyDPoPProof(dpopStr, htm, htu, accessToken string) (string, error) {
 		if token.Header["typ"] != "dpop+jwt" {
 			return nil, fmt.Errorf("invalid typ header")
 		}
-		
+
 		alg := token.Method.Alg()
 		if alg != "ES256" && alg != "RS256" {
 			return nil, fmt.Errorf("unsupported alg: %s", alg)
@@ -124,7 +124,7 @@ func VerifyDPoPProof(dpopStr, htm, htu, accessToken string) (string, error) {
 	if claims.Htm != htm {
 		return "", fmt.Errorf("%w: htm mismatch", ErrInvalidDPoPProof)
 	}
-	
+
 	// Normalize URL by removing query params if needed, but standard DPoP requires exact match of scheme://host:port/path
 	if claims.Htu != htu {
 		return "", fmt.Errorf("%w: htu mismatch", ErrInvalidDPoPProof)
@@ -160,22 +160,25 @@ func VerifyDPoPProof(dpopStr, htm, htu, accessToken string) (string, error) {
 	}
 
 	// 6. Calculate and return JWK Thumbprint (jkt)
-	jwk := token.Header["jwk"].(map[string]interface{})
+	jwk, ok := token.Header["jwk"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("%w: missing jwk header", ErrInvalidDPoPProof)
+	}
 	return calculateThumbprint(jwk)
 }
 
 func parseJWKToPublicKey(jwk map[string]interface{}) (interface{}, error) {
 	kty, _ := jwk["kty"].(string)
-	
+
 	if kty == "EC" {
 		crv, _ := jwk["crv"].(string)
 		if crv != "P-256" {
 			return nil, fmt.Errorf("unsupported curve: %s", crv)
 		}
-		
+
 		xBase64, _ := jwk["x"].(string)
 		yBase64, _ := jwk["y"].(string)
-		
+
 		xBytes, err := base64.RawURLEncoding.DecodeString(xBase64)
 		if err != nil {
 			return nil, err
@@ -184,22 +187,29 @@ func parseJWKToPublicKey(jwk map[string]interface{}) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		
+
+		curve := elliptic.P256()
+		x := new(big.Int).SetBytes(xBytes)
+		y := new(big.Int).SetBytes(yBytes)
+		if !curve.IsOnCurve(x, y) {
+			return nil, fmt.Errorf("invalid EC public key point")
+		}
+
 		pubKey := &ecdsa.PublicKey{
-			Curve: elliptic.P256(),
-			X:     new(big.Int).SetBytes(xBytes),
-			Y:     new(big.Int).SetBytes(yBytes),
+			Curve: curve,
+			X:     x,
+			Y:     y,
 		}
 		return pubKey, nil
 	}
-	
+
 	return nil, fmt.Errorf("unsupported key type: %s", kty)
 }
 
 func calculateThumbprint(jwk map[string]interface{}) (string, error) {
 	// RFC 7638 JSON Web Key (JWK) Thumbprint
 	// Required fields for EC public keys in lexicographic order: crv, kty, x, y
-	
+
 	kty, _ := jwk["kty"].(string)
 	if kty != "EC" {
 		return "", fmt.Errorf("only EC keys supported for thumbprint")
@@ -211,7 +221,7 @@ func calculateThumbprint(jwk map[string]interface{}) (string, error) {
 
 	// Lexicographic order and no spaces
 	jsonString := fmt.Sprintf(`{"crv":"%s","kty":"%s","x":"%s","y":"%s"}`, crv, kty, x, y)
-	
+
 	hash := sha256.Sum256([]byte(jsonString))
 	return base64.RawURLEncoding.EncodeToString(hash[:]), nil
 }

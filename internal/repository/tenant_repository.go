@@ -362,6 +362,43 @@ func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID
 	return &ft, nil
 }
 
+// GetTenantByFilePath retrieves the active tenant that owns an uploaded file path.
+func (r *TenantRepository) GetTenantByFilePath(ctx context.Context, managerID, filePath string) (*model.FullInfoTenant, error) {
+	var ft model.FullInfoTenant
+	err := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Where("t.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive)).
+		Where(`(
+			EXISTS (
+				SELECT 1 FROM unnest(string_to_array(COALESCE(t.cccd_path, ''), ',')) AS path
+				WHERE trim(path) = ?
+			)
+			OR EXISTS (
+				SELECT 1 FROM unnest(string_to_array(COALESCE(t.contract_path, ''), ',')) AS path
+				WHERE trim(path) = ?
+			)
+		)`, filePath, filePath).
+		Limit(1).
+		Scan(ctx, &ft)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrTenantNotFound
+		}
+		return nil, fmt.Errorf("get tenant by file path: %w", err)
+	}
+
+	return &ft, nil
+}
+
 // rollbackTenantTx rolls back a tenant transaction and preserves the original cause.
 func rollbackTenantTx(tx bun.Tx, cause error, operation string) error {
 	if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {

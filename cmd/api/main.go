@@ -41,7 +41,6 @@ func main() {
 	defer geoIPService.Close()
 	geocodingService := service.NewGeocodingService(cfg.GoogleMapAPIKey)
 	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
-	authHandler := httpHandler.NewAuthHandler(authService)
 
 	houseCostRepo := repository.NewHouseCostRepository(sqlDB)
 	revenueSummaryRepo := repository.NewRevenueSummaryRepository(sqlDB)
@@ -88,16 +87,41 @@ func main() {
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev
 	}
-	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, cfg.ZaloBotEncryptionKey, webhookBaseURL)
+	authHandler := httpHandler.NewAuthHandler(
+		authService,
+		httpHandler.WithSecureCookies(cfg.CookieSecure),
+		httpHandler.WithTrustedProxies(cfg.TrustedProxyCIDRs),
+		httpHandler.WithDPoPVerificationURL(webhookBaseURL),
+	)
+
+	invoicePaymentRepo := repository.NewInvoicePaymentRepository(sqlDB)
+	appSecretKeyBytes, err := service.DecodeAES256Key(cfg.AppSecretEncryptionKey, "APP_SECRET_ENCRYPTION_KEY")
+	if err != nil {
+		log.Fatalf("decode app secret encryption key: %v", err)
+	}
+	paymentCredentialService := service.NewPaymentCredentialService(invoicePaymentRepo, appSecretKeyBytes, service.PayOSCredentials{
+		ClientID:    cfg.PayOSClientID,
+		APIKey:      cfg.PayOSApiKey,
+		ChecksumKey: cfg.PayOSChecksumKey,
+	})
+	paymentRegistry := service.NewPaymentProviderRegistry(service.NewPayOSProvider())
+	paymentService := service.NewPaymentService(invoicePaymentRepo, invoiceRepo, tenantRepo, userRepo, nil, paymentCredentialService, paymentRegistry, webhookBaseURL)
+
+	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, paymentService, cfg.ZaloBotEncryptionKey, webhookBaseURL, cfg.UploadURLSigningKey)
 	if err != nil {
 		log.Fatalf("failed to init zalo service: %v", err)
+	}
+	if configurablePaymentService, ok := paymentService.(interface {
+		SetZaloService(service.ZaloService)
+	}); ok {
+		configurablePaymentService.SetZaloService(zaloService)
 	}
 	keyBytes, err := service.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
 	if err != nil {
 		log.Fatalf("decode zalo encryption key: %v", err)
 	}
 	pendingInvoiceUpdateRepo := repository.NewPendingInvoiceUpdateRepository(sqlDB)
-	zaloInvoiceCommandService := service.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, keyBytes, webhookBaseURL)
+	zaloInvoiceCommandService := service.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
 	if configurableZaloService, ok := zaloService.(interface {
 		SetInvoiceCommandService(service.ZaloInvoiceCommandService)
 	}); ok {
@@ -111,7 +135,21 @@ func main() {
 	// Trigger an immediate check on startup to quickly detect stale tokens
 	go zaloCron.RunNow()
 
-	router := httpRouter.New(authHandler, houseHandler, roomHandler, tokenProvider, tenanHandler, invoiceHandler, zaloHandler, houseCostHandler)
+	paymentHandler := httpHandler.NewPaymentHandler(paymentService, paymentCredentialService, webhookBaseURL)
+
+	router := httpRouter.New(
+		authHandler,
+		houseHandler,
+		roomHandler,
+		tokenProvider,
+		tenanHandler,
+		invoiceHandler,
+		zaloHandler,
+		houseCostHandler,
+		paymentHandler,
+		httpRouter.WithDPoPVerificationURL(webhookBaseURL),
+		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
+	)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,

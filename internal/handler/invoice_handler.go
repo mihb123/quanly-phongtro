@@ -273,3 +273,28 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"phongtro_hoadon_%s_%s.png\"", invoice.RoomName, invoice.Period))
 	w.Write(imageBytes)
 }
+
+// DownloadTransactionImage serves a transaction proof image after invoice ownership is verified.
+func (h *InvoiceHandler) DownloadTransactionImage(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := getManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	fileName := chi.URLParam(r, "*")
+	filePath, err := h.invoiceService.ResolveTransactionImagePath(r.Context(), managerID, fileName)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInput):
+			writeError(w, http.StatusBadRequest, "invalid file path")
+		case errors.Is(err, model.ErrInvoiceNotFound):
+			writeError(w, http.StatusNotFound, "file not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to resolve transaction image", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	http.ServeFile(w, r, filePath)
+}

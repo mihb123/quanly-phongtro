@@ -8,6 +8,7 @@ import { useHouseStore } from '@/data/houseData'
 import * as htmlToImage from 'html-to-image'
 import { toast } from 'sonner'
 import { BackendImagePreviewModal } from './BackendImagePreviewModal'
+import { getProtectedFileObjectUrl } from '@/api/files'
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -25,6 +26,8 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [previewData, setPreviewData] = useState<{ url: string, filename: string } | null>(null)
+  const [transactionImageUrl, setTransactionImageUrl] = useState<string | null>(null)
+  const [transactionImageError, setTransactionImageError] = useState(false)
   
   const printRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -38,6 +41,36 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
+
+  useEffect(() => {
+    let isMounted = true
+    let objectUrl: string | null = null
+
+    setTransactionImageUrl(null)
+    setTransactionImageError(false)
+
+    if (!invoice.transaction_image_path) {
+      return
+    }
+
+    getProtectedFileObjectUrl(invoice.transaction_image_path)
+      .then((url) => {
+        objectUrl = url
+        if (isMounted) {
+          setTransactionImageUrl(url)
+        } else {
+          URL.revokeObjectURL(url)
+        }
+      })
+      .catch(() => {
+        if (isMounted) setTransactionImageError(true)
+      })
+
+    return () => {
+      isMounted = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [invoice.transaction_image_path])
 
   const handlePay = async () => {
     setIsPaying(true)
@@ -336,11 +369,17 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
             <div className="mt-6 border border-border rounded-2xl p-4 bg-muted/10">
               <h3 className="text-sm font-bold text-foreground mb-4">Ảnh bằng chứng chuyển khoản Zalo</h3>
               <div className="flex justify-center">
-                <img 
-                  src={`http://localhost:8080/api/v1/uploads/transactions${invoice.transaction_image_path.replace('/uploads/transactions', '')}`} 
-                  alt="Bằng chứng giao dịch" 
-                  className="max-h-[300px] rounded-lg object-contain border border-border shadow-sm"
-                />
+                {transactionImageError ? (
+                  <div className="text-sm text-muted-foreground">Không tải được ảnh giao dịch</div>
+                ) : transactionImageUrl ? (
+                  <img
+                    src={transactionImageUrl}
+                    alt="Bằng chứng giao dịch"
+                    className="max-h-[300px] rounded-lg object-contain border border-border shadow-sm"
+                  />
+                ) : (
+                  <div className="text-sm text-muted-foreground">Đang tải ảnh...</div>
+                )}
               </div>
             </div>
           )}

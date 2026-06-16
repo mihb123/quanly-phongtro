@@ -32,18 +32,18 @@ type UpdateCostInput struct {
 }
 
 type houseCostServiceImpl struct {
-	costRepo           model.HouseCostRepository
-	houseRepo          model.HouseRepository
-	eventBus           EventBus
-	summaryRepo        model.RevenueSummaryRepository
+	costRepo    model.HouseCostRepository
+	houseRepo   model.HouseRepository
+	eventBus    EventBus
+	summaryRepo model.RevenueSummaryRepository
 }
 
 func NewHouseCostService(costRepo model.HouseCostRepository, houseRepo model.HouseRepository, eventBus EventBus, summaryRepo model.RevenueSummaryRepository) HouseCostService {
 	return &houseCostServiceImpl{
-		costRepo:           costRepo,
-		houseRepo:          houseRepo,
-		eventBus:           eventBus,
-		summaryRepo:        summaryRepo,
+		costRepo:    costRepo,
+		houseRepo:   houseRepo,
+		eventBus:    eventBus,
+		summaryRepo: summaryRepo,
 	}
 }
 
@@ -79,7 +79,7 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 
 	// Get latest to copy defaults
 	latest, err := s.costRepo.GetLatestByHouseID(ctx, houseID)
-	
+
 	newCost := &model.HouseCost{
 		ID:         uuid.New().String(),
 		HouseID:    houseID,

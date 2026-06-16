@@ -17,31 +17,35 @@ const (
 	InvoiceStatusUnpaid              = "UNPAID"
 	InvoiceStatusPaid                = "PAID"
 	InvoiceStatusPendingVerification = "PENDING_VERIFICATION"
+
+	PaymentMethodPayOS  = "PAYOS"
+	PaymentMethodManual = "MANUAL"
 )
 
 // Invoice represents the invoices table
 type Invoice struct {
-	ID                  string    `json:"id"`
-	RoomID              string    `json:"room_id"`
-	Period              string    `json:"period"` // format: yyyy-mm
-	RoomFee             float64   `json:"room_fee"`
-	OldElectricityIndex int       `json:"old_electricity_index"`
-	NewElectricityIndex int       `json:"new_electricity_index"`
-	ElectricityFee      float64   `json:"electricity_fee"`
-	OldWaterIndex       int       `json:"old_water_index"`
-	NewWaterIndex       int       `json:"new_water_index"`
-	WaterFee            float64   `json:"water_fee"`
-	WifiFee             float64   `json:"wifi_fee"`
-	ParkingFee          float64   `json:"parking_fee"`
-	ServiceFee          float64   `json:"service_fee"`
-	OtherFee            float64   `json:"other_fee"`
-	Discount            float64   `json:"discount"`
-	TenantCount         int       `json:"tenant_count"`
-	VehicleCount        int       `json:"vehicle_count"`
-	ExtraPersonFee      float64   `json:"extra_person_fee"`
-	ExtraVehicleFee     float64   `json:"extra_vehicle_fee"`
-	TotalAmount         float64   `json:"total_amount"`
+	ID                   string    `json:"id"`
+	RoomID               string    `json:"room_id"`
+	Period               string    `json:"period"` // format: yyyy-mm
+	RoomFee              float64   `json:"room_fee"`
+	OldElectricityIndex  int       `json:"old_electricity_index"`
+	NewElectricityIndex  int       `json:"new_electricity_index"`
+	ElectricityFee       float64   `json:"electricity_fee"`
+	OldWaterIndex        int       `json:"old_water_index"`
+	NewWaterIndex        int       `json:"new_water_index"`
+	WaterFee             float64   `json:"water_fee"`
+	WifiFee              float64   `json:"wifi_fee"`
+	ParkingFee           float64   `json:"parking_fee"`
+	ServiceFee           float64   `json:"service_fee"`
+	OtherFee             float64   `json:"other_fee"`
+	Discount             float64   `json:"discount"`
+	TenantCount          int       `json:"tenant_count"`
+	VehicleCount         int       `json:"vehicle_count"`
+	ExtraPersonFee       float64   `json:"extra_person_fee"`
+	ExtraVehicleFee      float64   `json:"extra_vehicle_fee"`
+	TotalAmount          float64   `json:"total_amount"`
 	Status               string    `json:"status"`
+	PaymentMethod        *string   `json:"payment_method"`
 	TransactionImagePath *string   `json:"transaction_image_path"`
 	CreatedAt            time.Time `json:"created_at"`
 }
@@ -51,6 +55,7 @@ type InvoiceWithRoom struct {
 	Invoice
 	RoomName              string  `json:"room_name"`
 	HouseID               string  `json:"house_id"`
+	ManagerID             string  `json:"manager_id"`
 	ExtraPersonThreshold  int     `json:"extra_person_threshold"`
 	ExtraPersonFeeUnit    float64 `json:"extra_person_fee_unit"`
 	ExtraVehicleThreshold int     `json:"extra_vehicle_threshold"`
@@ -80,4 +85,5 @@ type InvoiceRepository interface {
 	GetUnpaidInvoicesByRoomID(ctx context.Context, roomID string) ([]Invoice, error)
 	UpdateInvoice(ctx context.Context, managerID string, invoice *Invoice) error
 	DeleteInvoice(ctx context.Context, managerID, id string) error
+	GetInvoiceByTransactionImagePath(ctx context.Context, managerID, imagePath string) (*InvoiceWithRoom, error)
 }

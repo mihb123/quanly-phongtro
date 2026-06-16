@@ -2,6 +2,16 @@
 
 A full-stack property management application with a Go backend and a React frontend.
 
+## Tính năng chính
+
+- **Xác thực và phân quyền:** đăng ký, đăng nhập, refresh token, xác minh email bằng OTP, quản lý thông tin cá nhân và phân quyền theo vai trò manager/tenant.
+- **Quản lý nhà trọ và phòng:** tạo, cập nhật, xóa nhà/phòng; cấu hình giá thuê, điện, nước, wifi, gửi xe, dịch vụ và các khoản phụ thu theo từng nhà hoặc từng phòng.
+- **Quản lý khách thuê:** đăng ký khách thuê theo phòng, cập nhật hồ sơ, lưu thông tin CCCD/hợp đồng và tra cứu khách thuê theo phòng hoặc theo nhà.
+- **Quản lý hóa đơn:** tạo hóa đơn tiền phòng hằng tháng, tính điện nước/dịch vụ/phụ thu/giảm giá, theo dõi trạng thái thanh toán, lưu ảnh giao dịch và xuất ảnh hóa đơn.
+- **Doanh thu và chi phí vận hành:** ghi nhận chi phí theo kỳ, tổng hợp doanh thu, tổng chi và lợi nhuận theo từng nhà trọ. Xem thêm [house_cost_implementation_plan.md](house_cost_implementation_plan.md).
+- **Tích hợp Zalo và PayOS:** cấu hình bot/webhook, gửi hóa đơn qua Zalo, tạo link/QR thanh toán PayOS và cập nhật trạng thái hóa đơn từ webhook. Xem thêm [payos-plan.md](payos-plan.md).
+- **Bảo mật API:** JWT kết hợp DPoP proof, cookie/session handling, bcrypt password hashing và kiểm soát quyền truy cập trên các endpoint quản trị. Xem thêm [docs/security_dpop.md](docs/security_dpop.md) và [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+
 ## Project Structure
 
 This is a monorepo containing both the backend and frontend:

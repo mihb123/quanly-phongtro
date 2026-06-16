@@ -78,4 +78,5 @@ type TenantRepository interface {
 	DeleteTenant(ctx context.Context, tenantID string) (roomID string, err error)
 	GetTenantByPhoneAndManager(ctx context.Context, managerID, phone string) (*Tenant, error)
 	GetFirstTenantByUserID(ctx context.Context, managerID, userID string) (*FullInfoTenant, error)
+	GetTenantByFilePath(ctx context.Context, managerID, filePath string) (*FullInfoTenant, error)
 }
