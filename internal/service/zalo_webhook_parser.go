@@ -134,9 +134,6 @@ func webhookContextFromPayload(payload map[string]interface{}) webhookMessageCon
 						}
 					}
 				} else if attType != "image" {
-					// Log all non-image attachments to debug contact card formats
-					fmt.Printf("Webhook attachment payload (type: %s): %+v\n", attType, attMap)
-
 					if payloadMap != nil {
 						if phone, ok := payloadMap["phone"].(string); ok && phone != "" {
 							ctx.contactPhone = phone

@@ -41,6 +41,15 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	if err != expectedErr {
 		t.Errorf("expected %v, got %v", expectedErr, err)
 	}
+
+	// Seed cost error case
+	mockRepo.EXPECT().CreateHouse(ctx, house).Return(nil)
+	mockCostRepo.EXPECT().Create(ctx, gomock.Any()).Return(expectedErr)
+
+	err = houseService.CreateHouse(ctx, house)
+	if err != expectedErr {
+		t.Errorf("expected %v, got %v", expectedErr, err)
+	}
 }
 
 func TestHouseService_GetHouseByID(t *testing.T) {

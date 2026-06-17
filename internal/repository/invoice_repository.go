@@ -291,8 +291,27 @@ func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string,
 		return fmt.Errorf("update invoice: %w", err)
 	}
 	rows, err := res.RowsAffected()
-	if err == nil && rows == 0 {
+	if err != nil {
+		return fmt.Errorf("update invoice rows affected: %w", err)
+	}
+	if rows == 0 {
 		return model.ErrInvoiceNotFound
+	}
+	return r.markActivePaymentLinksStaleByInvoiceAmount(ctx, invoice.ID, int(invoice.TotalAmount))
+}
+
+// markActivePaymentLinksStaleByInvoiceAmount invalidates active links whose amount no longer matches.
+func (r *InvoiceRepository) markActivePaymentLinksStaleByInvoiceAmount(ctx context.Context, invoiceID string, amount int) error {
+	_, err := r.db.NewUpdate().
+		Model((*model.InvoicePaymentLink)(nil)).
+		Set("status = ?", model.PaymentLinkStatusStale).
+		Set("updated_at = CURRENT_TIMESTAMP").
+		Where("invoice_id = ?", invoiceID).
+		Where("status = ?", model.PaymentLinkStatusActive).
+		Where("amount <> ?", amount).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("mark invoice payment links stale: %w", err)
 	}
 	return nil
 }

@@ -360,7 +360,7 @@ func TestRoomHandler_UpdateRoom(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name: "Happy path with recalculate invoice error",
+			name: "Recalculate invoice error",
 			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
 				roomSvc.EXPECT().UpdateRoom(gomock.Any(), "room-1", "house-1", "user-1", gomock.Any()).Return(&model.Room{}, nil)
 				invoiceSvc.EXPECT().RecalculateUnpaidInvoicesByRoom(gomock.Any(), "user-1", "room-1").Return(errors.New("db error"))
@@ -378,7 +378,7 @@ func TestRoomHandler_UpdateRoom(t *testing.T) {
 				req = withRouteContext(req, "id", "room-1")
 				return withContextClaims(req, "user-1")
 			},
-			expectedStatus: http.StatusOK, // still 200 OK
+			expectedStatus: http.StatusInternalServerError,
 		},
 		{
 			name: "Invalid body",

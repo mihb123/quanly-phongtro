@@ -54,5 +54,6 @@ type RoomRepository interface {
 	GetMaxTenants(ctx context.Context, roomID string) (int64, error)
 	UpdateRoomStatus(ctx context.Context, roomID, status string) error
 	GetRoomByIDOnly(ctx context.Context, id string) (*Room, error)
+	GetRoomByIDForManager(ctx context.Context, managerID, roomID string) (*Room, error)
 	GetRoomByGroupChatID(ctx context.Context, groupChatID string) (*Room, error)
 }

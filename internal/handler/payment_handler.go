@@ -172,11 +172,18 @@ func (h *PaymentHandler) handleWebhook(w http.ResponseWriter, r *http.Request, p
 	}
 	if err := h.paymentService.HandleWebhook(r.Context(), provider, managerID, body); err != nil {
 		log.Printf("Error processing %s webhook: %v", provider, err)
-		if errors.Is(err, service.ErrPayOSVerifiedDataNil) {
-			http.Error(w, "invalid signature", http.StatusBadRequest)
+		switch {
+		case errors.Is(err, service.ErrPayOSVerifiedDataNil), errors.Is(err, service.ErrPaymentWebhookInvalid):
+			http.Error(w, "invalid webhook", http.StatusBadRequest)
+			return
+		case errors.Is(err, service.ErrPaymentCredentialsNotFound):
+			http.Error(w, "payment credentials not found", http.StatusUnauthorized)
+			return
+		case errors.Is(err, service.ErrPaymentProviderNotFound):
+			http.Error(w, "payment provider not found", http.StatusBadRequest)
 			return
 		}
-		writePaymentWebhookSuccess(w)
+		http.Error(w, "webhook processing failed", http.StatusInternalServerError)
 		return
 	}
 	writePaymentWebhookSuccess(w)

@@ -95,7 +95,13 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 		return nil, fmt.Errorf("get active payment link: %w", err)
 	}
 	if activeLink != nil {
-		return activeLink, nil
+		if activeLink.Amount != int(invoice.TotalAmount) {
+			if err := s.paymentRepo.UpdatePaymentLinkStatus(ctx, activeLink.ID, model.PaymentLinkStatusStale); err != nil {
+				return nil, fmt.Errorf("mark stale payment link: %w", err)
+			}
+		} else {
+			return activeLink, nil
+		}
 	}
 
 	providerLink, err := providerAdapter.CreatePaymentLink(ctx, PaymentCreateInput{

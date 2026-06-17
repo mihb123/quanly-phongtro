@@ -297,6 +297,9 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddr
 	if err != nil {
 		return nil, err
 	}
+	if err := s.tokens.RevokeRefreshToken(ctx, refreshToken, user.ID); err != nil {
+		return nil, err
+	}
 
 	return &LoginOutput{
 		AccessToken:  accessToken,

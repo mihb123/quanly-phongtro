@@ -19,6 +19,7 @@ var (
 	ErrPaymentProviderNotFound    = errors.New("payment provider not found")
 	ErrPaymentCredentialsNotFound = errors.New("payment provider credentials not found")
 	ErrPaymentWebhookIgnored      = errors.New("payment webhook ignored")
+	ErrPaymentWebhookInvalid      = errors.New("invalid payment webhook")
 )
 
 type PaymentCreateInput struct {

@@ -40,6 +40,8 @@ type mockTokenProvider struct {
 	findErr            error
 	parseRes           *security.Claims
 	parseErr           error
+	revokedToken       string
+	revokedUserID      string
 }
 
 func (m *mockTokenProvider) GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error) {
@@ -52,6 +54,8 @@ func (m *mockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, ip
 	return "refresh-token", m.refreshErr
 }
 func (m *mockTokenProvider) RevokeRefreshToken(ctx context.Context, token string, userID string) error {
+	m.revokedToken = token
+	m.revokedUserID = userID
 	return m.revokeErr
 }
 func (m *mockTokenProvider) FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error) {
@@ -684,14 +688,15 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	defer ctrl.Finish()
 
 	userRepo := mock_model.NewMockUserRepository(ctrl)
+	tokenProvider := &mockTokenProvider{
+		parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+		findRes:  &model.AuthSession{Revoked: false, ExpiresAt: time.Now().Add(time.Hour)},
+	}
 
 	authSvc := service.NewAuthService(
 		userRepo,
 		&mockPasswordHasher{},
-		&mockTokenProvider{
-			parseRes: &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
-			findRes:  &model.AuthSession{Revoked: false, ExpiresAt: time.Now().Add(time.Hour)},
-		},
+		tokenProvider,
 		nil,
 		nil,
 		5*time.Minute,
@@ -710,6 +715,9 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		}
 		if res.AccessToken != "access-token" {
 			t.Errorf("expected access-token, got %s", res.AccessToken)
+		}
+		if tokenProvider.revokedToken != "refresh" || tokenProvider.revokedUserID != "u1" {
+			t.Errorf("expected old refresh token revoked, got token=%q user=%q", tokenProvider.revokedToken, tokenProvider.revokedUserID)
 		}
 	})
 
@@ -796,6 +804,19 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh", "", "", "")
 		if err == nil || err.Error() != "refresh error" {
 			t.Errorf("expected refresh error, got %v", err)
+		}
+	})
+
+	t.Run("Revoke consumed refresh token fails", func(t *testing.T) {
+		userRepo.EXPECT().GetByUserID(ctx, "u1").Return(&model.User{ID: "u1"}, nil)
+		authSvcWithMockToken := service.NewAuthService(userRepo, &mockPasswordHasher{}, &mockTokenProvider{
+			parseRes:  &security.Claims{RegisteredClaims: jwt.RegisteredClaims{Subject: "u1"}},
+			findRes:   &model.AuthSession{Revoked: false, ExpiresAt: time.Now().Add(time.Hour)},
+			revokeErr: errors.New("revoke error"),
+		}, nil, nil, 5*time.Minute, nil, nil, nil)
+		_, err := authSvcWithMockToken.RefreshToken(ctx, "refresh", "", "", "")
+		if err == nil || err.Error() != "revoke error" {
+			t.Errorf("expected revoke error, got %v", err)
 		}
 	})
 }

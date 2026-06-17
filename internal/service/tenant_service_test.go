@@ -49,6 +49,9 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 
 	svc := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
 	ctx := context.Background()
+	expectTenantRoomOwnership := func() {
+		roomRepo.EXPECT().GetRoomByIDForManager(ctx, gomock.Any(), "r1").Return(&model.Room{ID: "r1"}, nil)
+	}
 
 	tests := []struct {
 		name    string
@@ -72,6 +75,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 			},
 			setup: func() {
 				userRepo.EXPECT().GetByPhone(ctx, "0123456789").Return(nil, errors.New("not found"))
+				expectTenantRoomOwnership()
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 				tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -89,6 +93,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 			},
 			setup: func() {
 				userRepo.EXPECT().GetByPhone(ctx, "0999999999").Return(nil, errors.New("not found"))
+				expectTenantRoomOwnership()
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 				tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -111,6 +116,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 				RoomID: "r1",
 			},
 			setup: func() {
+				expectTenantRoomOwnership()
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(2), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(2), nil)
 			},
@@ -123,6 +129,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 				RoomID: "r1",
 			},
 			setup: func() {
+				expectTenantRoomOwnership()
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 				tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(errors.New("db error"))
@@ -137,6 +144,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 				CCCDFiles: []*multipart.FileHeader{createMultipartFileHeader("cccd.txt", []byte("txt"))},
 			},
 			setup: func() {
+				expectTenantRoomOwnership()
 				roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 				tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 			},
@@ -164,6 +172,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	}
 
 	t.Run("Auto-generate email from FullName (no phone, no email)", func(t *testing.T) {
+		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -175,6 +184,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	})
 
 	t.Run("Auto-generate email with empty FullName (guest)", func(t *testing.T) {
+		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -188,6 +198,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	t.Run("Hash password fails", func(t *testing.T) {
 		hasherErr := &mockPasswordHasher{hashErr: errors.New("hash err")}
 		svcWithErr := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasherErr)
+		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 		_, err := svcWithErr.RegisterTenant(ctx, service.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
@@ -197,6 +208,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	})
 
 	t.Run("UpdateRoomStatus fails", func(t *testing.T) {
+		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(nil)
@@ -208,6 +220,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	})
 
 	t.Run("Unsupported contract file extension", func(t *testing.T) {
+		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
 		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{
@@ -216,6 +229,14 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 		})
 		if err == nil {
 			t.Errorf("expected error, got nil")
+		}
+	})
+
+	t.Run("Room ownership fails", func(t *testing.T) {
+		roomRepo.EXPECT().GetRoomByIDForManager(ctx, "m1", "r1").Return(nil, model.ErrRoomNotFound)
+		_, err := svc.RegisterTenant(ctx, service.RegisterTenantInput{ManagerID: "m1", Email: "test@example.com", Password: "pass", RoomID: "r1"})
+		if !errors.Is(err, model.ErrRoomNotFound) {
+			t.Errorf("expected room not found, got %v", err)
 		}
 	})
 }

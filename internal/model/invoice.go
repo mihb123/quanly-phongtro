@@ -11,7 +11,28 @@ var (
 	ErrDuplicateInvoice        = errors.New("hóa đơn cho phòng và tháng này đã tồn tại")
 	ErrInvalidElectricityIndex = errors.New("số điện mới phải lớn hơn hoặc bằng số điện cũ")
 	ErrInvalidWaterIndex       = errors.New("số nước mới phải lớn hơn hoặc bằng số nước cũ")
+	ErrInvoiceAlreadyPaid      = errors.New("invoice is already paid")
+	ErrInvoiceAlreadyUnpaid    = errors.New("invoice is already unpaid")
+	ErrPaidInvoiceImmutable    = errors.New("cannot edit a paid invoice")
+	ErrPaidInvoiceDelete       = errors.New("cannot delete a paid invoice")
 )
+
+// IsInvoiceStateError reports invoice state-transition errors, including legacy plain errors.
+func IsInvoiceStateError(err error) bool {
+	return errors.Is(err, ErrInvoiceAlreadyPaid) ||
+		errors.Is(err, ErrInvoiceAlreadyUnpaid) ||
+		errors.Is(err, ErrPaidInvoiceDelete) ||
+		errors.Is(err, ErrPaidInvoiceImmutable) ||
+		sameErrorMessage(err, ErrInvoiceAlreadyPaid) ||
+		sameErrorMessage(err, ErrInvoiceAlreadyUnpaid) ||
+		sameErrorMessage(err, ErrPaidInvoiceDelete) ||
+		sameErrorMessage(err, ErrPaidInvoiceImmutable)
+}
+
+// sameErrorMessage preserves compatibility with old callers that return plain errors.
+func sameErrorMessage(err, target error) bool {
+	return err != nil && target != nil && err.Error() == target.Error()
+}
 
 const (
 	InvoiceStatusUnpaid              = "UNPAID"

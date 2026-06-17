@@ -305,7 +305,7 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:      "Happy path - Invoice recalculation fails (still 200)",
+			name:      "Invoice recalculation fails",
 			setupAuth: withValidClaims,
 			houseID:   "house-1",
 			reqBody: map[string]interface{}{
@@ -317,7 +317,7 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(&model.House{}, nil)
 				iSvc.EXPECT().RecalculateUnpaidInvoicesByHouse(gomock.Any(), "user-1", "house-1").Return(errors.New("invoice error"))
 			},
-			expectedStatus: http.StatusOK,
+			expectedStatus: http.StatusInternalServerError,
 		},
 		{
 			name:           "Unauthorized",

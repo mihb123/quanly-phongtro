@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type zaloInvoiceDeliveryDeps struct {
@@ -101,7 +102,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 			if err == nil {
 				qrPhotoURL, err = saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID+"_qr", qrBytes)
 				if err != nil {
-					fmt.Printf("save payos qr image: %v\n", err)
+					logger.Error(nil, 0, "save payos qr image failed", err)
 				}
 			}
 		}

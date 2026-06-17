@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -53,7 +52,7 @@ func (s *houseCostServiceImpl) verifyHouseOwnership(ctx context.Context, manager
 		return fmt.Errorf("verify house ownership: %w", err)
 	}
 	if !owned {
-		return errors.New("forbidden: you do not own this house")
+		return model.ErrHouseCostForbidden
 	}
 	return nil
 }
@@ -74,7 +73,7 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 	// Check if already exists
 	existing, err := s.costRepo.GetByHouseAndPeriod(ctx, houseID, period)
 	if err == nil && existing != nil {
-		return nil, errors.New("house cost record already exists for this period")
+		return nil, model.ErrHouseCostAlreadyExists
 	}
 
 	// Get latest to copy defaults
@@ -147,7 +146,7 @@ func (s *houseCostServiceImpl) UpdateMonthlyCost(ctx context.Context, managerID 
 	}
 
 	if cost.ID != input.ID {
-		return errors.New("invalid cost ID")
+		return model.ErrHouseCostInvalidID
 	}
 
 	cost.Rent = input.Rent

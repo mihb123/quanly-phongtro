@@ -108,7 +108,7 @@ func (p *PayOSProvider) CancelPaymentLink(ctx context.Context, input PaymentCanc
 func (p *PayOSProvider) VerifyWebhook(_ context.Context, input PaymentWebhookInput) (*VerifiedPaymentEvent, error) {
 	var webhook payos.WebhookType
 	if err := json.Unmarshal(input.Body, &webhook); err != nil {
-		return nil, fmt.Errorf("parse webhook body: %w", err)
+		return nil, fmt.Errorf("%w: parse payos webhook body: %v", ErrPaymentWebhookInvalid, err)
 	}
 	if isPayOSTestPing(webhook) {
 		return nil, ErrPaymentWebhookIgnored
@@ -185,13 +185,13 @@ func payOSDescription(referenceCode, roomName string) string {
 // verifyPayOSWebhookData validates the webhook signature with the configured checksum key.
 func verifyPayOSWebhookData(webhook payos.WebhookType, checksumKey string) (*payos.WebhookDataType, error) {
 	if checksumKey == "" {
-		return nil, errors.New("payos checksum key is required")
+		return nil, fmt.Errorf("%w: payos checksum key is required", ErrPaymentCredentialsNotFound)
 	}
 	if webhook.Data == nil {
 		return nil, ErrPayOSVerifiedDataNil
 	}
 	if webhook.Signature == "" {
-		return nil, errors.New("payos webhook signature is required")
+		return nil, fmt.Errorf("%w: payos webhook signature is required", ErrPaymentWebhookInvalid)
 	}
 
 	expectedSignature, err := createPayOSSignature(webhook.Data, checksumKey)
@@ -199,7 +199,7 @@ func verifyPayOSWebhookData(webhook payos.WebhookType, checksumKey string) (*pay
 		return nil, fmt.Errorf("create payos signature: %w", err)
 	}
 	if !hmac.Equal([]byte(expectedSignature), []byte(webhook.Signature)) {
-		return nil, errors.New("payos webhook signature mismatch")
+		return nil, fmt.Errorf("%w: payos webhook signature mismatch", ErrPaymentWebhookInvalid)
 	}
 
 	return webhook.Data, nil

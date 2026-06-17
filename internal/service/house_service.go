@@ -56,21 +56,27 @@ type UpdateHouseInput struct {
 
 func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
 	err := h.houseRepo.CreateHouse(ctx, house)
-	if err == nil && h.houseCostRepo != nil {
-		// Seed default house cost for the current period
-		now := time.Now()
-		period := now.Format("2006-01")
-		cost := &model.HouseCost{
-			ID:         uuid.New().String(),
-			HouseID:    house.ID,
-			Period:     period,
-			ExtraCosts: []model.ExtraCost{},
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-		_ = h.houseCostRepo.Create(ctx, cost)
+	if err != nil {
+		return err
 	}
-	return err
+	if h.houseCostRepo == nil {
+		return nil
+	}
+
+	now := time.Now()
+	period := now.Format("2006-01")
+	cost := &model.HouseCost{
+		ID:         uuid.New().String(),
+		HouseID:    house.ID,
+		Period:     period,
+		ExtraCosts: []model.ExtraCost{},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	if err := h.houseCostRepo.Create(ctx, cost); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error) {

@@ -241,6 +241,8 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	err = h.invoiceService.RecalculateUnpaidInvoicesByHouse(r.Context(), userID, id)
 	if err != nil {
 		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after house update", err)
+		writeError(w, http.StatusInternalServerError, "failed to recalculate invoices after house update")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, house, "")

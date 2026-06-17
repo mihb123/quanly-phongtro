@@ -159,6 +159,10 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		}
 	}
 
+	if _, err := s.rooms.GetRoomByIDForManager(ctx, in.ManagerID, in.RoomID); err != nil {
+		return nil, err
+	}
+
 	ok, err := s.CheckCapicityOfRoom(ctx, in.RoomID)
 	if err != nil {
 		return nil, err

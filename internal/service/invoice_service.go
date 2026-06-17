@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type CreateInvoiceInput struct {
@@ -218,7 +219,7 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 
 	if existingInvoice != nil {
 		if existingInvoice.Status == "PAID" {
-			return nil, errors.New("cannot edit a paid invoice")
+			return nil, model.ErrPaidInvoiceImmutable
 		}
 		invoice.ID = existingInvoice.ID
 		invoice.CreatedAt = existingInvoice.CreatedAt
@@ -258,7 +259,7 @@ func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceI
 	}
 
 	if invoice.Status == "PAID" {
-		return nil, errors.New("invoice is already paid")
+		return nil, model.ErrInvoiceAlreadyPaid
 	}
 
 	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
@@ -278,7 +279,7 @@ func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoic
 	}
 
 	if invoice.Status == "UNPAID" {
-		return nil, errors.New("invoice is already unpaid")
+		return nil, model.ErrInvoiceAlreadyUnpaid
 	}
 
 	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
@@ -298,7 +299,7 @@ func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoi
 	}
 
 	if invoice.Status == "PAID" {
-		return errors.New("cannot delete a paid invoice")
+		return model.ErrPaidInvoiceDelete
 	}
 
 	err = s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
@@ -367,7 +368,7 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 		// CreateInvoice acts as an upsert for the same room and period
 		_, err := s.CreateInvoice(ctx, managerID, input)
 		if err != nil {
-			fmt.Printf("recalculate invoice roomID=%s period=%s: %v\n", inv.RoomID, inv.Period, err)
+			logger.Error(nil, 0, fmt.Sprintf("recalculate invoice roomID=%s period=%s", inv.RoomID, inv.Period), err)
 		}
 	}
 	return nil
@@ -381,7 +382,7 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByHouse(ctx context.Contex
 	for _, room := range rooms {
 		err := s.RecalculateUnpaidInvoicesByRoom(ctx, managerID, room.ID)
 		if err != nil {
-			fmt.Printf("recalculate unpaid invoices for roomID=%s: %v\n", room.ID, err)
+			logger.Error(nil, 0, fmt.Sprintf("recalculate unpaid invoices for roomID=%s", room.ID), err)
 		}
 	}
 	return nil

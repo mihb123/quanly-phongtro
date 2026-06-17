@@ -66,7 +66,10 @@ func Load() (*Config, error) {
 	smtpPassword := os.Getenv("SMTP_PASSWORD")
 	mailFromEmail := getOrDefault("MAIL_FROM_EMAIL", "no-reply@example.com")
 	mailFromName := getOrDefault("MAIL_FROM_NAME", "Go App")
-	otpExpireMinutes := os.Getenv("OTP_EXPIRE_MINIUTES")
+	otpExpireMinutes := os.Getenv("OTP_EXPIRE_MINUTES")
+	if otpExpireMinutes == "" {
+		otpExpireMinutes = os.Getenv("OTP_EXPIRE_MINIUTES")
+	}
 	zaloBotEncryptionKey := os.Getenv("ZALO_BOT_ENCRYPTION_KEY")
 	appSecretEncryptionKey := getOrDefault("APP_SECRET_ENCRYPTION_KEY", zaloBotEncryptionKey)
 	googleMapAPIKey := os.Getenv("GOOGLE_MAP_API_KEY")
@@ -102,7 +105,7 @@ func Load() (*Config, error) {
 
 	otpMinutes, err := strconv.Atoi(otpExpireMinutes)
 	if err != nil || otpMinutes <= 0 {
-		return nil, errors.New("JWT_TTL_MINUTES must be a positive integer")
+		return nil, errors.New("OTP_EXPIRE_MINUTES must be a positive integer")
 	}
 
 	payosClientID := os.Getenv("PAYOS_CLIENT_ID")

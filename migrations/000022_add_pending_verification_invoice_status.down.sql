@@ -1,0 +1,2 @@
+-- PostgreSQL cannot safely remove an enum value that may be used by rows.
+-- Keep this rollback empty; downgrade manually only after remapping existing rows.

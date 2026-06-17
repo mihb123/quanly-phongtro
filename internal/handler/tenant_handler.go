@@ -40,6 +40,52 @@ type updateTenantRequest struct {
 	IdentityCard *string `validate:"omitempty"`
 }
 
+type tenantResponse struct {
+	TenantID     string `json:"tenant_id"`
+	UserID       string `json:"user_id"`
+	RoomID       string `json:"room_id"`
+	RoomName     string `json:"room_name,omitempty"`
+	FullName     string `json:"full_name"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	CCCDPath     string `json:"cccd_path"`
+	IdentityCard string `json:"identity_card"`
+	ContractPath string `json:"contract_path"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date,omitempty"`
+	Status       string `json:"status"`
+	ZaloUserID   string `json:"zalo_user_id,omitempty"`
+}
+
+// newTenantResponse shapes tenant output without exposing manager ownership fields.
+func newTenantResponse(tenant model.FullInfoTenant) tenantResponse {
+	return tenantResponse{
+		TenantID:     tenant.TenantID,
+		UserID:       tenant.UserID,
+		RoomID:       tenant.RoomID,
+		RoomName:     tenant.RoomName,
+		FullName:     tenant.FullName,
+		Email:        tenant.Email,
+		Phone:        tenant.Phone,
+		CCCDPath:     tenant.CCCDPath,
+		IdentityCard: tenant.IdentityCard,
+		ContractPath: tenant.ContractPath,
+		StartDate:    tenant.StartDate,
+		EndDate:      tenant.EndDate,
+		Status:       tenant.Status,
+		ZaloUserID:   tenant.ZaloUserID,
+	}
+}
+
+// newTenantResponses maps tenant service results to external tenant responses.
+func newTenantResponses(tenants []model.FullInfoTenant) []tenantResponse {
+	responses := make([]tenantResponse, 0, len(tenants))
+	for _, tenant := range tenants {
+		responses = append(responses, newTenantResponse(tenant))
+	}
+	return responses
+}
+
 func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
@@ -123,7 +169,7 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		ContractFiles: contractFiles,
 	}
 
-	user, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
+	tenant, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrMaxTenans):
@@ -142,7 +188,7 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, user, "")
+	writeJSON(w, http.StatusCreated, newTenantResponse(*tenant), "")
 
 }
 
@@ -166,7 +212,7 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(w, http.StatusOK, listTenant, "")
+	writeJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
 }
 
 func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +235,7 @@ func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(w, http.StatusOK, listTenant, "")
+	writeJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
 
 }
 
@@ -293,7 +339,7 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, updated, "tenant updated successfully")
+	writeJSON(w, http.StatusOK, newTenantResponse(*updated), "tenant updated successfully")
 }
 
 func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {

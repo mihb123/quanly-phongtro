@@ -76,7 +76,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Happy path",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 				"other_fee":             50000,
@@ -105,7 +105,21 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 		{
 			name: "Validation error - missing room_id",
 			body: map[string]interface{}{
-				"period":                "06-2026",
+				"period":                "2026-06",
+				"new_electricity_index": 100,
+				"new_water_index":       10,
+			},
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock:           func() {},
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "Validation error - invalid period",
+			body: map[string]interface{}{
+				"room_id":               "room-1",
+				"period":                "2026-6",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -128,7 +142,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Service error - Duplicate Invoice",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -146,7 +160,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Service error - Room Not Found",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -164,7 +178,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Service error - invalid electricity index",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -216,7 +230,7 @@ func TestInvoiceHandler_ResponseEncodingErrors(t *testing.T) {
 	invoiceSvc.EXPECT().CreateInvoice(gomock.Any(), "user-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
 	req := httptest.NewRequest(http.MethodPost, "/invoice", bytes.NewBufferString(`{
 		"room_id":"room-1",
-		"period":"06-2026",
+		"period":"2026-06",
 		"new_electricity_index":100,
 		"new_water_index":10
 	}`))
@@ -256,7 +270,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 	}{
 		{
 			name: "Happy path",
-			url:  "/invoice?house_id=house-1&room_id=room-1&period=06-2026&status=UNPAID&page=2&limit=10",
+			url:  "/invoice?house_id=house-1&room_id=room-1&period=2026-06&status=UNPAID&page=2&limit=10",
 			setupAuth: func(r *http.Request) *http.Request {
 				return setClaims(r, "user-1")
 			},
@@ -264,7 +278,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 				filter := model.InvoiceListFilter{
 					HouseID: "house-1",
 					RoomID:  "room-1",
-					Period:  "06-2026",
+					Period:  "2026-06",
 					Status:  "UNPAID",
 					Page:    2,
 					Limit:   10,
@@ -300,6 +314,15 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 			},
 			mock:           func() {},
 			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "Invalid period",
+			url:  "/invoice?period=2026-6",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock:           func() {},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "Service error",
@@ -766,7 +789,7 @@ func TestInvoiceHandler_DownloadInvoiceImage(t *testing.T) {
 			},
 			mock: func() {
 				inv := &model.InvoiceWithRoom{
-					Invoice:  model.Invoice{Period: "06-2026"},
+					Invoice:  model.Invoice{Period: "2026-06"},
 					RoomName: "101",
 				}
 				invoiceSvc.EXPECT().

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type utilityUpdateRequest struct {
@@ -288,7 +289,7 @@ func (s *zaloInvoiceCommandServiceImpl) deliverInvoice(ctx context.Context, mana
 		markTokenInactive: func(ctx context.Context, managerID string) {
 			inactive := false
 			if _, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{IsZaloBotActive: &inactive}); err != nil {
-				fmt.Printf("mark zalo bot token inactive: %v\n", err)
+				logger.Error(nil, 0, "mark zalo bot token inactive failed", err)
 			}
 		},
 	}, managerID, invoiceID)

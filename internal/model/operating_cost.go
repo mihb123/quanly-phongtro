@@ -2,8 +2,36 @@ package model
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+var (
+	ErrHouseCostAlreadyExists = errors.New("house cost record already exists for this period")
+	ErrHouseCostForbidden     = errors.New("forbidden: you do not own this house")
+	ErrHouseCostInvalidID     = errors.New("invalid cost ID")
+	ErrHouseCostNotFound      = errors.New("house cost not found")
+)
+
+// IsHouseCostAlreadyExists reports duplicate monthly-cost errors.
+func IsHouseCostAlreadyExists(err error) bool {
+	return errors.Is(err, ErrHouseCostAlreadyExists) || sameErrorMessage(err, ErrHouseCostAlreadyExists)
+}
+
+// IsHouseCostForbidden reports house-cost authorization errors.
+func IsHouseCostForbidden(err error) bool {
+	return errors.Is(err, ErrHouseCostForbidden) || sameErrorMessage(err, ErrHouseCostForbidden)
+}
+
+// IsHouseCostInvalidID reports cost-ID mismatch errors.
+func IsHouseCostInvalidID(err error) bool {
+	return errors.Is(err, ErrHouseCostInvalidID) || sameErrorMessage(err, ErrHouseCostInvalidID)
+}
+
+// IsHouseCostNotFound reports missing monthly-cost records.
+func IsHouseCostNotFound(err error) bool {
+	return errors.Is(err, ErrHouseCostNotFound) || sameErrorMessage(err, ErrHouseCostNotFound)
+}
 
 // ExtraCost represents a custom cost item in the JSONB field
 type ExtraCost struct {

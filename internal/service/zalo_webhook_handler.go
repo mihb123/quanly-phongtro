@@ -14,22 +14,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 const zaloTransactionImageDownloadTimeout = 10 * time.Second
 
 func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, body []byte, secretTokenHeader string) error {
-	fmt.Printf("Webhook received for manager %s. Payload size: %d bytes\n", managerID, len(body))
+	logger.Info(nil, 0, fmt.Sprintf("zalo webhook received manager=%s size=%d", managerID, len(body)), nil)
 
 	var payload map[string]interface{}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		fmt.Printf("Webhook JSON Unmarshal error: %v\n", err)
+		logger.Warn(nil, 0, "zalo webhook json unmarshal failed", err)
 		return err
 	}
 
 	payload = normalizeWebhookPayload(payload)
 	webhookCtx := webhookContextFromPayload(payload)
-	fmt.Printf("Webhook metadata manager=%s event=%s group=%t size=%d\n", managerID, webhookCtx.eventName, webhookCtx.isGroupChat, len(body))
+	logger.Info(nil, 0, fmt.Sprintf("zalo webhook metadata manager=%s event=%s group=%t size=%d", managerID, webhookCtx.eventName, webhookCtx.isGroupChat, len(body)), nil)
 
 	if secretTokenHeader == "" {
 		return errors.New("missing webhook secret token")
@@ -85,7 +86,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		chatID := commandChatID(webhookCtx)
 		if isInvoiceCommandText(webhookCtx.text) || s.invoiceCommandService.HasPendingState(ctx, managerID, chatID) {
 			if err := s.invoiceCommandService.HandleInvoiceCommand(ctx, managerID, webhookCtx); err != nil {
-				fmt.Printf("Invoice command error: %v\n", err)
+				logger.Error(nil, 0, "zalo invoice command failed", err)
 			}
 			return nil
 		}
@@ -94,7 +95,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && (webhookCtx.text != "" || webhookCtx.contactPhone != "") {
 		botToken, err := s.getDecryptedToken(ctx, managerID)
 		if err != nil {
-			fmt.Printf("Webhook error: failed to get decrypted token for manager %s: %v\n", managerID, err)
+			logger.Error(nil, 0, fmt.Sprintf("zalo webhook get token failed manager=%s", managerID), err)
 		} else {
 			linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
 			if err != nil {
@@ -111,7 +112,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 
 				if webhookCtx.contactPhone == "" && (cleanText == "botoi" || cleanText == "botơi") {
 					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo."); err != nil {
-						fmt.Printf("Webhook SendMessage error: %v\n", err)
+						logger.Error(nil, 0, "zalo webhook send message failed", err)
 					}
 				} else if isPhoneFormat {
 					if strings.HasPrefix(cleanPhone, "+84") {
@@ -125,18 +126,18 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 						// 1. Prevent hijacking an already linked account
 						if user.ZaloUserID != nil && *user.ZaloUserID != "" {
 							if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này đã được liên kết với một tài khoản Zalo. Nếu có sai sót, vui lòng liên hệ quản lý."); err != nil {
-								fmt.Printf("Webhook SendMessage error: %v\n", err)
+								logger.Error(nil, 0, "zalo webhook send message failed", err)
 							}
 						} else if user.Role == model.RoleManager {
 							// 2. Only allow the manager who owns the bot to link their manager account
 							if user.ID != managerID {
 								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Bạn không thể liên kết tài khoản quản lý của người khác vào bot này."); err != nil {
-									fmt.Printf("Webhook SendMessage error: %v\n", err)
+									logger.Error(nil, 0, "zalo webhook send message failed", err)
 								}
 							} else {
 								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
 								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Liên kết tài khoản quản lý thành công! Từ giờ hệ thống sẽ gửi các thông báo quan trọng qua đây."); err != nil {
-									fmt.Printf("Webhook SendMessage error: %v\n", err)
+									logger.Error(nil, 0, "zalo webhook send message failed", err)
 								}
 							}
 						} else {
@@ -144,14 +145,14 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 							managerUser, errMgr := s.userRepo.GetByUserID(ctx, managerID)
 							if errMgr == nil && managerUser != nil && (managerUser.ZaloUserID == nil || *managerUser.ZaloUserID == "") {
 								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Hệ thống đang trong quá trình thiết lập. Quản lý cần liên kết tài khoản trước khi khách thuê có thể sử dụng."); err != nil {
-									fmt.Printf("Webhook SendMessage error: %v\n", err)
+									logger.Error(nil, 0, "zalo webhook send message failed", err)
 								}
 							} else {
 								// First verify the tenant actually belongs to this manager
 								fullInfoTenant, err2 := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, user.ID)
 								if err2 != nil || fullInfoTenant == nil {
 									if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này không thuộc danh sách khách thuê của quản lý này. Vui lòng kiểm tra lại."); err != nil {
-										fmt.Printf("Webhook SendMessage error: %v\n", err)
+										logger.Error(nil, 0, "zalo webhook send message failed", err)
 									}
 								} else {
 									// Tenant belongs to this manager, proceed to link
@@ -159,7 +160,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 
 									msg := fmt.Sprintf("Xin chào %s - %s. Zalo của bạn đã được liên kết hệ thống quản lý trọ thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
 									if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, msg); err != nil {
-										fmt.Printf("Webhook SendMessage error: %v\n", err)
+										logger.Error(nil, 0, "zalo webhook send message failed", err)
 									}
 
 									// Notify Manager
@@ -172,12 +173,12 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 						}
 					} else {
 						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại."); err != nil {
-							fmt.Printf("Webhook SendMessage error: %v\n", err)
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
 						}
 					}
 				} else {
 					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'."); err != nil {
-						fmt.Printf("Webhook SendMessage error: %v\n", err)
+						logger.Error(nil, 0, "zalo webhook send message failed", err)
 					}
 				}
 			} else {
@@ -185,16 +186,16 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 				if cleanText == "botoi" || cleanText == "botơi" {
 					if linkedUser.Role == model.RoleManager {
 						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản quản lý của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
-							fmt.Printf("Webhook SendMessage error: %v\n", err)
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
 						}
 					} else {
 						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
-							fmt.Printf("Webhook SendMessage error: %v\n", err)
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
 						}
 					}
 				} else {
 					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết. Nếu cần hỗ trợ, vui lòng liên hệ quản lý."); err != nil {
-						fmt.Printf("Webhook SendMessage error: %v\n", err)
+						logger.Error(nil, 0, "zalo webhook send message failed", err)
 					}
 				}
 			}
@@ -207,7 +208,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 			err := s.processTransactionImage(ctx, managerID, webhookCtx.chatID, webhookCtx.photoURL)
 			if err != nil {
 				// We can just log it, don't fail the webhook
-				fmt.Printf("Error processing transaction image: %v\n", err)
+				logger.Error(nil, 0, "zalo webhook process transaction image failed", err)
 			}
 		}
 

@@ -583,6 +583,7 @@ func TestInvoiceRepository_UpdateInvoice(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				mock.ExpectExec(`UPDATE "invoices"`).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(`UPDATE "invoice_payment_links"`).WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			wantErr: false,
 		},
