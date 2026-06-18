@@ -5,9 +5,9 @@ import { useInvoiceStore } from './invoiceData'
 interface HouseDataState {
   houses: House[]
   fetchHouses: () => Promise<void>
-  deleteHouse: (houseId: string) => Promise<boolean>
-  updateHouse: (id: string, payload: Partial<House>) => Promise<House | null>
-  createHouse: (payload: Partial<House>) => Promise<House | null>
+  deleteHouse: (houseId: string) => Promise<{success: boolean, error?: string}>
+  updateHouse: (id: string, payload: Partial<House>) => Promise<{success: boolean, house?: House, error?: string}>
+  createHouse: (payload: Partial<House>) => Promise<{success: boolean, house?: House, error?: string}>
 }
 
 export const useHouseStore = create<HouseDataState>((set) => ({
@@ -29,13 +29,14 @@ export const useHouseStore = create<HouseDataState>((set) => ({
 
     try {
       await deleteHouse(houseId)
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to delete house", err)
       if (previousHouse) {
         set(state => ({ houses: [...state.houses, previousHouse!] }))
       }
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi xóa nhà!" }
     }
   },
   updateHouse: async (id: string, payload: Partial<House>) => {
@@ -49,13 +50,14 @@ export const useHouseStore = create<HouseDataState>((set) => ({
       const house = await apiUpdateHouse(id, payload)
       set(state => ({ houses: state.houses.map(h => h.id === id ? house : h) }))
       useInvoiceStore.getState().fetchInvoices()
-      return house
-    } catch (err) {
+      return { success: true, house }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to update house", err)
       if (previousHouse) {
         set(state => ({ houses: state.houses.map(h => h.id === id ? previousHouse! : h) }))
       }
-      return null
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi sửa nhà!" }
     }
   },
   createHouse: async (payload: Partial<House>) => {
@@ -64,6 +66,7 @@ export const useHouseStore = create<HouseDataState>((set) => ({
       id: tempId,
       manager_id: '',
       name: payload.name || '',
+      house_code: payload.house_code || '',
       address: payload.address || '',
       default_electricity_price: payload.default_electricity_price || 0,
       default_water_price: payload.default_water_price || 0,
@@ -85,11 +88,12 @@ export const useHouseStore = create<HouseDataState>((set) => ({
     try {
       const house = await apiCreateHouse(payload)
       set(state => ({ houses: state.houses.map(h => h.id === tempId ? house : h) }))
-      return house
-    } catch (err) {
+      return { success: true, house }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to create house", err)
       set(state => ({ houses: state.houses.filter(h => h.id !== tempId) }))
-      return null
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi thêm nhà!" }
     }
   }
 }))

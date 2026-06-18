@@ -65,10 +65,10 @@ type AuthService interface {
 }
 
 type UpdateProfileInput struct {
-	FullName        *string `json:"full_name"`
-	Phone           *string `json:"phone"`
-	OldPassword     *string `json:"old_password"`
-	Password        *string `json:"password"`
+	FullName    *string `json:"full_name"`
+	Phone       *string `json:"phone"`
+	OldPassword *string `json:"old_password"`
+	Password    *string `json:"password"`
 }
 
 type RegisterInput struct {
@@ -297,6 +297,9 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddr
 	if err != nil {
 		return nil, err
 	}
+	if err := s.tokens.RevokeRefreshToken(ctx, refreshToken, user.ID); err != nil {
+		return nil, err
+	}
 
 	return &LoginOutput{
 		AccessToken:  accessToken,
@@ -481,4 +484,3 @@ func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in U
 		IsActivated: user.IsActivated,
 	}, nil
 }
-

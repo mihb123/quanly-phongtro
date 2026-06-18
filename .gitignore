@@ -23,6 +23,7 @@
 !*.sh
 !*.ps1
 !*.mmdb
+!*.service
 
 # Keep gitignore itself
 !.gitignore

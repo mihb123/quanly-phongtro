@@ -32,6 +32,31 @@ func setURLParam(req *http.Request, key, value string) *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 }
 
+type failingResponseWriter struct {
+	header http.Header
+	status int
+}
+
+// Header returns writable headers for handlers before the forced write failure.
+func (w *failingResponseWriter) Header() http.Header {
+	return w.header
+}
+
+// Write always fails so JSON encoder error paths can be exercised.
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write error")
+}
+
+// WriteHeader records the status that the handler attempted to send.
+func (w *failingResponseWriter) WriteHeader(status int) {
+	w.status = status
+}
+
+// newFailingResponseWriter builds a response writer that fails body writes.
+func newFailingResponseWriter() *failingResponseWriter {
+	return &failingResponseWriter{header: make(http.Header)}
+}
+
 func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -51,7 +76,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Happy path",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 				"other_fee":             50000,
@@ -80,7 +105,21 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 		{
 			name: "Validation error - missing room_id",
 			body: map[string]interface{}{
-				"period":                "06-2026",
+				"period":                "2026-06",
+				"new_electricity_index": 100,
+				"new_water_index":       10,
+			},
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock:           func() {},
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			name: "Validation error - invalid period",
+			body: map[string]interface{}{
+				"room_id":               "room-1",
+				"period":                "2026-6",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -103,7 +142,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Service error - Duplicate Invoice",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -121,7 +160,7 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 			name: "Service error - Room Not Found",
 			body: map[string]interface{}{
 				"room_id":               "room-1",
-				"period":                "06-2026",
+				"period":                "2026-06",
 				"new_electricity_index": 100,
 				"new_water_index":       10,
 			},
@@ -134,6 +173,24 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 					Return(nil, model.ErrRoomNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "Service error - invalid electricity index",
+			body: map[string]interface{}{
+				"room_id":               "room-1",
+				"period":                "2026-06",
+				"new_electricity_index": 100,
+				"new_water_index":       10,
+			},
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					CreateInvoice(gomock.Any(), "user-1", gomock.Any()).
+					Return(nil, model.ErrInvalidElectricityIndex)
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -161,6 +218,41 @@ func TestInvoiceHandler_CreateInvoice(t *testing.T) {
 	}
 }
 
+// TestInvoiceHandler_ResponseEncodingErrors covers JSON encoder failure branches.
+func TestInvoiceHandler_ResponseEncodingErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
+	imageSvc := mock_service.NewMockImageService(ctrl)
+	h := handler.NewInvoiceHandler(invoiceSvc, imageSvc)
+
+	invoiceSvc.EXPECT().CreateInvoice(gomock.Any(), "user-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
+	req := httptest.NewRequest(http.MethodPost, "/invoice", bytes.NewBufferString(`{
+		"room_id":"room-1",
+		"period":"2026-06",
+		"new_electricity_index":100,
+		"new_water_index":10
+	}`))
+	h.CreateInvoice(newFailingResponseWriter(), setClaims(req, "user-1"))
+
+	invoiceSvc.EXPECT().ListInvoices(gomock.Any(), "user-1", model.InvoiceListFilter{Page: 1, Limit: 20}).Return([]model.InvoiceWithRoom{}, nil)
+	req = httptest.NewRequest(http.MethodGet, "/invoice", nil)
+	h.ListInvoices(newFailingResponseWriter(), setClaims(req, "user-1"))
+
+	invoiceSvc.EXPECT().GetInvoice(gomock.Any(), "user-1", "inv-1").Return(&model.InvoiceWithRoom{}, nil)
+	req = setURLParam(httptest.NewRequest(http.MethodGet, "/invoice/inv-1", nil), "id", "inv-1")
+	h.GetInvoice(newFailingResponseWriter(), setClaims(req, "user-1"))
+
+	invoiceSvc.EXPECT().PayInvoice(gomock.Any(), "user-1", "inv-1").Return(&model.Invoice{}, nil)
+	req = setURLParam(httptest.NewRequest(http.MethodPatch, "/invoice/inv-1/pay", nil), "id", "inv-1")
+	h.PayInvoice(newFailingResponseWriter(), setClaims(req, "user-1"))
+
+	invoiceSvc.EXPECT().UnpayInvoice(gomock.Any(), "user-1", "inv-1").Return(&model.Invoice{}, nil)
+	req = setURLParam(httptest.NewRequest(http.MethodPatch, "/invoice/inv-1/unpay", nil), "id", "inv-1")
+	h.UnpayInvoice(newFailingResponseWriter(), setClaims(req, "user-1"))
+}
+
 func TestInvoiceHandler_ListInvoices(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -178,7 +270,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 	}{
 		{
 			name: "Happy path",
-			url:  "/invoice?house_id=house-1&room_id=room-1&period=06-2026&status=UNPAID&page=2&limit=10",
+			url:  "/invoice?house_id=house-1&room_id=room-1&period=2026-06&status=UNPAID&page=2&limit=10",
 			setupAuth: func(r *http.Request) *http.Request {
 				return setClaims(r, "user-1")
 			},
@@ -186,7 +278,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 				filter := model.InvoiceListFilter{
 					HouseID: "house-1",
 					RoomID:  "room-1",
-					Period:  "06-2026",
+					Period:  "2026-06",
 					Status:  "UNPAID",
 					Page:    2,
 					Limit:   10,
@@ -222,6 +314,15 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 			},
 			mock:           func() {},
 			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "Invalid period",
+			url:  "/invoice?period=2026-6",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock:           func() {},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "Service error",
@@ -312,6 +413,19 @@ func TestInvoiceHandler_GetInvoice(t *testing.T) {
 					Return(nil, model.ErrInvoiceNotFound)
 			},
 			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "Service error",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					GetInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(nil, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -406,6 +520,19 @@ func TestInvoiceHandler_PayInvoice(t *testing.T) {
 			},
 			expectedStatus: http.StatusNotFound,
 		},
+		{
+			name: "Service error",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					PayInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(nil, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -485,6 +612,32 @@ func TestInvoiceHandler_UnpayInvoice(t *testing.T) {
 					Return(nil, errors.New("invoice is already unpaid"))
 			},
 			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Invoice not found",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					UnpayInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(nil, model.ErrInvoiceNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "Service error",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					UnpayInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(nil, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -566,6 +719,32 @@ func TestInvoiceHandler_DeleteInvoice(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 		},
+		{
+			name: "Invoice not found",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					DeleteInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(model.ErrInvoiceNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "Service error",
+			id:   "inv-1",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				invoiceSvc.EXPECT().
+					DeleteInvoice(gomock.Any(), "user-1", "inv-1").
+					Return(errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -610,7 +789,7 @@ func TestInvoiceHandler_DownloadInvoiceImage(t *testing.T) {
 			},
 			mock: func() {
 				inv := &model.InvoiceWithRoom{
-					Invoice:  model.Invoice{Period: "06-2026"},
+					Invoice:  model.Invoice{Period: "2026-06"},
 					RoomName: "101",
 				}
 				invoiceSvc.EXPECT().

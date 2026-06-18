@@ -8,6 +8,7 @@ import { DashboardView } from '@/components/home/DashboardView'
 import { HouseRoomsView } from '@/components/home/HouseRoomsView'
 import { TenantsView } from '@/components/home/TenantView'
 import { InvoicesView } from '@/components/home/InvoiceView'
+import { RevenueView } from '@/components/home/RevenueView'
 import { SettingsView } from '@/components/home/SettingsView'
 
 export default function HomePage() {
@@ -35,6 +36,10 @@ export default function HomePage() {
 
           {activeTab === 'invoices' && (
             <InvoicesView />
+          )}
+
+          {activeTab === 'revenue' && (
+            <RevenueView />
           )}
 
           {activeTab === 'settings' && (

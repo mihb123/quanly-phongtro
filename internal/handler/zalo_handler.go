@@ -17,6 +17,8 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/service"
 )
 
+const maxZaloWebhookBodyBytes = 1 << 20
+
 type ZaloHandler struct {
 	zaloService service.ZaloService
 	privateKey  *rsa.PrivateKey
@@ -54,7 +56,7 @@ func (h *ZaloHandler) GetPublicKey(w http.ResponseWriter, r *http.Request) {
 }
 
 type ConfigReq struct {
-	BotToken      string `json:"bot_token"`       // Base64 encrypted with RSA
+	BotToken string `json:"bot_token"` // Base64 encrypted with RSA
 }
 
 func (h *ZaloHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
@@ -130,12 +132,14 @@ func (h *ZaloHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	managerID := chi.URLParam(r, "managerID")
 	secretTokenHeader := r.Header.Get("X-Bot-Api-Secret-Token") // or X-Zalo-Signature depending on config
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxZaloWebhookBodyBytes)
+	defer r.Body.Close()
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	if err := h.zaloService.HandleWebhook(r.Context(), managerID, body, secretTokenHeader); err != nil {
 		// Log the error but return 200 OK to Zalo so it doesn't retry

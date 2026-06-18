@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -21,6 +22,7 @@ type TenantService interface {
 	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error)
 	UpdateTenantInfo(ctx context.Context, managerID, tenantID string, in UpdateTenantInput) (*model.FullInfoTenant, error)
 	DeleteTenant(ctx context.Context, managerID, tenantID string) error
+	ResolveTenantFilePath(ctx context.Context, managerID, requestPath string) (string, error)
 }
 
 type TenantServiceImpl struct {
@@ -73,7 +75,7 @@ func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		
+
 		ext := strings.ToLower(filepath.Ext(header.Filename))
 		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".pdf": true}
 		if !allowedExts[ext] {
@@ -148,6 +150,17 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 
 	if !isValidEmail(in.Email) {
 		return nil, ErrInvalidInput
+	}
+
+	if in.Phone != "" {
+		existingUser, err := s.users.GetByPhone(ctx, in.Phone)
+		if err == nil && existingUser != nil {
+			return nil, model.ErrPhoneAlreadyExists
+		}
+	}
+
+	if _, err := s.rooms.GetRoomByIDForManager(ctx, in.ManagerID, in.RoomID); err != nil {
+		return nil, err
 	}
 
 	ok, err := s.CheckCapicityOfRoom(ctx, in.RoomID)
@@ -254,6 +267,13 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 		return nil, err
 	}
 
+	if in.Phone != nil && *in.Phone != "" && *in.Phone != existing.Phone {
+		existingUser, err := s.users.GetByPhone(ctx, *in.Phone)
+		if err == nil && existingUser != nil && existingUser.ID != existing.UserID {
+			return nil, model.ErrPhoneAlreadyExists
+		}
+	}
+
 	userInput := model.UpdateUserInput{
 		FullName: in.FullName,
 		Phone:    in.Phone,
@@ -345,6 +365,30 @@ func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, managerID, tenantI
 	}
 
 	return nil
+}
+
+// ResolveTenantFilePath verifies manager ownership before returning a local tenant upload path.
+func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID, requestPath string) (string, error) {
+	fileName, ok := uploadFileName(requestPath)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+
+	storedPath := "/api/v1/tenant/files/" + fileName
+	if _, err := s.tenants.GetTenantByFilePath(ctx, managerID, storedPath); err != nil {
+		if !errors.Is(err, model.ErrTenantNotFound) {
+			return "", err
+		}
+		if _, fallbackErr := s.tenants.GetTenantByFilePath(ctx, managerID, fileName); fallbackErr != nil {
+			return "", fallbackErr
+		}
+	}
+
+	filePath, ok := uploadFilePath("uploads/tenants", fileName)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+	return filePath, nil
 }
 
 func saveFile(file io.Reader, path string) error {

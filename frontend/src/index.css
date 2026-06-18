@@ -68,14 +68,14 @@
     --primary: oklch(0.55 0.22 260); /* Vibrant Cobalt Blue */
     --primary-foreground: oklch(0.98 0 0);
     
-    --secondary: oklch(0.96 0.005 240);
+    --secondary: oklch(0.90 0.02 240);
     --secondary-foreground: oklch(0.20 0.01 240);
 
     /* --- UI States --- */
-    --muted: oklch(0.96 0.005 240);
+    --muted: oklch(0.92 0.01 240);
     --muted-foreground: oklch(0.55 0.01 240);
     
-    --accent: oklch(0.96 0.005 240);
+    --accent: oklch(0.90 0.02 240);
     --accent-foreground: oklch(0.20 0.01 240);
     
     --destructive: oklch(0.57 0.18 25);
@@ -113,11 +113,11 @@
     --popover-foreground: oklch(0.95 0.01 240);
     --primary: oklch(0.70 0.15 260); /* Softer Cobalt for dark mode */
     --primary-foreground: oklch(0.10 0.01 240);
-    --secondary: oklch(0.20 0.02 240);
+    --secondary: oklch(0.30 0.03 240);
     --secondary-foreground: oklch(0.95 0.01 240);
-    --muted: oklch(0.20 0.02 240);
+    --muted: oklch(0.28 0.02 240);
     --muted-foreground: oklch(0.65 0.01 240);
-    --accent: oklch(0.20 0.02 240);
+    --accent: oklch(0.30 0.03 240);
     --accent-foreground: oklch(0.95 0.01 240);
     --destructive: oklch(0.65 0.18 25);
     --border: oklch(0.25 0.02 240);

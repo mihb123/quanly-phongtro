@@ -44,7 +44,7 @@ export default function VerifyEmailPage() {
     try {
       await createOTP()
       setOtpSent(true)
-      setSuccessMsg('Đã gửi mã OTP đến email của bạn')
+      setSuccessMsg('Đã gửi mã OTP đến email của bạn. Vui lòng kiểm tra mục Spam nếu không thấy.')
     } catch (error) {
       handleApiError(error)
     } finally {
@@ -95,9 +95,9 @@ export default function VerifyEmailPage() {
             )}
             
             {successMsg && (
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-600 animate-in fade-in zoom-in duration-200 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
-                {successMsg}
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-600 animate-in fade-in zoom-in duration-200 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-[2px]" />
+                <span>{successMsg}</span>
               </div>
             )}
 

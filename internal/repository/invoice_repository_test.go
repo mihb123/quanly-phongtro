@@ -36,14 +36,14 @@ func TestInvoiceRepository_CreateInvoice(t *testing.T) {
 			mock: func() {
 				rows := sqlmock.NewRows([]string{"id", "created_at"}).
 					AddRow("inv-1", time.Now())
-				mock.ExpectQuery(`INSERT INTO "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantErr: false,
 		},
 		{
 			name: "Duplicate Error",
 			mock: func() {
-				mock.ExpectQuery(`INSERT INTO "invoices"`).WillReturnError(errors.New("duplicate key value violates unique constraint uq_invoices_room_period"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("duplicate key value violates unique constraint uq_invoices_room_period"))
 			},
 			wantErr:     true,
 			wantErrType: model.ErrDuplicateInvoice,
@@ -51,7 +51,7 @@ func TestInvoiceRepository_CreateInvoice(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`INSERT INTO "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -95,7 +95,7 @@ func TestInvoiceRepository_GetInvoiceByID(t *testing.T) {
 			mock: func() {
 				rows := sqlmock.NewRows(columns).
 					AddRow("inv-1", "room-1", "2023-10", "Room 1", "house-1", 0, 0.0, 0, 0.0)
-				mock.ExpectQuery(`SELECT invoice.*`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantInvoice: &model.InvoiceWithRoom{
 				Invoice: model.Invoice{
@@ -111,7 +111,7 @@ func TestInvoiceRepository_GetInvoiceByID(t *testing.T) {
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`SELECT invoice.*`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -119,7 +119,7 @@ func TestInvoiceRepository_GetInvoiceByID(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT invoice.*`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -173,7 +173,7 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 			mock: func() {
 				rows := sqlmock.NewRows(columns).
 					AddRow("inv-1", "room-1", "2023-10", "UNPAID", "Room 1", "house-1", 0, 0.0, 0, 0.0)
-				mock.ExpectQuery(`SELECT invoice.*`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantCount: 1,
 			wantErr:   false,
@@ -181,7 +181,7 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT invoice.*`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -222,14 +222,14 @@ func TestInvoiceRepository_UpdateInvoiceStatus(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows([]string{"id", "status"}).AddRow("inv-1", "PAID")
-				mock.ExpectQuery(`UPDATE "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantErr: false,
 		},
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`UPDATE "invoices"`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -237,7 +237,7 @@ func TestInvoiceRepository_UpdateInvoiceStatus(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`UPDATE "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -283,7 +283,7 @@ func TestInvoiceRepository_GetLatestInvoiceByRoomID(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows(columns).AddRow("inv-1", "room-1", "2023-10")
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantID:  "inv-1",
 			wantErr: false,
@@ -291,7 +291,7 @@ func TestInvoiceRepository_GetLatestInvoiceByRoomID(t *testing.T) {
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -299,7 +299,7 @@ func TestInvoiceRepository_GetLatestInvoiceByRoomID(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -345,7 +345,7 @@ func TestInvoiceRepository_GetInvoiceByRoomAndPeriod(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows(columns).AddRow("inv-1", "room-1", "2023-10")
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantID:  "inv-1",
 			wantErr: false,
@@ -353,7 +353,7 @@ func TestInvoiceRepository_GetInvoiceByRoomAndPeriod(t *testing.T) {
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -361,7 +361,7 @@ func TestInvoiceRepository_GetInvoiceByRoomAndPeriod(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -407,7 +407,7 @@ func TestInvoiceRepository_GetPreviousInvoice(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows(columns).AddRow("inv-1", "room-1", "2023-09")
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantID:  "inv-1",
 			wantErr: false,
@@ -415,7 +415,7 @@ func TestInvoiceRepository_GetPreviousInvoice(t *testing.T) {
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -423,7 +423,7 @@ func TestInvoiceRepository_GetPreviousInvoice(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -468,7 +468,7 @@ func TestInvoiceRepository_GetUnpaidInvoicesByRoomID(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows(columns).AddRow("inv-1", "room-1", "UNPAID")
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantCount: 1,
 			wantErr:   false,
@@ -476,7 +476,7 @@ func TestInvoiceRepository_GetUnpaidInvoicesByRoomID(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -520,7 +520,7 @@ func TestInvoiceRepository_GetLatestUnpaidInvoiceByRoomID(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				rows := sqlmock.NewRows(columns).AddRow("inv-1", "room-1", "UNPAID")
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnRows(rows)
+				mock.ExpectQuery(`.*`).WillReturnRows(rows)
 			},
 			wantID:  "inv-1",
 			wantErr: false,
@@ -528,7 +528,7 @@ func TestInvoiceRepository_GetLatestUnpaidInvoiceByRoomID(t *testing.T) {
 		{
 			name: "Not Found",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(sql.ErrNoRows)
+				mock.ExpectQuery(`.*`).WillReturnError(sql.ErrNoRows)
 			},
 			wantErr:     true,
 			wantErrType: model.ErrInvoiceNotFound,
@@ -536,7 +536,7 @@ func TestInvoiceRepository_GetLatestUnpaidInvoiceByRoomID(t *testing.T) {
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`SELECT .* FROM "invoices"`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -583,6 +583,7 @@ func TestInvoiceRepository_UpdateInvoice(t *testing.T) {
 			name: "Happy Path",
 			mock: func() {
 				mock.ExpectExec(`UPDATE "invoices"`).WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(`UPDATE "invoice_payment_links"`).WillReturnResult(sqlmock.NewResult(0, 1))
 			},
 			wantErr: false,
 		},
@@ -681,4 +682,126 @@ func setupInvoiceTestDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	}
 	bunDB := bun.NewDB(db, pgdialect.New())
 	return bunDB, mock
+}
+
+func TestInvoiceRepository_UpdateInvoiceStatusAndMethod(t *testing.T) {
+	bunDB, mock := setupInvoiceTestDB(t)
+	defer bunDB.Close()
+
+	repo := repository.NewInvoiceRepository(bunDB)
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		mock    func()
+		wantErr bool
+	}{
+		{
+			name: "success",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "status", "payment_method"}).
+						AddRow("inv-1", "PAID", "PAYOS"))
+			},
+			wantErr: false,
+		},
+		{
+			name: "not found",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnError(sql.ErrNoRows)
+			},
+			wantErr: true,
+		},
+		{
+			name: "db error",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnError(errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mock()
+			_, err := repo.UpdateInvoiceStatusAndMethod(ctx, "mgr-1", "inv-1", "PAID", "PAYOS")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UpdateInvoiceStatusAndMethod() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("there were unfulfilled expectations: %s", err)
+			}
+		})
+	}
+}
+
+func TestInvoiceRepository_SystemUpdateInvoiceStatusAndMethod(t *testing.T) {
+	bunDB, mock := setupInvoiceTestDB(t)
+	defer bunDB.Close()
+
+	repo := repository.NewInvoiceRepository(bunDB)
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		mock    func()
+		wantErr bool
+	}{
+		{
+			name: "success",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "status", "payment_method"}).
+						AddRow("inv-1", "PAID", "PAYOS"))
+
+				mock.ExpectQuery(`.*`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "room_name", "house_id", "manager_id"}).
+						AddRow("inv-1", "Room 1", "house-1", "mgr-1"))
+			},
+			wantErr: false,
+		},
+		{
+			name: "update not found",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnError(sql.ErrNoRows)
+			},
+			wantErr: true,
+		},
+		{
+			name: "update db error",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnError(errors.New("db error"))
+			},
+			wantErr: true,
+		},
+		{
+			name: "select error",
+			mock: func() {
+				mock.ExpectQuery(`.*`).
+					WillReturnRows(sqlmock.NewRows([]string{"id", "status", "payment_method"}).
+						AddRow("inv-1", "PAID", "PAYOS"))
+
+				mock.ExpectQuery(`.*`).
+					WillReturnError(errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mock()
+			_, err := repo.SystemUpdateInvoiceStatusAndMethod(ctx, "inv-1", "PAID", "PAYOS")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SystemUpdateInvoiceStatusAndMethod() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("there were unfulfilled expectations: %s", err)
+			}
+		})
+	}
 }

@@ -10,6 +10,7 @@ mocks:
 	mockgen -source=internal/model/room.go -destination=internal/mock/mock_model/room_mock.go -package=mock_model
 	mockgen -source=internal/model/tenant.go -destination=internal/mock/mock_model/tenant_mock.go -package=mock_model
 	mockgen -source=internal/model/user.go -destination=internal/mock/mock_model/user_mock.go -package=mock_model
+	mockgen -source=internal/model/operating_cost.go -destination=internal/mock/mock_model/operating_cost_mock.go -package=mock_model
 	@echo "Generating mocks for internal/service..."
 	@mkdir -p internal/mock/mock_service
 	mockgen -source=internal/service/auth_service.go -destination=internal/mock/mock_service/auth_service_mock.go -package=mock_service
@@ -20,4 +21,6 @@ mocks:
 	mockgen -source=internal/service/tenant_service.go -destination=internal/mock/mock_service/tenant_service_mock.go -package=mock_service
 	mockgen -source=internal/service/zalo_client.go -destination=internal/mock/mock_service/zalo_client_mock.go -package=mock_service
 	mockgen -source=internal/service/zalo_service.go -destination=internal/mock/mock_service/zalo_service_mock.go -package=mock_service
+	mockgen -source=internal/service/house_cost_service.go -destination=internal/mock/mock_service/house_cost_service_mock.go -package=mock_service
+	mockgen -source=internal/service/event_bus.go -destination=internal/mock/mock_service/event_bus_mock.go -package=mock_service
 	@echo "Mocks generated successfully!"

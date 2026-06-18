@@ -107,6 +107,65 @@ func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, 
 	return invoices, nil
 }
 
+// UpdateInvoiceStatusAndMethod updates the status and payment method of an invoice.
+func (r *InvoiceRepository) UpdateInvoiceStatusAndMethod(ctx context.Context, managerID, id, status, method string) (*model.Invoice, error) {
+	var invoice model.Invoice
+	err := r.db.NewUpdate().
+		Model(&invoice).
+		Set("status = ?", status).
+		Set("payment_method = ?", method).
+		Where("id = ?", id).
+		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Returning("*").
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrInvoiceNotFound
+		}
+		return nil, fmt.Errorf("update invoice status and method: %w", err)
+	}
+
+	return &invoice, nil
+}
+
+// SystemUpdateInvoiceStatusAndMethod updates the status and payment method of an invoice WITHOUT checking managerID.
+// This is for system webhooks.
+func (r *InvoiceRepository) SystemUpdateInvoiceStatusAndMethod(ctx context.Context, id, status, method string) (*model.InvoiceWithRoom, error) {
+	var invoice model.Invoice
+	err := r.db.NewUpdate().
+		Model(&invoice).
+		Set("status = ?", status).
+		Set("payment_method = ?", method).
+		Where("id = ?", id).
+		Returning("*").
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrInvoiceNotFound
+		}
+		return nil, fmt.Errorf("system update invoice status and method: %w", err)
+	}
+
+	// We also want to return InvoiceWithRoom so we can find the managerID to send Zalo notification
+	var invoiceWithRoom model.InvoiceWithRoom
+	err = r.db.NewSelect().
+		Model(&invoiceWithRoom).
+		ColumnExpr("invoice.*").
+		ColumnExpr("r.name AS room_name, h.id AS house_id, h.manager_id AS manager_id").
+		Join("JOIN rooms AS r ON r.id = invoice.room_id").
+		Join("JOIN houses AS h ON h.id = r.house_id").
+		Where("invoice.id = ?", id).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("get invoice with room after update: %w", err)
+	}
+
+	return &invoiceWithRoom, nil
+}
+
 // UpdateInvoiceStatus updates the status of an invoice.
 func (r *InvoiceRepository) UpdateInvoiceStatus(ctx context.Context, managerID, id, status string) (*model.Invoice, error) {
 	var invoice model.Invoice
@@ -232,8 +291,27 @@ func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string,
 		return fmt.Errorf("update invoice: %w", err)
 	}
 	rows, err := res.RowsAffected()
-	if err == nil && rows == 0 {
+	if err != nil {
+		return fmt.Errorf("update invoice rows affected: %w", err)
+	}
+	if rows == 0 {
 		return model.ErrInvoiceNotFound
+	}
+	return r.markActivePaymentLinksStaleByInvoiceAmount(ctx, invoice.ID, int(invoice.TotalAmount))
+}
+
+// markActivePaymentLinksStaleByInvoiceAmount invalidates active links whose amount no longer matches.
+func (r *InvoiceRepository) markActivePaymentLinksStaleByInvoiceAmount(ctx context.Context, invoiceID string, amount int) error {
+	_, err := r.db.NewUpdate().
+		Model((*model.InvoicePaymentLink)(nil)).
+		Set("status = ?", model.PaymentLinkStatusStale).
+		Set("updated_at = CURRENT_TIMESTAMP").
+		Where("invoice_id = ?", invoiceID).
+		Where("status = ?", model.PaymentLinkStatusActive).
+		Where("amount <> ?", amount).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("mark invoice payment links stale: %w", err)
 	}
 	return nil
 }
@@ -255,4 +333,29 @@ func (r *InvoiceRepository) DeleteInvoice(ctx context.Context, managerID, id str
 		return model.ErrInvoiceNotFound
 	}
 	return nil
+}
+
+// GetInvoiceByTransactionImagePath fetches an invoice image record owned by a manager.
+func (r *InvoiceRepository) GetInvoiceByTransactionImagePath(ctx context.Context, managerID, imagePath string) (*model.InvoiceWithRoom, error) {
+	var invoice model.InvoiceWithRoom
+	err := r.db.NewSelect().
+		Model(&invoice).
+		ModelTableExpr("invoices AS invoice").
+		ColumnExpr("invoice.*").
+		ColumnExpr("r.name AS room_name").
+		ColumnExpr("r.house_id AS house_id").
+		ColumnExpr("h.manager_id AS manager_id").
+		Join("JOIN rooms AS r ON invoice.room_id = r.id").
+		Join("JOIN houses AS h ON r.house_id = h.id").
+		Where("invoice.transaction_image_path = ?", imagePath).
+		Where("h.manager_id = ?", managerID).
+		Scan(ctx)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrInvoiceNotFound
+		}
+		return nil, fmt.Errorf("get invoice by transaction image path: %w", err)
+	}
+	return &invoice, nil
 }

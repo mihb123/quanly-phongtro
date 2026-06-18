@@ -1,53 +1,39 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import type { Room } from '@/api/room'
 import type { Tenant } from '@/api/tenant'
 import { TenantListModal } from './TenantListModal'
 import { TenantAddModal } from './TenantAddModal'
 import { TenantEditModal } from './TenantEditModal'
-import { useTenantList } from '@/hooks/useTenantList'
 
 interface TenantRoomModalProps {
   room: Room
   initialView?: 'list' | 'add' | 'edit'
   initialEditingTenant?: Tenant | null
-  onClose: () => void
+  onClose: (changed?: boolean) => void
 }
 
 export function TenantRoomModal({ room, initialView, initialEditingTenant, onClose }: TenantRoomModalProps) {
   const isOccupied = room.status === 'OCCUPIED'
   
-  const {
-    tenants,
-    fetchTenants,
-    isFetching
-  } = useTenantList(room.id)
-
   const [view, setView] = useState<'list' | 'add' | 'edit'>(initialView || (!isOccupied ? 'add' : 'list'))
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(initialEditingTenant || null)
+  const [hasChanged, setHasChanged] = useState(false)
 
-  useEffect(() => {
-    if (isOccupied) {
-      fetchTenants(room.id)
-    }
-  }, [isOccupied, room.id, fetchTenants])
-
-  useEffect(() => {
-     if (!initialView && isOccupied && !isFetching && tenants.length === 0 && view === 'list') {
-         // eslint-disable-next-line react-hooks/set-state-in-effect
-         setView('add')
-     }
-  }, [isOccupied, isFetching, tenants.length, view, initialView])
+  const handleClose = () => {
+    onClose(hasChanged)
+  }
 
   if (view === 'list') {
     return (
       <TenantListModal 
         room={room} 
-        onClose={onClose} 
+        onClose={handleClose} 
         onAdd={() => setView('add')} 
         onEdit={(t) => {
           setEditingTenant(t)
           setView('edit')
-        }} 
+        }}
+        onDataChange={() => setHasChanged(true)}
       />
     )
   }
@@ -56,10 +42,14 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
     return (
       <TenantAddModal 
         room={room}
-        onClose={onClose}
+        onClose={() => {
+          if (initialView === 'add') handleClose()
+          else setView('list')
+        }}
         onSuccess={() => {
-          fetchTenants(room.id)
-          setView('list')
+          setHasChanged(true)
+          if (initialView === 'add') handleClose()
+          else setView('list')
         }}
       />
     )
@@ -70,10 +60,14 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
       <TenantEditModal 
         room={room}
         tenant={editingTenant}
-        onClose={() => setView('list')}
+        onClose={() => {
+          if (initialView === 'edit') handleClose()
+          else setView('list')
+        }}
         onSuccess={() => {
-          fetchTenants(room.id)
-          setView('list')
+          setHasChanged(true)
+          if (initialView === 'edit') handleClose()
+          else setView('list')
         }}
       />
     )

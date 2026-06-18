@@ -71,13 +71,16 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
         newName = `${room.name} (Copy ${i})`
       }
       
-      await createRoomStore({
+      const res = await createRoomStore({
         house_id: room.house_id,
         name: newName,
         price: room.price,
         max_tenants: room.max_tenants,
         status: 'AVAILABLE'
       })
+      if (!res.success) {
+        alert(res.error || "Lỗi khi nhân bản phòng!")
+      }
     } catch {
       alert("Lỗi khi nhân bản phòng!")
     } finally {
@@ -89,7 +92,10 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
     if (!confirm(`Bạn có chắc chắn muốn xóa phòng: ${room.name}?`)) return
     setIsLoading(true)
     try {
-      await deleteRoomStore(room.id, room.house_id)
+      const res = await deleteRoomStore(room.id, room.house_id)
+      if (!res.success) {
+        alert(res.error || "Lỗi khi xóa phòng!")
+      }
     } catch {
       alert("Lỗi khi xóa phòng!")
     } finally {
@@ -121,10 +127,15 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
             extra_vehicle_fee: originalRoom.extra_vehicle_fee,
           })
         }
-        return Promise.resolve()
+        return Promise.resolve({ success: true, error: undefined })
       })
-      await Promise.all(promises)
-      onClose()
+      const results = await Promise.all(promises)
+      const failed = results.filter(r => !r.success)
+      if (failed.length > 0) {
+         alert(failed[0].error || "Lỗi khi cập nhật giá phòng, vui lòng kiểm tra lại!")
+      } else {
+         onClose()
+      }
     } catch {
       alert("Lỗi khi cập nhật giá phòng, vui lòng kiểm tra lại!")
     } finally {

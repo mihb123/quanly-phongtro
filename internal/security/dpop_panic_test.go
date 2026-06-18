@@ -6,25 +6,40 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"testing"
+
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// TestParseJWKToPublicKeyRejectsPointOffCurve verifies malformed EC keys fail before verification.
+func TestParseJWKToPublicKeyRejectsPointOffCurve(t *testing.T) {
+	jwk := map[string]interface{}{
+		"kty": "EC",
+		"crv": "P-256",
+		"x":   base64.RawURLEncoding.EncodeToString([]byte{1}),
+		"y":   base64.RawURLEncoding.EncodeToString([]byte{1}),
+	}
+
+	if _, err := parseJWKToPublicKey(jwk); err == nil {
+		t.Fatal("expected invalid EC public key point error, got nil")
+	}
+}
+
 func TestDPoPWithoutIat(t *testing.T) {
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	
+
 	claims := DPoPClaims{
 		Htu: "/test",
 		Htm: "GET",
 		Jti: "random-jti",
 		// NO IssuedAt
 	}
-	
+
 	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
 	token.Header["typ"] = "dpop+jwt"
-	
+
 	x := key.PublicKey.X.Bytes()
 	y := key.PublicKey.Y.Bytes()
-	
+
 	jwk := map[string]interface{}{
 		"kty": "EC",
 		"crv": "P-256",
@@ -32,12 +47,12 @@ func TestDPoPWithoutIat(t *testing.T) {
 		"y":   base64.RawURLEncoding.EncodeToString(y),
 	}
 	token.Header["jwk"] = jwk
-	
+
 	proof, err := token.SignedString(key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	
+
 	// This should not panic
 	_, err = VerifyDPoPProof(proof, "GET", "/test", "")
 	t.Log(err)

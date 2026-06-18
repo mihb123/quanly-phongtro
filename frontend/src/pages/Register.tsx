@@ -68,12 +68,14 @@ export default function RegisterPage() {
         longitude = position.coords.longitude
         localStorage.setItem('has_asked_location', 'true')
       } catch (err) {
-        console.warn('Geolocation failed or denied:', err)
+        console.error('CRITICAL: Geolocation failed or denied even though permission was granted. Error:', err)
+        localStorage.setItem('has_asked_location', 'true')
         if (import.meta.env.DEV) {
           console.log('Mocking GPS for development...')
           latitude = 21.028511 // Hanoi mock
           longitude = 105.804817
-          localStorage.setItem('has_asked_location', 'true')
+        } else {
+          console.error('Not in DEV mode, latitude and longitude will be undefined and sent as null to DB.')
         }
       }
     }

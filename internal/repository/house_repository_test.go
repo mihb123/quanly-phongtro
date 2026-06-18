@@ -100,7 +100,7 @@ func TestHouseRepository_UpdateHouse(t *testing.T) {
 	}
 
 	rows := sqlmock.NewRows([]string{
-		"id", "manager_id", "name", "address",
+		"id", "manager_id", "name", "house_code", "address",
 		"default_electricity_price", "default_water_price",
 		"default_wifi_price", "default_parking_price",
 		"default_service_price", "electricity_billing_type",
@@ -109,7 +109,7 @@ func TestHouseRepository_UpdateHouse(t *testing.T) {
 		"extra_person_fee", "extra_vehicle_threshold",
 		"extra_vehicle_fee", "created_at", "updated_at",
 	}).AddRow(
-		"house-1", "manager-1", "Updated House", "",
+		"house-1", "manager-1", "Updated House", "h1", "",
 		0.0, 0.0, 0.0, 0.0, 0.0, "", "", "", "", 0, 0.0, 0, 0.0, time.Now(), time.Now(),
 	)
 

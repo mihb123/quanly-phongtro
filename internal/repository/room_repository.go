@@ -186,6 +186,26 @@ func (r *RoomRepository) GetRoomByIDOnly(ctx context.Context, id string) (*model
 	return &room, nil
 }
 
+// GetRoomByIDForManager fetches a room only when its house belongs to the manager.
+func (r *RoomRepository) GetRoomByIDForManager(ctx context.Context, managerID, roomID string) (*model.Room, error) {
+	var room model.Room
+	err := r.db.NewSelect().
+		Model(&room).
+		ModelTableExpr("rooms AS room").
+		ColumnExpr("room.*").
+		Join("JOIN houses AS h ON h.id = room.house_id").
+		Where("room.id = ?", roomID).
+		Where("h.manager_id = ?", managerID).
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrRoomNotFound
+		}
+		return nil, fmt.Errorf("get room by id for manager: %w", err)
+	}
+	return &room, nil
+}
+
 // GetRoomByGroupChatID fetches a room by its Zalo group chat ID.
 func (r *RoomRepository) GetRoomByGroupChatID(ctx context.Context, groupChatID string) (*model.Room, error) {
 	var room model.Room

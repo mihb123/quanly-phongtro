@@ -75,8 +75,12 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
       cccdFiles.forEach(f => formData.append('cccd_file', f))
       contractFiles.forEach(f => formData.append('contract_file', f))
       
-      await createTenant(formData)
-      onSuccess()
+      const res = await createTenant(formData)
+      if (res.success) {
+        onSuccess()
+      } else {
+        alert(res.error || "Lỗi khi thêm người thuê!")
+      }
     } catch {
       alert("Lỗi khi thêm người thuê!")
     } finally {

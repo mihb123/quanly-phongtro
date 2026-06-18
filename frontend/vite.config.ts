@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      allowedHosts: [
+        environment.APP_URL,
+        environment.APP_URL_DEV
+      ].filter(Boolean) as string[],
       proxy: {
         '/api': {
           target: `http://localhost:${backendPort}`,

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -13,7 +14,10 @@ import (
 )
 
 type AuthHandler struct {
-	service service.AuthService
+	service             service.AuthService
+	cookieSecure        bool
+	trustedProxyCIDRs   []netip.Prefix
+	dpopVerificationURL string
 }
 
 type refreshTokenRequest struct {
@@ -21,8 +25,8 @@ type refreshTokenRequest struct {
 }
 
 type registerRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=6"`
+	Email     string   `json:"email" validate:"required,email"`
+	Password  string   `json:"password" validate:"required,min=6"`
 	FullName  string   `json:"full_name"`
 	Phone     string   `json:"phone"`
 	Latitude  *float64 `json:"Latitude"`
@@ -40,8 +44,36 @@ type verifyEmailRequest struct {
 	OTP string `json:"otp" validate:"required"`
 }
 
-func NewAuthHandler(service service.AuthService) *AuthHandler {
-	return &AuthHandler{service: service}
+type AuthHandlerOption func(*AuthHandler)
+
+// WithSecureCookies configures whether auth cookies use the Secure flag.
+func WithSecureCookies(secure bool) AuthHandlerOption {
+	return func(h *AuthHandler) {
+		h.cookieSecure = secure
+	}
+}
+
+// WithTrustedProxies configures proxy CIDRs allowed to supply X-Forwarded-For.
+func WithTrustedProxies(prefixes []netip.Prefix) AuthHandlerOption {
+	return func(h *AuthHandler) {
+		h.trustedProxyCIDRs = prefixes
+	}
+}
+
+// WithDPoPVerificationURL configures the external API base URL for DPoP htu.
+func WithDPoPVerificationURL(baseURL string) AuthHandlerOption {
+	return func(h *AuthHandler) {
+		h.dpopVerificationURL = strings.TrimRight(baseURL, "/")
+	}
+}
+
+// NewAuthHandler wires the auth service and security-related HTTP options.
+func NewAuthHandler(service service.AuthService, options ...AuthHandlerOption) *AuthHandler {
+	h := &AuthHandler{service: service}
+	for _, option := range options {
+		option(h)
+	}
+	return h
 }
 
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
@@ -58,14 +90,14 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := getClientIP(r)
+	ipAddress := h.getClientIP(r)
 	userAgent := r.UserAgent()
 	dpopProof := r.Header.Get("DPoP")
-	
+
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
@@ -97,7 +129,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setTokenCookies(w, output.AccessToken, output.RefreshToken)
+	h.setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusCreated, output, "registered successfully")
 }
 
@@ -115,14 +147,14 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ipAddress := getClientIP(r)
+	ipAddress := h.getClientIP(r)
 	userAgent := r.UserAgent()
 	dpopProof := r.Header.Get("DPoP")
-	
+
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
@@ -152,7 +184,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setTokenCookies(w, output.AccessToken, output.RefreshToken)
+	h.setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusOK, output, "login success")
 }
 
@@ -165,14 +197,14 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 	refreshTokenStr := cookie.Value
 
-	ipAddress := getClientIP(r)
+	ipAddress := h.getClientIP(r)
 	userAgent := r.UserAgent()
 	dpopProof := r.Header.Get("DPoP")
-	
+
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, r.URL.Path, "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
@@ -191,18 +223,18 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusUnauthorized, "invalid credentials")
 		default:
 			logger.Error(r, http.StatusInternalServerError, "unexpected error during token refresh", err)
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeError(w, http.StatusInternalServerError, "internal server error")
 		}
 		return
 	}
 
-	setTokenCookies(w, output.AccessToken, output.RefreshToken)
+	h.setTokenCookies(w, output.AccessToken, output.RefreshToken)
 	writeJSON(w, http.StatusOK, output, "")
 }
 
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		writeError(w, http.StatusUnauthorized, "missing authentication token")
 		return
 	}
@@ -210,6 +242,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	userID, err := claims.GetSubject()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "invalid token")
+		return
 	}
 
 	user, err := h.service.GetMe(r.Context(), userID)
@@ -223,7 +256,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		writeError(w, http.StatusUnauthorized, "missing authentication token")
 		return
 	}
@@ -256,17 +289,18 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if err == nil && cookie.Value != "" {
 		_ = h.service.Logout(r.Context(), cookie.Value)
 	}
-	clearTokenCookies(w)
+	h.clearTokenCookies(w)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func clearTokenCookies(w http.ResponseWriter) {
+// clearTokenCookies expires auth cookies using the configured cookie flags.
+func (h *AuthHandler) clearTokenCookies(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
@@ -276,19 +310,20 @@ func clearTokenCookies(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 }
 
-func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+// setTokenCookies writes auth cookies using the configured cookie flags.
+func (h *AuthHandler) setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   3600,
 	})
@@ -298,7 +333,7 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 		Value:    refreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Set to true in production
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   7 * 24 * 3600,
 	})
@@ -306,7 +341,7 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 
 func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		logger.Error(r, http.StatusInternalServerError, "missing or invalid claims in context", nil)
 		writeError(w, http.StatusInternalServerError, "invalid access token")
 		return
@@ -330,7 +365,7 @@ func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
-	if !ok {
+	if !ok || claims == nil {
 		logger.Error(r, http.StatusInternalServerError, "missing or invalid claims in context", nil)
 		writeError(w, http.StatusInternalServerError, "invalid access token")
 		return
@@ -391,17 +426,65 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		refreshToken = cookie.Value
 	}
 
-	setTokenCookies(w, accessToken, refreshToken)
+	h.setTokenCookies(w, accessToken, refreshToken)
 	writeJSON(w, http.StatusOK, map[string]string{"access_token": accessToken}, "email verified successfully")
 }
 
-func getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		return strings.Split(xff, ",")[0]
+// getClientIP returns the client IP, trusting X-Forwarded-For only from configured proxies.
+func (h *AuthHandler) getClientIP(r *http.Request) string {
+	remoteIP := remoteAddrIP(r.RemoteAddr)
+	if remoteIP != "" && h.isTrustedProxy(remoteIP) {
+		if xff := firstForwardedIP(r.Header.Get("X-Forwarded-For")); xff != "" {
+			return xff
+		}
 	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+
+	if remoteIP != "" {
+		return remoteIP
+	}
+	return r.RemoteAddr
+}
+
+// isTrustedProxy reports whether an address belongs to a trusted proxy CIDR.
+func (h *AuthHandler) isTrustedProxy(ip string) bool {
+	addr, err := netip.ParseAddr(ip)
 	if err != nil {
-		return r.RemoteAddr // Fallback to raw if not ip:port
+		return false
 	}
+
+	for _, prefix := range h.trustedProxyCIDRs {
+		if prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// remoteAddrIP extracts and validates the IP portion of a request RemoteAddr.
+func remoteAddrIP(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		if _, parseErr := netip.ParseAddr(remoteAddr); parseErr == nil {
+			return remoteAddr
+		}
+		return ""
+	}
+
+	if _, err := netip.ParseAddr(host); err != nil {
+		return ""
+	}
+
 	return host
+}
+
+// firstForwardedIP extracts the first syntactically valid X-Forwarded-For IP.
+func firstForwardedIP(header string) string {
+	first := strings.TrimSpace(strings.Split(header, ",")[0])
+	if first == "" {
+		return ""
+	}
+	if _, err := netip.ParseAddr(first); err != nil {
+		return ""
+	}
+	return first
 }

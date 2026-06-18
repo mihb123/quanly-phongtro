@@ -235,6 +235,8 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	err = h.invoiceService.RecalculateUnpaidInvoicesByRoom(r.Context(), managerID, id)
 	if err != nil {
 		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after room update", err)
+		writeError(w, http.StatusInternalServerError, "failed to recalculate invoices after room update")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, room, "")

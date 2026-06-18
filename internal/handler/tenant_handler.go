@@ -40,6 +40,52 @@ type updateTenantRequest struct {
 	IdentityCard *string `validate:"omitempty"`
 }
 
+type tenantResponse struct {
+	TenantID     string `json:"tenant_id"`
+	UserID       string `json:"user_id"`
+	RoomID       string `json:"room_id"`
+	RoomName     string `json:"room_name,omitempty"`
+	FullName     string `json:"full_name"`
+	Email        string `json:"email"`
+	Phone        string `json:"phone"`
+	CCCDPath     string `json:"cccd_path"`
+	IdentityCard string `json:"identity_card"`
+	ContractPath string `json:"contract_path"`
+	StartDate    string `json:"start_date"`
+	EndDate      string `json:"end_date,omitempty"`
+	Status       string `json:"status"`
+	ZaloUserID   string `json:"zalo_user_id,omitempty"`
+}
+
+// newTenantResponse shapes tenant output without exposing manager ownership fields.
+func newTenantResponse(tenant model.FullInfoTenant) tenantResponse {
+	return tenantResponse{
+		TenantID:     tenant.TenantID,
+		UserID:       tenant.UserID,
+		RoomID:       tenant.RoomID,
+		RoomName:     tenant.RoomName,
+		FullName:     tenant.FullName,
+		Email:        tenant.Email,
+		Phone:        tenant.Phone,
+		CCCDPath:     tenant.CCCDPath,
+		IdentityCard: tenant.IdentityCard,
+		ContractPath: tenant.ContractPath,
+		StartDate:    tenant.StartDate,
+		EndDate:      tenant.EndDate,
+		Status:       tenant.Status,
+		ZaloUserID:   tenant.ZaloUserID,
+	}
+}
+
+// newTenantResponses maps tenant service results to external tenant responses.
+func newTenantResponses(tenants []model.FullInfoTenant) []tenantResponse {
+	responses := make([]tenantResponse, 0, len(tenants))
+	for _, tenant := range tenants {
+		responses = append(responses, newTenantResponse(tenant))
+	}
+	return responses
+}
+
 func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
@@ -111,19 +157,19 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	registerTenantInput := service.RegisterTenantInput{
-		ManagerID:          userID,
-		RoomID:             roomID,
-		FullName:           fullName,
-		Password:           password,
-		Phone:              phone,
-		Email:              email,
-		IdentityCard:       identityCard,
-		StartDate:          startDate,
-		CCCDFiles:          cccdFiles,
-		ContractFiles:      contractFiles,
+		ManagerID:     userID,
+		RoomID:        roomID,
+		FullName:      fullName,
+		Password:      password,
+		Phone:         phone,
+		Email:         email,
+		IdentityCard:  identityCard,
+		StartDate:     startDate,
+		CCCDFiles:     cccdFiles,
+		ContractFiles: contractFiles,
 	}
 
-	user, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
+	tenant, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrMaxTenans):
@@ -132,6 +178,9 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, service.ErrInvalidInput):
 			logger.Warn(r, http.StatusBadRequest, "invalid input", err)
 			writeError(w, http.StatusBadRequest, "invalid input")
+		case errors.Is(err, model.ErrPhoneAlreadyExists):
+			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
 			logger.Error(r, http.StatusInternalServerError, "failed to register tenant", err)
 			writeError(w, http.StatusInternalServerError, "internal server error")
@@ -139,7 +188,7 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, user, "")
+	writeJSON(w, http.StatusCreated, newTenantResponse(*tenant), "")
 
 }
 
@@ -163,7 +212,7 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(w, http.StatusOK, listTenant, "")
+	writeJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
 }
 
 func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +235,7 @@ func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Reque
 		writeError(w, http.StatusInternalServerError, "internal server error")
 		return
 	}
-	writeJSON(w, http.StatusOK, listTenant, "")
+	writeJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
 
 }
 
@@ -248,14 +297,14 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	if v := r.FormValue("kept_cccd_paths"); v != "" {
 		in.KeptCCCDPaths = &v
 	} else if r.FormValue("kept_cccd_paths_empty") == "true" {
-        empty := ""
+		empty := ""
 		in.KeptCCCDPaths = &empty
 	}
 
 	if v := r.FormValue("kept_contract_paths"); v != "" {
 		in.KeptContractPaths = &v
 	} else if r.FormValue("kept_contract_paths_empty") == "true" {
-        empty := ""
+		empty := ""
 		in.KeptContractPaths = &empty
 	}
 
@@ -280,6 +329,9 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		case errors.Is(err, model.ErrUnauthorized):
 			logger.Warn(r, http.StatusForbidden, "manager does not own tenant", err)
 			writeError(w, http.StatusForbidden, "forbidden: you do not manage this tenant")
+		case errors.Is(err, model.ErrPhoneAlreadyExists):
+			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
+			writeError(w, http.StatusBadRequest, err.Error())
 		default:
 			logger.Error(r, http.StatusInternalServerError, "failed to update tenant", err)
 			writeError(w, http.StatusInternalServerError, "internal server error")
@@ -287,7 +339,7 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, updated, "tenant updated successfully")
+	writeJSON(w, http.StatusOK, newTenantResponse(*updated), "tenant updated successfully")
 }
 
 func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
@@ -322,4 +374,38 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, nil, "tenant deleted successfully")
+}
+
+// DownloadTenantFile serves a tenant upload after manager ownership is verified.
+func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	managerID, err := claims.GetSubject()
+	if err != nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	fileName := chi.URLParam(r, "*")
+	filePath, err := h.tenantService.ResolveTenantFilePath(r.Context(), managerID, fileName)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidInput):
+			writeError(w, http.StatusBadRequest, "invalid file path")
+		case errors.Is(err, model.ErrTenantNotFound), errors.Is(err, model.ErrUnauthorized):
+			writeError(w, http.StatusNotFound, "file not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to resolve tenant file", err)
+			writeError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	http.ServeFile(w, r, filePath)
 }

@@ -9,7 +9,7 @@ import (
 
 func TestNewGoogleSMTPSender(t *testing.T) {
 	sender := email.NewGoogleSMTPSender("smtp.gmail.com", "587", "user@test.com", "pass", "from@test.com", "Sender")
-	
+
 	if sender.Host != "smtp.gmail.com" {
 		t.Errorf("unexpected host")
 	}

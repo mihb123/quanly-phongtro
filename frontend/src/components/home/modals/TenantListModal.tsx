@@ -6,6 +6,7 @@ import { User, Plus, Trash2, Pencil, X, ExternalLink, FileIcon, ZoomIn, Download
 import type { Tenant } from '@/api/tenant'
 import type { Room } from '@/api/room'
 import { getFileName, isImagePath } from '@/utils/file'
+import { getProtectedFileObjectUrl, openProtectedFile } from '@/api/files'
 
 import { useTenantList } from '@/hooks/useTenantList'
 
@@ -14,9 +15,10 @@ interface TenantListModalProps {
   onClose: () => void
   onAdd: () => void
   onEdit: (tenant: Tenant) => void
+  onDataChange?: () => void
 }
 
-export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModalProps) {
+export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: TenantListModalProps) {
   const {
     tenants,
     isLoading: isDeleting,
@@ -31,11 +33,13 @@ export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModa
 
   const onDelete = async (tenantId: string) => {
     await handleDeleteTenant(tenantId, room.id)
+    if (onDataChange) onDataChange()
     if (tenants.length <= 1) {
       onClose()
     }
   }
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -51,12 +55,30 @@ export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModa
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose, selectedImageUrl])
 
-  const handleFileClick = (path: string) => {
-    const fullUrl = `${import.meta.env.VITE_API_BASE_URL || ''}${path}`
-    if (isImagePath(path)) {
-      setSelectedImageUrl(fullUrl)
-    } else {
-      window.open(fullUrl, '_blank')
+  useEffect(() => {
+    return () => {
+      if (selectedImageUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(selectedImageUrl)
+      }
+    }
+  }, [selectedImageUrl])
+
+  const handleFileClick = async (path: string) => {
+    setLoadingFilePath(path)
+    try {
+      if (isImagePath(path)) {
+        const objectUrl = await getProtectedFileObjectUrl(path)
+        setSelectedImageUrl((current) => {
+          if (current?.startsWith('blob:')) URL.revokeObjectURL(current)
+          return objectUrl
+        })
+      } else {
+        await openProtectedFile(path)
+      }
+    } catch (error) {
+      console.error('Không tải được file tenant:', error)
+    } finally {
+      setLoadingFilePath(null)
     }
   }
 
@@ -149,20 +171,21 @@ export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModa
                                 <div className="flex items-center gap-1">
                                   <button
                                     onClick={() => handleFileClick(path)}
+                                    disabled={loadingFilePath === path}
                                     className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer"
                                     title={isImagePath(path) ? "Xem ảnh" : "Tải về"}
                                   >
                                     {isImagePath(path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5 cursor-pointer" />}
                                   </button>
-                                  <a
-                                    href={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download
-                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFileClick(path)}
+                                    disabled={loadingFilePath === path}
+                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                                    title="Mở file"
                                   >
                                     <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
+                                  </button>
                                 </div>
                               </div>
                             ))}
@@ -180,20 +203,21 @@ export function TenantListModal({ room, onClose, onAdd, onEdit }: TenantListModa
                                 <div className="flex items-center gap-1">
                                   <button
                                     onClick={() => handleFileClick(path)}
+                                    disabled={loadingFilePath === path}
                                     className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer"
                                     title={isImagePath(path) ? "Xem ảnh" : "Tải về"}
                                   >
                                     {isImagePath(path) ? <ZoomIn className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                                   </button>
-                                  <a
-                                    href={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    download
-                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFileClick(path)}
+                                    disabled={loadingFilePath === path}
+                                    className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors cursor-pointer disabled:opacity-50"
+                                    title="Mở file"
                                   >
                                     <ExternalLink className="w-3.5 h-3.5" />
-                                  </a>
+                                  </button>
                                 </div>
                               </div>
                             ))}

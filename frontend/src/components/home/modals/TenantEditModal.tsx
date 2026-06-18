@@ -12,12 +12,14 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { getFileName, isImagePath } from '@/utils/file'
+import { getProtectedFileObjectUrl } from '@/api/files'
+import { ProtectedFileImage } from './ProtectedFileImage'
 
 const tenantSchema = z.object({
   fullName: z.string().min(1, 'Bắt buộc'),
-  phone: z.string().min(1, 'Bắt buộc'),
+  phone: z.string().optional().or(z.literal('')),
   email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
-  identityCard: z.string().min(1, 'Bắt buộc'),
+  identityCard: z.string().optional().or(z.literal('')),
   startDate: z.string(),
 })
 
@@ -39,6 +41,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
   const [existingCccdPaths, setExistingCccdPaths] = useState<string[]>([])
   const [existingContractPaths, setExistingContractPaths] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loadingFilePath, setLoadingFilePath] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors } } = useForm<TenantFormValues>({
     resolver: zodResolver(tenantSchema),
@@ -70,15 +73,38 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [onClose, selectedImageUrl])
 
+  useEffect(() => {
+    return () => {
+      if (selectedImageUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(selectedImageUrl)
+      }
+    }
+  }, [selectedImageUrl])
+
+  const handleExistingImagePreview = async (path: string) => {
+    setLoadingFilePath(path)
+    try {
+      const objectUrl = await getProtectedFileObjectUrl(path)
+      setSelectedImageUrl((current) => {
+        if (current?.startsWith('blob:')) URL.revokeObjectURL(current)
+        return objectUrl
+      })
+    } catch (error) {
+      console.error('Không tải được file tenant:', error)
+    } finally {
+      setLoadingFilePath(null)
+    }
+  }
+
   const onSubmit = async (values: TenantFormValues) => {
     setIsSubmitting(true)
     try {
       const formData = new FormData()
       formData.append('room_id', room.id)
       formData.append('full_name', values.fullName)
-      formData.append('phone', values.phone)
+      formData.append('phone', values.phone || '')
       if (values.email) formData.append('email', values.email)
-      formData.append('identity_card', values.identityCard)
+      formData.append('identity_card', values.identityCard || '')
       formData.append('start_date', values.startDate)
       
       cccdFiles.forEach(f => formData.append('cccd_file', f))
@@ -89,8 +115,12 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
       formData.append('kept_contract_paths', existingContractPaths.join(','))
       formData.append('kept_contract_paths_empty', existingContractPaths.length === 0 ? 'true' : 'false')
 
-      await updateTenant(tenant.id, formData)
-      onSuccess()
+      const res = await updateTenant(tenant.id, formData)
+      if (res.success) {
+        onSuccess()
+      } else {
+        alert(res.error || "Lỗi khi sửa người thuê!")
+      }
     } catch {
       alert("Lỗi khi sửa người thuê!")
     } finally {
@@ -130,7 +160,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                   {errors.fullName && <span className="text-destructive text-xs">{errors.fullName.message}</span>}
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <Label>Số điện thoại <span className="text-destructive">*</span></Label>
+                  <Label>Số điện thoại</Label>
                   <Input {...register('phone')} placeholder="09..." className="border-border bg-background" />
                   {errors.phone && <span className="text-destructive text-xs">{errors.phone.message}</span>}
                 </div>
@@ -140,7 +170,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                   {errors.email && <span className="text-destructive text-xs">{errors.email.message}</span>}
                 </div>
                 <div className="space-y-2 col-span-2 md:col-span-1">
-                  <Label>Căn cước công dân <span className="text-destructive">*</span></Label>
+                  <Label>Căn cước công dân</Label>
                   <Input {...register('identityCard')} placeholder="12 số CCCD" className="border-border bg-background" />
                   {errors.identityCard && <span className="text-destructive text-xs">{errors.identityCard.message}</span>}
                 </div>
@@ -172,7 +202,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                                   <span className="text-[10px] font-semibold text-primary truncate">{getFileName(path)}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                  <button type="button" onClick={() => handleExistingImagePreview(path)} disabled={loadingFilePath === path} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer disabled:opacity-50" title="Xem trước">
                                     <Eye className="w-4 h-4" />
                                   </button>
                                   <button type="button" onClick={() => setExistingCccdPaths(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
@@ -183,9 +213,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                               {isImagePath(path) ? (
                                 <div
                                   className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                  onClick={() => handleExistingImagePreview(path)}
                                 >
-                                  <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                  <ProtectedFileImage path={path} alt={getFileName(path)} className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5" />
                                   </div>
@@ -254,7 +284,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {isImagePath(path) && (
-                                    <button type="button" onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                    <button type="button" onClick={() => handleExistingImagePreview(path)} disabled={loadingFilePath === path} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer disabled:opacity-50" title="Xem trước">
                                       <Eye className="w-4 h-4" />
                                     </button>
                                   )}
@@ -266,9 +296,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                               {isImagePath(path) ? (
                                 <div
                                   className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(`${import.meta.env.VITE_API_BASE_URL || ''}${path}`)}
+                                  onClick={() => handleExistingImagePreview(path)}
                                 >
-                                  <img src={`${import.meta.env.VITE_API_BASE_URL || ''}${path}`} className="w-full h-full object-cover" />
+                                  <ProtectedFileImage path={path} alt={getFileName(path)} className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5" />
                                   </div>

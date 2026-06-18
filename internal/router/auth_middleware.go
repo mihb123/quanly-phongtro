@@ -8,7 +8,12 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
-func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handler {
+func authMiddleware(tokens *security.JWTProvider, dpopVerificationURL ...string) func(http.Handler) http.Handler {
+	baseURL := ""
+	if len(dpopVerificationURL) > 0 {
+		baseURL = strings.TrimRight(dpopVerificationURL[0], "/")
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var token string
@@ -52,9 +57,7 @@ func authMiddleware(tokens *security.JWTProvider) func(http.Handler) http.Handle
 					return
 				}
 
-				htu := r.URL.Path
-
-				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, htu, token)
+				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, baseURL), token)
 				if err != nil || derivedJkt != jkt {
 					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof", err)
 					writeError(w, http.StatusUnauthorized, "invalid DPoP proof")
@@ -72,7 +75,7 @@ func requireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			claims, ok := security.ClaimsFromContext(r.Context())
-			if !ok {
+			if !ok || claims == nil {
 				logger.Warn(r, http.StatusUnauthorized, "missing claims in context", nil)
 				writeError(w, http.StatusUnauthorized, "unauthorized")
 				return

@@ -222,10 +222,10 @@ function HouseTenantTable({ house }: { house: House }) {
           room={selectedRoom}
           initialView={modalView}
           initialEditingTenant={editingTenant}
-          onClose={() => {
+          onClose={(changed?: boolean) => {
             setSelectedRoom(null)
             setEditingTenant(null)
-            fetchTenants(house.id) // refresh list after closing modal
+            if (changed) fetchTenants(house.id) // refresh list after closing modal if data changed
           }}
         />
       )}

@@ -85,7 +85,7 @@ func TestZaloCronService_RunNow(t *testing.T) {
 			},
 		},
 		{
-			name: "GetAllUsersWithZaloToken returns error",
+			name:  "GetAllUsersWithZaloToken returns error",
 			users: nil,
 			buildStubs: func() {
 				userRepo.EXPECT().GetAllUsersWithZaloToken(gomock.Any()).Return(nil, errors.New("db error"))
@@ -132,13 +132,13 @@ func TestZaloCronService_StartStop(t *testing.T) {
 	key := []byte("12345678901234567890123456789012")
 
 	svc := service.NewZaloCronService(zaloClient, userRepo, key)
-	
+
 	// Start in a goroutine
 	go svc.Start()
-	
+
 	// Sleep a bit to let it start
 	time.Sleep(50 * time.Millisecond)
-	
+
 	// Stop it
 	svc.Stop()
 }

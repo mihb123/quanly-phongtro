@@ -66,8 +66,9 @@ func (s *RoomServiceImpl) CreateRoom(ctx context.Context, room *model.Room, mana
 	if strings.TrimSpace(managerID) == "" {
 		return ErrInvalidManagerID
 	}
-	//skip checkownership as getByID already does
-	s.houseRepo.GetByID(ctx, room.HouseID, managerID)
+	if _, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID); err != nil {
+		return err
+	}
 	return s.roomRepo.CreateRoom(ctx, room)
 }
 

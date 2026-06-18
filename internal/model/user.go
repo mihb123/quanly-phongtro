@@ -19,14 +19,15 @@ const (
 )
 
 type User struct {
-	ID           string    `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	Role         Role      `json:"role"`
-	FullName     string    `json:"full_name"`
-	Phone        string    `json:"phone"`
+	ID                string    `json:"id"`
+	Email             string    `json:"email"`
+	PasswordHash      string    `json:"-"`
+	Role              Role      `json:"role"`
+	FullName          string    `json:"full_name"`
+	Phone             string    `json:"phone"`
 	IsActivated       bool      `json:"is_activated"`
 	ZaloBotToken      *string   `json:"zalo_bot_token"`
+	ZaloWebhookSecret *string   `json:"-"`
 	IsZaloBotActive   bool      `json:"is_zalo_bot_active"`
 	ZaloUserID        *string   `json:"zalo_user_id"`
 	CreatedAt         time.Time `json:"created_at"`
@@ -56,6 +57,7 @@ type UpdateUserInput struct {
 	PasswordHash      *string
 	IsActivated       *bool
 	ZaloBotToken      *string
+	ZaloWebhookSecret *string
 	IsZaloBotActive   *bool
 	ZaloUserID        *string
 }

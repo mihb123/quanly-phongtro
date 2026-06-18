@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type CreateInvoiceInput struct {
@@ -31,6 +32,7 @@ type InvoiceService interface {
 	RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error
 	RecalculateUnpaidInvoicesByHouse(ctx context.Context, managerID, houseID string) error
 	DeleteInvoice(ctx context.Context, managerID, invoiceID string) error
+	ResolveTransactionImagePath(ctx context.Context, managerID, requestPath string) (string, error)
 }
 
 type InvoiceServiceImpl struct {
@@ -38,14 +40,16 @@ type InvoiceServiceImpl struct {
 	roomRepo    model.RoomRepository
 	houseRepo   model.HouseRepository
 	tenantRepo  model.TenantRepository
+	eventBus    EventBus
 }
 
-func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository) InvoiceService {
+func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, eventBus EventBus) InvoiceService {
 	return &InvoiceServiceImpl{
 		invoiceRepo: invoiceRepo,
 		roomRepo:    roomRepo,
 		houseRepo:   houseRepo,
 		tenantRepo:  tenantRepo,
+		eventBus:    eventBus,
 	}
 }
 
@@ -137,17 +141,16 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		return nil, err
 	}
 
-	// For FIXED billing, indices are not meaningful — keep them equal so usage = 0
 	if house.ElectricityBillingType == "FIXED" {
 		input.NewElectricityIndex = oldElecIndex
 	} else if input.NewElectricityIndex < oldElecIndex {
-		return nil, model.ErrInvalidElectricityIndex
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex)
 	}
 
 	if house.WaterBillingType == "FIXED" {
 		input.NewWaterIndex = oldWaterIndex
 	} else if input.NewWaterIndex < oldWaterIndex {
-		return nil, model.ErrInvalidWaterIndex
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex)
 	}
 
 	roomFee := float64(room.Price)
@@ -216,7 +219,7 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 
 	if existingInvoice != nil {
 		if existingInvoice.Status == "PAID" {
-			return nil, errors.New("cannot edit a paid invoice")
+			return nil, model.ErrPaidInvoiceImmutable
 		}
 		invoice.ID = existingInvoice.ID
 		invoice.CreatedAt = existingInvoice.CreatedAt
@@ -229,6 +232,13 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: room.HouseID,
+			Period:  input.Period,
+		})
 	}
 
 	return s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoice.ID)
@@ -249,10 +259,17 @@ func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceI
 	}
 
 	if invoice.Status == "PAID" {
-		return nil, errors.New("invoice is already paid")
+		return nil, model.ErrInvoiceAlreadyPaid
 	}
 
-	return s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
+	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return res, err
 }
 
 func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error) {
@@ -262,10 +279,17 @@ func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoic
 	}
 
 	if invoice.Status == "UNPAID" {
-		return nil, errors.New("invoice is already unpaid")
+		return nil, model.ErrInvoiceAlreadyUnpaid
 	}
 
-	return s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
+	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return res, err
 }
 
 func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoiceID string) error {
@@ -275,10 +299,36 @@ func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoi
 	}
 
 	if invoice.Status == "PAID" {
-		return errors.New("cannot delete a paid invoice")
+		return model.ErrPaidInvoiceDelete
 	}
 
-	return s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
+	err = s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
+	if err == nil && s.eventBus != nil {
+		s.eventBus.Publish(EventInvoiceChanged, RevenueSummaryPayload{
+			HouseID: invoice.HouseID,
+			Period:  invoice.Period,
+		})
+	}
+	return err
+}
+
+// ResolveTransactionImagePath verifies invoice ownership before returning a local upload path.
+func (s *InvoiceServiceImpl) ResolveTransactionImagePath(ctx context.Context, managerID, requestPath string) (string, error) {
+	fileName, ok := uploadFileName(requestPath)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+
+	storedPath := "/uploads/transactions/" + fileName
+	if _, err := s.invoiceRepo.GetInvoiceByTransactionImagePath(ctx, managerID, storedPath); err != nil {
+		return "", err
+	}
+
+	filePath, ok := uploadFilePath("uploads/transactions", fileName)
+	if !ok {
+		return "", ErrInvalidInput
+	}
+	return filePath, nil
 }
 
 func (s *InvoiceServiceImpl) calculateUtilityFee(billingType, billingUnit string, defaultPrice float64, newIndex, oldIndex int, tenantCount int) (float64, error) {
@@ -318,7 +368,7 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 		// CreateInvoice acts as an upsert for the same room and period
 		_, err := s.CreateInvoice(ctx, managerID, input)
 		if err != nil {
-			fmt.Printf("recalculate invoice roomID=%s period=%s: %v\n", inv.RoomID, inv.Period, err)
+			logger.Error(nil, 0, fmt.Sprintf("recalculate invoice roomID=%s period=%s", inv.RoomID, inv.Period), err)
 		}
 	}
 	return nil
@@ -332,7 +382,7 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByHouse(ctx context.Contex
 	for _, room := range rooms {
 		err := s.RecalculateUnpaidInvoicesByRoom(ctx, managerID, room.ID)
 		if err != nil {
-			fmt.Printf("recalculate unpaid invoices for roomID=%s: %v\n", room.ID, err)
+			logger.Error(nil, 0, fmt.Sprintf("recalculate unpaid invoices for roomID=%s", room.ID), err)
 		}
 	}
 	return nil

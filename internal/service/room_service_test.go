@@ -61,6 +61,15 @@ func TestRoomService_CreateRoom(t *testing.T) {
 			},
 			wantErr: errDB,
 		},
+		{
+			name:      "House ownership error",
+			room:      &model.Room{HouseID: "house-1", Name: "Room 1"},
+			managerID: "manager-1",
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(nil, model.ErrHouseNotFound)
+			},
+			wantErr: model.ErrHouseNotFound,
+		},
 	}
 
 	for _, tt := range tests {

@@ -15,6 +15,7 @@ type House struct {
 	ID                      string    `json:"id"`
 	ManagerID               string    `json:"manager_id"`
 	Name                    string    `json:"name"`
+	HouseCode               string    `json:"house_code"`
 	Address                 string    `json:"address"`
 	DefaultElectricityPrice float64   `json:"default_electricity_price"`
 	DefaultWaterPrice       float64   `json:"default_water_price"`
@@ -36,6 +37,7 @@ type House struct {
 // UpdateHouseParams holds the full fields for a house update.
 type UpdateHouseParams struct {
 	Name                    string
+	HouseCode               string
 	Address                 string
 	DefaultElectricityPrice float64
 	DefaultWaterPrice       float64
@@ -55,6 +57,7 @@ type UpdateHouseParams struct {
 type HouseRepository interface {
 	CreateHouse(ctx context.Context, house *House) error
 	GetByID(ctx context.Context, id, managerID string) (*House, error)
+	GetHouseByCode(ctx context.Context, managerID, houseCode string) (*House, error)
 	ListHouseByManagerID(ctx context.Context, managerID string, limit, offset int, search string) ([]House, error)
 	UpdateHouse(ctx context.Context, id, managerID string, params UpdateHouseParams) (*House, error)
 	DeleteHouse(ctx context.Context, id, managerID string) error

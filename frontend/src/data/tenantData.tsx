@@ -6,8 +6,8 @@ interface TenantDataState {
   tenantsByHouse: Record<string, Tenant[]>
   loadingByHouse: Record<string, boolean>
   fetchTenants: (houseId: string) => Promise<void>
-  createTenant: (payload: FormData) => Promise<boolean>
-  updateTenant: (id: string, payload: FormData) => Promise<boolean>
+  createTenant: (payload: FormData) => Promise<{success: boolean, error?: string}>
+  updateTenant: (id: string, payload: FormData) => Promise<{success: boolean, error?: string}>
   deleteTenant: (id: string) => Promise<boolean>
   getTenantsByRoom: (roomId: string) => Promise<Tenant[]>
 }
@@ -66,8 +66,9 @@ export const useTenantStore = create<TenantDataState>((set) => ({
         }))
       }
       useRoomStore.getState().refreshCurrentRooms()
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to create tenant", err)
       if (houseId) {
         set(state => ({
@@ -77,7 +78,7 @@ export const useTenantStore = create<TenantDataState>((set) => ({
           }
         }))
       }
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi thêm người thuê!" }
     }
   },
   updateTenant: async (id: string, payload: FormData) => {
@@ -117,8 +118,9 @@ export const useTenantStore = create<TenantDataState>((set) => ({
           }
         }))
       }
-      return true
-    } catch (err) {
+      return { success: true }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to update tenant", err)
       if (foundHouseId && previousTenant) {
         const hId = foundHouseId;
@@ -129,7 +131,7 @@ export const useTenantStore = create<TenantDataState>((set) => ({
           }
         }))
       }
-      return false
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi sửa người thuê!" }
     }
   },
   deleteTenant: async (id: string) => {
