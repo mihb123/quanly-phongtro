@@ -15,141 +15,45 @@ jobs:
 
     env:
       SERVICE_NAME: quanly-phongtro-api
+      PROJECT_DIR: ${{ vars.PROJECT_DIR }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_GROUP: ${{ vars.DEPLOY_GROUP }}
+      FRONTEND_DIR: ${{ vars.FRONTEND_DIR }}
+      NGINX_SITE_NAME: ${{ vars.NGINX_SITE_NAME }}
+      NGINX_AVAILABLE_DIR: ${{ vars.NGINX_AVAILABLE_DIR }}
+      NGINX_ENABLED_DIR: ${{ vars.NGINX_ENABLED_DIR }}
+
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      # ── Phase 0: Khởi tạo biến môi trường ──────────────
-      - name: Set project directory
-        run: |
-          echo "PROJECT_DIR=$HOME/quanly-phongtro" >> $GITHUB_ENV
-          echo "/usr/local/go/bin" >> $GITHUB_PATH
-          echo "$HOME/go/bin" >> $GITHUB_PATH
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: false
 
-      # ── Phase 1: Pull source code ──────────────────────────
-      - name: Pull latest source code
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 1] Pull source code"
-          cd $PROJECT_DIR
-          git fetch origin develop
-          git reset --hard origin/develop
+      - name: Set deployment variables
+        run: bash "$GITHUB_WORKSPACE/scripts/deploy/set-env.sh"
 
-      # ── Phase 2: Lint & Test ───────────────────────────
+      - name: Prepare source code
+        run: bash "$GITHUB_WORKSPACE/scripts/deploy/prepare-source.sh"
+
       - name: Lint, generate mocks and run tests
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 2] Lint & Test"
-          cd $PROJECT_DIR
-          go mod download
-          go install go.uber.org/mock/mockgen@latest
-          make mocks
-          go vet ./...
-          go test -v -cover ./internal/security ./internal/service ./internal/handler
+        run: bash "$PROJECT_DIR/scripts/deploy/lint-test.sh"
 
-      # ── Phase 3: Build ─────────────────────────────────
       - name: Build backend and frontend
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 3] Build"
-          cd $PROJECT_DIR
-          
-          echo "Building backend..."
-          go build -o ${SERVICE_NAME}.new ./cmd/api
-          
-          echo "Building frontend..."
-          cd $PROJECT_DIR/frontend
-          if command -v pnpm &> /dev/null; then
-            pnpm install --frozen-lockfile
-            pnpm lint
-            pnpm build
-          else
-            npm install
-            npm run lint
-            npm run build
-          fi
+        run: bash "$PROJECT_DIR/scripts/deploy/build.sh"
 
-      # ── Phase 4: Backup (trước khi deploy) ─────────────
       - name: Backup database, binary, and frontend
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 4] Backup"
-          cd $PROJECT_DIR
-          chmod +x scripts/backup-db.sh
-          ./scripts/backup-db.sh
+        run: bash "$PROJECT_DIR/scripts/deploy/backup.sh"
 
-          TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-          GIT_HASH=$(git rev-parse --short HEAD~1 2>/dev/null || echo "unknown")
-          
-          mkdir -p backup/binary
-          if [[ -f "$SERVICE_NAME" ]]; then
-            cp "$SERVICE_NAME" "backup/binary/${SERVICE_NAME}_${TIMESTAMP}_${GIT_HASH}"
-            echo "✅ Backup binary thành công"
-          else
-            echo "⚠️  Không tìm thấy binary hiện tại, bỏ qua backup"
-          fi
-
-          mkdir -p backup/frontend
-          FRONTEND_SRC="/var/www/quanly-phongtro"
-          if [[ -d "$FRONTEND_SRC" ]] && [[ -n "$(ls -A "$FRONTEND_SRC" 2>/dev/null)" ]]; then
-            tar -czf "backup/frontend/frontend_${TIMESTAMP}_${GIT_HASH}.tar.gz" -C "$FRONTEND_SRC" .
-            echo "✅ Backup frontend thành công"
-          else
-            echo "⚠️  Thư mục frontend rỗng hoặc không tồn tại, bỏ qua backup"
-          fi
-
-      # ── Phase 5: Database (chỉ chạy sau khi build OK) ──
       - name: Run database migrations and seed
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 5] Database migrations & seed"
-          cd $PROJECT_DIR
-          set -a && source .env && set +a
-          $HOME/go/bin/migrate -path migrations -database "$POSTGRES_DSN" up
-          go run ./cmd/seed/main.go
+        run: bash "$PROJECT_DIR/scripts/deploy/database.sh"
 
-      # ── Phase 6: Deploy ────────────────────────────────
       - name: Deploy backend, frontend, and nginx
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 6] Deploy"
-          cd $PROJECT_DIR
-          
-          if [[ -f "${SERVICE_NAME}.new" ]]; then
-            mv ${SERVICE_NAME}.new $SERVICE_NAME
-          elif [[ -f "$SERVICE_NAME" ]]; then
-            echo "Không tìm thấy ${SERVICE_NAME}.new, dùng binary hiện có"
-          else
-            echo "Không tìm thấy binary để deploy"
-            exit 1
-          fi
+        run: bash "$PROJECT_DIR/scripts/deploy/apply.sh"
 
-          chmod +x $SERVICE_NAME
-          sudo /usr/bin/cp $PROJECT_DIR/.github/systemd/${SERVICE_NAME}.service /etc/systemd/system/${SERVICE_NAME}.service
-          sudo /usr/bin/systemctl daemon-reload
-          sudo /usr/bin/systemctl enable $SERVICE_NAME
-          sudo /usr/bin/systemctl restart $SERVICE_NAME
-          sleep 2
-          sudo /usr/bin/systemctl status $SERVICE_NAME --no-pager
-
-          sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-available/quanly-phongtro
-          sudo /usr/bin/cp $PROJECT_DIR/nginx.conf /etc/nginx/sites-enabled/quanly-phongtro
-          sudo /usr/sbin/nginx -t
-
-          sudo /usr/bin/cp -aT $PROJECT_DIR/frontend/dist /var/www/quanly-phongtro
-          
-          sudo /usr/bin/systemctl reload nginx
-
-      # ── Phase 7: Cleanup backups cũ ────────────────────
       - name: Cleanup old backups
-        run: |
-          source $PROJECT_DIR/scripts/setup-trap.sh "[Phase 7] Cleanup backups cũ"
-          cd $PROJECT_DIR
-          MAX_BACKUPS=5
-          for dir in backup/binary backup/frontend; do
-            if [[ -d "$dir" ]]; then
-              FILE_COUNT=$(find "$dir" -maxdepth 1 -type f | wc -l)
-              if [[ "$FILE_COUNT" -gt "$MAX_BACKUPS" ]]; then
-                DELETE_COUNT=$((FILE_COUNT - MAX_BACKUPS))
-                find "$dir" -maxdepth 1 -type f -printf '%T@ %p\n' \
-                  | sort -n \
-                  | head -n "$DELETE_COUNT" \
-                  | awk '{print $2}' \
-                  | xargs rm -f
-                echo "🗑️  Đã xoá $DELETE_COUNT bản backup cũ trong $dir"
-              fi
-            fi
-          done
-          bash $PROJECT_DIR/scripts/notify-telegram.sh "🚀 Toàn bộ quá trình Deploy hoàn tất!"
+        run: bash "$PROJECT_DIR/scripts/deploy/cleanup.sh"

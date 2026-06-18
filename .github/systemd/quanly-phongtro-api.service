@@ -1,14 +1,15 @@
 [Unit]
 Description=QuanLyPhongTro API Backend
-After=network.target postgresql.service
+After=network-online.target postgresql.service
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=dell
-Group=dell
-WorkingDirectory=/home/dell/quanly-phongtro
-EnvironmentFile=/home/dell/quanly-phongtro/.env
-ExecStart=/home/dell/quanly-phongtro/quanly-phongtro-api
+User=__DEPLOY_USER__
+Group=__DEPLOY_GROUP__
+WorkingDirectory=__PROJECT_DIR__
+EnvironmentFile=__PROJECT_DIR__/.env
+ExecStart=__PROJECT_DIR__/quanly-phongtro-api
 Restart=on-failure
 RestartSec=5
 
