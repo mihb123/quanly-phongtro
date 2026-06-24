@@ -28,9 +28,16 @@ Cơ chế này "trói" (bind) token vào một thiết bị cụ thể. Dù hack
 ## 3. Luồng Hoạt Động (Workflow)
 
 ### Bước 1: Khởi Tạo Khóa Tại Frontend (Trình duyệt/App)
-Khi người dùng mở ứng dụng, Frontend sẽ tự động tạo một cặp khóa (Public/Private Key).
-- **Private Key:** Được Frontend giấu kín (ví dụ: dùng `crypto.subtle.generateKey` và lưu trong bộ nhớ tạm hoặc IndexedDB không thể trích xuất (non-extractable)).
-- **Public Key:** Được chuyển thành chuẩn **JWK** để đính kèm vào các DPoP Proof.
+Khi người dùng mở ứng dụng, Frontend (cụ thể trong `frontend/src/utils/dpop.tsx`) sẽ tự động tạo một cặp khóa thuật toán ECDSA P-256 thông qua Web Crypto API.
+
+**Cách Frontend lưu trữ và bảo vệ Private Key:**
+- **Lưu trữ ở đâu?** Khóa được lưu trữ tại **IndexedDB** của trình duyệt (sử dụng thư viện `idb-keyval`). IndexedDB được bảo vệ bởi cơ chế **Same-Origin Policy**, nghĩa là các trang web khác (domain khác) hoàn toàn không thể truy cập vào kho chứa khóa này.
+- **Làm sao để không bị đánh cắp?** Điểm mấu chốt là khi khởi tạo khóa bằng `window.crypto.subtle.generateKey`, Frontend đã thiết lập tham số `extractable = false`.
+  - Thiết lập này ra lệnh cho trình duyệt: **"Tuyệt đối không cho phép bất kỳ mã lệnh nào đọc được dữ liệu gốc (raw bytes) của Private Key"**.
+  - Nếu ứng dụng chẳng may bị dính lỗ hổng **XSS (Cross-Site Scripting)**, hacker có thể chạy mã JS độc hại để truy cập IndexedDB, nhưng chúng chỉ lấy ra được một đối tượng `CryptoKey` dạng tham chiếu.
+  - Hacker có thể xài đối tượng này để ký request *ngay lúc đó* trên trình duyệt của nạn nhân, nhưng **không thể trích xuất (export)** để mang Private Key về máy của chúng. Khi nạn nhân đóng trình duyệt, hacker mất quyền kiểm soát. Đây là lớp khiên cực kỳ mạnh mẽ bảo vệ khóa ngay cả khi ứng dụng có lỗ hổng.
+
+- **Public Key:** Ngược lại với Private Key, khóa công khai được chuyển thành định dạng chuẩn **JWK** và thoải mái đính kèm vào các DPoP Proof để gửi lên Backend xác thực.
 
 ### Bước 2: Đăng Nhập / Đăng Ký (Login/Register)
 1. **Frontend:** 
@@ -139,6 +146,6 @@ Mỗi lần người dùng Login, hệ thống tạo một phiên bản (session
 ## 6. Tổng Kết
 
 Nhờ DPoP, bảo mật của dự án được nâng lên một tầm cao mới:
-1. **Chống trộm Token (Token Theft):** Token bị lộ cũng vô dụng nếu không có Private Key nằm sâu trong thiết bị.
+1. **Chống trộm Token (Token Theft):** Token (`access_token` hay `refresh_token`) bị lộ cũng vô dụng. Private Key được khóa chặt trong thiết bị dưới dạng `non-extractable`, hacker dù khai thác được XSS cũng không thể lấy cắp (export) Private Key mang sang thiết bị khác sử dụng.
 2. **Chống Replay Attack:** Hacker chép lại cả request hợp lệ cũng thất bại, vì mỗi DPoP proof chứa một ID (`jti`) chỉ xài được 1 lần, và có thời gian sống (`iat`) ngắn ngủi.
 3. **Quản lý thiết bị minh bạch:** Quản trị được thông tin trình duyệt, IP, mang lại cảm giác an toàn và giống các hệ thống lớn (Google, Facebook).

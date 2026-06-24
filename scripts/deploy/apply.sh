@@ -71,9 +71,20 @@ restart_backend_service() {
 # install_nginx_config renders the configured frontend root into nginx.
 install_nginx_config() {
   local nginx_config
+  local app_url="quanly-phongtro.mvpc.site"
+
+  if [[ -f "$PROJECT_DIR/.env" ]]; then
+    local env_app_url
+    env_app_url=$(grep -E '^APP_URL=' "$PROJECT_DIR/.env" | cut -d '=' -f 2- | tr -d '"'\'' ' || true)
+    if [[ -n "$env_app_url" ]]; then
+      app_url="$env_app_url"
+    fi
+  fi
 
   nginx_config="$(mktemp)"
-  sed -E "s#^[[:space:]]*root[[:space:]]+[^;]+;#    root $(printf '%s' "$FRONTEND_DIR" | sed 's/[#&]/\\&/g');#" \
+  sed -E \
+    -e "s#^[[:space:]]*root[[:space:]]+[^;]+;#    root $(printf '%s' "$FRONTEND_DIR" | sed 's/[#&]/\\&/g');#" \
+    -e "s#^[[:space:]]*server_name[[:space:]]+[^;]+;#    server_name $(printf '%s' "$app_url" | sed 's/[#&]/\\&/g');#" \
     "$PROJECT_DIR/nginx.conf" > "$nginx_config"
 
   run_sudo "$MKDIR_CMD" -p "$NGINX_AVAILABLE_DIR" "$NGINX_ENABLED_DIR"
