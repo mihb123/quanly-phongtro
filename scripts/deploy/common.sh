@@ -50,12 +50,12 @@ print_sudo_fix() {
 
   current_user="$(id -un)"
   cat <<EOF
-Sudo khong chay duoc trong GitHub Actions cho user '$current_user'.
-Chay mot lan tren server bang user co quyen sudo:
+Sudo cannot run in GitHub Actions for user '$current_user'.
+Run once on the server with a sudo user:
   sudo visudo
-Them dong sau:
+Add the following line:
   $current_user ALL=(root) NOPASSWD: $SUDOERS_COMMANDS
-Sau do kiem tra lai:
+Then check again:
   sudo -l -U $current_user
 EOF
 }

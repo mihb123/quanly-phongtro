@@ -2,7 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/common.sh"
-start_deploy_step "[Phase 7] Cleanup backups cu"
+start_deploy_step "[Phase 7] Cleanup old backups"
 
 MAX_BACKUPS=5
 for dir in backup/binary backup/frontend; do
@@ -15,9 +15,9 @@ for dir in backup/binary backup/frontend; do
         | head -n "$DELETE_COUNT" \
         | awk '{print $2}' \
         | xargs rm -f
-      echo "Da xoa $DELETE_COUNT ban backup cu trong $dir"
+      echo "Deleted $DELETE_COUNT old backups in $dir"
     fi
   fi
 done
 
-bash "$PROJECT_DIR/scripts/notify-telegram.sh" "Toan bo qua trinh Deploy hoan tat!"
+bash "$PROJECT_DIR/scripts/notify-telegram.sh" "Entire deployment process completed successfully!"

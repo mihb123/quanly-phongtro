@@ -33,9 +33,9 @@ activate_backend_binary() {
   if [[ -f "${SERVICE_NAME}.new" ]]; then
     mv "${SERVICE_NAME}.new" "$SERVICE_NAME"
   elif [[ -f "$SERVICE_NAME" ]]; then
-    echo "Khong tim thay ${SERVICE_NAME}.new, dung binary hien co"
+    echo "Could not find ${SERVICE_NAME}.new, using existing binary"
   else
-    echo "Khong tim thay binary de deploy"
+    echo "Could not find binary to deploy"
     return 1
   fi
 
