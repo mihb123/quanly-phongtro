@@ -2,15 +2,14 @@
 
 A full-stack property management application with a Go backend and a React frontend.
 
-## Tính năng chính
+## Main Features
 
-- **Xác thực và phân quyền:** đăng ký, đăng nhập, refresh token, xác minh email bằng OTP, quản lý thông tin cá nhân và phân quyền theo vai trò manager/tenant.
-- **Quản lý nhà trọ và phòng:** tạo, cập nhật, xóa nhà/phòng; cấu hình giá thuê, điện, nước, wifi, gửi xe, dịch vụ và các khoản phụ thu theo từng nhà hoặc từng phòng.
-- **Quản lý khách thuê:** đăng ký khách thuê theo phòng, cập nhật hồ sơ, lưu thông tin CCCD/hợp đồng và tra cứu khách thuê theo phòng hoặc theo nhà.
-- **Quản lý hóa đơn:** tạo hóa đơn tiền phòng hằng tháng, tính điện nước/dịch vụ/phụ thu/giảm giá, theo dõi trạng thái thanh toán, lưu ảnh giao dịch và xuất ảnh hóa đơn.
-- **Doanh thu và chi phí vận hành:** ghi nhận chi phí theo kỳ, tổng hợp doanh thu, tổng chi và lợi nhuận theo từng nhà trọ. Xem thêm [house_cost_implementation_plan.md](house_cost_implementation_plan.md).
-- **Tích hợp Zalo và PayOS:** cấu hình bot/webhook, gửi hóa đơn qua Zalo, tạo link/QR thanh toán PayOS và cập nhật trạng thái hóa đơn từ webhook. Xem thêm [payos-plan.md](payos-plan.md).
-- **Bảo mật API:** JWT kết hợp DPoP proof, cookie/session handling, bcrypt password hashing và kiểm soát quyền truy cập trên các endpoint quản trị. Xem thêm [docs/security_dpop.md](docs/security_dpop.md) và [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+- **Authentication & Security:** Registration, login, refresh tokens, OTP-based email verification, and profile management with RBAC (manager/tenant roles). Secured via JWT with DPoP proofs, secure HTTP-only cookies, bcrypt password hashing, and AES-256 encryption for application secrets and bot tokens. Includes GeoIP and Geocoding integration for tracking. See [Documents/feature/security_dpop.md](Documents/feature/security_dpop.md).
+- **House & Room Management:** Complete CRUD operations for houses and rooms. Flexible configuration for rent prices, electricity, water, Wi-Fi, parking, and custom services/surcharges at both house and room levels.
+- **Tenant Management:** Room-based tenant registration, profile updates, storage of ID cards (CCCD) and contracts, along with comprehensive tenant search by room or house.
+- **Invoice & Payment Processing:** Automated monthly room invoicing encompassing utilities, services, surcharges, and discounts. Features include payment status tracking, transaction image storage, and dynamic invoice image generation.
+- **Revenue & Operating Costs:** Periodic expense recording and automated asynchronous aggregation of revenue, expenses, and profits per house using event-driven background workers (`EventBus` + `RevenueWorker`).
+- **Zalo & PayOS Integrations:** Automated payment links/QR code generation via PayOS with webhook-driven status updates. Deep Zalo integration featuring bot configurations, webhook handling, sending invoices directly via Zalo, Zalo bot commands (creating and updating invoices via chat), and a background cron service for active token health checks. See [Documents/feature/zalo_bot_feature.md](Documents/feature/zalo_bot_feature.md) and [Documents/feature/zalo_automation_mark_paid_invoice.md](Documents/feature/zalo_automation_mark_paid_invoice.md).
 
 ## Project Structure
 
