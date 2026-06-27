@@ -110,6 +110,10 @@ func New(
 				r.Get("/providers/payos/config", paymentHandler.GetPayOSConfig)
 				r.Post("/providers/payos/config", paymentHandler.SavePayOSConfig)
 				r.Delete("/providers/payos/config", paymentHandler.DeletePayOSConfig)
+				r.Get("/providers/sepay/config", paymentHandler.GetSePayConfig)
+				r.Post("/providers/sepay/config", paymentHandler.SaveSePayConfig)
+				r.Delete("/providers/sepay/config", paymentHandler.DeleteSePayConfig)
+				r.Post("/providers/sepay/reconcile", paymentHandler.ReconcileSePay)
 			})
 		})
 		r.Route("/api/v1/payos", func(r chi.Router) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -12,8 +13,10 @@ import (
 
 type PaymentService interface {
 	CreatePaymentLinkForInvoice(ctx context.Context, managerID, provider string, invoice *model.InvoiceWithRoom, tenantName string) (*model.InvoicePaymentLink, error)
+	CreatePreferredPaymentLinkForInvoice(ctx context.Context, managerID string, invoice *model.InvoiceWithRoom, tenantName string) (*model.InvoicePaymentLink, error)
 	CancelPaymentLink(ctx context.Context, managerID, provider, providerOrderRef, reason string) error
-	HandleWebhook(ctx context.Context, provider, managerID string, body []byte) error
+	HandleWebhook(ctx context.Context, provider, managerID string, body []byte, headers http.Header) error
+	ProcessVerifiedTransaction(ctx context.Context, provider, managerID string, event *VerifiedPaymentEvent) error
 }
 
 type paymentRepository interface {
@@ -136,6 +139,15 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 	return paymentLink, nil
 }
 
+// CreatePreferredPaymentLinkForInvoice resolves the preferred provider and creates a payment link.
+func (s *paymentService) CreatePreferredPaymentLinkForInvoice(ctx context.Context, managerID string, invoice *model.InvoiceWithRoom, tenantName string) (*model.InvoicePaymentLink, error) {
+	provider, err := s.credentialService.ResolvePreferredProvider(ctx, managerID)
+	if err != nil {
+		return nil, err
+	}
+	return s.CreatePaymentLinkForInvoice(ctx, managerID, provider, invoice, tenantName)
+}
+
 // CancelPaymentLink cancels the remote provider link and marks the local link cancelled.
 func (s *paymentService) CancelPaymentLink(ctx context.Context, managerID, provider, providerOrderRef, reason string) error {
 	provider = normalizePaymentProvider(provider)
@@ -169,7 +181,7 @@ func (s *paymentService) CancelPaymentLink(ctx context.Context, managerID, provi
 }
 
 // HandleWebhook verifies, records, and applies a provider webhook event.
-func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID string, body []byte) error {
+func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID string, body []byte, headers http.Header) error {
 	provider = normalizePaymentProvider(provider)
 	providerAdapter, err := s.provider(provider)
 	if err != nil {
@@ -181,6 +193,7 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 	}
 	verifiedEvent, err := providerAdapter.VerifyWebhook(ctx, PaymentWebhookInput{
 		Body:        body,
+		Headers:     headers,
 		Credentials: credentials,
 	})
 	if errors.Is(err, ErrPaymentWebhookIgnored) {
@@ -194,6 +207,13 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 		return ErrPayOSVerifiedDataNil
 	}
 
+	return s.ProcessVerifiedTransaction(ctx, provider, managerID, verifiedEvent)
+}
+
+// ProcessVerifiedTransaction records a verified event idempotently, then settles the matched
+// invoice only when it is unsettled and fully paid. Shared by webhook handling and API v2
+// reconciliation, so it must stay source-agnostic.
+func (s *paymentService) ProcessVerifiedTransaction(ctx context.Context, provider, managerID string, verifiedEvent *VerifiedPaymentEvent) error {
 	exists, err := s.paymentRepo.CheckProviderEventExists(ctx, provider, verifiedEvent.ProviderOrderRef, verifiedEvent.TransactionReference)
 	if err != nil {
 		return fmt.Errorf("check event exists: %w", err)
@@ -213,6 +233,21 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 	}
 	if invoiceID == "" {
 		log.Printf("Unmatched %s transaction: %s", provider, verifiedEvent.ProviderOrderRef)
+		return nil
+	}
+
+	// Already-settled links are recorded for audit but never re-settled. This is the cross-source
+	// dedup guard: a webhook (integer id) and a reconciliation pull (UUID id) of the SAME bank
+	// transaction carry different transaction references, so the link status — not the id — is what
+	// prevents reconciliation from re-notifying an invoice a webhook already paid.
+	if paymentLink != nil && paymentLink.Status == model.PaymentLinkStatusPaid {
+		log.Printf("Already settled %s invoice %s; recorded transaction %s for audit only", provider, invoiceID, verifiedEvent.TransactionReference)
+		return nil
+	}
+
+	// Underpaid transactions are recorded for audit but must not settle the invoice.
+	if paymentLink != nil && verifiedEvent.Amount < paymentLink.Amount {
+		log.Printf("Underpaid %s transaction for invoice %s: received %d, expected %d", provider, invoiceID, verifiedEvent.Amount, paymentLink.Amount)
 		return nil
 	}
 
@@ -336,10 +371,14 @@ func normalizePaymentProvider(provider string) string {
 
 // paymentMethodForProvider maps provider keys to invoice payment method values.
 func paymentMethodForProvider(provider string) string {
-	if provider == model.PaymentProviderPayOS {
+	switch provider {
+	case model.PaymentProviderPayOS:
 		return model.PaymentMethodPayOS
+	case model.PaymentProviderSePay:
+		return model.PaymentMethodSePay
+	default:
+		return strings.ToUpper(provider)
 	}
-	return strings.ToUpper(provider)
 }
 
 // formatCurrency returns a simple VND amount string for chat notifications.

@@ -166,6 +166,26 @@ func (s fakePaymentCredentialService) DeletePayOSConfig(context.Context, string)
 	return nil
 }
 
+// GetSePayConfig is unused by payment service tests.
+func (s fakePaymentCredentialService) GetSePayConfig(context.Context, string, string) (SePayConfigStatus, error) {
+	return SePayConfigStatus{}, nil
+}
+
+// SaveSePayConfig is unused by payment service tests.
+func (s fakePaymentCredentialService) SaveSePayConfig(context.Context, string, SePayCredentials) error {
+	return nil
+}
+
+// DeleteSePayConfig is unused by payment service tests.
+func (s fakePaymentCredentialService) DeleteSePayConfig(context.Context, string) error {
+	return nil
+}
+
+// ResolvePreferredProvider defaults to PayOS for existing payment service tests.
+func (s fakePaymentCredentialService) ResolvePreferredProvider(context.Context, string) (string, error) {
+	return model.PaymentProviderPayOS, nil
+}
+
 // TestPayOSWebhookServiceProcessInvoicePayment verifies a matched PayOS payment marks the invoice paid.
 func TestPayOSWebhookServiceProcessInvoicePayment(t *testing.T) {
 	managerZaloID := "manager-zalo"
@@ -287,7 +307,7 @@ func TestPayOSWebhookServiceHandleWebhookVerifiesChecksumKey(t *testing.T) {
 		registry: NewPaymentProviderRegistry(NewPayOSProvider()),
 	}
 
-	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body); err != nil {
+	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body, nil); err != nil {
 		t.Fatalf("HandleWebhook() error = %v", err)
 	}
 	if paymentRepository.event == nil {
@@ -302,7 +322,7 @@ func TestPayOSWebhookServiceHandleWebhookVerifiesChecksumKey(t *testing.T) {
 		"api_key":      "api-key",
 		"checksum_key": "wrong-key",
 	}}
-	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body); err == nil {
+	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body, nil); err == nil {
 		t.Fatal("expected signature mismatch error, got nil")
 	}
 }
@@ -349,7 +369,7 @@ func TestPayOSWebhookServiceHandleWebhookDoesNotProcessOtherManagerLink(t *testi
 		registry: NewPaymentProviderRegistry(NewPayOSProvider()),
 	}
 
-	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body); err != nil {
+	if err := svc.HandleWebhook(context.Background(), model.PaymentProviderPayOS, "manager-1", body, nil); err != nil {
 		t.Fatalf("HandleWebhook() error = %v", err)
 	}
 	if paymentRepository.event == nil {

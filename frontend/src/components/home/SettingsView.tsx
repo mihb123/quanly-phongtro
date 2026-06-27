@@ -1,4 +1,5 @@
 import { PayOSSettingsCard } from '@/components/home/settings/PayOSSettingsCard'
+import { SePaySettingsCard } from '@/components/home/settings/SePaySettingsCard'
 import { ZaloBotSettingsCard } from '@/components/home/settings/ZaloBotSettingsCard'
 
 export function SettingsView() {
@@ -10,6 +11,7 @@ export function SettingsView() {
       </div>
 
       <ZaloBotSettingsCard />
+      <SePaySettingsCard />
       <PayOSSettingsCard />
     </div>
   )

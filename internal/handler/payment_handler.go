@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -12,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -20,18 +22,40 @@ import (
 
 const maxPaymentWebhookBodyBytes = 1 << 20
 
+// sePayReconciler runs API v2 reconciliation for a manager; satisfied by *service.SePayReconciliationService.
+type sePayReconciler interface {
+	ReconcileManager(ctx context.Context, managerID, dateFrom, dateTo string) (service.SePayReconcileResult, error)
+}
+
 type PaymentHandler struct {
 	paymentService    service.PaymentService
 	credentialService service.PaymentCredentialService
+	reconciler        sePayReconciler
 	privateKey        *rsa.PrivateKey
 	publicKey         *rsa.PublicKey
 	appURL            string
+}
+
+type sePayReconcileRequest struct {
+	DateFrom string `json:"date_from"` // "YYYY-MM-DD HH:MM:SS" (optional, defaults to 7 days ago)
+	DateTo   string `json:"date_to"`   // "YYYY-MM-DD HH:MM:SS" (optional, defaults to now)
 }
 
 type payOSConfigRequest struct {
 	ClientID    string `json:"client_id"`
 	APIKey      string `json:"api_key"`
 	ChecksumKey string `json:"checksum_key"`
+}
+
+type sePayConfigRequest struct {
+	BankShortName     string `json:"bank_short_name"`
+	AccountNumber     string `json:"account_number"`
+	AccountName       string `json:"account_name"`
+	CodePrefix        string `json:"code_prefix"`
+	WebhookAuthMethod string `json:"webhook_auth_method"`
+	WebhookAPIKey     string `json:"webhook_api_key"` // RSA-encrypted base64
+	WebhookSecret     string `json:"webhook_secret"`  // RSA-encrypted base64
+	APIToken          string `json:"api_token"`       // RSA-encrypted base64
 }
 
 // NewPaymentHandler creates HTTP handlers for payment provider config and callbacks.
@@ -53,6 +77,11 @@ func NewPaymentHandler(paymentService service.PaymentService, credentialService 
 // NewPayOSWebhookHandler preserves old router tests and legacy call sites while using PaymentHandler.
 func NewPayOSWebhookHandler(paymentService service.PaymentService) *PaymentHandler {
 	return NewPaymentHandler(paymentService, nil, "")
+}
+
+// SetSePayReconciler attaches optional SePay API v2 reconciliation after handler construction.
+func (h *PaymentHandler) SetSePayReconciler(reconciler sePayReconciler) {
+	h.reconciler = reconciler
 }
 
 // GetPublicKey returns the base64-encoded SPKI public key for frontend secret transport.
@@ -127,6 +156,115 @@ func (h *PaymentHandler) DeletePayOSConfig(w http.ResponseWriter, r *http.Reques
 	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
+// GetSePayConfig returns manager-specific SePay config status.
+func (h *PaymentHandler) GetSePayConfig(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := authenticatedManagerID(w, r)
+	if !ok {
+		return
+	}
+
+	status, err := h.credentialService.GetSePayConfig(r.Context(), managerID, h.appURL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(status)
+}
+
+// SaveSePayConfig decrypts and stores manager-specific SePay credentials.
+func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := authenticatedManagerID(w, r)
+	if !ok {
+		return
+	}
+
+	var req sePayConfigRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.BankShortName == "" || req.AccountNumber == "" || req.AccountName == "" || req.CodePrefix == "" {
+		http.Error(w, "missing SePay credentials", http.StatusBadRequest)
+		return
+	}
+
+	if req.WebhookAuthMethod == "apikey" && req.WebhookAPIKey == "" {
+		http.Error(w, "missing webhook api key for apikey auth", http.StatusBadRequest)
+		return
+	}
+	if req.WebhookAuthMethod == "hmac" && req.WebhookSecret == "" {
+		http.Error(w, "missing webhook secret for hmac auth", http.StatusBadRequest)
+		return
+	}
+
+	credentials, err := h.decryptSePayConfig(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.credentialService.SaveSePayConfig(r.Context(), managerID, credentials); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// DeleteSePayConfig deactivates manager-specific SePay credentials.
+func (h *PaymentHandler) DeleteSePayConfig(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := authenticatedManagerID(w, r)
+	if !ok {
+		return
+	}
+	if err := h.credentialService.DeleteSePayConfig(r.Context(), managerID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// ReconcileSePay pulls recent SePay transactions via API v2 to settle invoices missed by webhooks.
+func (h *PaymentHandler) ReconcileSePay(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := authenticatedManagerID(w, r)
+	if !ok {
+		return
+	}
+	if h.reconciler == nil {
+		http.Error(w, "reconciliation is not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Body is optional; default to the last 7 days when no window is provided.
+	var req sePayReconcileRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	}
+	dateFrom := req.DateFrom
+	if dateFrom == "" {
+		dateFrom = time.Now().AddDate(0, 0, -7).Format("2006-01-02 15:04:05")
+	}
+	dateTo := req.DateTo
+	if dateTo == "" {
+		dateTo = time.Now().Format("2006-01-02 15:04:05")
+	}
+
+	result, err := h.reconciler.ReconcileManager(r.Context(), managerID, dateFrom, dateTo)
+	if err != nil {
+		if errors.Is(err, service.ErrPaymentCredentialsNotFound) {
+			http.Error(w, "sepay credentials not found", http.StatusBadRequest)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 // HandleProviderWebhook processes incoming webhooks for a manager/provider pair.
 func (h *PaymentHandler) HandleProviderWebhook(w http.ResponseWriter, r *http.Request) {
 	provider := chi.URLParam(r, "provider")
@@ -170,7 +308,7 @@ func (h *PaymentHandler) handleWebhook(w http.ResponseWriter, r *http.Request, p
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
-	if err := h.paymentService.HandleWebhook(r.Context(), provider, managerID, body); err != nil {
+	if err := h.paymentService.HandleWebhook(r.Context(), provider, managerID, body, r.Header); err != nil {
 		log.Printf("Error processing %s webhook: %v", provider, err)
 		switch {
 		case errors.Is(err, service.ErrPayOSVerifiedDataNil), errors.Is(err, service.ErrPaymentWebhookInvalid):
@@ -207,6 +345,45 @@ func (h *PaymentHandler) decryptPayOSConfig(req payOSConfigRequest) (service.Pay
 		ClientID:    clientID,
 		APIKey:      apiKey,
 		ChecksumKey: checksumKey,
+	}, nil
+}
+
+// decryptSePayConfig decrypts RSA-encrypted SePay credential fields.
+func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (service.SePayCredentials, error) {
+	var err error
+	webhookAPIKey := req.WebhookAPIKey
+	if webhookAPIKey != "" {
+		webhookAPIKey, err = h.decryptSecret(req.WebhookAPIKey, "webhook_api_key")
+		if err != nil {
+			return service.SePayCredentials{}, err
+		}
+	}
+
+	webhookSecret := req.WebhookSecret
+	if webhookSecret != "" {
+		webhookSecret, err = h.decryptSecret(req.WebhookSecret, "webhook_secret")
+		if err != nil {
+			return service.SePayCredentials{}, err
+		}
+	}
+
+	apiToken := req.APIToken
+	if apiToken != "" {
+		apiToken, err = h.decryptSecret(req.APIToken, "api_token")
+		if err != nil {
+			return service.SePayCredentials{}, err
+		}
+	}
+
+	return service.SePayCredentials{
+		BankShortName:     req.BankShortName,
+		AccountNumber:     req.AccountNumber,
+		AccountName:       req.AccountName,
+		CodePrefix:        req.CodePrefix,
+		WebhookAuthMethod: req.WebhookAuthMethod,
+		WebhookAPIKey:     webhookAPIKey,
+		WebhookSecret:     webhookSecret,
+		APIToken:          apiToken,
 	}, nil
 }
 

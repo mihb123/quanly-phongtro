@@ -9,6 +9,7 @@ import (
 
 const (
 	PaymentProviderPayOS = "payos"
+	PaymentProviderSePay = "sepay"
 
 	PaymentLinkStatusActive    = "ACTIVE"
 	PaymentLinkStatusStale     = "STALE"

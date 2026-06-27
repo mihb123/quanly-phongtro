@@ -95,7 +95,10 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	var qrPhotoURL string
 	var checkoutURL string
 	if deps.paymentService != nil && invoice.Status == model.InvoiceStatusUnpaid {
-		paymentLink, err := deps.paymentService.CreatePaymentLinkForInvoice(ctx, managerID, model.PaymentProviderPayOS, invoice, mainTenantName)
+		paymentLink, err := deps.paymentService.CreatePreferredPaymentLinkForInvoice(ctx, managerID, invoice, mainTenantName)
+		if err != nil {
+			logger.Error(nil, 0, "create preferred payment link failed", err)
+		}
 		if err == nil && paymentLink != nil {
 			checkoutURL = paymentLink.CheckoutURL
 			qrBytes, err := downloadQRCodeImage(paymentLink.QRCode)

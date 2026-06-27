@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -48,6 +49,7 @@ type PaymentCancelInput struct {
 
 type PaymentWebhookInput struct {
 	Body        []byte
+	Headers     http.Header
 	Credentials map[string]string
 }
 

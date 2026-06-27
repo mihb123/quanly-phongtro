@@ -104,7 +104,7 @@ func main() {
 		APIKey:      cfg.PayOSApiKey,
 		ChecksumKey: cfg.PayOSChecksumKey,
 	})
-	paymentRegistry := service.NewPaymentProviderRegistry(service.NewPayOSProvider())
+	paymentRegistry := service.NewPaymentProviderRegistry(service.NewPayOSProvider(), service.NewSePayProvider())
 	paymentService := service.NewPaymentService(invoicePaymentRepo, invoiceRepo, tenantRepo, userRepo, nil, paymentCredentialService, paymentRegistry, webhookBaseURL)
 
 	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, paymentService, cfg.ZaloBotEncryptionKey, webhookBaseURL, cfg.UploadURLSigningKey)
@@ -136,6 +136,8 @@ func main() {
 	go zaloCron.RunNow()
 
 	paymentHandler := httpHandler.NewPaymentHandler(paymentService, paymentCredentialService, webhookBaseURL)
+	sePayReconciliationService := service.NewSePayReconciliationService(service.NewSePayClient(), paymentCredentialService, paymentService)
+	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
 	router := httpRouter.New(
 		authHandler,
