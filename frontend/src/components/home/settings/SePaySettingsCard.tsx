@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Loader2, RefreshCw, Trash2 } from '@/components/icons'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -14,6 +14,7 @@ import {
   type SePayConfigStatus,
   type SePayReconcileResult,
 } from '@/api/payment'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -48,6 +49,7 @@ const sePayConfigSchema = z.object({
 
 type SePayConfigForm = z.infer<typeof sePayConfigSchema>
 
+// Card cấu hình tích hợp SePay: lưu tài khoản nhận tiền, webhook, đối soát & xóa cấu hình.
 export function SePaySettingsCard() {
   const [status, setStatus] = useState<SePayConfigStatus | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -178,20 +180,20 @@ export function SePaySettingsCard() {
             </CardDescription>
           </div>
           {status?.is_active && (
-            <div className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full shrink-0">
+            <Badge className="shrink-0 bg-info/10 text-info">
               Đang ưu tiên tạo QR
-            </div>
+            </Badge>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {initialLoading ? (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             Đang tải trạng thái...
           </div>
         ) : (
-          <div className={`p-4 rounded-xl flex items-start gap-3 border ${status?.has_config ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          <div className={`p-4 rounded-xl flex items-start gap-3 border ${status?.has_config ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
             {status?.has_config ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
             <div className="min-w-0">
               <p className="font-semibold">{status?.has_config ? 'Đã cấu hình SePay' : 'Chưa cấu hình SePay'}</p>
@@ -224,7 +226,7 @@ export function SePaySettingsCard() {
                 {...form.register('bankShortName')}
               />
               {form.formState.errors.bankShortName && (
-                <p className="text-sm text-red-600">{form.formState.errors.bankShortName.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.bankShortName.message}</p>
               )}
             </div>
             
@@ -236,7 +238,7 @@ export function SePaySettingsCard() {
                 {...form.register('accountNumber')}
               />
               {form.formState.errors.accountNumber && (
-                <p className="text-sm text-red-600">{form.formState.errors.accountNumber.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.accountNumber.message}</p>
               )}
             </div>
             
@@ -248,7 +250,7 @@ export function SePaySettingsCard() {
                 {...form.register('accountName')}
               />
               {form.formState.errors.accountName && (
-                <p className="text-sm text-red-600">{form.formState.errors.accountName.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.accountName.message}</p>
               )}
             </div>
             
@@ -260,7 +262,7 @@ export function SePaySettingsCard() {
                 {...form.register('codePrefix')}
               />
               {form.formState.errors.codePrefix && (
-                <p className="text-sm text-red-600">{form.formState.errors.codePrefix.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.codePrefix.message}</p>
               )}
             </div>
             
@@ -287,7 +289,7 @@ export function SePaySettingsCard() {
                   {...form.register('webhookApiKey')}
                 />
                 {form.formState.errors.webhookApiKey && (
-                  <p className="text-sm text-red-600">{form.formState.errors.webhookApiKey.message}</p>
+                  <p className="text-sm text-destructive">{form.formState.errors.webhookApiKey.message}</p>
                 )}
               </div>
             )}
@@ -302,7 +304,7 @@ export function SePaySettingsCard() {
                   {...form.register('webhookSecret')}
                 />
                 {form.formState.errors.webhookSecret && (
-                  <p className="text-sm text-red-600">{form.formState.errors.webhookSecret.message}</p>
+                  <p className="text-sm text-destructive">{form.formState.errors.webhookSecret.message}</p>
                 )}
               </div>
             )}
@@ -316,7 +318,7 @@ export function SePaySettingsCard() {
                 {...form.register('apiToken')}
               />
               {form.formState.errors.apiToken && (
-                <p className="text-sm text-red-600">{form.formState.errors.apiToken.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.apiToken.message}</p>
               )}
             </div>
 

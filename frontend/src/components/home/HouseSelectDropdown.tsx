@@ -1,4 +1,4 @@
-import { Building, ChevronDown, Check } from 'lucide-react';
+import { Building, ChevronDown, Check } from '@/components/icons';
 
 interface House {
   id: string;

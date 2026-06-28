@@ -1,6 +1,5 @@
-import { createPortal } from 'react-dom'
-import { useState, useEffect } from 'react'
-import { Card } from '@/components/ui/card'
+import { useState } from 'react'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,6 +18,7 @@ const createRoomSchema = z.object({
 
 type CreateRoomFormValues = z.infer<typeof createRoomSchema>
 
+// Modal thêm phòng mới vào nhà trọ đang chọn. Vỏ dùng AppModal, giữ nguyên RHF/Zod + store roomData.
 export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   const houseId = useSelectedStore(state => state.selectedHouse?.id)
   const createRoomStore = useRoomStore(state => state.createRoom)
@@ -33,14 +33,6 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
       maxTenants: '2'
     }
   })
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose, isLoading])
 
   if (!houseId) return null
 
@@ -66,16 +58,9 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4 p-4 sm:p-0"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) onClose()
-      }}
-    >
-      <Card className="w-full max-w-sm p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-foreground">Thêm phòng mới</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+  return (
+    <AppModal open onClose={onClose} title="Thêm phòng mới">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label>Tên phòng</Label>
             <Input {...register('name')} placeholder="vd: Phòng 101" className="border-border" />
@@ -101,8 +86,7 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
               {isLoading ? 'Đang tạo...' : 'Tạo mới'}
             </Button>
           </div>
-        </form>
-      </Card>
-    </div>
-  , document.body)
+      </form>
+    </AppModal>
+  )
 }

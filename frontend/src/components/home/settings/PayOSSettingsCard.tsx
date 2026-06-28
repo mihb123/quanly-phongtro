@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Loader2, Trash2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Loader2, Trash2 } from '@/components/icons'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -25,6 +25,7 @@ const payOSConfigSchema = z.object({
 
 type PayOSConfigForm = z.infer<typeof payOSConfigSchema>
 
+// Card cấu hình tích hợp PayOS: lưu khóa API tạo QR thanh toán, hiển thị webhook & xóa cấu hình.
 export function PayOSSettingsCard() {
   const [status, setStatus] = useState<PayOSConfigStatus | null>(null)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -111,12 +112,12 @@ export function PayOSSettingsCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {initialLoading ? (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             Đang tải trạng thái...
           </div>
         ) : (
-          <div className={`p-4 rounded-xl flex items-start gap-3 border ${status?.has_config ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          <div className={`p-4 rounded-xl flex items-start gap-3 border ${status?.has_config ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
             {status?.has_config ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
             <div className="min-w-0">
               <p className="font-semibold">{status?.has_config ? 'Đã cấu hình PayOS' : 'Chưa cấu hình PayOS'}</p>
@@ -150,7 +151,7 @@ export function PayOSSettingsCard() {
                 {...form.register('clientId')}
               />
               {form.formState.errors.clientId && (
-                <p className="text-sm text-red-600">{form.formState.errors.clientId.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.clientId.message}</p>
               )}
             </div>
             <div className="space-y-2">
@@ -162,7 +163,7 @@ export function PayOSSettingsCard() {
                 {...form.register('apiKey')}
               />
               {form.formState.errors.apiKey && (
-                <p className="text-sm text-red-600">{form.formState.errors.apiKey.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.apiKey.message}</p>
               )}
             </div>
             <div className="space-y-2">
@@ -174,7 +175,7 @@ export function PayOSSettingsCard() {
                 {...form.register('checksumKey')}
               />
               {form.formState.errors.checksumKey && (
-                <p className="text-sm text-red-600">{form.formState.errors.checksumKey.message}</p>
+                <p className="text-sm text-destructive">{form.formState.errors.checksumKey.message}</p>
               )}
             </div>
 

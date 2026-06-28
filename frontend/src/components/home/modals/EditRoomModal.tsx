@@ -1,6 +1,5 @@
-import { createPortal } from 'react-dom'
 import { useState } from 'react'
-import { Card } from '@/components/ui/card'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,6 +30,7 @@ const roomSchema = z.object({
 
 type RoomFormValues = z.infer<typeof roomSchema>
 
+// Modal sửa thông tin phòng (giá, sức chứa, giá phát sinh riêng, Zalo bot). Vỏ dùng AppModal, giữ RHF/Zod + xác nhận khi dirty.
 export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => void }) {
   const house = useSelectedStore(state => state.selectedHouse)
   const updateRoomStore = useRoomStore(state => state.updateRoom)
@@ -92,16 +92,10 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
     }
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm px-4 p-4 sm:p-0"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) handleClose()
-      }}
-    >
-      <Card className="w-full max-w-xl p-6 bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[90vh] overflow-y-auto">
-        <h2 className="text-xl font-bold mb-4 text-foreground">Sửa thông tin phòng</h2>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+  return (
+    <>
+    <AppModal open onClose={handleClose} title="Sửa thông tin phòng" contentClassName="sm:max-w-xl">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên phòng</Label>
@@ -232,10 +226,9 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
               {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>
-        </form>
-      </Card>
-      
-      {confirmModal}
-    </div>
-  , document.body)
+      </form>
+    </AppModal>
+    {confirmModal}
+    </>
+  )
 }

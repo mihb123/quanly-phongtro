@@ -4,19 +4,23 @@ import { useHouseStore } from '@/data/houseData';
 import { useSelectedStore, type TabType } from '@/data/selectedData';
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm';
 import type { HouseCost, ExtraCost } from '@/api/houseCost';
-import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from 'lucide-react';
+import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from '@/components/icons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatCard } from '@/components/shared/StatCard';
+import { SectionCard } from '@/components/shared/SectionCard';
+import { EmptyState } from '@/components/shared/EmptyState';
+import { formatCurrency } from '@/utils/format';
 
 import { HouseSelectDropdown } from './HouseSelectDropdown';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { EditNoteModal } from './modals/EditNoteModal';
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-};
-
+// View doanh thu: lọc theo kỳ + nhà trọ, hiển thị thống kê tổng hợp và bảng chi tiết chi phí vận hành.
 export function RevenueView() {
   const { houses, fetchHouses } = useHouseStore();
   const { 
@@ -303,251 +307,224 @@ export function RevenueView() {
   return (
     <div className="space-y-8 safe-fade-in pb-12">
       {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/40 pb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-            <Wallet className="w-7 h-7 md:w-8 md:h-8 text-primary" />
+      <PageHeader
+        className="border-b border-border/40 pb-6"
+        title={
+          <span className="flex items-center gap-3">
+            <Wallet className="size-6 text-primary md:size-7" />
             Doanh thu
-          </h1>
-          <p className="text-sm md:text-base text-muted-foreground mt-1 md:mt-2 font-medium">
-            Theo dõi dòng tiền, chi phí vận hành và lợi nhuận ròng.
-          </p>
-        </div>
-        <div className="flex w-full md:w-auto items-center gap-2 md:gap-3">
-          <div className="flex-1 md:flex-none flex items-center gap-2 bg-background hover:bg-accent hover:text-accent-foreground border border-input text-foreground h-10 px-2 md:px-4 py-2 rounded-md shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring overflow-hidden min-w-0">
-            <Calendar className="w-4 h-4 text-muted-foreground shrink-0 hidden sm:block" />
-            <Input 
-              type="month" 
-              value={period}
-              onChange={(e) => handlePeriodChange(e.target.value)}
-              className="border-none bg-transparent shadow-none focus-visible:ring-0 w-full md:w-[120px] min-w-0 font-medium h-full p-0 text-sm text-center sm:text-left"
-            />
+          </span>
+        }
+        description="Theo dõi dòng tiền, chi phí vận hành và lợi nhuận ròng."
+        action={
+          <div className="flex w-full items-center gap-2 sm:w-auto md:gap-3">
+            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 py-2 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-1 focus-within:ring-ring sm:flex-none md:px-4">
+              <Calendar className="hidden size-4 shrink-0 text-muted-foreground sm:block" />
+              <Input
+                type="month"
+                value={period}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                className="h-full w-full min-w-0 border-none bg-transparent p-0 text-center text-sm font-medium shadow-none focus-visible:ring-0 sm:text-left md:w-[120px]"
+              />
+            </div>
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <HouseSelectDropdown
+                houses={houses}
+                selectedHouseIds={selectedHouseIds}
+                isOpen={isHouseSelectOpen}
+                onOpenChange={setIsHouseSelectOpen}
+                onToggleHouse={handleHouseToggleRequest}
+                onSelectAll={handleSelectAllRequest}
+              />
+            </div>
           </div>
-          <div className="flex-1 md:flex-none min-w-0">
-            <HouseSelectDropdown
-              houses={houses}
-              selectedHouseIds={selectedHouseIds}
-              isOpen={isHouseSelectOpen}
-              onOpenChange={setIsHouseSelectOpen}
-              onToggleHouse={handleHouseToggleRequest}
-              onSelectAll={handleSelectAllRequest}
-            />
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-            </div>
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng Doanh Thu</h3>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">
-            {isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.totalRevenue)}
-          </p>
-        </div>
-
-        <div className="bg-card border border-border/60 rounded-xl p-4 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-              <TrendingDown className="w-4 h-4 text-rose-600" />
-            </div>
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Tổng Chi Phí</h3>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">
-            {isLoadingSummaries || isLoadingCosts ? '...' : formatCurrency(aggregatedSummary.totalCost)}
-          </p>
-        </div>
-
-        <div className={`bg-gradient-to-br ${aggregatedSummary.profit >= 0 ? 'from-primary/10 to-primary/5 border-primary/20' : 'from-rose-500/10 to-rose-500/5 border-rose-500/20'} border rounded-xl p-4 shadow-sm`}>
-          <div className="flex items-center gap-3 mb-2">
-            <div className={`w-8 h-8 rounded-full ${aggregatedSummary.profit >= 0 ? 'bg-primary/20' : 'bg-rose-500/20'} flex items-center justify-center shrink-0`}>
-              <DollarSign className={`w-4 h-4 ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`} />
-            </div>
-            <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Lợi Nhuận Ròng</h3>
-          </div>
-          <p className={`text-2xl font-extrabold ${aggregatedSummary.profit >= 0 ? 'text-primary' : 'text-rose-600'}`}>
-            {isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.profit)}
-          </p>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Tổng Doanh Thu"
+          value={isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.totalRevenue)}
+          icon={TrendingUp}
+          tone="info"
+        />
+        <StatCard
+          label="Tổng Chi Phí"
+          value={isLoadingSummaries || isLoadingCosts ? '...' : formatCurrency(aggregatedSummary.totalCost)}
+          icon={TrendingDown}
+          tone="warning"
+        />
+        <StatCard
+          label="Lợi Nhuận Ròng"
+          value={isLoadingSummaries ? '...' : formatCurrency(aggregatedSummary.profit)}
+          icon={DollarSign}
+          tone={aggregatedSummary.profit >= 0 ? 'positive' : 'negative'}
+        />
       </div>
 
       {/* Detail Costs Section - Only show when 1 house is selected to allow inline editing safely */}
       {selectedHouseIds.length === 1 && (
-        <div className="bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-border/40 flex justify-between items-center bg-secondary/10">
-            <h3 className="font-bold text-foreground text-lg flex items-center gap-2">
-              Chi tiết chi phí vận hành - {houses.find(h => h.id === selectedHouseIds[0])?.name}
-            </h3>
-            {costs[selectedHouseIds[0]] && hasEdits(selectedHouseIds[0]) && (
-              <Button 
+        <SectionCard
+          title={`Chi tiết chi phí vận hành - ${houses.find(h => h.id === selectedHouseIds[0])?.name ?? ''}`}
+          action={
+            costs[selectedHouseIds[0]] && hasEdits(selectedHouseIds[0]) ? (
+              <Button
                 onClick={() => handleSaveCost(selectedHouseIds[0])}
                 disabled={isSaving[selectedHouseIds[0]]}
-                className="rounded-xl shadow-sm font-bold gap-2"
+                className="gap-2 font-bold"
               >
-                {isSaving[selectedHouseIds[0]] ? 'Đang lưu...' : <><Save className="w-4 h-4"/> Lưu thay đổi</>}
+                {isSaving[selectedHouseIds[0]] ? 'Đang lưu...' : <><Save className="size-4" /> Lưu thay đổi</>}
               </Button>
-            )}
-          </div>
-          
-          <div className="p-6">
-            {isLoadingCosts ? (
-              <div className="text-center py-12 text-muted-foreground">Đang tải dữ liệu chi phí...</div>
-            ) : !costs[selectedHouseIds[0]] ? (
-              <div className="text-center py-16 flex flex-col items-center justify-center border-2 border-dashed border-border/60 rounded-2xl bg-secondary/20">
-                <div className="w-16 h-16 bg-background rounded-full shadow-sm border border-border/40 flex items-center justify-center mb-4">
-                  <AlertCircle className="w-8 h-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-bold text-foreground mb-2">Chưa có chi phí cho kỳ {period}</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm">
-                  Tạo bản ghi chi phí vận hành cho tháng này. Hệ thống sẽ tự động sao chép các chi phí cố định từ tháng trước nếu có.
-                </p>
-                <Button 
-                  onClick={() => handleCreateMonthCost(selectedHouseIds[0])}
-                  className="rounded-xl shadow-sm font-bold"
-                >
-                  <Plus className="w-4 h-4 mr-2" /> Tạo chi phí tháng mới
+            ) : undefined
+          }
+          bodyClassName="p-6"
+        >
+          {isLoadingCosts ? (
+            <div className="py-12 text-center text-muted-foreground">Đang tải dữ liệu chi phí...</div>
+          ) : !costs[selectedHouseIds[0]] ? (
+            <EmptyState
+              icon={AlertCircle}
+              className="rounded-2xl border-2 border-dashed border-border/60 bg-secondary/20 py-16"
+              title={`Chưa có chi phí cho kỳ ${period}`}
+              description="Tạo bản ghi chi phí vận hành cho tháng này. Hệ thống sẽ tự động sao chép các chi phí cố định từ tháng trước nếu có."
+              action={
+                <Button onClick={() => handleCreateMonthCost(selectedHouseIds[0])} className="font-bold">
+                  <Plus className="mr-2 size-4" /> Tạo chi phí tháng mới
                 </Button>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div className="overflow-x-auto rounded-xl border border-border/50">
-                  <table className="w-full text-sm text-left">
-                    <thead className="text-xs text-muted-foreground uppercase bg-secondary/50 border-b border-border/50">
-                      <tr>
-                        <th className="px-6 py-4 font-bold w-[25%] min-w-[100px]">Loại chi phí</th>
-                        <th className="px-6 py-4 font-bold w-[15%] whitespace-nowrap min-w-[100px]">Phân loại</th>
-                        <th className="px-6 py-4 font-bold w-[20%] min-w-[120px]">Số tiền (VND)</th>
-                        <th className="px-6 py-4 font-bold w-[25%] min-w-[200px]">Ghi chú</th>
-                        <th className="px-6 py-4 font-bold text-right w-[5%] min-w-[60px]"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/30">
-                      {/* Fixed Layout Costs */}
-                      {[
-                        { key: 'rent', label: 'Tiền thuê nhà', type: 'Cố định' },
-                        { key: 'electricity', label: 'Tiền điện', type: 'Biến đổi' },
-                        { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
-                        { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
-                        { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
-                        { key: 'maintenance', label: 'Tiền bảo trì, sửa chữa', type: 'Biến đổi' },
-                      ].map((item) => (
-                        <tr key={item.key} className="hover:bg-secondary/20 transition-colors group">
-                          <td className="px-6 py-4 font-semibold text-foreground">{item.label}</td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex whitespace-nowrap px-2.5 py-1 text-[10px] font-bold rounded-full ${item.type === 'Cố định' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {item.type}
-                            </span>
-                          </td>
-                          <td className="px-6 py-3">
-                            <CurrencyInput
-                              value={getActiveCostValue(selectedHouseIds[0], item.key as keyof HouseCost) as number}
-                              onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key as keyof HouseCost, val)}
-                              className="w-40 font-semibold focus-visible:ring-primary h-9 rounded-lg"
-                            />
-                          </td>
-                          <td className="px-6 py-4"></td>
-                          <td className="px-6 py-4"></td>
-                        </tr>
-                      ))}
+              }
+            />
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/50">
+              <Table>
+                <TableHeader className="bg-secondary/50">
+                  <TableRow>
+                    <TableHead className="w-[25%] min-w-[100px] font-bold uppercase text-muted-foreground">Loại chi phí</TableHead>
+                    <TableHead className="w-[15%] min-w-[100px] font-bold uppercase text-muted-foreground">Phân loại</TableHead>
+                    <TableHead className="w-[20%] min-w-[120px] font-bold uppercase text-muted-foreground">Số tiền (VND)</TableHead>
+                    <TableHead className="w-[25%] min-w-[200px] font-bold uppercase text-muted-foreground">Ghi chú</TableHead>
+                    <TableHead className="w-[5%] min-w-[60px] text-right"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* Fixed Layout Costs */}
+                  {[
+                    { key: 'rent', label: 'Tiền thuê nhà', type: 'Cố định' },
+                    { key: 'electricity', label: 'Tiền điện', type: 'Biến đổi' },
+                    { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
+                    { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
+                    { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
+                    { key: 'maintenance', label: 'Tiền bảo trì, sửa chữa', type: 'Biến đổi' },
+                  ].map((item) => (
+                    <TableRow key={item.key} className="group">
+                      <TableCell className="font-semibold text-foreground">{item.label}</TableCell>
+                      <TableCell>
+                        <Badge variant={item.type === 'Cố định' ? 'secondary' : 'outline'}>
+                          {item.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <CurrencyInput
+                          value={getActiveCostValue(selectedHouseIds[0], item.key as keyof HouseCost) as number}
+                          onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key as keyof HouseCost, val)}
+                          className="h-9 w-40 rounded-lg font-semibold focus-visible:ring-primary"
+                        />
+                      </TableCell>
+                      <TableCell></TableCell>
+                      <TableCell></TableCell>
+                    </TableRow>
+                  ))}
 
-                      {/* Extra Costs */}
-                      {getActiveExtraCosts(selectedHouseIds[0]).map((extra, index) => (
-                        <tr key={`extra-${index}`} className="hover:bg-secondary/20 transition-colors group">
-                          <td className="px-6 py-3">
-                            <Input
-                              value={extra.name}
-                              onChange={(e) => handleExtraCostChange(selectedHouseIds[0], index, 'name', e.target.value)}
-                              placeholder="Tên chi phí..."
-                              className="w-full min-w-[150px] font-semibold focus-visible:ring-primary h-9 rounded-lg"
-                            />
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="inline-flex whitespace-nowrap px-2.5 py-1 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700">Tùy chỉnh</span>
-                          </td>
-                          <td className="px-6 py-3">
-                            <CurrencyInput
-                              value={extra.amount}
-                              onChange={(val) => handleExtraCostChange(selectedHouseIds[0], index, 'amount', val)}
-                              className="w-40 font-semibold focus-visible:ring-primary h-9 rounded-lg"
-                            />
-                          </td>
-                          <td className="px-6 py-3">
-                            <div 
-                              onClick={() => setEditingNoteFor({ houseId: selectedHouseIds[0], index })}
-                              className={`w-full min-w-[250px] font-medium min-h-[36px] p-2.5 text-sm cursor-pointer rounded-lg hover:bg-secondary/50 transition-colors whitespace-pre-wrap leading-relaxed ${extra.note ? 'text-foreground' : 'text-muted-foreground italic'}`}
-                            >
-                              {extra.note || 'Bấm để thêm ghi chú...'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-3 text-right">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleRemoveExtraCost(selectedHouseIds[0], index)}
-                              className="text-muted-foreground hover:text-rose-500 hover:bg-rose-50 h-8 w-8 rounded-lg"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td colSpan={5} className="px-6 py-3">
-                          <Button 
-                            variant="ghost" 
-                            onClick={() => handleAddExtraCost(selectedHouseIds[0])}
-                            className="text-primary hover:text-primary/80 hover:bg-primary/10 font-bold -ml-2"
-                          >
-                            <Plus className="w-4 h-4 mr-2" /> Thêm chi phí khác
-                          </Button>
-                        </td>
-                      </tr>
-                    </tbody>
-                    <tfoot className="bg-primary/5 border-t-2 border-primary/20">
-                      <tr>
-                        <td colSpan={2} className="px-6 py-5 font-extrabold text-foreground text-right uppercase tracking-wider">Tổng cộng chi phí:</td>
-                        <td colSpan={3} className="px-6 py-5 font-extrabold text-rose-600 text-xl">
-                          {formatCurrency(
-                            (getActiveCostValue(selectedHouseIds[0], 'rent') as number) +
-                            (getActiveCostValue(selectedHouseIds[0], 'electricity') as number) +
-                            (getActiveCostValue(selectedHouseIds[0], 'water') as number) +
-                            (getActiveCostValue(selectedHouseIds[0], 'wifi') as number) +
-                            (getActiveCostValue(selectedHouseIds[0], 'cleaning') as number) +
-                            (getActiveCostValue(selectedHouseIds[0], 'maintenance') as number) +
-                            getActiveExtraCosts(selectedHouseIds[0]).reduce((acc, curr) => acc + curr.amount, 0)
-                          )}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+                  {/* Extra Costs */}
+                  {getActiveExtraCosts(selectedHouseIds[0]).map((extra, index) => (
+                    <TableRow key={`extra-${index}`} className="group">
+                      <TableCell>
+                        <Input
+                          value={extra.name}
+                          onChange={(e) => handleExtraCostChange(selectedHouseIds[0], index, 'name', e.target.value)}
+                          placeholder="Tên chi phí..."
+                          className="h-9 w-full min-w-[150px] rounded-lg font-semibold focus-visible:ring-primary"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">Tùy chỉnh</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <CurrencyInput
+                          value={extra.amount}
+                          onChange={(val) => handleExtraCostChange(selectedHouseIds[0], index, 'amount', val)}
+                          className="h-9 w-40 rounded-lg font-semibold focus-visible:ring-primary"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div
+                          onClick={() => setEditingNoteFor({ houseId: selectedHouseIds[0], index })}
+                          className={`min-h-[36px] w-full min-w-[250px] cursor-pointer whitespace-pre-wrap rounded-lg p-2.5 text-sm font-medium leading-relaxed transition-colors hover:bg-secondary/50 ${extra.note ? 'text-foreground' : 'italic text-muted-foreground'}`}
+                        >
+                          {extra.note || 'Bấm để thêm ghi chú...'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemoveExtraCost(selectedHouseIds[0], index)}
+                          className="size-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={5}>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleAddExtraCost(selectedHouseIds[0])}
+                        className="-ml-2 font-bold text-primary hover:bg-primary/10 hover:text-primary/80"
+                      >
+                        <Plus className="mr-2 size-4" /> Thêm chi phí khác
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+                <TableFooter className="border-t-2 border-primary/20 bg-primary/5">
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={2} className="py-5 text-right font-extrabold uppercase tracking-wider text-foreground">Tổng cộng chi phí:</TableCell>
+                    <TableCell colSpan={3} className="py-5 text-xl font-extrabold text-warning">
+                      {formatCurrency(
+                        (getActiveCostValue(selectedHouseIds[0], 'rent') as number) +
+                        (getActiveCostValue(selectedHouseIds[0], 'electricity') as number) +
+                        (getActiveCostValue(selectedHouseIds[0], 'water') as number) +
+                        (getActiveCostValue(selectedHouseIds[0], 'wifi') as number) +
+                        (getActiveCostValue(selectedHouseIds[0], 'cleaning') as number) +
+                        (getActiveCostValue(selectedHouseIds[0], 'maintenance') as number) +
+                        getActiveExtraCosts(selectedHouseIds[0]).reduce((acc, curr) => acc + curr.amount, 0)
+                      )}
+                    </TableCell>
+                  </TableRow>
+                </TableFooter>
+              </Table>
+            </div>
+          )}
+        </SectionCard>
       )}
 
       {selectedHouseIds.length > 1 && (
-        <div className="bg-secondary/30 border border-border/50 rounded-2xl p-8 text-center">
-          <Wallet className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-          <h3 className="text-lg font-bold text-foreground mb-2">Đang xem tổng hợp nhiều nhà</h3>
-          <p className="text-muted-foreground">
-            Bảng chi tiết chỉ hiển thị khi bạn chọn 1 nhà duy nhất. Hãy bỏ chọn các nhà khác để xem và chỉnh sửa chi tiết.
-          </p>
-        </div>
+        <EmptyState
+          icon={Wallet}
+          className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+          title="Đang xem tổng hợp nhiều nhà"
+          description="Bảng chi tiết chỉ hiển thị khi bạn chọn 1 nhà duy nhất. Hãy bỏ chọn các nhà khác để xem và chỉnh sửa chi tiết."
+        />
       )}
-      
+
       {selectedHouseIds.length === 0 && houses.length > 0 && (
-        <div className="bg-secondary/30 border border-border/50 rounded-2xl p-8 text-center">
-          <h3 className="text-lg font-bold text-foreground mb-2">Vui lòng chọn nhà trọ</h3>
-          <p className="text-muted-foreground">
-            Bạn cần chọn ít nhất 1 nhà trọ để xem thống kê doanh thu.
-          </p>
-        </div>
+        <EmptyState
+          className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+          title="Vui lòng chọn nhà trọ"
+          description="Bạn cần chọn ít nhất 1 nhà trọ để xem thống kê doanh thu."
+        />
       )}
       {confirmModal}
 
