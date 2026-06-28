@@ -5,7 +5,7 @@ source "$(dirname "$0")/common.sh"
 start_deploy_step "[Phase 7] Cleanup old backups"
 
 MAX_BACKUPS=5
-for dir in backup/binary backup/frontend; do
+for dir in backup/binary; do
   if [[ -d "$dir" ]]; then
     FILE_COUNT=$(find "$dir" -maxdepth 1 -type f | wc -l)
     if [[ "$FILE_COUNT" -gt "$MAX_BACKUPS" ]]; then

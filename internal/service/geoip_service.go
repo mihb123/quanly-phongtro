@@ -3,7 +3,6 @@ package service
 import (
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	"github.com/oschwald/geoip2-golang"
@@ -18,15 +17,18 @@ type GeoIPServiceImpl struct {
 	db *geoip2.Reader
 }
 
-func NewGeoIPService(dbPath string) GeoIPService {
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		logger.Warn(nil, 0, fmt.Sprintf("GeoIP database not found at %s. Location tracking will gracefully degrade to 'Unknown'.", dbPath), nil)
+// NewGeoIPServiceFromBytes khởi tạo service từ dữ liệu mmdb đã nhúng trong binary,
+// giúp binary tự chứa GeoIP DB mà không cần file ngoài. Nếu dữ liệu rỗng hoặc lỗi
+// thì degrade về "Unknown" giống NewGeoIPService.
+func NewGeoIPServiceFromBytes(data []byte) GeoIPService {
+	if len(data) == 0 {
+		logger.Warn(nil, 0, "Embedded GeoIP database is empty. Location tracking will gracefully degrade to 'Unknown'.", nil)
 		return &GeoIPServiceImpl{db: nil}
 	}
 
-	db, err := geoip2.Open(dbPath)
+	db, err := geoip2.FromBytes(data)
 	if err != nil {
-		logger.Error(nil, 0, fmt.Sprintf("Failed to open GeoIP database at %s. Location tracking will gracefully degrade.", dbPath), err)
+		logger.Error(nil, 0, "Failed to open embedded GeoIP database. Location tracking will gracefully degrade.", err)
 		return &GeoIPServiceImpl{db: nil}
 	}
 

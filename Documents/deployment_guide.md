@@ -68,7 +68,7 @@ Trước khi bắt đầu, đảm bảo máy tính/server của bạn đã cài 
 
 ## 2. Môi trường Sản xuất (Production Environment)
 
-Đối với môi trường Production, mã nguồn cần được tối ưu (build) và quản lý bằng các công cụ system (như systemd, PM2) hoặc Docker container hóa, kết hợp Nginx làm Reverse Proxy.
+Ở Production, frontend được build và **nhúng thẳng vào binary Go**. Toàn bộ ứng dụng chạy bằng **một file thực thi duy nhất** vừa phục vụ API vừa phục vụ giao diện trên cùng một origin — **không cần Nginx** hay web server tĩnh riêng.
 
 ### 2.1 Chuẩn bị Server và Database
 1. Khởi tạo một Server/VPS (Ubuntu/Debian...).
@@ -76,82 +76,64 @@ Trước khi bắt đầu, đảm bảo máy tính/server của bạn đã cài 
 3. Tạo cơ sở dữ liệu và user với quyền hạn phù hợp (Tuyệt đối không dùng account `postgres` ở production).
 4. Thực hiện apply DB Migrations (Tương tự như bước ở Dev).
 
-### 2.2 Triển khai Backend (Native Build)
-1. Tải source code lên server và build file thực thi binary:
+### 2.2 Build một binary duy nhất (frontend nhúng trong backend)
+1. Tải source code lên server. Cần có sẵn Go và pnpm (hoặc npm).
+2. Build một phát bằng Makefile — lệnh này build frontend, copy `frontend/dist` vào `internal/web/dist`, rồi `go build`:
    ```bash
+   make build
+   ```
+   Kết quả là file `quanly-phongtro-api` đã nhúng cả React app lẫn GeoIP database.
+
+   *(Tương đương thủ công nếu không dùng make):*
+   ```bash
+   cd frontend && pnpm install --frozen-lockfile && pnpm build && cd ..
+   rm -rf internal/web/dist && cp -r frontend/dist internal/web/dist
    go build -o quanly-phongtro-api ./cmd/api
    ```
-2. Cấu hình file `.env` trên server production với các biến bảo mật (DB Credentials mật khẩu mạnh, `JWT_SECRET` sinh ngẫu nhiên mạnh, port,...).
-3. Quản lý process bằng **Systemd**:
-   Tạo file `/etc/systemd/system/quanly-phongtro-api.service`:
-   ```ini
-   [Unit]
-   Description=QuanLyPhongTro API Backend
-   After=network.target postgresql.service
+3. Cấu hình file `.env` trên server production với các biến bảo mật (DB Credentials mật khẩu mạnh, `JWT_SECRET` sinh ngẫu nhiên mạnh, `APP_PORT`,...).
 
-   [Service]
-   Type=simple
-   User=deploy
-   WorkingDirectory=/path/to/project
-   ExecStart=/path/to/project/quanly-phongtro-api
-   Restart=on-failure
+### 2.3 Chạy bằng Systemd
+Tạo file `/etc/systemd/system/quanly-phongtro-api.service`:
+```ini
+[Unit]
+Description=QuanLyPhongTro API Backend
+After=network-online.target postgresql.service
+Wants=network-online.target
 
-   [Install]
-   WantedBy=multi-user.target
-   ```
-4. Kích hoạt và chạy service:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable quanly-phongtro-api
-   sudo systemctl start quanly-phongtro-api
-   ```
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/path/to/project
+EnvironmentFile=/path/to/project/.env
+ExecStart=/path/to/project/quanly-phongtro-api
+Restart=on-failure
+RestartSec=5
 
-### 2.3 Triển khai Frontend (Static Hosting)
-1. Trong thư mục `frontend`, build mã nguồn sản xuất:
-   ```bash
-   npm install
-   npm run build
-   ```
-2. Quá trình build sẽ tạo ra thư mục `dist/` (nếu dùng Vite).
-3. Cấu hình **Nginx** để serve thư mục static này và proxy các request bắt đầu bằng `/api` vào Backend:
-   Tạo file cấu hình nginx `/etc/nginx/sites-available/quanly-phongtro`:
-   ```nginx
-   server {
-       listen 80;
-       server_name yourdomain.com;
+[Install]
+WantedBy=multi-user.target
+```
+Kích hoạt và chạy service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable quanly-phongtro-api
+sudo systemctl start quanly-phongtro-api
+```
 
-       root /path/to/project/frontend/dist;
-       index index.html;
-
-       # Serve static files for React
-       location / {
-           try_files $uri /index.html;
-       }
-
-       # Proxy request tới Backend API
-       location /api/ {
-           proxy_pass http://localhost:8080;
-           proxy_set_header Host $host;
-           proxy_set_header X-Real-IP $remote_addr;
-           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-       }
-   }
-   ```
-4. Kích hoạt site Nginx và khởi động lại:
-   ```bash
-   sudo ln -s /etc/nginx/sites-available/quanly-phongtro /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
+> **Cổng & TLS:** Binary nghe trực tiếp ở `APP_PORT`. Vì không còn Nginx, hãy cho phép truy cập tới cổng đó.
+> - Nếu chạy cổng <1024 (vd 80/443), thêm `AmbientCapabilities=CAP_NET_BIND_SERVICE` vào block `[Service]`.
+> - Nếu cần HTTPS, đặt một reverse proxy/load balancer terminate TLS ở tầng mạng phía trước, hoặc cấu hình TLS trực tiếp cho server Go.
 
 ### 2.4 Cập nhật dự án (Update)
-Khi có phiên bản code mới, quy trình sẽ là:
+Khi có phiên bản code mới:
 1. `git pull` code mới.
 2. Chạy `migrate up` nếu có thay đổi DB Schema.
-3. Build lại Backend (`go build...`) và restart service (`systemctl restart quanly-phongtro-api`).
-4. Build lại Frontend (`npm run build`) (Nginx tự động serve các file mới nhất).
+3. Build lại binary (`make build`) — frontend được build và nhúng lại trong cùng bước.
+4. Restart service: `sudo systemctl restart quanly-phongtro-api`.
+
+> Lưu ý: pipeline CI/CD (`.github/workflows/deploy.yml`) đã tự động hoá toàn bộ các bước trên cho nhánh `develop`.
 
 ---
 
 > **Lưu ý mở rộng (Docker):**
-> Dự án cũng định hướng hỗ trợ Docker/Docker Compose để đóng gói (Containerization). Khi các file `Dockerfile` và `docker-compose.yml` được viết sẵn, quy trình triển khai Production chỉ đơn giản là `docker-compose up -d --build`, giúp chuẩn hóa môi trường tối đa và không phụ thuộc hệ điều hành máy host.
+> Dự án cũng định hướng hỗ trợ Docker/Docker Compose để đóng gói (Containerization). Vì frontend đã nhúng trong binary, image chỉ cần build một binary duy nhất; quy trình triển khai Production khi đó đơn giản là `docker-compose up -d --build`.

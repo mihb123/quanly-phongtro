@@ -144,6 +144,11 @@ func New(
 	})
 	r.Get("/api/v1/uploads/zalo-invoices/*", signedUploadFileHandler("uploads/zalo-invoices", cfg.uploadURLSigningKey))
 
+	// Phục vụ frontend SPA đã nhúng cho mọi request không khớp route API ở trên.
+	if cfg.staticFS != nil {
+		r.NotFound(spaFileServer(cfg.staticFS))
+	}
+
 	return r
 }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mihb123/quanly-phongtro/config"
+	"github.com/mihb123/quanly-phongtro/internal/assets"
 	"github.com/mihb123/quanly-phongtro/internal/db"
 	httpHandler "github.com/mihb123/quanly-phongtro/internal/handler"
 	"github.com/mihb123/quanly-phongtro/internal/repository"
@@ -17,6 +18,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service"
 	"github.com/mihb123/quanly-phongtro/internal/service/email"
+	"github.com/mihb123/quanly-phongtro/internal/web"
 )
 
 func main() {
@@ -37,7 +39,7 @@ func main() {
 	userRepo := repository.NewUserRepository(sqlDB)
 	hasher := security.NewBcryptHasher()
 	tokenProvider := security.NewJWTProvider(cfg.AccessTokenJWTSecret, cfg.RefreshTokenJWTSecret, cfg.TokenTTL, jwtRepo)
-	geoIPService := service.NewGeoIPService("internal/assets/geoip/GeoLite2-City.mmdb")
+	geoIPService := service.NewGeoIPServiceFromBytes(assets.GeoLite2City)
 	defer geoIPService.Close()
 	geocodingService := service.NewGeocodingService(cfg.GoogleMapAPIKey)
 	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
@@ -139,6 +141,11 @@ func main() {
 	sePayReconciliationService := service.NewSePayReconciliationService(service.NewSePayClient(), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
+	frontendFS, err := web.DistFS()
+	if err != nil {
+		log.Fatalf("load embedded frontend: %v", err)
+	}
+
 	router := httpRouter.New(
 		authHandler,
 		houseHandler,
@@ -151,6 +158,7 @@ func main() {
 		paymentHandler,
 		httpRouter.WithDPoPVerificationURL(webhookBaseURL),
 		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
+		httpRouter.WithStaticFS(frontendFS),
 	)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,

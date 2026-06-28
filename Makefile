@@ -1,4 +1,16 @@
-.PHONY: mocks
+.PHONY: build frontend mocks
+
+# build: biên dịch frontend rồi nhúng vào API để ra một file thực thi duy nhất.
+BINARY ?= quanly-phongtro-api
+build: frontend
+	rm -rf internal/web/dist
+	cp -r frontend/dist internal/web/dist
+	CGO_ENABLED=0 go build -o $(BINARY) ./cmd/api
+	@echo "Built single binary: ./$(BINARY)"
+
+# frontend: build bản tĩnh React (Vite) vào frontend/dist.
+frontend:
+	cd frontend && pnpm install --frozen-lockfile && pnpm build
 
 mocks:
 	@echo "Generating mocks for internal/model..."

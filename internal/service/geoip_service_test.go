@@ -1,34 +1,29 @@
 package service_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/service"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewGeoIPService(t *testing.T) {
-	// Path does not exist
-	svc := service.NewGeoIPService("invalid_path.mmdb")
+func TestNewGeoIPServiceFromBytes(t *testing.T) {
+	// Dữ liệu rỗng → degrade về "Unknown"
+	svc := service.NewGeoIPServiceFromBytes(nil)
 	assert.NotNil(t, svc)
 	assert.Equal(t, "Unknown", svc.LookupLocation("8.8.8.8"))
 	svc.Close()
 
-	// Path exists but invalid DB
-	tmpFile := filepath.Join(t.TempDir(), "invalid.mmdb")
-	os.WriteFile(tmpFile, []byte("invalid data"), 0644)
-
-	svc2 := service.NewGeoIPService(tmpFile)
+	// Dữ liệu mmdb không hợp lệ → degrade về "Unknown"
+	svc2 := service.NewGeoIPServiceFromBytes([]byte("invalid data"))
 	assert.NotNil(t, svc2)
 	assert.Equal(t, "Unknown", svc2.LookupLocation("8.8.8.8"))
 	svc2.Close()
 }
 
 func TestGeoIPService_LookupLocation(t *testing.T) {
-	// Create a degraded service
-	svc := service.NewGeoIPService("invalid_path.mmdb")
+	// Tạo service degraded (không có DB)
+	svc := service.NewGeoIPServiceFromBytes(nil)
 
 	t.Run("empty IP", func(t *testing.T) {
 		assert.Equal(t, "Unknown", svc.LookupLocation(""))
