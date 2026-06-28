@@ -239,9 +239,13 @@ func (h *PaymentHandler) ReconcileSePay(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Body is optional; default to the last 7 days when no window is provided.
+	// An empty body yields io.EOF (allowed); any other decode error is a malformed request.
 	var req sePayReconcileRequest
 	if r.Body != nil {
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
 	}
 	dateFrom := req.DateFrom
 	if dateFrom == "" {

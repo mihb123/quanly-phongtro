@@ -37,6 +37,7 @@ type SePayReconcileResult struct {
 	PagesFetched int  `json:"pages_fetched"`
 	Scanned      int  `json:"scanned"`
 	Processed    int  `json:"processed"`
+	Failed       int  `json:"failed"`
 	Truncated    bool `json:"truncated"`
 }
 
@@ -87,7 +88,14 @@ func (s *SePayReconciliationService) ReconcileManager(ctx context.Context, manag
 		for i := range response.Data {
 			result.Scanned++
 			if err := s.processTransaction(ctx, managerID, response.Data[i], &result); err != nil {
-				return result, err
+				// A cancelled context aborts the whole run; a per-transaction failure is
+				// logged and skipped so one bad transaction can't sink the entire batch.
+				if ctx.Err() != nil {
+					return result, ctx.Err()
+				}
+				result.Failed++
+				log.Printf("SePay reconciliation manager %s: skipping transaction %s: %v", managerID, response.Data[i].ID, err)
+				continue
 			}
 		}
 
