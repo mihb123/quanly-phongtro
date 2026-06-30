@@ -2,21 +2,21 @@ package router
 
 import (
 	"io/fs"
-	"strings"
+	"net/netip"
 )
 
 type Option func(*options)
 
 type options struct {
-	dpopVerificationURL string
+	trustedProxies      []netip.Prefix
 	uploadURLSigningKey string
 	staticFS            fs.FS
 }
 
-// WithDPoPVerificationURL configures the external API base URL used for DPoP htu.
-func WithDPoPVerificationURL(baseURL string) Option {
+// WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
+func WithTrustedProxies(prefixes []netip.Prefix) Option {
 	return func(o *options) {
-		o.dpopVerificationURL = strings.TrimRight(baseURL, "/")
+		o.trustedProxies = prefixes
 	}
 }
 

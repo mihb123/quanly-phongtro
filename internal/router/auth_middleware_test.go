@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -30,7 +31,7 @@ func TestAuthMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := authMiddleware(jwtProvider)(handler)
+	middleware := authMiddleware(jwtProvider, nil)(handler)
 
 	t.Run("Missing token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -110,20 +111,24 @@ func TestAuthMiddleware(t *testing.T) {
 		}
 	})
 
-	t.Run("Valid DPoP proof uses absolute htu", func(t *testing.T) {
+	t.Run("Valid DPoP proof uses forwarded origin from trusted proxy", func(t *testing.T) {
 		dpopPrivateKey, jwk, jkt := newDPoPTestKey(t)
 		token, _ := jwtProvider.GenerateAccessToken("manager", "test@test.local", "user-1", true, jkt)
 		htu := "https://api.example.test/protected"
 		proof := signDPoPProof(t, dpopPrivateKey, jwk, http.MethodGet, htu, token)
 
 		req := httptest.NewRequest(http.MethodGet, "/protected?ignored=true", nil)
+		req.RemoteAddr = "192.0.2.10:5555"
 		req.Host = "internal.local"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		req.Header.Set("X-Forwarded-Host", "api.example.test")
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("DPoP", proof)
 		rec := httptest.NewRecorder()
 
-		absoluteMiddleware := authMiddleware(jwtProvider, "https://api.example.test")(handler)
-		absoluteMiddleware.ServeHTTP(rec, req)
+		trustedProxies := []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")}
+		proxiedMiddleware := authMiddleware(jwtProvider, trustedProxies)(handler)
+		proxiedMiddleware.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
 			t.Errorf("expected 200, got %d", rec.Code)

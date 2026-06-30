@@ -93,7 +93,6 @@ func main() {
 		authService,
 		httpHandler.WithSecureCookies(cfg.CookieSecure),
 		httpHandler.WithTrustedProxies(cfg.TrustedProxyCIDRs),
-		httpHandler.WithDPoPVerificationURL(webhookBaseURL),
 	)
 
 	invoicePaymentRepo := repository.NewInvoicePaymentRepository(sqlDB)
@@ -156,7 +155,7 @@ func main() {
 		zaloHandler,
 		houseCostHandler,
 		paymentHandler,
-		httpRouter.WithDPoPVerificationURL(webhookBaseURL),
+		httpRouter.WithTrustedProxies(cfg.TrustedProxyCIDRs),
 		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
 		httpRouter.WithStaticFS(frontendFS),
 	)

@@ -14,10 +14,9 @@ import (
 )
 
 type AuthHandler struct {
-	service             service.AuthService
-	cookieSecure        bool
-	trustedProxyCIDRs   []netip.Prefix
-	dpopVerificationURL string
+	service           service.AuthService
+	cookieSecure      bool
+	trustedProxyCIDRs []netip.Prefix
 }
 
 type refreshTokenRequest struct {
@@ -53,17 +52,11 @@ func WithSecureCookies(secure bool) AuthHandlerOption {
 	}
 }
 
-// WithTrustedProxies configures proxy CIDRs allowed to supply X-Forwarded-For.
+// WithTrustedProxies configures proxy CIDRs trusted for X-Forwarded-* headers
+// (client IP extraction and DPoP htu origin).
 func WithTrustedProxies(prefixes []netip.Prefix) AuthHandlerOption {
 	return func(h *AuthHandler) {
 		h.trustedProxyCIDRs = prefixes
-	}
-}
-
-// WithDPoPVerificationURL configures the external API base URL for DPoP htu.
-func WithDPoPVerificationURL(baseURL string) AuthHandlerOption {
-	return func(h *AuthHandler) {
-		h.dpopVerificationURL = strings.TrimRight(baseURL, "/")
 	}
 }
 
@@ -97,7 +90,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
@@ -154,7 +147,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
@@ -204,7 +197,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	jkt := ""
 	if dpopProof != "" {
 		var err error
-		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.dpopVerificationURL), "")
+		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
 			writeError(w, http.StatusBadRequest, "invalid DPoP proof")

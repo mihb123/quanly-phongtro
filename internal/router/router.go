@@ -34,17 +34,17 @@ func New(
 		r.Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
 		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
-		r.With(authMiddleware(tokenProvider, cfg.dpopVerificationURL)).Get("/me", authHandler.GetMe)
-		r.With(authMiddleware(tokenProvider, cfg.dpopVerificationURL)).Patch("/me", authHandler.UpdateMe)
+		r.With(authMiddleware(tokenProvider, cfg.trustedProxies)).Get("/me", authHandler.GetMe)
+		r.With(authMiddleware(tokenProvider, cfg.trustedProxies)).Patch("/me", authHandler.UpdateMe)
 		r.Post("/logout", authHandler.Logout)
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/create", houseHandler.CreateHouse)
 		r.Get("/{id}", houseHandler.GetHouseByID)
@@ -53,7 +53,7 @@ func New(
 		r.Delete("/{id}", houseHandler.DeleteHouse)
 	})
 	r.Route("/api/v1/room", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", roomHandler.CreateRoom)
 		r.Get("/", roomHandler.ListRooms)
@@ -63,7 +63,7 @@ func New(
 	})
 
 	r.Route("/api/v1/tenant", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", tenantHandler.RegisterTenant)
 		r.Get("/room/{id}", tenantHandler.ListTenantByRoomID)
@@ -74,7 +74,7 @@ func New(
 	})
 
 	r.Route("/api/v1/invoice", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", invoiceHandler.CreateInvoice)
 		r.Get("/", invoiceHandler.ListInvoices)
@@ -88,7 +88,7 @@ func New(
 	r.Route("/api/v1/zalo", func(r chi.Router) {
 		r.Post("/webhooks/{managerID}", zaloHandler.Webhook)
 		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 			r.Use(requireRole("MANAGER"))
 			r.Get("/public-key", zaloHandler.GetPublicKey)
 			r.Get("/config", zaloHandler.GetConfigStatus)
@@ -104,7 +104,7 @@ func New(
 			r.Get("/providers/{provider}/cancel", paymentHandler.HandleProviderCancel)
 			r.Post("/providers/{provider}/managers/{managerID}/webhook", paymentHandler.HandleProviderWebhook)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+				r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 				r.Use(requireRole("MANAGER"))
 				r.Get("/public-key", paymentHandler.GetPublicKey)
 				r.Get("/providers/payos/config", paymentHandler.GetPayOSConfig)
@@ -124,7 +124,7 @@ func New(
 	}
 
 	r.Route("/api/v1/house-cost", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", houseCostHandler.CreateMonthlyCost)
 		r.Get("/", houseCostHandler.GetMonthlyCost)
@@ -132,13 +132,13 @@ func New(
 	})
 
 	r.Route("/api/v1/revenue-summary", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Get("/", houseCostHandler.GetRevenueSummaries)
 	})
 
 	r.Route("/api/v1/uploads/transactions", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Get("/*", invoiceHandler.DownloadTransactionImage)
 	})
