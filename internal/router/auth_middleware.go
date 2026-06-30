@@ -57,9 +57,14 @@ func authMiddleware(tokens *security.JWTProvider, trustedProxies []netip.Prefix)
 				}
 
 				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, trustedProxies), token)
-				if err != nil || derivedJkt != jkt {
+				if err != nil {
 					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof", err)
-					writeError(w, http.StatusUnauthorized, "invalid DPoP proof")
+					writeError(w, http.StatusUnauthorized, err.Error())
+					return
+				}
+				if derivedJkt != jkt {
+					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof: jkt mismatch", nil)
+					writeError(w, http.StatusUnauthorized, "invalid DPoP proof: jkt mismatch")
 					return
 				}
 			}

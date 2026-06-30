@@ -93,7 +93,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
@@ -150,7 +150,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
@@ -200,7 +200,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
 			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			writeError(w, http.StatusBadRequest, "invalid DPoP proof")
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
