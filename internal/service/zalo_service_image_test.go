@@ -124,6 +124,8 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{}, nil)
 	// Called once by handleGroupLinking (auto-link attempt) and once by processTransactionImage.
 	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(nil, errors.New("not found")).Times(2)
+	// Unlinked group -> handleGroupLinking replies with the group ID for web connection (Case 2).
+	zaloClient.EXPECT().SendMessage(ctx, "bot123", "group_123", gomock.Any()).Return(nil)
 
 	payload := []byte(`{
 		"event_name": "user_send_image",

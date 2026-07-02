@@ -44,7 +44,9 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		return err
 	}
 
-	if webhookCtx.eventName == "group.bot.add" || webhookCtx.isGroupChat {
+	// The Zalo Bot API only forwards group messages when the bot is @mentioned or replied to,
+	// and it never emits a "bot added to group" event, so any group webhook is a deliberate interaction.
+	if webhookCtx.isGroupChat {
 		s.handleGroupLinking(ctx, managerID, webhookCtx)
 	}
 
@@ -339,7 +341,6 @@ func (s *zaloServiceImpl) handleGroupLinking(ctx context.Context, managerID stri
 	}
 
 	greeting := isBotGreeting(webhookCtx.text)
-	justAdded := webhookCtx.eventName == "group.bot.add"
 
 	// Already linked: confirm on greeting, stay silent otherwise.
 	if room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.chatID); err == nil && room != nil {
@@ -349,25 +350,23 @@ func (s *zaloServiceImpl) handleGroupLinking(ctx context.Context, managerID stri
 		return
 	}
 
-	// Case 1: auto-map by group name format.
+	// Case 1: best-effort auto-map when the group name is available and follows "<RoomName> <HouseName>".
+	// The Zalo Bot webhook payload does not carry the group name (chat only has id + chat_type), so this
+	// rarely runs in production; the reliable path is manual connection via the group ID below (Case 2).
 	if webhookCtx.groupName != "" {
 		linked, err := s.autoLinkRoom(ctx, managerID, webhookCtx.chatID, webhookCtx.groupName)
 		if err != nil {
 			logger.Error(nil, 0, "zalo auto link room failed", err)
 		}
 		if linked {
-			if greeting || justAdded {
-				s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, "✅ Bot đã tự động kết nối nhóm này với phòng thành công.")
-			}
+			s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, "✅ Bot đã tự động kết nối nhóm này với phòng thành công.")
 			return
 		}
 	}
 
-	// Case 2: name not in the expected format -> guide the manager to connect on the web.
-	if justAdded || greeting {
-		msg := fmt.Sprintf("⚠️ Nhóm này chưa được kết nối với phòng nào.\n\nMã nhóm (Group ID):\n%s\n\nVui lòng sao chép mã trên, vào phần chỉnh sửa phòng trên web và dán vào ô \"Group Chat ID\" để hoàn tất kết nối.", webhookCtx.chatID)
-		s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, msg)
-	}
+	// Case 2: group is not linked -> reply with the group ID so the manager can connect it on the web.
+	msg := fmt.Sprintf("⚠️ Nhóm này chưa được kết nối với phòng nào.\n\nMã nhóm (Group ID):\n%s\n\nVui lòng sao chép mã trên, vào phần chỉnh sửa phòng trên web và dán vào ô \"Group Chat ID\" để hoàn tất kết nối.", webhookCtx.chatID)
+	s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, msg)
 }
 
 // sendGroupMessage sends a best-effort text message to a group chat, logging failures without
