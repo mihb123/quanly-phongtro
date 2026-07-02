@@ -45,9 +45,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	if webhookCtx.eventName == "group.bot.add" || webhookCtx.isGroupChat {
-		if webhookCtx.groupName != "" && webhookCtx.chatID != "" {
-			_ = s.autoLinkRoom(ctx, managerID, webhookCtx.chatID, webhookCtx.groupName)
-		}
+		s.handleGroupLinking(ctx, managerID, webhookCtx)
 	}
 
 	if webhookCtx.eventName == "message.unsupported.received" {
@@ -211,13 +209,6 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 				logger.Error(nil, 0, "zalo webhook process transaction image failed", err)
 			}
 		}
-
-		if cleanText == "botoi" || cleanText == "botơi" {
-			botToken, err := s.getDecryptedToken(ctx, managerID)
-			if err == nil {
-				_ = s.client.SendMessage(ctx, botToken, webhookCtx.chatID, "Bot đã kết nối thành công")
-			}
-		}
 	}
 
 	return nil
@@ -282,11 +273,13 @@ func (s *zaloServiceImpl) processTransactionImage(ctx context.Context, managerID
 	return nil
 }
 
-func (s *zaloServiceImpl) autoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) error {
+// autoLinkRoom maps a Zalo group to a room when the group name follows the
+// "<RoomName> <HouseName>" format. It returns true only when a room was matched and updated.
+func (s *zaloServiceImpl) autoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) (bool, error) {
 	// groupName is expected to be "<RoomName> <HouseName>"
 	houses, err := s.houseRepo.ListHouseByManagerID(ctx, managerID, 1000, 0, "")
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, house := range houses {
@@ -318,14 +311,76 @@ func (s *zaloServiceImpl) autoLinkRoom(ctx context.Context, managerID, groupChat
 						ExtraVehicleFee:       room.ExtraVehicleFee,
 						GroupChatID:           &groupChatID,
 					}
-					_, err := s.roomRepo.UpdateRoom(ctx, room.ID, house.ID, params)
-					return err
+					if _, err := s.roomRepo.UpdateRoom(ctx, room.ID, house.ID, params); err != nil {
+						return false, err
+					}
+					return true, nil
 				}
 			}
 		}
 	}
 
-	return nil
+	return false, nil
+}
+
+// isBotGreeting reports whether a group message is the "bot ơi" activation phrase.
+func isBotGreeting(text string) bool {
+	clean := strings.ToLower(strings.ReplaceAll(text, " ", ""))
+	return clean == "botoi" || clean == "botơi"
+}
+
+// handleGroupLinking connects a Zalo group to a room. It first tries to auto-map by the group
+// name format "<RoomName> <HouseName>" (Case 1); when the name is not in that format it replies
+// with the group ID so the manager can connect the group to a room on the web (Case 2).
+// It only talks to the group when the bot is just added or the manager greets it, to avoid spam.
+func (s *zaloServiceImpl) handleGroupLinking(ctx context.Context, managerID string, webhookCtx webhookMessageContext) {
+	if webhookCtx.chatID == "" {
+		return
+	}
+
+	greeting := isBotGreeting(webhookCtx.text)
+	justAdded := webhookCtx.eventName == "group.bot.add"
+
+	// Already linked: confirm on greeting, stay silent otherwise.
+	if room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.chatID); err == nil && room != nil {
+		if greeting {
+			s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, fmt.Sprintf("✅ Nhóm này đã được kết nối với phòng %s.", room.Name))
+		}
+		return
+	}
+
+	// Case 1: auto-map by group name format.
+	if webhookCtx.groupName != "" {
+		linked, err := s.autoLinkRoom(ctx, managerID, webhookCtx.chatID, webhookCtx.groupName)
+		if err != nil {
+			logger.Error(nil, 0, "zalo auto link room failed", err)
+		}
+		if linked {
+			if greeting || justAdded {
+				s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, "✅ Bot đã tự động kết nối nhóm này với phòng thành công.")
+			}
+			return
+		}
+	}
+
+	// Case 2: name not in the expected format -> guide the manager to connect on the web.
+	if justAdded || greeting {
+		msg := fmt.Sprintf("⚠️ Nhóm này chưa được kết nối với phòng nào.\n\nMã nhóm (Group ID):\n%s\n\nVui lòng sao chép mã trên, vào phần chỉnh sửa phòng trên web và dán vào ô \"Group Chat ID\" để hoàn tất kết nối.", webhookCtx.chatID)
+		s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, msg)
+	}
+}
+
+// sendGroupMessage sends a best-effort text message to a group chat, logging failures without
+// interrupting webhook processing.
+func (s *zaloServiceImpl) sendGroupMessage(ctx context.Context, managerID, chatID, text string) {
+	botToken, err := s.getDecryptedToken(ctx, managerID)
+	if err != nil {
+		logger.Error(nil, 0, "zalo webhook get token failed", err)
+		return
+	}
+	if err := s.client.SendMessage(ctx, botToken, chatID, text); err != nil {
+		logger.Error(nil, 0, "zalo webhook send group message failed", err)
+	}
 }
 
 // isZaloAuthError checks if an error indicates that the Zalo bot token is invalid or expired.

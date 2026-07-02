@@ -12,7 +12,7 @@ type ZaloServiceTesting interface {
 	ZaloService
 	GetDecryptedToken(ctx context.Context, managerID string) (string, error)
 	ProcessTransactionImage(ctx context.Context, managerID, groupChatID, imgURL string) error
-	AutoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) error
+	AutoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) (bool, error)
 }
 
 func (s *zaloServiceImpl) GetDecryptedToken(ctx context.Context, managerID string) (string, error) {
@@ -23,7 +23,7 @@ func (s *zaloServiceImpl) ProcessTransactionImage(ctx context.Context, managerID
 	return s.processTransactionImage(ctx, managerID, groupChatID, imgURL)
 }
 
-func (s *zaloServiceImpl) AutoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) error {
+func (s *zaloServiceImpl) AutoLinkRoom(ctx context.Context, managerID, groupChatID, groupName string) (bool, error) {
 	return s.autoLinkRoom(ctx, managerID, groupChatID, groupName)
 }
 

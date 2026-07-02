@@ -48,12 +48,12 @@ func TestZaloService_HandleWebhook_ImageProcessing_Success(t *testing.T) {
 		ZaloUserID:   ptr("manager-zalo"),
 	}, nil).AnyTimes()
 
+	// Called once by handleGroupLinking (already-linked check) and once by processTransactionImage.
 	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(&model.Room{
 		ID:      "room1",
 		HouseID: "house1",
-	}, nil)
+	}, nil).Times(2)
 
-	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{}, nil)
 	houseRepo.EXPECT().GetByID(ctx, "house1", managerID).Return(&model.House{}, nil)
 
 	invoiceRepo.EXPECT().GetLatestUnpaidInvoiceByRoomID(ctx, "room1").Return(&model.Invoice{
@@ -122,7 +122,8 @@ func TestZaloService_HandleWebhook_ImageProcessing_RoomNotFound(t *testing.T) {
 	}, nil).AnyTimes()
 
 	houseRepo.EXPECT().ListHouseByManagerID(ctx, managerID, 1000, 0, "").Return([]model.House{}, nil)
-	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(nil, errors.New("not found"))
+	// Called once by handleGroupLinking (auto-link attempt) and once by processTransactionImage.
+	roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group_123").Return(nil, errors.New("not found")).Times(2)
 
 	payload := []byte(`{
 		"event_name": "user_send_image",

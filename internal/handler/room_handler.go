@@ -54,6 +54,7 @@ type updateRoomRequest struct {
 	ExtraPersonFee        *float64 `json:"extra_person_fee,omitempty"`
 	ExtraVehicleThreshold *int     `json:"extra_vehicle_threshold,omitempty"`
 	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
+	GroupChatID           *string  `json:"group_chat_id,omitempty"`
 }
 
 // getManagerID extracts the authenticated manager's user ID from the JWT claims.
@@ -225,6 +226,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 		ExtraPersonFee:        req.ExtraPersonFee,
 		ExtraVehicleThreshold: req.ExtraVehicleThreshold,
 		ExtraVehicleFee:       req.ExtraVehicleFee,
+		GroupChatID:           req.GroupChatID,
 	})
 	if err != nil {
 		handleRoomError(w, r, err)

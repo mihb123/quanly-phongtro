@@ -566,7 +566,8 @@ func TestHandleWebhook(t *testing.T) {
 			name:    "group.bot.add autolink",
 			payload: `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`,
 			setup: func() {
-				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
+				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil).Times(2)
+				m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("not found"))
 				m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 				m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "P101"}}, nil)
 				m.roomRepo.EXPECT().UpdateRoom(ctx, "r1", "h1", gomock.Any()).Return(&model.Room{}, nil)
@@ -685,7 +686,9 @@ func TestHandleWebhook_OfficialZaloPayload(t *testing.T) {
 
 	t.Run("group text under result replies to group chat id", func(t *testing.T) {
 		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, ZaloWebhookSecret: &encSecret, ZaloUserID: ptr("z1")}, nil).Times(2)
-		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "group-1", "Bot đã kết nối thành công").Return(nil)
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "group-1").Return(nil, errors.New("not found"))
+		// Group not connected to a room -> bot replies with the group ID for web connection (Case 2).
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "group-1", gomock.Any()).Return(nil)
 
 		payload := `{"ok":true,"result":{"event_name":"message.text.received","message":{"from":{"id":"u1"},"chat":{"id":"group-1","chat_type":"GROUP"},"text":"bot ơi"}}}`
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "secret")
@@ -709,7 +712,8 @@ func TestAutoLinkRoom_ListHouseError(t *testing.T) {
 
 	m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return(nil, errors.New("db error"))
 
-	err := m.tsvc.AutoLinkRoom(ctx, "m1", "g1", "P101 N1")
+	linked, err := m.tsvc.AutoLinkRoom(ctx, "m1", "g1", "P101 N1")
+	assert.False(t, linked)
 	assert.Error(t, err)
 }
 
@@ -921,7 +925,8 @@ func TestHandleWebhook_AutoLink_Branches(t *testing.T) {
 
 	t.Run("list rooms error", func(t *testing.T) {
 		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P101 N1"}}`
-		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil).AnyTimes()
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("not found"))
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return(nil, errors.New("err"))
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
@@ -930,7 +935,8 @@ func TestHandleWebhook_AutoLink_Branches(t *testing.T) {
 
 	t.Run("no match", func(t *testing.T) {
 		payload := `{"event_name":"group.bot.add","group":{"id":"g1","name":"P999 N1"}}`
-		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil)
+		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{}, nil).AnyTimes()
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("not found"))
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return([]model.House{{ID: "h1", Name: "N1"}}, nil)
 		m.roomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "h1").Return([]model.Room{{ID: "r1", Name: "101"}}, nil)
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(payload), "test-secret")
@@ -1056,8 +1062,10 @@ func TestHandleWebhook_OtherBranches(t *testing.T) {
 
 	t.Run("botoi group chat", func(t *testing.T) {
 		m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, ZaloUserID: ptr("z1")}, nil).AnyTimes()
+		m.roomRepo.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("not found"))
 		m.houseRepo.EXPECT().ListHouseByManagerID(ctx, "m1", 1000, 0, "").Return(nil, nil)
-		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "g1", "Bot đã kết nối thành công").Return(nil)
+		// Group "G1" is not in the "<Room> <House>" format and not linked -> reply with group ID (Case 2).
+		m.zaloClient.EXPECT().SendMessage(ctx, "bot-token", "g1", gomock.Any()).Return(nil)
 		err := m.svc.HandleWebhook(ctx, "m1", []byte(`{"event_name":"user_send_text","message":{"text":"botoi","chat":{"id":"g1","title":"G1"}}}`), "secret")
 		assert.NoError(t, err)
 	})
