@@ -18,6 +18,11 @@
 !*.css
 !*.svg
 !*.ico
+
+# PWA assets tĩnh (icon + manifest) — chỉ mở đúng thư mục public, tránh kéo theo
+# ảnh upload của người dùng trong uploads/.
+!frontend/public/*.png
+!frontend/public/*.webmanifest
 !Makefile
 !Dockerfile
 !*.sh

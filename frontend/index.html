@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Phòng trọ</title>
+
+    <!-- PWA: cho phép cài đặt lên màn hình chính điện thoại và chạy toàn màn hình (standalone). -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#84cc16" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+    <!-- iOS Safari "Thêm vào MH chính": icon + tiêu đề + chế độ standalone. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Phòng trọ" />
     <!-- Restore saved appearance before first paint to avoid a light/dark flash.
          Keys must match src/lib/colorMode.ts and src/lib/theme.ts. -->
     <script>
