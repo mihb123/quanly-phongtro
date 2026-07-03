@@ -151,8 +151,7 @@ export const useHouseCostStore = create<HouseCostState>()(
                     (payload.electricity ?? current.electricity) +
                     (payload.water ?? current.water) +
                     (payload.wifi ?? current.wifi) +
-                    (payload.cleaning ?? current.cleaning) +
-                    (payload.maintenance ?? current.maintenance);
+                    (payload.cleaning ?? current.cleaning);
                     
         const extras = payload.extra_costs ?? current.extra_costs ?? [];
         extras.forEach(ex => total += ex.amount);

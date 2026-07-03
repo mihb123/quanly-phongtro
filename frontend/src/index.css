@@ -60,6 +60,7 @@
 ========================================= */
 
 :root {
+    color-scheme: light;
     /* --- Core Colors --- */
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
@@ -120,6 +121,7 @@
 }
 
 .dark {
+    color-scheme: dark;
     --background: oklch(0.145 0 0); /* Off-black */
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -199,6 +201,8 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
   }
   body {
     @apply overscroll-none bg-background text-foreground;
@@ -209,6 +213,21 @@
   /* Prevent iOS zoom on inputs */
   input, textarea, select {
     @apply text-base md:text-sm;
+  }
+
+  /* Scrollbar styles */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-foreground/20 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-foreground/40;
   }
 }
 

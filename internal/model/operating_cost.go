@@ -50,7 +50,6 @@ type HouseCost struct {
 	Water       float64     `json:"water"`
 	Wifi        float64     `json:"wifi"`
 	Cleaning    float64     `json:"cleaning"`
-	Maintenance float64     `json:"maintenance"`
 	ExtraCosts  []ExtraCost `json:"extra_costs" bun:"type:jsonb"`
 	Note        string      `json:"note"`
 	TotalCost   float64     `json:"total_cost"`

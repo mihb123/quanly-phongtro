@@ -15,7 +15,6 @@ export interface HouseCost {
   water: number;
   wifi: number;
   cleaning: number;
-  maintenance: number;
   extra_costs: ExtraCost[];
   note: string;
   total_cost: number;

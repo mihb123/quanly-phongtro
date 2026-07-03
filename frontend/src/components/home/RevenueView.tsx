@@ -138,6 +138,15 @@ export function RevenueView() {
     }
   };
 
+  const handleHouseSelectChangeRequest = (houseIds: string[]) => {
+    if (hasAnyEdits) {
+      setPendingAction(() => () => setSelectedHouseIds(houseIds));
+      triggerConfirm();
+    } else {
+      setSelectedHouseIds(houseIds);
+    }
+  };
+
   const handleSelectAllRequest = () => {
     const action = () => {
       if (selectedHouseIds.length === houses.length) {
@@ -316,29 +325,6 @@ export function RevenueView() {
           </span>
         }
         description="Theo dõi dòng tiền, chi phí vận hành và lợi nhuận ròng."
-        action={
-          <div className="flex w-full items-center gap-2 sm:w-auto md:gap-3">
-            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 py-2 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-1 focus-within:ring-ring sm:flex-none md:px-4">
-              <Calendar className="hidden size-4 shrink-0 text-muted-foreground sm:block" />
-              <Input
-                type="month"
-                value={period}
-                onChange={(e) => handlePeriodChange(e.target.value)}
-                className="h-full w-full min-w-0 border-none bg-transparent p-0 text-center text-sm font-medium shadow-none focus-visible:ring-0 sm:text-left md:w-[120px]"
-              />
-            </div>
-            <div className="min-w-0 flex-1 sm:flex-none">
-              <HouseSelectDropdown
-                houses={houses}
-                selectedHouseIds={selectedHouseIds}
-                isOpen={isHouseSelectOpen}
-                onOpenChange={setIsHouseSelectOpen}
-                onToggleHouse={handleHouseToggleRequest}
-                onSelectAll={handleSelectAllRequest}
-              />
-            </div>
-          </div>
-        }
       />
 
       {/* Summary Cards */}
@@ -363,12 +349,36 @@ export function RevenueView() {
         />
       </div>
 
-      {/* Detail Costs Section - Only show when 1 house is selected to allow inline editing safely */}
-      {selectedHouseIds.length === 1 && (
-        <SectionCard
-          title={`Chi tiết chi phí vận hành - ${houses.find(h => h.id === selectedHouseIds[0])?.name ?? ''}`}
-          action={
-            costs[selectedHouseIds[0]] && hasEdits(selectedHouseIds[0]) ? (
+      {/* Detail Costs Section */}
+      <SectionCard
+        title={
+          selectedHouseIds.length === 1 
+            ? `Chi tiết chi phí vận hành - ${houses.find(h => h.id === selectedHouseIds[0])?.name ?? ''}`
+            : 'Chi tiết chi phí vận hành'
+        }
+        action={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto md:gap-3">
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <HouseSelectDropdown
+                houses={houses}
+                selectedHouseIds={selectedHouseIds}
+                isOpen={isHouseSelectOpen}
+                onOpenChange={setIsHouseSelectOpen}
+                onToggleHouse={handleHouseToggleRequest}
+                onSelectAll={handleSelectAllRequest}
+                onSelectChange={handleHouseSelectChangeRequest}
+              />
+            </div>
+            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 py-2 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-1 focus-within:ring-ring sm:flex-none md:px-4">
+              <Calendar className="hidden size-4 shrink-0 text-muted-foreground sm:block" />
+              <Input
+                type="month"
+                value={period}
+                onChange={(e) => handlePeriodChange(e.target.value)}
+                className="h-full w-full min-w-0 border-none bg-transparent p-0 text-center text-sm font-medium shadow-none focus-visible:ring-0 sm:text-left md:w-[120px]"
+              />
+            </div>
+            {selectedHouseIds.length === 1 && costs[selectedHouseIds[0]] && hasEdits(selectedHouseIds[0]) && (
               <Button
                 onClick={() => handleSaveCost(selectedHouseIds[0])}
                 disabled={isSaving[selectedHouseIds[0]]}
@@ -376,11 +386,13 @@ export function RevenueView() {
               >
                 {isSaving[selectedHouseIds[0]] ? 'Đang lưu...' : <><Save className="size-4" /> Lưu thay đổi</>}
               </Button>
-            ) : undefined
-          }
-          bodyClassName="p-6"
-        >
-          {isLoadingCosts ? (
+            )}
+          </div>
+        }
+        bodyClassName="p-6"
+      >
+        {selectedHouseIds.length === 1 ? (
+          isLoadingCosts ? (
             <div className="py-12 text-center text-muted-foreground">Đang tải dữ liệu chi phí...</div>
           ) : !costs[selectedHouseIds[0]] ? (
             <EmptyState
@@ -414,7 +426,6 @@ export function RevenueView() {
                     { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
                     { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
                     { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
-                    { key: 'maintenance', label: 'Tiền bảo trì, sửa chữa', type: 'Biến đổi' },
                   ].map((item) => (
                     <TableRow key={item.key} className="group">
                       <TableCell className="font-semibold text-foreground">{item.label}</TableCell>
@@ -498,7 +509,6 @@ export function RevenueView() {
                         (getActiveCostValue(selectedHouseIds[0], 'water') as number) +
                         (getActiveCostValue(selectedHouseIds[0], 'wifi') as number) +
                         (getActiveCostValue(selectedHouseIds[0], 'cleaning') as number) +
-                        (getActiveCostValue(selectedHouseIds[0], 'maintenance') as number) +
                         getActiveExtraCosts(selectedHouseIds[0]).reduce((acc, curr) => acc + curr.amount, 0)
                       )}
                     </TableCell>
@@ -506,26 +516,23 @@ export function RevenueView() {
                 </TableFooter>
               </Table>
             </div>
-          )}
-        </SectionCard>
-      )}
+          )
+        ) : selectedHouseIds.length > 1 ? (
+          <EmptyState
+            icon={Wallet}
+            className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+            title="Đang xem tổng hợp nhiều nhà"
+            description="Bảng chi tiết chỉ hiển thị khi bạn chọn 1 nhà duy nhất. Hãy bỏ chọn các nhà khác để xem và chỉnh sửa chi tiết."
+          />
+        ) : houses.length > 0 ? (
+          <EmptyState
+            className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+            title="Vui lòng chọn nhà trọ"
+            description="Bạn cần chọn ít nhất 1 nhà trọ để xem thống kê doanh thu."
+          />
+        ) : null}
+      </SectionCard>
 
-      {selectedHouseIds.length > 1 && (
-        <EmptyState
-          icon={Wallet}
-          className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
-          title="Đang xem tổng hợp nhiều nhà"
-          description="Bảng chi tiết chỉ hiển thị khi bạn chọn 1 nhà duy nhất. Hãy bỏ chọn các nhà khác để xem và chỉnh sửa chi tiết."
-        />
-      )}
-
-      {selectedHouseIds.length === 0 && houses.length > 0 && (
-        <EmptyState
-          className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
-          title="Vui lòng chọn nhà trọ"
-          description="Bạn cần chọn ít nhất 1 nhà trọ để xem thống kê doanh thu."
-        />
-      )}
       {confirmModal}
 
       {/* Note Editing Modal */}

@@ -25,7 +25,6 @@ type UpdateCostInput struct {
 	Water       float64           `json:"water"`
 	Wifi        float64           `json:"wifi"`
 	Cleaning    float64           `json:"cleaning"`
-	Maintenance float64           `json:"maintenance"`
 	ExtraCosts  []model.ExtraCost `json:"extra_costs"`
 	Note        string            `json:"note"`
 }
@@ -58,7 +57,7 @@ func (s *houseCostServiceImpl) verifyHouseOwnership(ctx context.Context, manager
 }
 
 func (s *houseCostServiceImpl) calculateTotalCost(cost *model.HouseCost) float64 {
-	total := cost.Rent + cost.Electricity + cost.Water + cost.Wifi + cost.Cleaning + cost.Maintenance
+	total := cost.Rent + cost.Electricity + cost.Water + cost.Wifi + cost.Cleaning
 	for _, extra := range cost.ExtraCosts {
 		total += extra.Amount
 	}
@@ -94,7 +93,6 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 		// Variable costs default to 0
 		newCost.Electricity = 0
 		newCost.Water = 0
-		newCost.Maintenance = 0
 		// Optional: could copy extra_costs template with 0 amounts if desired, but starting empty is safer
 	}
 
@@ -154,7 +152,6 @@ func (s *houseCostServiceImpl) UpdateMonthlyCost(ctx context.Context, managerID 
 	cost.Water = input.Water
 	cost.Wifi = input.Wifi
 	cost.Cleaning = input.Cleaning
-	cost.Maintenance = input.Maintenance
 	cost.ExtraCosts = input.ExtraCosts
 	if cost.ExtraCosts == nil {
 		cost.ExtraCosts = []model.ExtraCost{}
