@@ -25,9 +25,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("email = ?", email).
-		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -45,9 +45,9 @@ func (r *UserRepository) GetAuthUserByEmail(ctx context.Context, email string) (
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("email = ?", email).
-		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -65,9 +65,9 @@ func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("id = ?", userID).
-		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &u.PasswordHash, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -85,9 +85,9 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*model.U
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("phone = ?", phone).
-		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -105,9 +105,9 @@ func (r *UserRepository) GetByZaloUserID(ctx context.Context, zaloUserID string)
 	var role string
 	err := r.db.NewSelect().
 		Model((*model.User)(nil)).
-		Column("id", "email", "role", "full_name", "phone", "is_activated", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
+		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("zalo_user_id = ?", zaloUserID).
-		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+		Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -124,7 +124,7 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 	_, err := r.db.NewInsert().
 		Model(u).
 		Column("email", "password_hash", "role", "full_name", "phone", "is_activated").
-		Returning("id, created_at, updated_at").
+		Returning("id, created_at, updated_at, theme, color_mode").
 		Exec(ctx)
 
 	if err != nil {
@@ -169,7 +169,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 	q := r.db.NewUpdate().
 		Model((*model.User)(nil)).
 		Where("id = ?", userID).
-		Returning("id, email, role, full_name, phone, is_activated, zalo_bot_token, zalo_webhook_secret, is_zalo_bot_active, zalo_user_id, created_at, updated_at")
+		Returning("id, email, role, full_name, phone, is_activated, theme, color_mode, zalo_bot_token, zalo_webhook_secret, is_zalo_bot_active, zalo_user_id, created_at, updated_at")
 
 	updated := false
 	if input.FullName != nil {
@@ -178,6 +178,14 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 	}
 	if input.Phone != nil {
 		q.Set("phone = ?", *input.Phone)
+		updated = true
+	}
+	if input.Theme != nil {
+		q.Set("theme = ?", *input.Theme)
+		updated = true
+	}
+	if input.ColorMode != nil {
+		q.Set("color_mode = ?", *input.ColorMode)
 		updated = true
 	}
 	if input.Email != nil {
@@ -211,7 +219,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 
 	var u model.User
 	var role string
-	err := q.Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
+	err := q.Scan(ctx, &u.ID, &u.Email, &role, &u.FullName, &u.Phone, &u.IsActivated, &u.Theme, &u.ColorMode, &u.ZaloBotToken, &u.ZaloWebhookSecret, &u.IsZaloBotActive, &u.ZaloUserID, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

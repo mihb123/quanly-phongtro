@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Phòng trọ</title>
+    <!-- Restore saved appearance before first paint to avoid a light/dark flash.
+         Keys must match src/lib/colorMode.ts and src/lib/theme.ts. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement
+          var mode = localStorage.getItem('color-mode') || 'system'
+          var isDark =
+            mode === 'dark' ||
+            (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          root.classList.toggle('dark', isDark)
+          root.dataset.theme = localStorage.getItem('color-theme') || 'lime'
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

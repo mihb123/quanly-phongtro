@@ -14,18 +14,18 @@ import (
 )
 
 var userColumns = []string{
-	"id", "email", "role", "full_name", "phone", "is_activated",
+	"id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode",
 	"zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at",
 }
 
 var userColumnsWithPassword = []string{
-	"id", "email", "password_hash", "role", "full_name", "phone", "is_activated",
+	"id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode",
 	"zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at",
 }
 
 func newUserRow(id string) *sqlmock.Rows {
 	return sqlmock.NewRows(userColumns).AddRow(
-		id, "test@test.com", "manager", "Test User", "123456", true,
+		id, "test@test.com", "manager", "Test User", "123456", true, "lime", "system",
 		"", "", false, "", time.Now(), time.Now(),
 	)
 }
@@ -96,7 +96,7 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 
 func TestUserRepository_GetAuthUserByEmail(t *testing.T) {
 	authCols := []string{
-		"id", "email", "password_hash", "role", "full_name", "phone", "is_activated",
+		"id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode",
 		"zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at",
 	}
 
@@ -111,7 +111,7 @@ func TestUserRepository_GetAuthUserByEmail(t *testing.T) {
 			email: "test@test.com",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(authCols).AddRow(
-					"user-1", "test@test.com", "hashed", "manager", "Test User", "123456", true,
+					"user-1", "test@test.com", "hashed", "manager", "Test User", "123456", true, "lime", "system",
 					"", "", false, "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)
@@ -175,7 +175,7 @@ func TestUserRepository_GetByUserID(t *testing.T) {
 			userID: "user-1",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(userColumnsWithPassword).AddRow(
-					"user-1", "test@test.com", "", "manager", "Test User", "123456", true,
+					"user-1", "test@test.com", "", "manager", "Test User", "123456", true, "lime", "system",
 					"", "", false, "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)
@@ -299,7 +299,7 @@ func TestUserRepository_GetByZaloUserID(t *testing.T) {
 			zaloUserID: "zalo-1",
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(userColumns).AddRow(
-					"user-1", "test@test.com", "manager", "Test User", "123456", true,
+					"user-1", "test@test.com", "manager", "Test User", "123456", true, "lime", "system",
 					"", "", false, "zalo-1", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)
@@ -429,7 +429,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(userColumns).AddRow(
-					"user-1", "test@test.com", "manager", "Updated Name", "123456", true,
+					"user-1", "test@test.com", "manager", "Updated Name", "123456", true, "lime", "system",
 					"", "", false, "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`UPDATE "users"`).WillReturnRows(rows)
@@ -449,7 +449,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 			input:  model.UpdateUserInput{},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(userColumnsWithPassword).AddRow(
-					"user-1", "test@test.com", "", "manager", "Old Name", "123456", true,
+					"user-1", "test@test.com", "", "manager", "Old Name", "123456", true, "lime", "system",
 					"", "", false, "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`SELECT .* FROM "users"`).WillReturnRows(rows)
@@ -477,7 +477,7 @@ func TestUserRepository_UpdateUser(t *testing.T) {
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows(userColumns).AddRow(
-					"user-1", "a@a.com", "manager", "Name", "123", true,
+					"user-1", "a@a.com", "manager", "Name", "123", true, "lime", "system",
 					"token", "secret", true, "zalo", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`UPDATE "users"`).WillReturnRows(rows)

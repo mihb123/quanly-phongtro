@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { UserCircle, Shield, Phone, Save, LogOut, Key } from '@/components/icons'
+import { toast } from 'sonner'
+import { UserCircle, Shield, Phone, Save, LogOut, Key, Droplets, Check, Sun, Moon, Monitor } from '@/components/icons'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +11,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/contexts/AuthContext'
 import { updateProfile } from '@/api/auth'
+import { THEMES, normalizeTheme, applyTheme, type ThemeId } from '@/lib/theme'
+import { COLOR_MODES, normalizeColorMode, applyColorMode, type ColorMode } from '@/lib/colorMode'
 import { ChangePasswordModal } from './ChangePasswordModal'
 
 const profileSchema = z.object({
@@ -18,6 +21,13 @@ const profileSchema = z.object({
 })
 
 type ProfileFormValues = z.infer<typeof profileSchema>
+
+// Icon cho từng chế độ hiển thị, tra theo id để render nút chọn chế độ.
+const COLOR_MODE_ICONS: Record<ColorMode, typeof Sun> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
+}
 
 // Modal hồ sơ & cài đặt: vỏ dùng AppModal (Esc/click nền/X tự xử lý), giữ nguyên logic RHF/Zod cập nhật hồ sơ.
 export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
@@ -34,6 +44,58 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
   })
 
   const [showChangePassword, setShowChangePassword] = useState(false)
+
+  // Theme id currently being persisted (drives the spinner + optimistic highlight).
+  const [savingTheme, setSavingTheme] = useState<ThemeId | null>(null)
+  const currentTheme = normalizeTheme(user?.theme)
+  const activeTheme = savingTheme ?? currentTheme
+
+  // Apply the picked theme instantly for preview, then persist it to the DB so
+  // it syncs across devices. Reverts the preview if the request fails.
+  const handleSelectTheme = async (theme: ThemeId) => {
+    if (theme === currentTheme || savingTheme) return
+    const previous = currentTheme
+    applyTheme(theme)
+    setSavingTheme(theme)
+    try {
+      const updatedUser = await updateProfile({ theme })
+      if (updatedUser) {
+        updateUser(updatedUser)
+      }
+    } catch (error) {
+      console.error('Cập nhật giao diện thất bại', error)
+      applyTheme(previous)
+      toast.error('Không thể lưu giao diện, vui lòng thử lại!')
+    } finally {
+      setSavingTheme(null)
+    }
+  }
+
+  // Appearance mode (system/light/dark) currently being persisted.
+  const [savingMode, setSavingMode] = useState<ColorMode | null>(null)
+  const currentMode = normalizeColorMode(user?.color_mode)
+  const activeMode = savingMode ?? currentMode
+
+  // Apply the picked mode instantly for preview, then persist it to the DB so
+  // it syncs across devices. Reverts the preview if the request fails.
+  const handleSelectMode = async (mode: ColorMode) => {
+    if (mode === currentMode || savingMode) return
+    const previous = currentMode
+    applyColorMode(mode)
+    setSavingMode(mode)
+    try {
+      const updatedUser = await updateProfile({ color_mode: mode })
+      if (updatedUser) {
+        updateUser(updatedUser)
+      }
+    } catch (error) {
+      console.error('Cập nhật chế độ hiển thị thất bại', error)
+      applyColorMode(previous)
+      toast.error('Không thể lưu chế độ hiển thị, vui lòng thử lại!')
+    } finally {
+      setSavingMode(null)
+    }
+  }
 
   const onSubmit = async (values: ProfileFormValues) => {
     setIsLoading(true)
@@ -120,6 +182,86 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </Button>
               </div>
+            </div>
+          </div>
+
+          {/* Giao diện: chọn theme màu, áp dụng ngay và lưu vào tài khoản để đồng bộ đa thiết bị */}
+          <div className="space-y-4">
+            <h3 className="font-bold text-foreground text-sm flex items-center gap-2 border-b border-border/40 pb-2">
+              <Droplets className="w-4 h-4 text-muted-foreground" />
+              Giao diện
+            </h3>
+
+            {/* Chế độ sáng/tối/hệ thống — áp dụng ngay và lưu để đồng bộ đa thiết bị */}
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Chế độ</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {COLOR_MODES.map((mode) => {
+                  const Icon = COLOR_MODE_ICONS[mode.id]
+                  const isActive = activeMode === mode.id
+                  const isSaving = savingMode === mode.id
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={() => handleSelectMode(mode.id)}
+                      disabled={savingMode !== null}
+                      aria-pressed={isActive}
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 transition-colors disabled:opacity-60 ${
+                        isActive
+                          ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary'
+                          : 'border-border/60 hover:bg-secondary text-muted-foreground'
+                      }`}
+                    >
+                      {isSaving ? (
+                        <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                      ) : (
+                        <Icon className="h-5 w-5" />
+                      )}
+                      <span className="text-xs font-bold">{mode.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Tông màu — chọn theme màu (Red/Sky) */}
+            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tông màu</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {THEMES.map((theme) => {
+                const isActive = activeTheme === theme.id
+                const isSaving = savingTheme === theme.id
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    onClick={() => handleSelectTheme(theme.id)}
+                    disabled={savingTheme !== null}
+                    aria-pressed={isActive}
+                    className={`cursor-pointer relative flex items-center gap-3 rounded-xl border p-3 text-left transition-colors disabled:opacity-60 ${
+                      isActive
+                        ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
+                        : 'border-border/60 hover:bg-secondary'
+                    }`}
+                  >
+                    <span
+                      className="h-8 w-8 shrink-0 rounded-full border border-border/40 shadow-sm"
+                      style={{ backgroundColor: theme.swatch }}
+                    />
+                    <span className="flex flex-col">
+                      <span className="font-bold text-sm">{theme.label}</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">{theme.description}</span>
+                    </span>
+                    {isSaving ? (
+                      <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                    ) : isActive ? (
+                      <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

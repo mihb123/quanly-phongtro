@@ -29,6 +29,8 @@ export type AuthOutput = {
   full_name?: string
   phone: string
   is_activated: boolean
+  theme?: string
+  color_mode?: string
   access_token?: string
   zalo_bot_token?: string
   is_zalo_bot_active?: boolean
@@ -37,6 +39,8 @@ export type AuthOutput = {
 export interface UpdateProfilePayload {
   full_name?: string
   phone?: string
+  theme?: string
+  color_mode?: string
   old_password?: string
   password?: string
 }

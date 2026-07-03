@@ -69,6 +69,8 @@ type AuthService interface {
 type UpdateProfileInput struct {
 	FullName    *string `json:"full_name"`
 	Phone       *string `json:"phone"`
+	Theme       *string `json:"theme"`
+	ColorMode   *string `json:"color_mode"`
 	OldPassword *string `json:"old_password"`
 	Password    *string `json:"password"`
 }
@@ -103,6 +105,8 @@ type AuthOutput struct {
 	FullName    string `json:"full_name"`
 	Phone       string `json:"phone"`
 	IsActivated bool   `json:"is_activated"`
+	Theme       string `json:"theme"`
+	ColorMode   string `json:"color_mode"`
 	AccessToken string `json:"access_token,omitempty"`
 }
 
@@ -130,6 +134,8 @@ func newAuthOutput(user *model.User) *AuthOutput {
 		FullName:    user.FullName,
 		Phone:       user.Phone,
 		IsActivated: user.IsActivated,
+		Theme:       user.Theme,
+		ColorMode:   user.ColorMode,
 	}
 }
 
@@ -469,10 +475,46 @@ func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, e
 	return false, nil
 }
 
+// validThemes lists the color themes the UI supports. Kept in sync with the
+// frontend theme registry (see frontend/src/lib/theme.ts).
+var validThemes = map[string]bool{"lime": true, "sky": true}
+
+// isValidTheme reports whether the given id is a supported UI color theme.
+func isValidTheme(theme string) bool {
+	return validThemes[theme]
+}
+
+// validColorModes lists the light/dark appearance modes the UI supports. Kept
+// in sync with the frontend registry (see frontend/src/lib/colorMode.ts).
+var validColorModes = map[string]bool{"system": true, "light": true, "dark": true}
+
+// isValidColorMode reports whether the given id is a supported appearance mode.
+func isValidColorMode(mode string) bool {
+	return validColorModes[mode]
+}
+
 func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in UpdateProfileInput) (*AuthOutput, error) {
 	updateInput := model.UpdateUserInput{
 		FullName: in.FullName,
 		Phone:    in.Phone,
+	}
+
+	// Persist the chosen UI theme so it stays consistent across the user's devices.
+	if in.Theme != nil {
+		theme := strings.TrimSpace(*in.Theme)
+		if !isValidTheme(theme) {
+			return nil, fmt.Errorf("invalid theme %q: %w", theme, ErrInvalidInput)
+		}
+		updateInput.Theme = &theme
+	}
+
+	// Persist the chosen appearance mode so light/dark stays consistent per user.
+	if in.ColorMode != nil {
+		mode := strings.TrimSpace(*in.ColorMode)
+		if !isValidColorMode(mode) {
+			return nil, fmt.Errorf("invalid color mode %q: %w", mode, ErrInvalidInput)
+		}
+		updateInput.ColorMode = &mode
 	}
 
 	if in.Password != nil && *in.Password != "" {
