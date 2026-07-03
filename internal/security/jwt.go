@@ -103,6 +103,12 @@ func (p *JWTProvider) RevokeRefreshToken(ctx context.Context, token string, user
 	return p.jwtRepo.Revoke(ctx, token, userID)
 }
 
+// UpdateSessionLocation persists a session location that was resolved off the
+// login critical path (background reverse-geocoding).
+func (p *JWTProvider) UpdateSessionLocation(ctx context.Context, refreshToken, userID, location string, geocodingSource *string) error {
+	return p.jwtRepo.UpdateLocation(ctx, refreshToken, userID, location, geocodingSource)
+}
+
 func (p *JWTProvider) FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error) {
 	return p.jwtRepo.FindByToken(ctx, token, userID)
 }

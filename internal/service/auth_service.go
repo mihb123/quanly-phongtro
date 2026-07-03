@@ -13,6 +13,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 var (
@@ -29,6 +30,7 @@ type PasswordHasher interface {
 type TokenProvider interface {
 	GenerateAccessToken(role, email, userID string, isActivated bool, jkt string) (string, error)
 	GenerateRefreshToken(ctx context.Context, userID, ipAddress, userAgent, location, jkt string, latitude, longitude *float64, geocodingSource *string) (string, error)
+	UpdateSessionLocation(ctx context.Context, refreshToken, userID, location string, geocodingSource *string) error
 	RevokeRefreshToken(ctx context.Context, token string, userID string) error
 	FindByToken(ctx context.Context, token string, userID string) (*model.AuthSession, error)
 	GetAccessTokenTTL() time.Duration
@@ -88,9 +90,10 @@ type LoginInput struct {
 }
 
 type LoginOutput struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string      `json:"access_token"`
+	RefreshToken string      `json:"refresh_token"`
+	ExpiresIn    int64       `json:"expires_in"`
+	User         *AuthOutput `json:"user,omitempty"`
 }
 
 type AuthOutput struct {
@@ -114,6 +117,46 @@ func NewAuthService(users model.UserRepository, hasher PasswordHasher, tokens To
 		otpCheck:          otpCheck,
 		geoip:             geoip,
 		geocoding:         geocoding,
+	}
+}
+
+// newAuthOutput maps a user model to the public profile returned to clients.
+// It intentionally omits secret fields (password hash, zalo secrets).
+func newAuthOutput(user *model.User) *AuthOutput {
+	return &AuthOutput{
+		UserID:      user.ID,
+		Email:       user.Email,
+		Role:        string(user.Role),
+		FullName:    user.FullName,
+		Phone:       user.Phone,
+		IsActivated: user.IsActivated,
+	}
+}
+
+// resolveInitialLocation returns a best-effort location using only the local
+// GeoIP database. It performs no network I/O, so it is safe on the login path.
+func (s *AuthServiceImpl) resolveInitialLocation(ipAddress string) string {
+	if s.geoip != nil {
+		return s.geoip.LookupLocation(ipAddress)
+	}
+	return "Unknown"
+}
+
+// refineSessionLocation reverse-geocodes GPS coordinates and updates the stored
+// session location. It runs in a background goroutine off the login critical
+// path, so a failure simply leaves the faster GeoIP location in place. It uses
+// its own context because the originating request context is already done.
+func (s *AuthServiceImpl) refineSessionLocation(refreshToken, userID string, lat, lng float64) {
+	if s.geocoding == nil {
+		return
+	}
+	addr, source, err := s.geocoding.ReverseGeocode(lat, lng)
+	if err != nil {
+		logger.Warn(nil, 0, "background reverse geocode failed", err)
+		return
+	}
+	if err := s.tokens.UpdateSessionLocation(context.Background(), refreshToken, userID, addr, &source); err != nil {
+		logger.Error(nil, 0, "failed to update session location", err)
 	}
 }
 
@@ -160,22 +203,16 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 		return nil, err
 	}
 
-	location := "Unknown"
-	var geocodingSource *string
-	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
-		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
-			location = addr
-			geocodingSource = &source
-		} else if s.geoip != nil {
-			location = s.geoip.LookupLocation(ipAddress)
-		}
-	} else if s.geoip != nil {
-		location = s.geoip.LookupLocation(ipAddress)
-	}
+	location := s.resolveInitialLocation(ipAddress)
 
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Reverse-geocode precise GPS coordinates off the critical path.
+	if in.Latitude != nil && in.Longitude != nil {
+		go s.refineSessionLocation(refreshToken, newUser.ID, *in.Latitude, *in.Longitude)
 	}
 
 	ttl := s.tokens.GetAccessTokenTTL()
@@ -184,6 +221,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(ttl.Seconds()),
+		User:         newAuthOutput(newUser),
 	}, nil
 }
 
@@ -213,22 +251,16 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 		return nil, err
 	}
 
-	location := "Unknown"
-	var geocodingSource *string
-	if in.Latitude != nil && in.Longitude != nil && s.geocoding != nil {
-		if addr, source, err := s.geocoding.ReverseGeocode(*in.Latitude, *in.Longitude); err == nil {
-			location = addr
-			geocodingSource = &source
-		} else if s.geoip != nil {
-			location = s.geoip.LookupLocation(ipAddress)
-		}
-	} else if s.geoip != nil {
-		location = s.geoip.LookupLocation(ipAddress)
-	}
+	location := s.resolveInitialLocation(ipAddress)
 
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, geocodingSource)
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	// Reverse-geocode precise GPS coordinates off the critical path.
+	if in.Latitude != nil && in.Longitude != nil {
+		go s.refineSessionLocation(refreshToken, existingUser.ID, *in.Latitude, *in.Longitude)
 	}
 
 	ttl := s.tokens.GetAccessTokenTTL()
@@ -237,6 +269,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresIn:    int64(ttl.Seconds()),
+		User:         newAuthOutput(existingUser),
 	}, nil
 }
 
@@ -332,14 +365,7 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 		return nil, err
 	}
 
-	return &AuthOutput{
-		UserID:      user.ID,
-		Email:       user.Email,
-		Role:        string(user.Role),
-		FullName:    user.FullName,
-		Phone:       user.Phone,
-		IsActivated: user.IsActivated,
-	}, nil
+	return newAuthOutput(user), nil
 }
 
 func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err error) {
@@ -475,12 +501,5 @@ func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in U
 		return nil, fmt.Errorf("update user failed: %w", err)
 	}
 
-	return &AuthOutput{
-		UserID:      user.ID,
-		Email:       user.Email,
-		Role:        string(user.Role),
-		FullName:    user.FullName,
-		Phone:       user.Phone,
-		IsActivated: user.IsActivated,
-	}, nil
+	return newAuthOutput(user), nil
 }

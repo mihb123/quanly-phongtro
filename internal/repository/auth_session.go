@@ -51,3 +51,16 @@ func (r *AuthSessionRepository) Revoke(ctx context.Context, token, userID string
 		Exec(ctx)
 	return err
 }
+
+// UpdateLocation persists a refined session location resolved by background
+// reverse-geocoding; scoped by refresh token + user so it only touches the
+// session that was just created during login.
+func (r *AuthSessionRepository) UpdateLocation(ctx context.Context, refreshToken, userID, location string, geocodingSource *string) error {
+	_, err := r.db.NewUpdate().
+		Model((*model.AuthSession)(nil)).
+		Set("location = ?", location).
+		Set("geocoding_source = ?", geocodingSource).
+		Where("refresh_token = ? AND user_id = ?", refreshToken, userID).
+		Exec(ctx)
+	return err
+}

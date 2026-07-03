@@ -53,6 +53,9 @@ func (m *mockTokenProvider) GenerateRefreshToken(ctx context.Context, userID, ip
 	}
 	return "refresh-token", m.refreshErr
 }
+func (m *mockTokenProvider) UpdateSessionLocation(ctx context.Context, refreshToken, userID, location string, geocodingSource *string) error {
+	return nil
+}
 func (m *mockTokenProvider) RevokeRefreshToken(ctx context.Context, token string, userID string) error {
 	m.revokedToken = token
 	m.revokedUserID = userID

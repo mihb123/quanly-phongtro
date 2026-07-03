@@ -15,6 +15,7 @@ export type LoginPayload = {
 export type AuthResponse = {
   access_token: string
   refresh_token: string
+  user?: AuthOutput
 }
 
 export type RefreshTokenPayload = {

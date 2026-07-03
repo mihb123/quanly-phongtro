@@ -19,6 +19,28 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>
 
+// Thời gian tối đa chờ định vị GPS trước khi bỏ qua để không chặn luồng đăng nhập.
+const LOCATION_TIMEOUT_MS = 4000
+
+// Lấy toạ độ kiểu best-effort: trả vị trí nếu có sẵn/nhanh (ưu tiên cache gần đây),
+// còn hết thời gian hoặc bị từ chối thì trả null để đăng nhập không bị chặn.
+function getBestEffortPosition(): Promise<GeolocationPosition | null> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value: GeolocationPosition | null) => {
+      if (settled) return
+      settled = true
+      resolve(value)
+    }
+    const timer = setTimeout(() => finish(null), LOCATION_TIMEOUT_MS)
+    navigator.geolocation.getCurrentPosition(
+      (position) => { clearTimeout(timer); finish(position) },
+      () => { clearTimeout(timer); finish(null) },
+      { timeout: LOCATION_TIMEOUT_MS, maximumAge: 600000 },
+    )
+  })
+}
+
 // Trang đăng nhập: form email/mật khẩu, có lấy vị trí (geolocation) trước khi gọi API
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -56,34 +78,27 @@ export default function LoginPage() {
     }
 
     if (shouldFetchLocation) {
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 })
-        })
+      localStorage.setItem('has_asked_location', 'true')
+      const position = await getBestEffortPosition()
+      if (position) {
         latitude = position.coords.latitude
         longitude = position.coords.longitude
-        localStorage.setItem('has_asked_location', 'true')
-      } catch (err) {
-        console.error('CRITICAL: Geolocation failed or denied even though permission was granted. Error:', err)
-        localStorage.setItem('has_asked_location', 'true')
-        if (import.meta.env.DEV) {
-          console.log('Mocking GPS for development...')
-          latitude = 21.028511 // Hanoi mock
-          longitude = 105.804817
-        } else {
-          console.error('Not in DEV mode, latitude and longitude will be undefined and sent as null to DB.')
-        }
+      } else if (import.meta.env.DEV) {
+        // Không lấy được GPS: mock toạ độ Hà Nội khi chạy dev.
+        latitude = 21.028511
+        longitude = 105.804817
       }
     }
 
     try {
-      await loginAccount({
+      const result = await loginAccount({
         email: formData.email,
         password: formData.password,
         Latitude: latitude,
         Longitude: longitude,
       })
-      const user = await getMe()
+      // Ưu tiên user trả kèm trong login response; fallback getMe nếu thiếu.
+      const user = result.user ?? (await getMe())
       login(user)
       navigate('/')
     } catch (error) {
