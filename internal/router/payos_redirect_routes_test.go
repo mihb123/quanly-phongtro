@@ -6,22 +6,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mihb123/quanly-phongtro/internal/handler"
+	"github.com/mihb123/quanly-phongtro/internal/handler/auth"
+	"github.com/mihb123/quanly-phongtro/internal/handler/house"
+	"github.com/mihb123/quanly-phongtro/internal/handler/invoice"
+	"github.com/mihb123/quanly-phongtro/internal/handler/payment"
+	"github.com/mihb123/quanly-phongtro/internal/handler/room"
+	"github.com/mihb123/quanly-phongtro/internal/handler/tenant"
+	"github.com/mihb123/quanly-phongtro/internal/handler/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
 // TestPayOSRedirectRoutesArePublic verifies SDK redirect URLs are mounted without auth.
 func TestPayOSRedirectRoutesArePublic(t *testing.T) {
 	router := New(
-		(*handler.AuthHandler)(nil),
-		(*handler.HouseHandler)(nil),
-		(*handler.RoomHandler)(nil),
+		(*auth.AuthHandler)(nil),
+		(*house.HouseHandler)(nil),
+		(*room.RoomHandler)(nil),
 		(*security.JWTProvider)(nil),
-		(*handler.TenantHandler)(nil),
-		(*handler.InvoiceHandler)(nil),
-		(*handler.ZaloHandler)(nil),
-		(*handler.HouseCostHandler)(nil),
-		handler.NewPayOSWebhookHandler(nil),
+		(*tenant.TenantHandler)(nil),
+		(*invoice.InvoiceHandler)(nil),
+		(*zalo.ZaloHandler)(nil),
+		(*house.HouseCostHandler)(nil),
+		payment.NewPayOSWebhookHandler(nil),
 	)
 
 	tests := []struct {
@@ -68,14 +74,14 @@ func TestPayOSRedirectRoutesArePublic(t *testing.T) {
 // TestPayOSRoutesAreNotMountedWithoutHandler verifies disabled PayOS config leaves routes unavailable.
 func TestPayOSRoutesAreNotMountedWithoutHandler(t *testing.T) {
 	router := New(
-		(*handler.AuthHandler)(nil),
-		(*handler.HouseHandler)(nil),
-		(*handler.RoomHandler)(nil),
+		(*auth.AuthHandler)(nil),
+		(*house.HouseHandler)(nil),
+		(*room.RoomHandler)(nil),
 		(*security.JWTProvider)(nil),
-		(*handler.TenantHandler)(nil),
-		(*handler.InvoiceHandler)(nil),
-		(*handler.ZaloHandler)(nil),
-		(*handler.HouseCostHandler)(nil),
+		(*tenant.TenantHandler)(nil),
+		(*invoice.InvoiceHandler)(nil),
+		(*zalo.ZaloHandler)(nil),
+		(*house.HouseCostHandler)(nil),
 		nil,
 	)
 

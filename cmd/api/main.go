@@ -12,12 +12,32 @@ import (
 	"github.com/mihb123/quanly-phongtro/config"
 	"github.com/mihb123/quanly-phongtro/internal/assets"
 	"github.com/mihb123/quanly-phongtro/internal/db"
-	httpHandler "github.com/mihb123/quanly-phongtro/internal/handler"
-	"github.com/mihb123/quanly-phongtro/internal/repository"
+	authhandler "github.com/mihb123/quanly-phongtro/internal/handler/auth"
+	househandler "github.com/mihb123/quanly-phongtro/internal/handler/house"
+	invoicehandler "github.com/mihb123/quanly-phongtro/internal/handler/invoice"
+	paymenthandler "github.com/mihb123/quanly-phongtro/internal/handler/payment"
+	roomhandler "github.com/mihb123/quanly-phongtro/internal/handler/room"
+	tenanthandler "github.com/mihb123/quanly-phongtro/internal/handler/tenant"
+	zalohandler "github.com/mihb123/quanly-phongtro/internal/handler/zalo"
+	authrepo "github.com/mihb123/quanly-phongtro/internal/repository/auth"
+	houserepo "github.com/mihb123/quanly-phongtro/internal/repository/house"
+	invoicerepo "github.com/mihb123/quanly-phongtro/internal/repository/invoice"
+	revenuerepo "github.com/mihb123/quanly-phongtro/internal/repository/revenue"
+	roomrepo "github.com/mihb123/quanly-phongtro/internal/repository/room"
+	tenantrepo "github.com/mihb123/quanly-phongtro/internal/repository/tenant"
 	httpRouter "github.com/mihb123/quanly-phongtro/internal/router"
 	"github.com/mihb123/quanly-phongtro/internal/security"
-	"github.com/mihb123/quanly-phongtro/internal/service"
+	authsvc "github.com/mihb123/quanly-phongtro/internal/service/auth"
 	"github.com/mihb123/quanly-phongtro/internal/service/email"
+	geosvc "github.com/mihb123/quanly-phongtro/internal/service/geo"
+	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
+	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
+	revenuesvc "github.com/mihb123/quanly-phongtro/internal/service/revenue"
+	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
+	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/web"
 )
 
@@ -33,111 +53,111 @@ func main() {
 	}
 	defer sqlDB.Close()
 	emailSender := email.NewGoogleSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.MailFromEmail, cfg.MailFromName)
-	verifyEmailRepo := repository.NewEmailVerificationRepository(sqlDB)
-	otpCheckRepo := repository.NewOTPCheckRepository(sqlDB)
-	jwtRepo := repository.NewAuthSessionRepository(sqlDB)
-	userRepo := repository.NewUserRepository(sqlDB)
+	verifyEmailRepo := authrepo.NewEmailVerificationRepository(sqlDB)
+	otpCheckRepo := authrepo.NewOTPCheckRepository(sqlDB)
+	jwtRepo := authrepo.NewAuthSessionRepository(sqlDB)
+	userRepo := authrepo.NewUserRepository(sqlDB)
 	hasher := security.NewBcryptHasher()
 	tokenProvider := security.NewJWTProvider(cfg.AccessTokenJWTSecret, cfg.RefreshTokenJWTSecret, cfg.TokenTTL, jwtRepo)
-	geoIPService := service.NewGeoIPServiceFromBytes(assets.GeoLite2City)
+	geoIPService := geosvc.NewGeoIPServiceFromBytes(assets.GeoLite2City)
 	defer geoIPService.Close()
-	geocodingService := service.NewGeocodingService(cfg.GoogleMapAPIKey)
-	authService := service.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
+	geocodingService := geosvc.NewGeocodingService(cfg.GoogleMapAPIKey)
+	authService := authsvc.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
 
-	houseCostRepo := repository.NewHouseCostRepository(sqlDB)
-	revenueSummaryRepo := repository.NewRevenueSummaryRepository(sqlDB)
+	houseCostRepo := houserepo.NewHouseCostRepository(sqlDB)
+	revenueSummaryRepo := revenuerepo.NewRevenueSummaryRepository(sqlDB)
 
-	revenueWorker := service.NewRevenueWorker(revenueSummaryRepo, houseCostRepo)
+	revenueWorker := revenuesvc.NewRevenueWorker(revenueSummaryRepo, houseCostRepo)
 	revenueWorker.Start()
 	// defer revenueWorker.Stop() // will stop before shutdown
 
-	eventBus := service.NewEventBus()
-	eventBus.Subscribe(service.EventInvoiceChanged, func(payload interface{}) {
-		if p, ok := payload.(service.RevenueSummaryPayload); ok {
+	eventBus := revenuesvc.NewEventBus()
+	eventBus.Subscribe(revenuesvc.EventInvoiceChanged, func(payload interface{}) {
+		if p, ok := payload.(revenuesvc.RevenueSummaryPayload); ok {
 			revenueWorker.Enqueue(p.HouseID, p.Period)
 		}
 	})
-	eventBus.Subscribe(service.EventHouseCostChanged, func(payload interface{}) {
-		if p, ok := payload.(service.RevenueSummaryPayload); ok {
+	eventBus.Subscribe(revenuesvc.EventHouseCostChanged, func(payload interface{}) {
+		if p, ok := payload.(revenuesvc.RevenueSummaryPayload); ok {
 			revenueWorker.Enqueue(p.HouseID, p.Period)
 		}
 	})
 
-	houseRepo := repository.NewHouseRepository(sqlDB)
-	houseService := service.NewHouseServiceImpt(houseRepo, houseCostRepo)
-	invoiceRepo := repository.NewInvoiceRepository(sqlDB)
+	houseRepo := houserepo.NewHouseRepository(sqlDB)
+	houseService := housesvc.NewHouseServiceImpt(houseRepo, houseCostRepo)
+	invoiceRepo := invoicerepo.NewInvoiceRepository(sqlDB)
 
-	roomRepo := repository.NewRoomRepository(sqlDB)
-	roomService := service.NewRoomService(roomRepo, houseRepo)
+	roomRepo := roomrepo.NewRoomRepository(sqlDB)
+	roomService := roomsvc.NewRoomService(roomRepo, houseRepo)
 
-	tenantRepo := repository.NewTenantRepository(sqlDB)
-	tenantService := service.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
-	tenanHandler := httpHandler.NewTenantHandler(tenantService)
+	tenantRepo := tenantrepo.NewTenantRepository(sqlDB)
+	tenantService := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	tenanHandler := tenanthandler.NewTenantHandler(tenantService)
 
-	imageService := service.NewImageService()
-	invoiceService := service.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo, eventBus)
-	invoiceHandler := httpHandler.NewInvoiceHandler(invoiceService, imageService)
+	imageService := invoicesvc.NewImageService()
+	invoiceService := invoicesvc.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo, eventBus)
+	invoiceHandler := invoicehandler.NewInvoiceHandler(invoiceService, imageService)
 
-	houseHandler := httpHandler.NewHouseHandler(houseService, invoiceService)
-	roomHandler := httpHandler.NewRoomHandler(roomService, invoiceService)
+	houseHandler := househandler.NewHouseHandler(houseService, invoiceService)
+	roomHandler := roomhandler.NewRoomHandler(roomService, invoiceService)
 
-	houseCostService := service.NewHouseCostService(houseCostRepo, houseRepo, eventBus, revenueSummaryRepo)
-	houseCostHandler := httpHandler.NewHouseCostHandler(houseCostService)
+	houseCostService := housesvc.NewHouseCostService(houseCostRepo, houseRepo, eventBus, revenueSummaryRepo)
+	houseCostHandler := househandler.NewHouseCostHandler(houseCostService)
 
-	zaloClient := service.NewZaloClient()
+	zaloClient := zalosvc.NewZaloClient()
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev
 	}
-	authHandler := httpHandler.NewAuthHandler(
+	authHandler := authhandler.NewAuthHandler(
 		authService,
-		httpHandler.WithSecureCookies(cfg.CookieSecure),
-		httpHandler.WithTrustedProxies(cfg.TrustedProxyCIDRs),
+		authhandler.WithSecureCookies(cfg.CookieSecure),
+		authhandler.WithTrustedProxies(cfg.TrustedProxyCIDRs),
 	)
 
-	invoicePaymentRepo := repository.NewInvoicePaymentRepository(sqlDB)
-	appSecretKeyBytes, err := service.DecodeAES256Key(cfg.AppSecretEncryptionKey, "APP_SECRET_ENCRYPTION_KEY")
+	invoicePaymentRepo := invoicerepo.NewInvoicePaymentRepository(sqlDB)
+	appSecretKeyBytes, err := sharedsvc.DecodeAES256Key(cfg.AppSecretEncryptionKey, "APP_SECRET_ENCRYPTION_KEY")
 	if err != nil {
 		log.Fatalf("decode app secret encryption key: %v", err)
 	}
-	paymentCredentialService := service.NewPaymentCredentialService(invoicePaymentRepo, appSecretKeyBytes, service.PayOSCredentials{
+	paymentCredentialService := paymentsvc.NewPaymentCredentialService(invoicePaymentRepo, appSecretKeyBytes, paymentsvc.PayOSCredentials{
 		ClientID:    cfg.PayOSClientID,
 		APIKey:      cfg.PayOSApiKey,
 		ChecksumKey: cfg.PayOSChecksumKey,
 	})
-	paymentRegistry := service.NewPaymentProviderRegistry(service.NewPayOSProvider(), service.NewSePayProvider())
-	paymentService := service.NewPaymentService(invoicePaymentRepo, invoiceRepo, tenantRepo, userRepo, nil, paymentCredentialService, paymentRegistry, webhookBaseURL)
+	paymentRegistry := paymentsvc.NewPaymentProviderRegistry(paymentsvc.NewPayOSProvider(), paymentsvc.NewSePayProvider())
+	paymentService := paymentsvc.NewPaymentService(invoicePaymentRepo, invoiceRepo, tenantRepo, userRepo, nil, paymentCredentialService, paymentRegistry, webhookBaseURL)
 
-	zaloService, err := service.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, paymentService, cfg.ZaloBotEncryptionKey, webhookBaseURL, cfg.UploadURLSigningKey)
+	zaloService, err := zalosvc.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, paymentService, cfg.ZaloBotEncryptionKey, webhookBaseURL, cfg.UploadURLSigningKey)
 	if err != nil {
 		log.Fatalf("failed to init zalo service: %v", err)
 	}
 	if configurablePaymentService, ok := paymentService.(interface {
-		SetZaloService(service.ZaloService)
+		SetZaloService(paymentsvc.ZaloMessenger)
 	}); ok {
 		configurablePaymentService.SetZaloService(zaloService)
 	}
-	keyBytes, err := service.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
+	keyBytes, err := sharedsvc.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
 	if err != nil {
 		log.Fatalf("decode zalo encryption key: %v", err)
 	}
-	pendingInvoiceUpdateRepo := repository.NewPendingInvoiceUpdateRepository(sqlDB)
-	zaloInvoiceCommandService := service.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
+	pendingInvoiceUpdateRepo := invoicerepo.NewPendingInvoiceUpdateRepository(sqlDB)
+	zaloInvoiceCommandService := zalosvc.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
 	if configurableZaloService, ok := zaloService.(interface {
-		SetInvoiceCommandService(service.ZaloInvoiceCommandService)
+		SetInvoiceCommandService(zalosvc.ZaloInvoiceCommandService)
 	}); ok {
 		configurableZaloService.SetInvoiceCommandService(zaloInvoiceCommandService)
 	}
-	zaloHandler := httpHandler.NewZaloHandler(zaloService, webhookBaseURL)
+	zaloHandler := zalohandler.NewZaloHandler(zaloService, webhookBaseURL)
 
 	// Start the Zalo token health check cron (every 4 hours)
-	zaloCron := service.NewZaloCronService(zaloClient, userRepo, keyBytes)
+	zaloCron := zalosvc.NewZaloCronService(zaloClient, userRepo, keyBytes)
 	zaloCron.Start()
 	// Trigger an immediate check on startup to quickly detect stale tokens
 	go zaloCron.RunNow()
 
-	paymentHandler := httpHandler.NewPaymentHandler(paymentService, paymentCredentialService, webhookBaseURL)
-	sePayReconciliationService := service.NewSePayReconciliationService(service.NewSePayClient(), paymentCredentialService, paymentService)
+	paymentHandler := paymenthandler.NewPaymentHandler(paymentService, paymentCredentialService, webhookBaseURL)
+	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(paymentsvc.NewSePayClient(), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
 	frontendFS, err := web.DistFS()

@@ -6,20 +6,27 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/mihb123/quanly-phongtro/internal/handler"
+	"github.com/mihb123/quanly-phongtro/internal/handler/auth"
+	"github.com/mihb123/quanly-phongtro/internal/handler/house"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
+	"github.com/mihb123/quanly-phongtro/internal/handler/invoice"
+	"github.com/mihb123/quanly-phongtro/internal/handler/payment"
+	"github.com/mihb123/quanly-phongtro/internal/handler/room"
+	"github.com/mihb123/quanly-phongtro/internal/handler/tenant"
+	"github.com/mihb123/quanly-phongtro/internal/handler/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
 func New(
-	authHandler *handler.AuthHandler,
-	houseHandler *handler.HouseHandler,
-	roomHandler *handler.RoomHandler,
+	authHandler *auth.AuthHandler,
+	houseHandler *house.HouseHandler,
+	roomHandler *room.RoomHandler,
 	tokenProvider *security.JWTProvider,
-	tenantHandler *handler.TenantHandler,
-	invoiceHandler *handler.InvoiceHandler,
-	zaloHandler *handler.ZaloHandler,
-	houseCostHandler *handler.HouseCostHandler,
-	paymentHandler *handler.PaymentHandler,
+	tenantHandler *tenant.TenantHandler,
+	invoiceHandler *invoice.InvoiceHandler,
+	zaloHandler *zalo.ZaloHandler,
+	houseCostHandler *house.HouseCostHandler,
+	paymentHandler *payment.PaymentHandler,
 	options ...Option,
 ) *chi.Mux {
 	cfg := newOptions(options...)
@@ -162,7 +169,7 @@ func healthCheck(w http.ResponseWriter, _ *http.Request) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	resdata := handler.ResData{
+	resdata := httpx.ResData{
 		Status:  status,
 		Data:    nil,
 		Message: message,
