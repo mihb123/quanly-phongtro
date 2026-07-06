@@ -53,3 +53,7 @@ jobs:
 
       - name: Cleanup old backups
         run: bash "$PROJECT_DIR/scripts/deploy/cleanup.sh"
+
+      - name: Auto-fix deploy failure with local AI agent
+        if: failure()
+        run: bash "$GITHUB_WORKSPACE/scripts/deploy/auto-fix.sh"
