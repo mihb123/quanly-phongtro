@@ -14,6 +14,8 @@
 #   DEPLOY_LOG_FILE         — file log bước deploy bị lỗi. Mặc định /tmp/deploy_step.log.
 #   DEPLOY_AUTOFIX_SUMMARY  — file agent ghi tóm tắt nguyên nhân. Mặc định /tmp/deploy_autofix_summary.md.
 #   AUTOFIX_TIMEOUT         — timeout mỗi agent, định dạng của `timeout`. Mặc định 15m.
+#   AUTOFIX_PUSH_URL        — URL remote để push (ép về SSH vì actions/checkout đặt origin là https).
+#                             Mặc định git@github.com:mihb123/quanly-phongtro.git.
 #
 # Cố ý KHÔNG bật `set -e`: cần bắt exit code của từng agent/git để fallback thủ công.
 set -uo pipefail
@@ -26,12 +28,16 @@ FIX_DIR="${PROJECT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 LOG_FILE="${DEPLOY_LOG_FILE:-/tmp/deploy_step.log}"
 SUMMARY_FILE="${DEPLOY_AUTOFIX_SUMMARY:-/tmp/deploy_autofix_summary.md}"
 AGENT_TIMEOUT="${AUTOFIX_TIMEOUT:-15m}"
+FAIL_REASON=""  # lý do lỗi chính xác, do commit_and_push_fix điền.
 
 # Marker nhận diện commit do auto-fix tạo; dùng cho cả loop-guard lẫn subject commit.
 AUTOFIX_MARKER="[auto-fix]"
 BOT_NAME="deploy-autofix[bot]"
 BOT_EMAIL="deploy-autofix@quanly-phongtro.local"
 TARGET_BRANCH="develop"
+# actions/checkout đặt origin về https+token (push bằng token KHÔNG trigger workflow),
+# nên ép origin về SSH để push kích hoạt được deploy lại.
+PUSH_REMOTE_URL="${AUTOFIX_PUSH_URL:-git@github.com:mihb123/quanly-phongtro.git}"
 
 # --- 2. HELPERS & PROMPT ---
 
@@ -100,29 +106,51 @@ try_codex() {
 # --- 4. COMMIT & PUSH ---
 
 # Commit đúng những file agent đã sửa rồi push lên develop để trigger deploy lại.
-# Trả về 0 nếu đã push; !=0 nếu không có gì để commit hoặc push thất bại.
+# Trả về 0 nếu đã push; !=0 nếu lỗi — kèm lý do CHÍNH XÁC trong biến toàn cục FAIL_REASON.
 commit_and_push_fix() {
   local agent="$1"
   shift
   local changed_files=("$@")
+  local git_err
 
   if [[ ${#changed_files[@]} -eq 0 ]]; then
-    echo "Agent '$agent' không thay đổi file nào."
+    FAIL_REASON="Agent '$agent' chạy xong nhưng KHÔNG chỉnh sửa file nào (git không thấy thay đổi trong $FIX_DIR)."
     return 1
   fi
 
-  git -C "$FIX_DIR" add -- "${changed_files[@]}" || return 1
+  if ! git_err="$(git -C "$FIX_DIR" add -- "${changed_files[@]}" 2>&1)"; then
+    FAIL_REASON="git add thất bại:
+$git_err"
+    return 1
+  fi
 
   local subject="🤖 auto-fix(deploy): sửa lỗi deploy bằng $agent $AUTOFIX_MARKER"
   local root_cause
   root_cause="$(cat "$SUMMARY_FILE" 2>/dev/null || echo '(agent không cung cấp tóm tắt)')"
 
-  git -C "$FIX_DIR" \
+  if ! git_err="$(git -C "$FIX_DIR" \
     -c "user.name=$BOT_NAME" \
     -c "user.email=$BOT_EMAIL" \
-    commit --no-verify -m "$subject" -m "$root_cause" || return 1
+    commit --no-verify -m "$subject" -m "$root_cause" 2>&1)"; then
+    FAIL_REASON="git commit thất bại:
+$git_err"
+    return 1
+  fi
 
-  git -C "$FIX_DIR" push origin "HEAD:$TARGET_BRANCH"
+  # Ép origin về SSH: actions/checkout đặt lại origin về https+token mỗi lần chạy.
+  if ! git_err="$(git -C "$FIX_DIR" remote set-url origin "$PUSH_REMOTE_URL" 2>&1)"; then
+    FAIL_REASON="git remote set-url origin '$PUSH_REMOTE_URL' thất bại:
+$git_err"
+    return 1
+  fi
+
+  if ! git_err="$(git -C "$FIX_DIR" push origin "HEAD:$TARGET_BRANCH" 2>&1)"; then
+    FAIL_REASON="git push lên nhánh '$TARGET_BRANCH' thất bại (remote: $(git -C "$FIX_DIR" remote get-url origin 2>/dev/null)):
+$git_err"
+    return 1
+  fi
+
+  return 0
 }
 
 # --- 5. EXECUTION FLOW ---
@@ -146,14 +174,25 @@ fi
 rm -f "$SUMMARY_FILE"
 PROMPT="$(build_prompt)"
 BEFORE_SNAPSHOT="$(snapshot_worktree)"
+AGENT_LOG="$(mktemp -t autofix-agent-XXXXXX.log)"
+AGENT_ERRORS=()  # gom lý do thất bại của từng agent để báo cuối cùng.
 
 notify "🔧 Deploy thất bại — đang thử tự động sửa lỗi bằng AI agent (claude → agy → codex)..."
 
 # Chạy lần lượt các agent theo thứ tự fallback; dừng ngay khi có agent chạy xong.
 for agent in claude agy codex; do
   echo "===== Thử agent: $agent ====="
-  if ! "try_$agent"; then
-    echo "Agent '$agent' không dùng được / thất bại, thử agent kế tiếp..."
+
+  # Lưu output agent ra log để trích lý do lỗi chính xác; vẫn hiện trên log workflow.
+  "try_$agent" 2>&1 | tee "$AGENT_LOG"
+  status=${PIPESTATUS[0]}
+
+  if [[ "$status" -ne 0 ]]; then
+    reason="exit $status"
+    [[ "$status" -eq 124 ]] && reason="hết thời gian (timeout $AGENT_TIMEOUT)"
+    [[ "$status" -eq 127 ]] && reason="không cài trên server"
+    AGENT_ERRORS+=("• $agent ($reason): $(tail -n 3 "$AGENT_LOG" | tr '\n' ' ')")
+    echo "Agent '$agent' thất bại ($reason), thử agent kế tiếp..."
     continue
   fi
 
@@ -163,8 +202,14 @@ for agent in claude agy codex; do
     <(snapshot_worktree) | sed '/^$/d')
 
   if ! commit_and_push_fix "$agent" "${CHANGED_FILES[@]}"; then
-    notify "🤖 '$agent' đã chạy nhưng KHÔNG commit/push được (không có thay đổi hợp lệ hoặc push lỗi). Hãy kiểm tra $FIX_DIR thủ công."
-    echo "Không commit/push được sau khi '$agent' chạy."
+    notify "🤖 '$agent' đã chạy xong nhưng KHÔNG hoàn tất auto-fix.
+
+❌ Lý do chính xác:
+$FAIL_REASON
+
+📁 Thư mục: $FIX_DIR
+Hãy kiểm tra & xử lý thủ công."
+    echo "$FAIL_REASON"
     exit 1
   fi
 
@@ -184,6 +229,9 @@ $FILE_LIST
   exit 0
 done
 
-notify "⚠️ Cả claude, agy và codex đều không tự sửa được lỗi deploy. Cần can thiệp thủ công."
+notify "⚠️ Cả claude, agy và codex đều KHÔNG sửa được lỗi deploy. Cần can thiệp thủ công.
+
+❌ Lý do từng agent:
+$(printf '%s\n' "${AGENT_ERRORS[@]}")"
 echo "Tất cả agent đều thất bại."
 exit 1
