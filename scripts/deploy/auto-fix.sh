@@ -83,6 +83,7 @@ EOF
 try_claude() {
   command -v claude >/dev/null 2>&1 || { echo "claude: không tìm thấy trên server"; return 127; }
   timeout "$AGENT_TIMEOUT" claude -p "$PROMPT" \
+    --model sonnet \
     --add-dir "$FIX_DIR" \
     --dangerously-skip-permissions
 }
