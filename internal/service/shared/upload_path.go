@@ -12,7 +12,11 @@ func UploadFileName(requestPath string) (string, bool) {
 		return "", false
 	}
 
-	candidate := strings.ReplaceAll(requestPath, `\`, "/")
+	if strings.Contains(requestPath, `\`) {
+		return "", false
+	}
+
+	candidate := requestPath
 	for _, prefix := range []string{
 		"/api/v1/tenant/files/",
 		"/api/v1/uploads/transactions/",
