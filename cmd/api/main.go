@@ -108,6 +108,9 @@ func main() {
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev
+		if cfg.AppPortDev != "" {
+			webhookBaseURL += ":" + cfg.AppPortDev
+		}
 	}
 	authHandler := authhandler.NewAuthHandler(
 		authService,

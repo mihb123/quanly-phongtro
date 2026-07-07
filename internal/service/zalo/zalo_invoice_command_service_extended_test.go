@@ -394,6 +394,9 @@ func TestHasPendingState(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	serviceWithoutRepository := &zaloInvoiceCommandServiceImpl{}
+	assert.False(t, serviceWithoutRepository.HasPendingState(ctx, "manager-1", "chat-1"))
+
 	pendingRepository := &memoryPendingInvoiceUpdateRepository{
 		pending: &model.PendingInvoiceUpdate{
 			ID:         "pending-1",
@@ -403,6 +406,8 @@ func TestHasPendingState(t *testing.T) {
 	service := &zaloInvoiceCommandServiceImpl{
 		pendingRepo: pendingRepository,
 	}
+
+	assert.False(t, service.HasPendingState(ctx, "manager-1", ""))
 
 	has := service.HasPendingState(ctx, "manager-1", "chat-1")
 	assert.True(t, has)

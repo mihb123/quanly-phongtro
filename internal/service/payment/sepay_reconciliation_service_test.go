@@ -30,12 +30,23 @@ func (f *fakeSePayLister) ListTransactions(_ context.Context, _ string, params S
 // fakeReconcileProcessor records every verified event it is asked to process.
 type fakeReconcileProcessor struct {
 	events []*VerifiedPaymentEvent
+	err    error
 }
 
 // ProcessVerifiedTransaction stores the event for assertions.
 func (f *fakeReconcileProcessor) ProcessVerifiedTransaction(_ context.Context, _, _ string, event *VerifiedPaymentEvent) error {
 	f.events = append(f.events, event)
-	return nil
+	return f.err
+}
+
+type endlessSePayLister struct {
+	calls int
+}
+
+// ListTransactions returns has_more forever so the reconciliation cap can be verified.
+func (f *endlessSePayLister) ListTransactions(_ context.Context, _ string, params SePayListParams) (*SePayTransactionsResponse, error) {
+	f.calls = params.Page
+	return pageWith(true), nil
 }
 
 // pageWith builds a one-page response with the given transactions and has_more flag.
@@ -105,6 +116,92 @@ func TestSePayReconcileRequiresAPIToken(t *testing.T) {
 
 	if _, err := svc.ReconcileManager(context.Background(), "manager-1", "", ""); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 		t.Errorf("error = %v, want ErrPaymentCredentialsNotFound", err)
+	}
+}
+
+// TestSePayReconcileReturnsListError verifies page fetch failures abort the run.
+func TestSePayReconcileReturnsListError(t *testing.T) {
+	listErr := errors.New("sepay unavailable")
+	svc := NewSePayReconciliationService(
+		&fakeSePayLister{err: listErr},
+		fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok"}},
+		&fakeReconcileProcessor{},
+	)
+	svc.throttle = 0
+
+	result, err := svc.ReconcileManager(context.Background(), "manager-1", "", "")
+	if !errors.Is(err, listErr) {
+		t.Fatalf("error = %v, want list error", err)
+	}
+	if result.PagesFetched != 0 {
+		t.Errorf("PagesFetched = %d, want 0", result.PagesFetched)
+	}
+}
+
+// TestSePayReconcileCountsTransactionFailure verifies one bad transaction is skipped.
+func TestSePayReconcileCountsTransactionFailure(t *testing.T) {
+	lister := &fakeSePayLister{pages: map[int]*SePayTransactionsResponse{
+		1: pageWith(false, SePayTransaction{ID: "uuid-in", Code: "PTAAA", AmountIn: 100000, TransferType: "in"}),
+	}}
+	processor := &fakeReconcileProcessor{err: errors.New("processor failed")}
+	svc := NewSePayReconciliationService(
+		lister,
+		fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok"}},
+		processor,
+	)
+	svc.throttle = 0
+
+	result, err := svc.ReconcileManager(context.Background(), "manager-1", "", "")
+	if err != nil {
+		t.Fatalf("ReconcileManager() error = %v", err)
+	}
+	if result.Failed != 1 || result.Processed != 0 || result.Scanned != 1 {
+		t.Errorf("result = %+v, want failed=1 processed=0 scanned=1", result)
+	}
+}
+
+// TestSePayReconcileReturnsContextErrorDuringThrottle verifies cancellation between pages aborts.
+func TestSePayReconcileReturnsContextErrorDuringThrottle(t *testing.T) {
+	lister := &fakeSePayLister{pages: map[int]*SePayTransactionsResponse{
+		1: pageWith(true),
+	}}
+	svc := NewSePayReconciliationService(
+		lister,
+		fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok"}},
+		&fakeReconcileProcessor{},
+	)
+	svc.throttle = sePayReconcileThrottle
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result, err := svc.ReconcileManager(ctx, "manager-1", "", "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context.Canceled", err)
+	}
+	if result.PagesFetched != 1 {
+		t.Errorf("PagesFetched = %d, want 1", result.PagesFetched)
+	}
+}
+
+// TestSePayReconcileTruncatesAtPageCap verifies a runaway has_more is capped.
+func TestSePayReconcileTruncatesAtPageCap(t *testing.T) {
+	lister := &endlessSePayLister{}
+	svc := NewSePayReconciliationService(
+		lister,
+		fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok"}},
+		&fakeReconcileProcessor{},
+	)
+	svc.throttle = 0
+
+	result, err := svc.ReconcileManager(context.Background(), "manager-1", "", "")
+	if err != nil {
+		t.Fatalf("ReconcileManager() error = %v", err)
+	}
+	if !result.Truncated || result.PagesFetched != sePayMaxReconcilePages {
+		t.Errorf("result = %+v, want truncated at %d pages", result, sePayMaxReconcilePages)
+	}
+	if lister.calls != sePayMaxReconcilePages {
+		t.Errorf("last page call = %d, want %d", lister.calls, sePayMaxReconcilePages)
 	}
 }
 

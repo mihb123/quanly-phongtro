@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -143,21 +144,30 @@ func TestInvoicePaymentRepository_CreatePaymentEvent(t *testing.T) {
 
 	repo := invoice.NewInvoicePaymentRepository(bunDB)
 	ctx := context.Background()
+	createdAt := time.Date(2026, 7, 7, 20, 4, 58, 0, time.UTC)
+	managerID := "4ab21578-3071-4c45-85cb-53b75cff6f98"
 
 	event := &model.PayOSPaymentEvent{
-		ID:                   "event-1",
+		Provider:             model.PaymentProviderSePay,
+		ManagerID:            &managerID,
+		ProviderOrderRef:     "PT123",
 		OrderCode:            12345,
 		Amount:               100000,
 		TransactionReference: "ref-1",
+		RawPayload:           "{}",
+		SignatureResult:      "VALID",
 		Status:               model.PaymentEventStatusProcessed,
 	}
 
-	mock.ExpectQuery(`.*`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("event-1"))
+	mock.ExpectQuery(`INSERT INTO "payment_events" \("provider", "manager_id"`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow("event-1", createdAt))
 
 	err := repo.CreatePaymentEvent(ctx, event)
 	if err != nil {
 		t.Errorf("CreatePaymentEvent() error = %v", err)
+	}
+	if event.ID != "event-1" {
+		t.Errorf("expected generated event ID, got %q", event.ID)
 	}
 }
 

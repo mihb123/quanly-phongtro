@@ -81,6 +81,19 @@ func TestSePayCreatePaymentLinkRejectsNonPositiveAmount(t *testing.T) {
 	}
 }
 
+// TestSePayCreatePaymentLinkRejectsMissingCredentials verifies QR generation requires bank config.
+func TestSePayCreatePaymentLinkRejectsMissingCredentials(t *testing.T) {
+	provider := NewSePayProvider()
+	invoice := &model.InvoiceWithRoom{Invoice: model.Invoice{ID: "abc123", TotalAmount: 1000}}
+
+	if _, err := provider.CreatePaymentLink(context.Background(), PaymentCreateInput{
+		Invoice:     invoice,
+		Credentials: map[string]string{"bank_short_name": "MBBank"},
+	}); err == nil {
+		t.Fatal("expected error for missing SePay credentials, got nil")
+	}
+}
+
 // TestSePayCreatePaymentLinkRetriesOnCollision ensures a colliding code triggers a new attempt.
 func TestSePayCreatePaymentLinkRetriesOnCollision(t *testing.T) {
 	provider := NewSePayProvider()
@@ -103,6 +116,40 @@ func TestSePayCreatePaymentLinkRetriesOnCollision(t *testing.T) {
 	}
 	if link.ProviderOrderRef == first {
 		t.Errorf("expected a different code after collision, got same %q", link.ProviderOrderRef)
+	}
+}
+
+// TestSePayCreatePaymentLinkReturnsCollisionErrors verifies repository lookup failures bubble up.
+func TestSePayCreatePaymentLinkReturnsCollisionErrors(t *testing.T) {
+	provider := NewSePayProvider()
+	invoice := &model.InvoiceWithRoom{Invoice: model.Invoice{ID: "abc12345", TotalAmount: 1000}}
+	checkErr := errors.New("lookup failed")
+
+	if _, err := provider.CreatePaymentLink(context.Background(), PaymentCreateInput{
+		Invoice:     invoice,
+		Credentials: sePayTestCredentials("apikey"),
+		ProviderOrderRefExists: func(context.Context, string) (bool, error) {
+			return false, checkErr
+		},
+	}); !errors.Is(err, checkErr) {
+		t.Fatalf("error = %v, want lookup error", err)
+	}
+}
+
+// TestGenerateUniqueSePayCodeExhaustsAttempts verifies all-colliding codes fail clearly.
+func TestGenerateUniqueSePayCodeExhaustsAttempts(t *testing.T) {
+	_, err := generateUniqueSePayCode(context.Background(), "PT", "abc12345", func(context.Context, string) (bool, error) {
+		return true, nil
+	})
+	if err == nil {
+		t.Fatal("expected error after all generated codes collide, got nil")
+	}
+}
+
+// TestSePayCancelPaymentLinkIsNoop verifies SePay QR payments have no remote cancellation call.
+func TestSePayCancelPaymentLinkIsNoop(t *testing.T) {
+	if err := NewSePayProvider().CancelPaymentLink(context.Background(), PaymentCancelInput{}); err != nil {
+		t.Fatalf("CancelPaymentLink() error = %v", err)
 	}
 }
 
@@ -185,6 +232,62 @@ func TestSePayVerifyWebhookHMAC(t *testing.T) {
 		Credentials: sePayTestCredentials("hmac"),
 	}); !errors.Is(err, ErrPaymentWebhookInvalid) {
 		t.Errorf("tampered hmac error = %v, want ErrPaymentWebhookInvalid", err)
+	}
+}
+
+// TestSePayVerifyWebhookAuthErrors covers missing provider auth configuration.
+func TestSePayVerifyWebhookAuthErrors(t *testing.T) {
+	provider := NewSePayProvider()
+	body := []byte(sePayIncomingBody)
+
+	tests := []struct {
+		name        string
+		credentials map[string]string
+		headers     http.Header
+		want        error
+	}{
+		{
+			name:        "unknown method",
+			credentials: map[string]string{"webhook_auth_method": "basic"},
+			headers:     http.Header{},
+			want:        ErrPaymentWebhookInvalid,
+		},
+		{
+			name:        "missing api key config",
+			credentials: map[string]string{"webhook_auth_method": "apikey"},
+			headers:     http.Header{"Authorization": []string{"Apikey secret-api-key"}},
+			want:        ErrPaymentCredentialsNotFound,
+		},
+		{
+			name:        "missing hmac config",
+			credentials: map[string]string{"webhook_auth_method": "hmac"},
+			headers:     http.Header{},
+			want:        ErrPaymentCredentialsNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := provider.VerifyWebhook(context.Background(), PaymentWebhookInput{
+				Body:        body,
+				Headers:     tt.headers,
+				Credentials: tt.credentials,
+			})
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("error = %v, want %v", err, tt.want)
+			}
+		})
+	}
+}
+
+// TestSePayVerifyWebhookRejectsInvalidJSON verifies authenticated malformed payloads fail.
+func TestSePayVerifyWebhookRejectsInvalidJSON(t *testing.T) {
+	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
+		Body:        []byte("{bad json"),
+		Credentials: sePayTestCredentials("none"),
+	})
+	if !errors.Is(err, ErrPaymentWebhookInvalid) {
+		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
 	}
 }
 

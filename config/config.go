@@ -16,6 +16,7 @@ type Config struct {
 	AppPort                string
 	AppEnv                 string
 	AppURL                 string
+	AppPortDev             string
 	AppURLDev              string
 	PostgresDSN            string
 	AccessTokenJWTSecret   string
@@ -47,6 +48,7 @@ func Load() (*Config, error) {
 	appPort := getOrDefault("APP_PORT", "8080")
 	appEnv := getOrDefault("APP_ENV", "prod")
 	appURL := getOrDefault("APP_URL", "localhost:8080")
+	appPortDev := os.Getenv("APP_PORT_DEV")
 	appURLDev := os.Getenv("APP_URL_DEV")
 	cookieSecure, err := getCookieSecure(appEnv)
 	if err != nil {
@@ -117,6 +119,7 @@ func Load() (*Config, error) {
 		AppPort:                appPort,
 		AppEnv:                 appEnv,
 		AppURL:                 appURL,
+		AppPortDev:             appPortDev,
 		AppURLDev:              appURLDev,
 		PostgresDSN:            postgresDSN,
 		AccessTokenJWTSecret:   accessTokenJWTSecret,

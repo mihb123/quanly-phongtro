@@ -156,7 +156,7 @@ func (r *InvoicePaymentRepository) MarkActivePaymentLinksStaleByManager(ctx cont
 func (r *InvoicePaymentRepository) CreatePaymentEvent(ctx context.Context, event *model.PaymentEvent) error {
 	_, err := r.db.NewInsert().
 		Model(event).
-		ExcludeColumn("created_at").
+		ExcludeColumn("id", "created_at").
 		Returning("id, created_at").
 		Exec(ctx)
 
