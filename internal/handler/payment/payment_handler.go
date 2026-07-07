@@ -206,6 +206,7 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.credentialService.SaveSePayConfig(r.Context(), managerID, credentials); err != nil {
+		log.Printf("SaveSePayConfig error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

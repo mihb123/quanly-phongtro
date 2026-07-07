@@ -209,7 +209,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentProviderCredential(ctx contex
 func (r *InvoicePaymentRepository) UpsertPaymentProviderCredential(ctx context.Context, credential *model.PaymentProviderCredential) error {
 	_, err := r.db.NewInsert().
 		Model(credential).
-		ExcludeColumn("created_at", "updated_at").
+		ExcludeColumn("id", "created_at", "updated_at").
 		On("CONFLICT (manager_id, provider) DO UPDATE").
 		Set("encrypted_credentials = EXCLUDED.encrypted_credentials").
 		Set("is_active = EXCLUDED.is_active").

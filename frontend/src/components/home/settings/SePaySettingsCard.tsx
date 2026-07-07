@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useAuth } from '@/contexts/AuthContext'
 import { encryptRSA } from '@/utils/encryption'
 
 const sePayConfigSchema = z.object({
@@ -26,7 +27,7 @@ const sePayConfigSchema = z.object({
   accountNumber: z.string().min(1, 'Vui lòng nhập Số tài khoản'),
   accountName: z.string().min(1, 'Vui lòng nhập Tên chủ tài khoản'),
   codePrefix: z.string().min(1, 'Vui lòng nhập Tiền tố mã thanh toán'),
-  webhookAuthMethod: z.string().min(1),
+  webhookAuthMethod: z.string().min(1, 'Vui lòng chọn phương thức xác thực'),
   webhookApiKey: z.string().optional(),
   webhookSecret: z.string().optional(),
   apiToken: z.string().optional(),
@@ -57,14 +58,19 @@ export function SePaySettingsCard() {
   const [showSecrets, setShowSecrets] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [reconciling, setReconciling] = useState(false)
+  const { user } = useAuth()
+  const fallbackWebhookURL = user?.user_id
+    ? `${window.location.origin}/api/v1/payments/providers/sepay/managers/${user.user_id}/webhook`
+    : ''
+  const webhookURL = status?.webhook_url || fallbackWebhookURL
   const form = useForm<SePayConfigForm>({
     resolver: zodResolver(sePayConfigSchema),
     defaultValues: {
       bankShortName: '',
       accountNumber: '',
       accountName: '',
-      codePrefix: 'PT',
-      webhookAuthMethod: 'apikey',
+      codePrefix: 'PH',
+      webhookAuthMethod: '',
       webhookApiKey: '',
       webhookSecret: '',
       apiToken: '',
@@ -128,6 +134,33 @@ export function SePaySettingsCard() {
     }
   })
 
+  const handleEdit = () => {
+    if (status?.has_config) {
+      form.reset({
+        bankShortName: status.bank_short_name || '',
+        accountNumber: '',
+        accountName: '',
+        codePrefix: status.code_prefix || 'PH',
+        webhookAuthMethod: status.webhook_auth_method || '',
+        webhookApiKey: '',
+        webhookSecret: '',
+        apiToken: '',
+      })
+    } else {
+      form.reset({
+        bankShortName: '',
+        accountNumber: '',
+        accountName: '',
+        codePrefix: 'PH',
+        webhookAuthMethod: '',
+        webhookApiKey: '',
+        webhookSecret: '',
+        apiToken: '',
+      })
+    }
+    setIsEditing(true)
+  }
+
   const handleDelete = async () => {
     setDeleting(true)
     try {
@@ -162,10 +195,10 @@ export function SePaySettingsCard() {
   }
 
   const copyWebhookURL = async () => {
-    if (!status?.webhook_url) {
+    if (!webhookURL) {
       return
     }
-    await navigator.clipboard.writeText(status.webhook_url)
+    await navigator.clipboard.writeText(webhookURL)
     toast.success('Đã copy webhook URL')
   }
 
@@ -204,11 +237,11 @@ export function SePaySettingsCard() {
           </div>
         )}
 
-        {status?.webhook_url && (
+        {webhookURL && (
           <div className="space-y-2 max-w-2xl">
             <Label htmlFor="sepay-webhook-url">Webhook URL</Label>
             <div className="flex gap-2">
-              <Input id="sepay-webhook-url" value={status.webhook_url} readOnly className="font-mono text-xs" />
+              <Input id="sepay-webhook-url" value={webhookURL} readOnly className="font-mono text-xs" />
               <Button type="button" variant="outline" size="icon" onClick={copyWebhookURL} className="cursor-pointer flex-shrink-0">
                 <Copy className="h-4 w-4" />
               </Button>
@@ -273,8 +306,9 @@ export function SePaySettingsCard() {
                 className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 {...form.register('webhookAuthMethod')}
               >
-                <option value="apikey">API Key (Khuyên dùng)</option>
-                <option value="hmac">HMAC</option>
+                <option value="" disabled>Chọn phương thức</option>
+                <option value="apikey">API Key</option>
+                <option value="hmac">HMAC-SHA256</option>
                 <option value="none">Không xác thực</option>
               </select>
             </div>
@@ -296,11 +330,11 @@ export function SePaySettingsCard() {
             
             {authMethod === 'hmac' && (
               <div className="space-y-2">
-                <Label htmlFor="sepay-webhook-secret">Webhook Secret</Label>
+                <Label htmlFor="sepay-webhook-secret">Mã HMAC (Webhook Secret)</Label>
                 <Input
                   id="sepay-webhook-secret"
                   type={showSecrets ? 'text' : 'password'}
-                  placeholder="Nhập Webhook Secret"
+                  placeholder="Nhập mã HMAC Secret từ SePay"
                   {...form.register('webhookSecret')}
                 />
                 {form.formState.errors.webhookSecret && (
@@ -349,7 +383,7 @@ export function SePaySettingsCard() {
           </form>
         ) : (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => setIsEditing(true)} className="cursor-pointer">
+            <Button type="button" onClick={handleEdit} className="cursor-pointer">
               Cập nhật SePay
             </Button>
             <Button type="button" variant="outline" onClick={handleReconcile} disabled={reconciling} className="cursor-pointer">
