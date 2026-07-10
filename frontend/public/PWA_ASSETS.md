@@ -1,8 +1,10 @@
-# PWA Assets — cần thay bằng logo thật
+# PWA Assets
 
-Các file icon dưới đây hiện đang là **placeholder** (mượn tạm từ project UpSnap).
-Hãy thay bằng logo/branding thật của "Quản lý phòng trọ" — giữ nguyên tên file và
-kích thước để không phải sửa `manifest.webmanifest` và `index.html`.
+Các file icon dưới đây là **branding thật** của "Quản lý phòng trọ": biểu tượng
+ngôi nhà trắng (glyph `Home09` hugeicons, đúng logo ở `MobileHeader`) trên nền lime
+`#84cc16` (màu `primary` / `theme_color`). Sinh bằng script SVG → PNG (`@resvg/resvg-js`).
+Muốn đổi màu/hình: chỉnh SVG rồi xuất lại, **giữ nguyên tên file và kích thước** để
+không phải sửa `manifest.webmanifest` và `index.html`.
 
 | File                     | Kích thước | Dùng để làm gì |
 |--------------------------|------------|----------------|

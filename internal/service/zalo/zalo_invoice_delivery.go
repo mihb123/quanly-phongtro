@@ -97,6 +97,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	// Generate payment link and QR image.
 	var qrPhotoURL string
 	var checkoutURL string
+	var qrProvider string
 	if deps.paymentService != nil && invoice.Status == model.InvoiceStatusUnpaid {
 		paymentLink, err := deps.paymentService.CreatePreferredPaymentLinkForInvoice(ctx, managerID, invoice, mainTenantName)
 		if err != nil {
@@ -104,11 +105,14 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		}
 		if err == nil && paymentLink != nil {
 			checkoutURL = paymentLink.CheckoutURL
-			qrBytes, err := downloadQRCodeImage(paymentLink.QRCode)
-			if err == nil {
+			qrProvider = paymentLink.Provider
+			qrBytes, err := fetchPaymentQRImage(paymentLink.Provider, paymentLink.QRCode)
+			if err != nil {
+				logger.Error(nil, 0, "fetch payment qr image failed", err)
+			} else {
 				qrPhotoURL, err = saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID+"_qr", qrBytes)
 				if err != nil {
-					logger.Error(nil, 0, "save payos qr image failed", err)
+					logger.Error(nil, 0, "save payment qr image failed", err)
 				}
 			}
 		}
@@ -117,7 +121,11 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	caption := fmt.Sprintf("Hóa đơn tiền nhà tháng %s cho phòng %s.\nTổng tiền: %s", invoice.Period, invoice.RoomName, invoicesvc.FormatCurrencyToVND(invoice.TotalAmount))
 	qrCaption := ""
 	if qrPhotoURL != "" {
-		qrCaption = fmt.Sprintf("Vui lòng quét mã QR để thanh toán. Hoặc truy cập link: %s", checkoutURL)
+		qrCaption = "Vui lòng quét mã QR để thanh toán."
+		// Only PayOS exposes a real checkout page; SePay's URL is the QR image itself.
+		if qrProvider == model.PaymentProviderPayOS && checkoutURL != "" {
+			qrCaption += fmt.Sprintf(" Hoặc truy cập link: %s", checkoutURL)
+		}
 	}
 
 	if room.GroupChatID != nil && *room.GroupChatID != "" {
@@ -188,8 +196,24 @@ func saveZaloInvoiceImage(publicBaseURL, invoiceID string, imageBytes []byte) (s
 	return publicBaseURL + publicPath, nil
 }
 
+// fetchPaymentQRImage returns QR image bytes for a payment link, honoring each provider's
+// QR format: SePay's QRCode is already a ready-made QR image URL, while PayOS's QRCode is a
+// raw VietQR string that must be rendered into an image before sending.
+func fetchPaymentQRImage(provider, qrCode string) ([]byte, error) {
+	if provider == model.PaymentProviderSePay {
+		return httpGetImage(qrCode)
+	}
+	return downloadQRCodeImage(qrCode)
+}
+
+// downloadQRCodeImage renders a raw QR payload (e.g. a PayOS VietQR string) into a PNG via QuickChart.
 func downloadQRCodeImage(qrCodeText string) ([]byte, error) {
 	urlStr := fmt.Sprintf("https://quickchart.io/qr?text=%s&size=400", url.QueryEscape(qrCodeText))
+	return httpGetImage(urlStr)
+}
+
+// httpGetImage downloads image bytes from an absolute URL.
+func httpGetImage(urlStr string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 	if err != nil {
 		return nil, err
@@ -202,7 +226,7 @@ func downloadQRCodeImage(qrCodeText string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download QR code, status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to download image, status: %d", resp.StatusCode)
 	}
 
 	return io.ReadAll(resp.Body)

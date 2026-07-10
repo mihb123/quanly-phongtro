@@ -51,36 +51,14 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	if webhookCtx.eventName == "message.unsupported.received" {
-		if !webhookCtx.isGroupChat && webhookCtx.replyChatID != "" && webhookCtx.senderID != "" {
-			linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
-			if err != nil || linkedUser == nil {
-				botToken, err := s.getDecryptedToken(ctx, managerID)
-				if err == nil {
-					_ = s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin lỗi, Bot không hỗ trợ nhận danh thiếp (contact). Vui lòng gõ số điện thoại của bạn kèm theo \"abc\" (ví dụ: 0912345678 abc) để hệ thống nhận diện.")
-				}
-			}
-		}
+		s.handleUnsupportedContactEvent(ctx, managerID, webhookCtx)
 		return nil
 	}
 
 	if user.ZaloUserID == nil || *user.ZaloUserID == "" {
-		if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && webhookCtx.text != "" {
-			hasher := security.NewBcryptHasher()
-			if err := hasher.Compare(user.PasswordHash, webhookCtx.text); err == nil {
-				_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
-				if err == nil {
-					_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
-				} else {
-					_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
-				}
-			} else {
-				_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "Manager cần nhập mật khẩu để kích hoạt tài khoản")
-			}
-		}
+		s.activateManagerByPassword(ctx, managerID, user, webhookCtx)
 		return nil
 	}
-
-	cleanText := strings.ToLower(strings.ReplaceAll(webhookCtx.text, " ", ""))
 
 	if s.invoiceCommandService != nil && webhookCtx.text != "" {
 		chatID := commandChatID(webhookCtx)
@@ -93,113 +71,7 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	if !webhookCtx.isGroupChat && webhookCtx.senderID != "" && (webhookCtx.text != "" || webhookCtx.contactPhone != "") {
-		botToken, err := s.getDecryptedToken(ctx, managerID)
-		if err != nil {
-			logger.Error(nil, 0, fmt.Sprintf("zalo webhook get token failed manager=%s", managerID), err)
-		} else {
-			linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
-			if err != nil {
-				var cleanPhone string
-				if webhookCtx.contactPhone != "" {
-					cleanPhone = strings.ReplaceAll(webhookCtx.contactPhone, " ", "")
-				} else {
-					textWithoutSpaces := strings.ReplaceAll(webhookCtx.text, " ", "")
-					re := regexp.MustCompile(`(?:\+84|84|0)[0-9]{9}`)
-					cleanPhone = re.FindString(textWithoutSpaces)
-				}
-
-				isPhoneFormat := cleanPhone != ""
-
-				if webhookCtx.contactPhone == "" && (cleanText == "botoi" || cleanText == "botơi") {
-					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo."); err != nil {
-						logger.Error(nil, 0, "zalo webhook send message failed", err)
-					}
-				} else if isPhoneFormat {
-					if strings.HasPrefix(cleanPhone, "+84") {
-						cleanPhone = "0" + cleanPhone[3:]
-					} else if strings.HasPrefix(cleanPhone, "84") {
-						cleanPhone = "0" + cleanPhone[2:]
-					}
-
-					user, err := s.userRepo.GetByPhone(ctx, cleanPhone)
-					if err == nil && user != nil {
-						// 1. Prevent hijacking an already linked account
-						if user.ZaloUserID != nil && *user.ZaloUserID != "" {
-							if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này đã được liên kết với một tài khoản Zalo. Nếu có sai sót, vui lòng liên hệ quản lý."); err != nil {
-								logger.Error(nil, 0, "zalo webhook send message failed", err)
-							}
-						} else if user.Role == model.RoleManager {
-							// 2. Only allow the manager who owns the bot to link their manager account
-							if user.ID != managerID {
-								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Bạn không thể liên kết tài khoản quản lý của người khác vào bot này."); err != nil {
-									logger.Error(nil, 0, "zalo webhook send message failed", err)
-								}
-							} else {
-								_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
-								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Liên kết tài khoản quản lý thành công! Từ giờ hệ thống sẽ gửi các thông báo quan trọng qua đây."); err != nil {
-									logger.Error(nil, 0, "zalo webhook send message failed", err)
-								}
-							}
-						} else {
-							// 3. For Tenants, enforce that the Manager must be linked first
-							managerUser, errMgr := s.userRepo.GetByUserID(ctx, managerID)
-							if errMgr == nil && managerUser != nil && (managerUser.ZaloUserID == nil || *managerUser.ZaloUserID == "") {
-								if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Hệ thống đang trong quá trình thiết lập. Quản lý cần liên kết tài khoản trước khi khách thuê có thể sử dụng."); err != nil {
-									logger.Error(nil, 0, "zalo webhook send message failed", err)
-								}
-							} else {
-								// First verify the tenant actually belongs to this manager
-								fullInfoTenant, err2 := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, user.ID)
-								if err2 != nil || fullInfoTenant == nil {
-									if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này không thuộc danh sách khách thuê của quản lý này. Vui lòng kiểm tra lại."); err != nil {
-										logger.Error(nil, 0, "zalo webhook send message failed", err)
-									}
-								} else {
-									// Tenant belongs to this manager, proceed to link
-									_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
-
-									msg := fmt.Sprintf("Xin chào %s - %s. Zalo của bạn đã được liên kết hệ thống quản lý trọ thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
-									if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, msg); err != nil {
-										logger.Error(nil, 0, "zalo webhook send message failed", err)
-									}
-
-									// Notify Manager
-									if managerUser != nil && managerUser.ZaloUserID != nil && *managerUser.ZaloUserID != "" {
-										mgrMsg := fmt.Sprintf("Khách thuê %s ở phòng %s vừa liên kết Zalo nhận thông báo thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
-										_ = s.client.SendMessage(ctx, botToken, *managerUser.ZaloUserID, mgrMsg)
-									}
-								}
-							}
-						}
-					} else {
-						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại."); err != nil {
-							logger.Error(nil, 0, "zalo webhook send message failed", err)
-						}
-					}
-				} else {
-					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'."); err != nil {
-						logger.Error(nil, 0, "zalo webhook send message failed", err)
-					}
-				}
-			} else {
-				// User is already linked
-				if cleanText == "botoi" || cleanText == "botơi" {
-					if linkedUser.Role == model.RoleManager {
-						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản quản lý của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
-							logger.Error(nil, 0, "zalo webhook send message failed", err)
-						}
-					} else {
-						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
-							logger.Error(nil, 0, "zalo webhook send message failed", err)
-						}
-					}
-				} else {
-					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết. Nếu cần hỗ trợ, vui lòng liên hệ quản lý."); err != nil {
-						logger.Error(nil, 0, "zalo webhook send message failed", err)
-					}
-				}
-			}
-		}
+		s.handleAccountLinkingByPhone(ctx, managerID, webhookCtx)
 	}
 
 	// Handle image attachment for transaction proof in group chat
@@ -214,6 +86,157 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 	}
 
 	return nil
+}
+
+// handleUnsupportedContactEvent replies to unsupported private messages (e.g. contact cards) from
+// users who are not yet linked, guiding them to send their phone number as text instead.
+func (s *zaloServiceImpl) handleUnsupportedContactEvent(ctx context.Context, managerID string, webhookCtx webhookMessageContext) {
+	if webhookCtx.isGroupChat || webhookCtx.replyChatID == "" || webhookCtx.senderID == "" {
+		return
+	}
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	if err != nil || linkedUser == nil {
+		botToken, err := s.getDecryptedToken(ctx, managerID)
+		if err == nil {
+			_ = s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin lỗi, Bot không hỗ trợ nhận danh thiếp (contact). Vui lòng gõ số điện thoại của bạn kèm theo \"abc\" (ví dụ: 0912345678 abc) để hệ thống nhận diện.")
+		}
+	}
+}
+
+// activateManagerByPassword links the manager's own Zalo account when they reply with their login
+// password in a private chat, before any Zalo account has been linked to the manager profile.
+func (s *zaloServiceImpl) activateManagerByPassword(ctx context.Context, managerID string, user *model.User, webhookCtx webhookMessageContext) {
+	if webhookCtx.isGroupChat || webhookCtx.senderID == "" || webhookCtx.text == "" {
+		return
+	}
+	hasher := security.NewBcryptHasher()
+	if err := hasher.Compare(user.PasswordHash, webhookCtx.text); err == nil {
+		_, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
+		if err == nil {
+			_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "✅ Cấu hình Zalo Bot hoàn tất!\n\nTài khoản quản lý của bạn đã được liên kết thành công. Giờ đây hệ thống sẽ tự động gửi thông báo đến bạn.")
+		} else {
+			_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "❌ Có lỗi xảy ra khi liên kết tài khoản. Vui lòng thử lại sau.")
+		}
+	} else {
+		_ = s.SendTextMessage(ctx, managerID, webhookCtx.replyChatID, "Manager cần nhập mật khẩu để kích hoạt tài khoản")
+	}
+}
+
+// handleAccountLinkingByPhone links a tenant or manager Zalo account from a phone number sent in a
+// private chat. It enforces anti-hijack (already-linked phones), manager-ownership, and tenant-belongs
+// -to-manager rules before saving the link, and greets users whose Zalo is already linked.
+func (s *zaloServiceImpl) handleAccountLinkingByPhone(ctx context.Context, managerID string, webhookCtx webhookMessageContext) {
+	cleanText := strings.ToLower(strings.ReplaceAll(webhookCtx.text, " ", ""))
+
+	botToken, err := s.getDecryptedToken(ctx, managerID)
+	if err != nil {
+		logger.Error(nil, 0, fmt.Sprintf("zalo webhook get token failed manager=%s", managerID), err)
+		return
+	}
+
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	if err != nil {
+		var cleanPhone string
+		if webhookCtx.contactPhone != "" {
+			cleanPhone = strings.ReplaceAll(webhookCtx.contactPhone, " ", "")
+		} else {
+			textWithoutSpaces := strings.ReplaceAll(webhookCtx.text, " ", "")
+			re := regexp.MustCompile(`(?:\+84|84|0)[0-9]{9}`)
+			cleanPhone = re.FindString(textWithoutSpaces)
+		}
+
+		isPhoneFormat := cleanPhone != ""
+
+		if webhookCtx.contactPhone == "" && (cleanText == "botoi" || cleanText == "botơi") {
+			if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Xin chào! Vui lòng nhập số điện thoại của bạn để liên kết tài khoản nhận thông báo."); err != nil {
+				logger.Error(nil, 0, "zalo webhook send message failed", err)
+			}
+		} else if isPhoneFormat {
+			if strings.HasPrefix(cleanPhone, "+84") {
+				cleanPhone = "0" + cleanPhone[3:]
+			} else if strings.HasPrefix(cleanPhone, "84") {
+				cleanPhone = "0" + cleanPhone[2:]
+			}
+
+			user, err := s.userRepo.GetByPhone(ctx, cleanPhone)
+			if err == nil && user != nil {
+				// 1. Prevent hijacking an already linked account
+				if user.ZaloUserID != nil && *user.ZaloUserID != "" {
+					if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này đã được liên kết với một tài khoản Zalo. Nếu có sai sót, vui lòng liên hệ quản lý."); err != nil {
+						logger.Error(nil, 0, "zalo webhook send message failed", err)
+					}
+				} else if user.Role == model.RoleManager {
+					// 2. Only allow the manager who owns the bot to link their manager account
+					if user.ID != managerID {
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Bạn không thể liên kết tài khoản quản lý của người khác vào bot này."); err != nil {
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
+						}
+					} else {
+						_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Liên kết tài khoản quản lý thành công! Từ giờ hệ thống sẽ gửi các thông báo quan trọng qua đây."); err != nil {
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
+						}
+					}
+				} else {
+					// 3. For Tenants, enforce that the Manager must be linked first
+					managerUser, errMgr := s.userRepo.GetByUserID(ctx, managerID)
+					if errMgr == nil && managerUser != nil && (managerUser.ZaloUserID == nil || *managerUser.ZaloUserID == "") {
+						if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Hệ thống đang trong quá trình thiết lập. Quản lý cần liên kết tài khoản trước khi khách thuê có thể sử dụng."); err != nil {
+							logger.Error(nil, 0, "zalo webhook send message failed", err)
+						}
+					} else {
+						// First verify the tenant actually belongs to this manager
+						fullInfoTenant, err2 := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, user.ID)
+						if err2 != nil || fullInfoTenant == nil {
+							if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại này không thuộc danh sách khách thuê của quản lý này. Vui lòng kiểm tra lại."); err != nil {
+								logger.Error(nil, 0, "zalo webhook send message failed", err)
+							}
+						} else {
+							// Tenant belongs to this manager, proceed to link
+							_, _ = s.userRepo.UpdateUser(ctx, user.ID, model.UpdateUserInput{ZaloUserID: &webhookCtx.senderID})
+
+							msg := fmt.Sprintf("Xin chào %s - %s. Zalo của bạn đã được liên kết hệ thống quản lý trọ thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
+							if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, msg); err != nil {
+								logger.Error(nil, 0, "zalo webhook send message failed", err)
+							}
+
+							// Notify Manager
+							if managerUser != nil && managerUser.ZaloUserID != nil && *managerUser.ZaloUserID != "" {
+								mgrMsg := fmt.Sprintf("Khách thuê %s ở phòng %s vừa liên kết Zalo nhận thông báo thành công.", fullInfoTenant.FullName, fullInfoTenant.RoomName)
+								_ = s.client.SendMessage(ctx, botToken, *managerUser.ZaloUserID, mgrMsg)
+							}
+						}
+					}
+				}
+			} else {
+				if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Số điện thoại chưa được đăng ký trong hệ thống. Vui lòng kiểm tra lại."); err != nil {
+					logger.Error(nil, 0, "zalo webhook send message failed", err)
+				}
+			}
+		} else {
+			if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Để bắt đầu kết nối, vui lòng gõ 'bot ơi'."); err != nil {
+				logger.Error(nil, 0, "zalo webhook send message failed", err)
+			}
+		}
+		return
+	}
+
+	// User is already linked
+	if cleanText == "botoi" || cleanText == "botơi" {
+		if linkedUser.Role == model.RoleManager {
+			if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản quản lý của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
+				logger.Error(nil, 0, "zalo webhook send message failed", err)
+			}
+		} else {
+			if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết thành công. Bạn sẽ nhận được thông báo từ hệ thống qua Zalo."); err != nil {
+				logger.Error(nil, 0, "zalo webhook send message failed", err)
+			}
+		}
+	} else {
+		if err := s.client.SendMessage(ctx, botToken, webhookCtx.replyChatID, "Tài khoản của bạn đã được liên kết. Nếu cần hỗ trợ, vui lòng liên hệ quản lý."); err != nil {
+			logger.Error(nil, 0, "zalo webhook send message failed", err)
+		}
+	}
 }
 
 func (s *zaloServiceImpl) processTransactionImage(ctx context.Context, managerID, groupChatID, imgURL string) error {

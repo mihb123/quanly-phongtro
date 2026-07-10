@@ -3,9 +3,9 @@ import { useHouseCostStore } from '@/data/houseCostData';
 import { useHouseStore } from '@/data/houseData';
 import { useSelectedStore, type TabType } from '@/data/selectedData';
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm';
-import type { HouseCost, ExtraCost } from '@/api/houseCost';
+import { useHouseCostEditor } from '@/hooks/useHouseCostEditor';
+import type { HouseCost } from '@/api/houseCost';
 import { Wallet, TrendingUp, TrendingDown, DollarSign, Plus, Save, Trash2, Calendar, AlertCircle } from '@/components/icons';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -23,38 +23,47 @@ import { EditNoteModal } from './modals/EditNoteModal';
 // View doanh thu: lọc theo kỳ + nhà trọ, hiển thị thống kê tổng hợp và bảng chi tiết chi phí vận hành.
 export function RevenueView() {
   const { houses, fetchHouses } = useHouseStore();
-  const { 
-    costs, 
-    summaries, 
-    isLoadingCosts, 
-    isLoadingSummaries, 
-    selectedHouseIds, 
-    period, 
-    setSelectedHouseIds, 
-    setPeriod, 
-    createCostForHouse,
-    updateCost,
+  const {
+    costs,
+    summaries,
+    isLoadingCosts,
+    isLoadingSummaries,
+    selectedHouseIds,
+    period,
+    setSelectedHouseIds,
+    setPeriod,
     fetchCosts,
     fetchSummaries
   } = useHouseCostStore();
   const setActiveTab = useSelectedStore(s => s.setActiveTab);
   const setTabChangeInterceptor = useSelectedStore(s => s.setTabChangeInterceptor);
 
-  const [editState, setEditState] = useState<Record<string, Partial<HouseCost>>>({});
-  const [isSaving, setIsSaving] = useState<Record<string, boolean>>({});
+  const {
+    isSaving,
+    hasAnyEdits,
+    clearEdits,
+    hasEdits,
+    handleCreateMonthCost,
+    handleFieldChange,
+    handleExtraCostChange,
+    handleAddExtraCost,
+    handleRemoveExtraCost,
+    handleSaveCost,
+    getActiveCostValue,
+    getActiveExtraCosts,
+  } = useHouseCostEditor();
+
   const [isHouseSelectOpen, setIsHouseSelectOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const [editingNoteFor, setEditingNoteFor] = useState<{houseId: string, index: number} | null>(null);
 
-  const hasAnyEdits = Object.keys(editState).length > 0;
-
   const handleDiscard = useCallback(() => {
-    setEditState({});
+    clearEdits();
     if (pendingAction) {
       pendingAction();
       setPendingAction(null);
     }
-  }, [pendingAction]);
+  }, [pendingAction, clearEdits]);
 
   const { handleClose: triggerConfirm, confirmModal } = useDirtyConfirm(
     hasAnyEdits,
@@ -65,7 +74,7 @@ export function RevenueView() {
 
   useEffect(() => {
     interceptorRef.current = (nextTab: TabType) => {
-      if (Object.keys(editState).length > 0) {
+      if (hasAnyEdits) {
         setPendingAction(() => () => {
           setTabChangeInterceptor(null);
           setActiveTab(nextTab);
@@ -75,7 +84,7 @@ export function RevenueView() {
       }
       return true;
     };
-  }, [editState, setActiveTab, setTabChangeInterceptor, triggerConfirm]);
+  }, [hasAnyEdits, setActiveTab, setTabChangeInterceptor, triggerConfirm]);
 
   useEffect(() => {
     const handler = (nextTab: TabType) => interceptorRef.current(nextTab);
@@ -178,139 +187,6 @@ export function RevenueView() {
     } else {
       setSelectedHouseIds([...selectedHouseIds, houseId]);
     }
-  };
-
-  const handleCreateMonthCost = async (houseId: string) => {
-    try {
-      const res = await createCostForHouse(houseId);
-      if (res.success) {
-        toast.success('Tạo chi phí tháng mới thành công');
-      } else {
-        toast.error(res.error || 'Không thể tạo chi phí hoặc đã tồn tại chi phí cho kỳ này.');
-      }
-    } catch {
-      toast.error('Không thể tạo chi phí hoặc đã tồn tại chi phí cho kỳ này.');
-    }
-  };
-
-  const handleFieldChange = (houseId: string, field: keyof HouseCost, value: string | number) => {
-    const numValue = typeof value === 'string' ? (parseFloat(value) || 0) : value;
-    setEditState(prev => ({
-      ...prev,
-      [houseId]: {
-        ...prev[houseId],
-        [field]: typeof value === 'string' && field === 'note' ? value : numValue
-      }
-    }));
-  };
-
-  const handleExtraCostChange = (houseId: string, index: number, field: keyof ExtraCost, value: string | number) => {
-    const cost = costs[houseId];
-    if (!cost) return;
-    
-    const currentEdits = editState[houseId]?.extra_costs || cost.extra_costs || [];
-    const newExtras = [...currentEdits];
-    
-    if (field === 'amount') {
-      newExtras[index] = { ...newExtras[index], amount: typeof value === 'string' ? (parseFloat(value) || 0) : value };
-    } else if (field === 'name') {
-      newExtras[index] = { ...newExtras[index], name: value as string };
-    } else {
-      newExtras[index] = { ...newExtras[index], note: value as string };
-    }
-
-    setEditState(prev => ({
-      ...prev,
-      [houseId]: {
-        ...prev[houseId],
-        extra_costs: newExtras
-      }
-    }));
-  };
-
-  const handleAddExtraCost = (houseId: string) => {
-    const cost = costs[houseId];
-    if (!cost) return;
-    
-    const currentEdits = editState[houseId]?.extra_costs || cost.extra_costs || [];
-    setEditState(prev => ({
-      ...prev,
-      [houseId]: {
-        ...prev[houseId],
-        extra_costs: [...currentEdits, { name: 'Chi phí mới', amount: 0, note: '' }]
-      }
-    }));
-  };
-
-  const handleRemoveExtraCost = async (houseId: string, index: number) => {
-    const cost = costs[houseId];
-    if (!cost) return;
-    
-    const currentEdits = editState[houseId]?.extra_costs || cost.extra_costs || [];
-    const newExtras = currentEdits.filter((_, i) => i !== index);
-    
-    // Auto-save immediately upon deletion
-    const editsToSave = { ...(editState[houseId] || {}), extra_costs: newExtras };
-
-    setIsSaving(prev => ({ ...prev, [houseId]: true }));
-    try {
-      const res = await updateCost(cost.id, houseId, editsToSave);
-      if (res.success) {
-        const newEditState = { ...editState };
-        delete newEditState[houseId];
-        setEditState(newEditState);
-        toast.success('Đã xóa chi phí');
-      } else {
-        toast.error(res.error || 'Không thể xóa chi phí.');
-      }
-    } catch {
-      toast.error('Không thể xóa chi phí.');
-    } finally {
-      setIsSaving(prev => ({ ...prev, [houseId]: false }));
-    }
-  };
-
-  const handleSaveCost = async (houseId: string) => {
-    const edits = editState[houseId];
-    if (!edits) return;
-    
-    const cost = costs[houseId];
-    if (!cost) return;
-
-    setIsSaving(prev => ({ ...prev, [houseId]: true }));
-    try {
-      const res = await updateCost(cost.id, houseId, edits);
-      if (res.success) {
-        const newEditState = { ...editState };
-        delete newEditState[houseId];
-        setEditState(newEditState);
-        toast.success('Lưu chi phí thành công');
-      } else {
-        toast.error(res.error || 'Không thể lưu thay đổi.');
-      }
-    } catch {
-      toast.error('Không thể lưu thay đổi.');
-    } finally {
-      setIsSaving(prev => ({ ...prev, [houseId]: false }));
-    }
-  };
-
-  const getActiveCostValue = (houseId: string, field: keyof HouseCost) => {
-    if (editState[houseId] && editState[houseId][field] !== undefined) {
-      return editState[houseId][field];
-    }
-    return costs[houseId]?.[field] ?? 0;
-  };
-
-  const getActiveExtraCosts = (houseId: string) => {
-    if (editState[houseId] && editState[houseId].extra_costs !== undefined) {
-      return editState[houseId].extra_costs!;
-    }
-    return costs[houseId]?.extra_costs || [];
-  };
-
-  const hasEdits = (houseId: string) => {
-    return editState[houseId] !== undefined && Object.keys(editState[houseId]).length > 0;
   };
 
   return (

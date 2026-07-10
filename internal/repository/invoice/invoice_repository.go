@@ -19,6 +19,27 @@ func NewInvoiceRepository(db *bun.DB) *InvoiceRepository {
 	return &InvoiceRepository{db: db}
 }
 
+// invoiceOwnedByManagerClause scopes an invoice mutation to rooms owned by the given manager.
+// Used as a WHERE clause with the managerID bind arg to enforce ownership on updates/deletes.
+const invoiceOwnedByManagerClause = "room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)"
+
+// selectInvoiceWithRoom applies the shared InvoiceWithRoom projection (room/house columns and joins)
+// to a bun select query whose Model is already set. Ownership must still be enforced by the caller
+// via a WHERE on h.manager_id.
+func selectInvoiceWithRoom(q *bun.SelectQuery) *bun.SelectQuery {
+	return q.
+		ModelTableExpr("invoices AS invoice").
+		ColumnExpr("invoice.*").
+		ColumnExpr("r.name AS room_name").
+		ColumnExpr("r.house_id AS house_id").
+		ColumnExpr("COALESCE(r.extra_person_threshold, h.extra_person_threshold) AS extra_person_threshold").
+		ColumnExpr("COALESCE(r.extra_person_fee, h.extra_person_fee) AS extra_person_fee_unit").
+		ColumnExpr("COALESCE(r.extra_vehicle_threshold, h.extra_vehicle_threshold) AS extra_vehicle_threshold").
+		ColumnExpr("COALESCE(r.extra_vehicle_fee, h.extra_vehicle_fee) AS extra_vehicle_fee_unit").
+		Join("JOIN rooms AS r ON invoice.room_id = r.id").
+		Join("JOIN houses AS h ON r.house_id = h.id")
+}
+
 // CreateInvoice inserts a new invoice. Ownership must be verified by the caller before this.
 func (r *InvoiceRepository) CreateInvoice(ctx context.Context, invoice *model.Invoice) error {
 	_, err := r.db.NewInsert().
@@ -39,18 +60,7 @@ func (r *InvoiceRepository) CreateInvoice(ctx context.Context, invoice *model.In
 // GetInvoiceByID fetches an invoice by its ID and ensures it belongs to the manager.
 func (r *InvoiceRepository) GetInvoiceByID(ctx context.Context, managerID, id string) (*model.InvoiceWithRoom, error) {
 	var invoice model.InvoiceWithRoom
-	err := r.db.NewSelect().
-		Model(&invoice).
-		ModelTableExpr("invoices AS invoice").
-		ColumnExpr("invoice.*").
-		ColumnExpr("r.name AS room_name").
-		ColumnExpr("r.house_id AS house_id").
-		ColumnExpr("COALESCE(r.extra_person_threshold, h.extra_person_threshold) AS extra_person_threshold").
-		ColumnExpr("COALESCE(r.extra_person_fee, h.extra_person_fee) AS extra_person_fee_unit").
-		ColumnExpr("COALESCE(r.extra_vehicle_threshold, h.extra_vehicle_threshold) AS extra_vehicle_threshold").
-		ColumnExpr("COALESCE(r.extra_vehicle_fee, h.extra_vehicle_fee) AS extra_vehicle_fee_unit").
-		Join("JOIN rooms AS r ON invoice.room_id = r.id").
-		Join("JOIN houses AS h ON r.house_id = h.id").
+	err := selectInvoiceWithRoom(r.db.NewSelect().Model(&invoice)).
 		Where("invoice.id = ?", id).
 		Where("h.manager_id = ?", managerID).
 		Scan(ctx)
@@ -68,18 +78,7 @@ func (r *InvoiceRepository) GetInvoiceByID(ctx context.Context, managerID, id st
 func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error) {
 	var invoices []model.InvoiceWithRoom
 
-	q := r.db.NewSelect().
-		Model(&invoices).
-		ModelTableExpr("invoices AS invoice").
-		ColumnExpr("invoice.*").
-		ColumnExpr("r.name AS room_name").
-		ColumnExpr("r.house_id AS house_id").
-		ColumnExpr("COALESCE(r.extra_person_threshold, h.extra_person_threshold) AS extra_person_threshold").
-		ColumnExpr("COALESCE(r.extra_person_fee, h.extra_person_fee) AS extra_person_fee_unit").
-		ColumnExpr("COALESCE(r.extra_vehicle_threshold, h.extra_vehicle_threshold) AS extra_vehicle_threshold").
-		ColumnExpr("COALESCE(r.extra_vehicle_fee, h.extra_vehicle_fee) AS extra_vehicle_fee_unit").
-		Join("JOIN rooms AS r ON invoice.room_id = r.id").
-		Join("JOIN houses AS h ON r.house_id = h.id").
+	q := selectInvoiceWithRoom(r.db.NewSelect().Model(&invoices)).
 		Where("h.manager_id = ?", managerID)
 
 	if filter.RoomID != "" {
@@ -115,7 +114,7 @@ func (r *InvoiceRepository) UpdateInvoiceStatusAndMethod(ctx context.Context, ma
 		Set("status = ?", status).
 		Set("payment_method = ?", method).
 		Where("id = ?", id).
-		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Where(invoiceOwnedByManagerClause, managerID).
 		Returning("*").
 		Scan(ctx)
 
@@ -173,7 +172,7 @@ func (r *InvoiceRepository) UpdateInvoiceStatus(ctx context.Context, managerID, 
 		Model(&invoice).
 		Set("status = ?", status).
 		Where("id = ?", id).
-		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Where(invoiceOwnedByManagerClause, managerID).
 		Returning("*").
 		Scan(ctx)
 
@@ -284,7 +283,7 @@ func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string,
 	res, err := r.db.NewUpdate().
 		Model(invoice).
 		Where("id = ?", invoice.ID).
-		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Where(invoiceOwnedByManagerClause, managerID).
 		Exec(ctx)
 
 	if err != nil {
@@ -321,7 +320,7 @@ func (r *InvoiceRepository) DeleteInvoice(ctx context.Context, managerID, id str
 	res, err := r.db.NewDelete().
 		Model((*model.Invoice)(nil)).
 		Where("id = ?", id).
-		Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
+		Where(invoiceOwnedByManagerClause, managerID).
 		Exec(ctx)
 
 	if err != nil {

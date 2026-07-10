@@ -83,3 +83,9 @@ export const deleteInvoice = async (id: string) => {
   const response = await api.delete(`/invoice/${id}`);
   return response.data;
 };
+
+// getInvoiceImageBlob fetches the rendered invoice image as binary data for preview/download.
+export const getInvoiceImageBlob = async (id: string) => {
+  const response = await api.get(`/invoice/${id}/image`, { responseType: 'blob' });
+  return response.data;
+};

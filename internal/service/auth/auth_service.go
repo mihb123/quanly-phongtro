@@ -168,6 +168,37 @@ func (s *AuthServiceImpl) refineSessionLocation(refreshToken, userID string, lat
 	}
 }
 
+// issueSession mints an access + refresh token pair for an authenticated user and kicks off
+// background GPS location refinement. Shared by Register and Login, which differ only in how the
+// authenticated user is obtained.
+func (s *AuthServiceImpl) issueSession(ctx context.Context, user *model.User, ipAddress, userAgent, jkt string, latitude, longitude *float64) (*LoginOutput, error) {
+	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, user.IsActivated, jkt)
+	if err != nil {
+		return nil, err
+	}
+
+	location := s.resolveInitialLocation(ipAddress)
+
+	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt, latitude, longitude, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reverse-geocode precise GPS coordinates off the critical path.
+	if latitude != nil && longitude != nil {
+		go s.refineSessionLocation(refreshToken, user.ID, *latitude, *longitude)
+	}
+
+	ttl := s.tokens.GetAccessTokenTTL()
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:    int64(ttl.Seconds()),
+		User:         newAuthOutput(user),
+	}, nil
+}
+
 func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
 	email := strings.TrimSpace(strings.ToLower(in.Email))
 
@@ -206,31 +237,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 		return nil, err
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(string(newUser.Role), newUser.Email, newUser.ID, newUser.IsActivated, jkt)
-	if err != nil {
-		return nil, err
-	}
-
-	location := s.resolveInitialLocation(ipAddress)
-
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, newUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Reverse-geocode precise GPS coordinates off the critical path.
-	if in.Latitude != nil && in.Longitude != nil {
-		go s.refineSessionLocation(refreshToken, newUser.ID, *in.Latitude, *in.Longitude)
-	}
-
-	ttl := s.tokens.GetAccessTokenTTL()
-
-	return &LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int64(ttl.Seconds()),
-		User:         newAuthOutput(newUser),
-	}, nil
+	return s.issueSession(ctx, newUser, ipAddress, userAgent, jkt, in.Latitude, in.Longitude)
 }
 
 func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
@@ -254,31 +261,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 		return nil, ErrInvalidCredentials
 	}
 
-	accessToken, err := s.tokens.GenerateAccessToken(string(existingUser.Role), existingUser.Email, existingUser.ID, existingUser.IsActivated, jkt)
-	if err != nil {
-		return nil, err
-	}
-
-	location := s.resolveInitialLocation(ipAddress)
-
-	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, existingUser.ID, ipAddress, userAgent, location, jkt, in.Latitude, in.Longitude, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// Reverse-geocode precise GPS coordinates off the critical path.
-	if in.Latitude != nil && in.Longitude != nil {
-		go s.refineSessionLocation(refreshToken, existingUser.ID, *in.Latitude, *in.Longitude)
-	}
-
-	ttl := s.tokens.GetAccessTokenTTL()
-
-	return &LoginOutput{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    int64(ttl.Seconds()),
-		User:         newAuthOutput(existingUser),
-	}, nil
+	return s.issueSession(ctx, existingUser, ipAddress, userAgent, jkt, in.Latitude, in.Longitude)
 }
 
 func IsValidEmail(email string) bool {

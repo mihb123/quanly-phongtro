@@ -39,7 +39,7 @@ var ErrAmbiguousRoomName = errors.New("ambiguous room name")
 
 // ParseCommand parses a raw chat message into a structured invoice command.
 func ParseCommand(text string) *ParsedCommand {
-	trimmed := strings.TrimSpace(text)
+	trimmed := strings.TrimSpace(stripMentionPrefix(text))
 	if trimmed == "" {
 		return &ParsedCommand{Type: CommandUnknown}
 	}
@@ -104,6 +104,17 @@ func ParseCommand(text string) *ParsedCommand {
 		UtilityType: utilityType,
 		Entries:     []RoomUtilityEntry{entry},
 	}
+}
+
+// stripMentionPrefix removes any leading text before the first '#' command marker. In group
+// chats the Zalo Bot API prepends the bot's @mention to the message text (e.g. "@Bot #dien 50"),
+// which would otherwise shift the command token and make the message parse as unknown.
+func stripMentionPrefix(text string) string {
+	idx := strings.Index(text, "#")
+	if idx <= 0 {
+		return text
+	}
+	return text[idx:]
 }
 
 // NormalizeRoomName strips Vietnamese diacritics, separators, and common room prefixes for matching.

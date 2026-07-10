@@ -38,6 +38,25 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "electricity single with bot mention prefix",
+			text: "@Quản Lý Trọ #dien 750",
+			want: ParsedCommand{Type: CommandUtilitySingle, UtilityType: "dien", Entries: []RoomUtilityEntry{{NewIndex: 750, HasNewIndex: true}}},
+		},
+		{
+			name: "batch with bot mention prefix",
+			text: "@Bot #dien 679qt\nP101 750\nP201 900",
+			want: ParsedCommand{
+				Type:        CommandUtilityBatch,
+				UtilityType: "dien",
+				HouseCode:   "679qt",
+				Entries: []RoomUtilityEntry{
+					{RoomName: "P101", NewIndex: 750, HasNewIndex: true},
+					{RoomName: "P201", NewIndex: 900, HasNewIndex: true},
+				},
+			},
+		},
+		{name: "confirm with mention prefix", text: "@Bot #ok", want: ParsedCommand{Type: CommandConfirm}},
 		{name: "confirm", text: "#ok", want: ParsedCommand{Type: CommandConfirm}},
 		{name: "cancel", text: "#huy", want: ParsedCommand{Type: CommandCancel}},
 		{name: "period", text: "#6", want: ParsedCommand{Type: CommandPeriodSelect, PeriodMonth: 6}},

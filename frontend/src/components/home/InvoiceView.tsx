@@ -10,14 +10,14 @@ import { useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
-import { type Invoice } from '@/api/invoice'
+import { type Invoice, getInvoiceImageBlob } from '@/api/invoice'
+import { sendInvoiceViaZalo } from '@/api/zalo'
 import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
 import { EditInvoiceModal } from './modals/EditInvoiceModal'
 import { BackendImagePreviewModal } from './modals/BackendImagePreviewModal'
 import { toast } from 'sonner'
-import { apiClient } from '@/api/client'
 import { formatCurrency } from '@/utils/format'
 
 // View quản lý hóa đơn: lọc, thống kê nhanh, danh sách (card mobile + table desktop) và các modal tạo/sửa/xem.
@@ -86,15 +86,13 @@ export function InvoicesView() {
     
     try {
       toast.loading('Đang tạo ảnh hóa đơn...', { id: 'download-invoice' });
-      
-      const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
-        responseType: 'blob', // Bắt buộc để tải file nhị phân (ảnh)
-      });
+
+      const imageData = await getInvoiceImageBlob(invoice.id);
 
       const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
       const houseName = houseNameRaw.replace(/\s+/g, '');
 
-      const blob = new Blob([response.data], { type: 'image/png' });
+      const blob = new Blob([imageData], { type: 'image/png' });
       const url = URL.createObjectURL(blob);
       const filename = `${invoice.room_name}_${invoice.period.replace('-', '_')}_${houseName}.png`;
       
@@ -133,15 +131,13 @@ export function InvoicesView() {
       for (let i = 0; i < invoices.length; i++) {
         const invoice = invoices[i];
         try {
-          const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
-            responseType: 'blob',
-          });
-          
+          const imageData = await getInvoiceImageBlob(invoice.id);
+
           const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
           const houseName = houseNameRaw.replace(/\s+/g, '');
           const periodStr = invoice.period.replace('-', '_');
-          
-          const blob = new Blob([response.data], { type: 'image/png' });
+
+          const blob = new Blob([imageData], { type: 'image/png' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -176,7 +172,7 @@ export function InvoicesView() {
     }
     toast.loading('Đang gửi ảnh hóa đơn qua Zalo...', { id: 'send-zalo' });
     try {
-      await apiClient.post(`/zalo/invoices/${invoice.id}/send`);
+      await sendInvoiceViaZalo(invoice.id);
       toast.success('Đã gửi hóa đơn qua Zalo thành công', { id: 'send-zalo' });
     } catch (error: unknown) {
       console.error('Lỗi gửi Zalo:', error);
@@ -412,7 +408,7 @@ export function InvoicesView() {
                     >
                       <Download className="size-4" />
                     </Button>
-                    {invoice.status !== 'PAID' && (
+                    {invoice.status === 'UNPAID' && (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -513,7 +509,7 @@ export function InvoicesView() {
                         >
                           <Download className="size-4" />
                         </Button>
-                        {invoice.status !== 'PAID' && (
+                        {invoice.status === 'UNPAID' && (
                           <Button
                             variant="ghost"
                             size="sm"

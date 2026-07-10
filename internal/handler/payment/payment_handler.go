@@ -108,8 +108,7 @@ func (h *PaymentHandler) GetPayOSConfig(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(status)
+	writeJSONOK(w, status)
 }
 
 // SavePayOSConfig decrypts and stores manager-specific PayOS credentials.
@@ -120,8 +119,7 @@ func (h *PaymentHandler) SavePayOSConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req payOSConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if !decodeConfigRequest(w, r, &req) {
 		return
 	}
 	credentials, err := h.decryptPayOSConfig(req)
@@ -138,8 +136,7 @@ func (h *PaymentHandler) SavePayOSConfig(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	writeConfigSuccess(w)
 }
 
 // DeletePayOSConfig deactivates manager-specific PayOS credentials.
@@ -152,8 +149,7 @@ func (h *PaymentHandler) DeletePayOSConfig(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	writeConfigSuccess(w)
 }
 
 // GetSePayConfig returns manager-specific SePay config status.
@@ -168,8 +164,7 @@ func (h *PaymentHandler) GetSePayConfig(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(status)
+	writeJSONOK(w, status)
 }
 
 // SaveSePayConfig decrypts and stores manager-specific SePay credentials.
@@ -180,8 +175,7 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req sePayConfigRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if !decodeConfigRequest(w, r, &req) {
 		return
 	}
 
@@ -210,8 +204,7 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	writeConfigSuccess(w)
 }
 
 // DeleteSePayConfig deactivates manager-specific SePay credentials.
@@ -224,8 +217,7 @@ func (h *PaymentHandler) DeleteSePayConfig(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	writeConfigSuccess(w)
 }
 
 // ReconcileSePay pulls recent SePay transactions via API v2 to settle invoices missed by webhooks.
@@ -266,8 +258,7 @@ func (h *PaymentHandler) ReconcileSePay(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(result)
+	writeJSONOK(w, result)
 }
 
 // HandleProviderWebhook processes incoming webhooks for a manager/provider pair.
@@ -403,6 +394,26 @@ func (h *PaymentHandler) decryptSecret(cipherText, fieldName string) (string, er
 		return "", errors.New("Failed to decrypt " + fieldName)
 	}
 	return string(plainBytes), nil
+}
+
+// decodeConfigRequest decodes a JSON config body into dst, writing a 400 on malformed input.
+func decodeConfigRequest(w http.ResponseWriter, r *http.Request, dst any) bool {
+	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+// writeJSONOK writes v as a 200 JSON response, matching the config handlers' success shape.
+func writeJSONOK(w http.ResponseWriter, v any) {
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeConfigSuccess writes the {"success": true} acknowledgement used by config save/delete handlers.
+func writeConfigSuccess(w http.ResponseWriter) {
+	writeJSONOK(w, map[string]bool{"success": true})
 }
 
 // authenticatedManagerID extracts the current manager user ID from request claims.
