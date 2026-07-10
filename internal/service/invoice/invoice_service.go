@@ -191,7 +191,7 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + input.OtherFee - input.Discount
 
 	invoice := &model.Invoice{
-		ID:                  uuid.New().String(),
+		ID:                  uuid.Must(uuid.NewV7()).String(),
 		RoomID:              room.ID,
 		Period:              input.Period,
 		RoomFee:             roomFee,

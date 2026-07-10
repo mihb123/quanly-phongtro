@@ -186,7 +186,7 @@ func saveZaloInvoiceImage(publicBaseURL, invoiceID string, imageBytes []byte) (s
 		return "", fmt.Errorf("mkdir: %w", err)
 	}
 
-	fileName := fmt.Sprintf("%s_%s.png", invoiceID, uuid.NewString())
+	fileName := fmt.Sprintf("%s_%s.png", invoiceID, uuid.Must(uuid.NewV7()).String())
 	filePath := filepath.Join(dir, fileName)
 	if err := os.WriteFile(filePath, imageBytes, 0644); err != nil {
 		return "", fmt.Errorf("write file: %w", err)

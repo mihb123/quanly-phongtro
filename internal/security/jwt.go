@@ -47,7 +47,7 @@ func (p *JWTProvider) GenerateAccessToken(role, email, userID string, isActivate
 		Role:        role,
 		Cnf:         cnf,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.New().String(),
+			ID:        uuid.Must(uuid.NewV7()).String(),
 			Subject:   userID,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(p.ttl)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -67,7 +67,7 @@ func (p *JWTProvider) GenerateRefreshToken(ctx context.Context, userID, ipAddres
 	expiresAt := time.Now().Add(p.ttl * 24 * 30)
 
 	claims := jwt.MapClaims{
-		"jti": uuid.New().String(),
+		"jti": uuid.Must(uuid.NewV7()).String(),
 		"sub": userID,
 		"exp": expiresAt.Unix(),
 		"iat": time.Now().Unix(),

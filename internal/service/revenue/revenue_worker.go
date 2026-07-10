@@ -90,7 +90,7 @@ func (w *RevenueWorker) processEvent(event RevenueSummaryEvent) {
 
 	// 4. Upsert summary
 	summary := &model.HouseRevenueSummary{
-		ID:           uuid.New().String(),
+		ID:           uuid.Must(uuid.NewV7()).String(),
 		HouseID:      event.HouseID,
 		Period:       event.Period,
 		TotalRevenue: totalRevenue,

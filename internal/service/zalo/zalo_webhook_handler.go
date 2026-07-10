@@ -271,7 +271,7 @@ func (s *zaloServiceImpl) processTransactionImage(ctx context.Context, managerID
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
-	fileName := fmt.Sprintf("%s_%s.jpg", room.ID, uuid.New().String())
+	fileName := fmt.Sprintf("%s_%s.jpg", room.ID, uuid.Must(uuid.NewV7()).String())
 	filePath := filepath.Join(dir, fileName)
 
 	if err := os.WriteFile(filePath, imageBytes, 0600); err != nil {

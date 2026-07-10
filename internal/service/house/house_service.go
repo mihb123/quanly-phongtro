@@ -61,7 +61,7 @@ func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) 
 	now := time.Now()
 	period := now.Format("2006-01")
 	cost := &model.HouseCost{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		HouseID:    house.ID,
 		Period:     period,
 		ExtraCosts: []model.ExtraCost{},

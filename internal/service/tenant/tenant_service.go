@@ -86,7 +86,7 @@ func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 			return "", fmt.Errorf("unsupported file extension: %s", ext)
 		}
 
-		fileName := uuid.New().String() + ext
+		fileName := uuid.Must(uuid.NewV7()).String() + ext
 		filePath := filepath.Join("uploads", "tenants", fileName)
 		if err := saveFile(file, filePath); err != nil {
 			file.Close()

@@ -81,7 +81,7 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 	latest, err := s.costRepo.GetLatestByHouseID(ctx, houseID)
 
 	newCost := &model.HouseCost{
-		ID:         uuid.New().String(),
+		ID:         uuid.Must(uuid.NewV7()).String(),
 		HouseID:    houseID,
 		Period:     period,
 		ExtraCosts: []model.ExtraCost{},
