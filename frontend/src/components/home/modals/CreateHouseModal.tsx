@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type FocusEvent } from 'react'
 import { Building } from '@/components/icons'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,8 @@ import { formatNumber, parseNumber } from '@/utils/format'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { HOUSE_CODE_PATTERN, generateHouseCode } from '@/utils/houseCode'
+import { checkHouseCode } from '@/api/house'
+import { HOUSE_CODE_PATTERN, generateHouseCode, isHouseCodeTaken } from '@/utils/houseCode'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
@@ -35,10 +36,10 @@ type HouseFormValues = z.infer<typeof houseSchema>
 
 // Modal tạo nhà trọ mới kèm cấu hình tầng/số phòng tự sinh. Vỏ dùng AppModal, giữ nguyên RHF/Zod + auto sinh house_code.
 export function CreateHouseModal({ onClose }: { onClose: () => void }) {
-  const { createHouse } = useHouseStore()
+  const { createHouse, houses } = useHouseStore()
   const createRoom = useRoomStore(state => state.createRoom)
   
-  const { register, handleSubmit, control, watch, setValue, setError, formState: { errors } } = useForm<HouseFormValues>({
+  const { register, handleSubmit, control, watch, setValue, setError, clearErrors, formState: { errors } } = useForm<HouseFormValues>({
     resolver: zodResolver(houseSchema),
     defaultValues: {
       name: '',
@@ -84,10 +85,36 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
     setRoomsPerFloor(newRooms);
   }
 
+  // Kiểm tra tức thời house_code khi rời ô nhập: cảnh báo ngay nếu đã trùng trong hệ thống.
+  const handleHouseCodeBlur = async (e: FocusEvent<HTMLInputElement>) => {
+    const code = e.target.value.trim()
+    if (!code || !HOUSE_CODE_PATTERN.test(code) || code.length > 12) return // sai định dạng: để zod xử lý
+    if (isHouseCodeTaken(houses, code)) {
+      setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      return
+    }
+    try {
+      const { available } = await checkHouseCode(code)
+      if (!available) {
+        setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      } else {
+        clearErrors('house_code')
+      }
+    } catch {
+      // Bỏ qua lỗi mạng; backend vẫn validate khi submit.
+    }
+  }
+
   const onSubmit = async (values: HouseFormValues) => {
+    // Chặn sớm mã nhà trùng với nhà đã có (backend vẫn là nguồn kiểm tra cuối cùng).
+    if (isHouseCodeTaken(houses, values.house_code)) {
+      setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      return
+    }
+
     setIsLoading(true)
     try {
-      const res = await createHouse({ 
+      const res = await createHouse({
          name: values.name, 
          house_code: values.house_code,
          address: values.address,
@@ -179,7 +206,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             <div className="space-y-2 col-span-2">
               <Label>Mã nhà (House Code)</Label>
               <Input
-                {...register('house_code', { onChange: () => setIsHouseCodeTouched(true) })}
+                {...register('house_code', { onChange: () => setIsHouseCodeTouched(true), onBlur: handleHouseCodeBlur })}
                 placeholder="vd: ntcg"
                 maxLength={12}
                 className="border-border"

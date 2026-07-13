@@ -19,8 +19,9 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(initialEditingTenant || null)
   const [hasChanged, setHasChanged] = useState(false)
 
-  const handleClose = () => {
-    onClose(hasChanged)
+  // Đóng modal; cho phép override "changed" để tránh đọc state hasChanged còn cũ ngay sau khi thêm/sửa thành công.
+  const handleClose = (changed?: boolean) => {
+    onClose(changed ?? hasChanged)
   }
 
   if (view === 'list') {
@@ -48,7 +49,7 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
         }}
         onSuccess={() => {
           setHasChanged(true)
-          if (initialView === 'add') handleClose()
+          if (initialView === 'add') handleClose(true)
           else setView('list')
         }}
       />
@@ -66,7 +67,7 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
         }}
         onSuccess={() => {
           setHasChanged(true)
-          if (initialView === 'edit') handleClose()
+          if (initialView === 'edit') handleClose(true)
           else setView('list')
         }}
       />

@@ -54,6 +54,7 @@ func New(
 		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/create", houseHandler.CreateHouse)
+		r.Get("/check-code", houseHandler.CheckHouseCode)
 		r.Get("/{id}", houseHandler.GetHouseByID)
 		r.Get("/", houseHandler.ListHouseByManagerID)
 		r.Post("/{id}", houseHandler.UpdateHouse)

@@ -111,10 +111,12 @@ export const useTenantStore = create<TenantDataState>((set) => ({
       const res = await apiUpdateTenant(id, payload)
       if (foundHouseId) {
         const hId = foundHouseId;
+        // Update response không kèm room_name (query không JOIN rooms); phòng không đổi khi sửa nên giữ lại từ tenant cũ.
+        const updatedTenant: Tenant = { ...res.data, room_name: res.data.room_name || previousTenant?.room_name };
         set(state => ({
           tenantsByHouse: {
             ...state.tenantsByHouse,
-            [hId]: (state.tenantsByHouse[hId] || []).map((t: Tenant) => t.id === id ? res.data : t)
+            [hId]: (state.tenantsByHouse[hId] || []).map((t: Tenant) => t.id === id ? updatedTenant : t)
           }
         }))
       }

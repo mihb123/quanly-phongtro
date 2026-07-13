@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 
@@ -114,11 +115,43 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 
 	err = h.houseService.CreateHouse(r.Context(), house)
 	if err != nil {
+		if errors.Is(err, model.ErrHouseCodeExists) {
+			logger.Warn(r, http.StatusConflict, "house code already exists", err)
+			httpx.WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		logger.Error(r, http.StatusBadRequest, "failed to create house", err)
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, house, "")
+}
+
+// CheckHouseCode báo house_code người dùng nhập có còn trống (chưa bị dùng) trong toàn hệ thống không.
+// Dùng cho việc kiểm tra tức thời ở frontend khi rời ô nhập mã nhà. Query: code (bắt buộc), exclude (id nhà đang sửa, tùy chọn).
+func (h *HouseHandler) CheckHouseCode(w http.ResponseWriter, r *http.Request) {
+	claims, ok := security.ClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
+		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if code == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "house code is required")
+		return
+	}
+	excludeID := strings.TrimSpace(r.URL.Query().Get("exclude"))
+
+	available, err := h.houseService.IsHouseCodeAvailable(r.Context(), code, excludeID)
+	if err != nil {
+		logger.Error(r, http.StatusInternalServerError, "failed to check house code", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"available": available}, "")
 }
 
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
@@ -237,6 +270,11 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 
 	house, err := h.houseService.UpdateHouse(r.Context(), id, userID, updateHouseInput)
 	if err != nil {
+		if errors.Is(err, model.ErrHouseCodeExists) {
+			logger.Warn(r, http.StatusConflict, "house code already exists", err)
+			httpx.WriteError(w, http.StatusConflict, err.Error())
+			return
+		}
 		logger.Warn(r, http.StatusBadRequest, "cannot update house", err)
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return

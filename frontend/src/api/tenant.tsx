@@ -25,6 +25,10 @@ export interface Tenant {
   contract_path?: string
 }
 
+// Normalize a tenant response: backend returns `tenant_id`, frontend uses `id`.
+const normalizeTenant = (t: Partial<Tenant> & { tenant_id?: string }) =>
+  ({ ...t, id: t.tenant_id || t.id }) as Tenant
+
 // Create a new tenant
 export const createTenant = async (payload: FormData) => {
   const { data } = await apiClient.post('/tenant/', payload, {
@@ -32,7 +36,7 @@ export const createTenant = async (payload: FormData) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  return { data: data.data as Tenant }
+  return { data: normalizeTenant(data.data) }
 }
 
 // Get all active tenants by room ID
@@ -63,7 +67,7 @@ export const updateTenant = async (id: string, payload: FormData) => {
       'Content-Type': 'multipart/form-data',
     },
   })
-  return { data: data.data as Tenant }
+  return { data: normalizeTenant(data.data) }
 }
 
 export const deleteTenant = async (id: string) => {

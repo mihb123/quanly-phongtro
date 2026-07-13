@@ -2,6 +2,11 @@
 
 [English 🇺🇸](Documents/README_EN.md)
 
+## Demo
+- **URL:** https://quanly.ptro.site
+- **Email:** `user@test.com`
+- **Pass:** `test01234`
+
 Ứng dụng quản lý nhà trọ/phòng trọ full-stack với backend viết bằng Go và frontend bằng React.
 
 Trong môi trường production, frontend React được build và **nhúng trực tiếp vào file thực thi Go**, toàn bộ ứng dụng được đóng gói và chạy dưới dạng **một file thực thi duy nhất**. Trong quá trình phát triển (development), frontend và backend vẫn chạy như hai dev server riêng biệt.

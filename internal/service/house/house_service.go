@@ -16,6 +16,8 @@ type HouseService interface {
 	ListHouseByManagerID(ctx context.Context, managerID string, page, limit int, search string) ([]model.House, error)
 	UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error)
 	DeleteHouse(ctx context.Context, id, managerID string) error
+	// IsHouseCodeAvailable báo house_code còn dùng được không trong toàn hệ thống, bỏ qua excludeHouseID.
+	IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error)
 }
 
 type HouseServiceImpl struct {
@@ -49,7 +51,32 @@ type UpdateHouseInput struct {
 	ExtraVehicleFee         float64
 }
 
+// IsHouseCodeAvailable báo house_code còn dùng được không (chưa bị nhà nào trong toàn hệ thống chiếm); bỏ qua nhà excludeHouseID khi cập nhật.
+func (h *HouseServiceImpl) IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error) {
+	taken, err := h.houseRepo.IsHouseCodeTaken(ctx, houseCode, excludeHouseID)
+	if err != nil {
+		return false, err
+	}
+	return !taken, nil
+}
+
+// ensureHouseCodeUnique đảm bảo house_code chưa bị nhà nào khác trong toàn hệ thống dùng (khớp unique index uq_houses_code); bỏ qua nhà excludeID khi cập nhật.
+func (h *HouseServiceImpl) ensureHouseCodeUnique(ctx context.Context, houseCode, excludeID string) error {
+	available, err := h.IsHouseCodeAvailable(ctx, houseCode, excludeID)
+	if err != nil {
+		return err
+	}
+	if !available {
+		return model.ErrHouseCodeExists
+	}
+	return nil
+}
+
 func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
+	if err := h.ensureHouseCodeUnique(ctx, house.HouseCode, ""); err != nil {
+		return err
+	}
+
 	err := h.houseRepo.CreateHouse(ctx, house)
 	if err != nil {
 		return err
@@ -99,6 +126,10 @@ func (h *HouseServiceImpl) ListHouseByManagerID(ctx context.Context, managerID s
 }
 
 func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error) {
+	if err := h.ensureHouseCodeUnique(ctx, input.HouseCode, id); err != nil {
+		return nil, err
+	}
+
 	updateHouseParams := model.UpdateHouseParams{
 		Name:                    input.Name,
 		HouseCode:               input.HouseCode,
