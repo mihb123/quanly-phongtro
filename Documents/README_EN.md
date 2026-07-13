@@ -6,11 +6,13 @@
 - **Pass:** `test01234`
 
 <p align="center">
-  <img src="../assets/mobile-1.jpg" width="18%" />
-  <img src="../assets/mobile-2.jpg" width="18%" />
-  <img src="../assets/mobile-3.jpg" width="18%" />
-  <img src="../assets/mobile-4.jpg" width="18%" />
-  <img src="../assets/mobile-5.jpg" width="18%" />
+  <img src="../assets/guide.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="../assets/mobile-1.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="../assets/mobile-2.jpg" width="28%" />
+  <br /><br />
+  <img src="../assets/mobile-3.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="../assets/mobile-4.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="../assets/mobile-5.jpg" width="28%" />
 </p>
 
 A full-stack property management application with a Go backend and a React frontend.
@@ -19,13 +21,13 @@ In production the React frontend is built and **embedded into the Go binary**, s
 
 ## Main Features
 
-- **Authentication & Security:** Registration, login, refresh tokens, OTP-based email verification, and profile management with RBAC (manager/tenant roles). Secured via JWT with DPoP proofs, secure HTTP-only cookies, bcrypt password hashing, and AES-256 encryption for application secrets and bot tokens. Includes GeoIP and Geocoding integration for tracking. See [Documents/feature/security_dpop.md](Documents/feature/security_dpop.md).
-- **House & Room Management:** Complete CRUD operations for houses and rooms. Flexible configuration for rent prices, electricity, water, Wi-Fi, parking, and custom services/surcharges at both house and room levels.
-- **Tenant Management:** Room-based tenant registration, profile updates, storage of ID cards (CCCD) and contracts, along with comprehensive tenant search by room or house.
-- **Invoice & Payment Processing:** Automated monthly room invoicing encompassing utilities, services, surcharges, and discounts. Features include payment status tracking, transaction image storage, and dynamic invoice image generation.
-- **Revenue & Operating Costs:** Periodic expense recording and automated asynchronous aggregation of revenue, expenses, and profits per house using event-driven background workers (`EventBus` + `RevenueWorker`).
-- **Zalo & PayOS Integrations:** Automated payment links/QR code generation via PayOS with webhook-driven status updates. Deep Zalo integration featuring bot configurations, webhook handling, sending invoices directly via Zalo, Zalo bot commands (creating and updating invoices via chat), and a background cron service for active token health checks. See [Documents/feature/zalo_bot_feature.md](Documents/feature/zalo_bot_feature.md) and [Documents/feature/zalo_automation_mark_paid_invoice.md](Documents/feature/zalo_automation_mark_paid_invoice.md).
-- **SePay Integration:** A bank-transfer payment provider built on the adapter architecture (SePay is preferred over PayOS). Managers configure their receiving account per manager (AES-256 encrypted at rest, secrets transported via RSA), generate dynamic transfer QR codes for invoices, and have invoices marked `PAID` automatically via the SePay webhook (API Key or HMAC authenticated) or through manual reconciliation against the SePay User API v2. Every transaction is written to `payment_events` for auditing. See [Documents/feature/sepay_integration.md](Documents/feature/sepay_integration.md).
+- **Authentication & Security:** Registration, login, refresh tokens, email verification, and RBAC permissions (manager/tenant). Secured via JWT + DPoP. See [security_dpop](feature/security_dpop.md).
+- **House & Room Management:** CRUD for houses and rooms, flexible configuration of rent prices, electricity, water, Wi-Fi, parking spaces, and custom services/surcharges at both house and room levels.
+- **Tenant Management:** Tenant registration by room, profile updates, saving ID cards (CCCD)/contracts, and searching by room or house.
+- **Invoicing & Payments:** Automatically generate monthly invoices (utilities, services, surcharges, discounts), track payment status, save transaction images, and render invoice images.
+- **Revenue & Expenses:** Record recurring expenses, aggregate revenue/expenses/profits per house via event-driven background workers (`EventBus` + `RevenueWorker`).
+- **Zalo & PayOS Integration:** Create PayOS payment QR/links, update status via webhooks; Zalo bot sends invoices, creates/updates invoices via chat, and cron checks token health. See [zalo_bot_feature](feature/zalo_bot_feature.md), [zalo_automation](feature/zalo_automation_mark_paid_invoice.md).
+- **SePay Integration:** Dynamic QR code for invoices, automatically mark as `PAID` via webhook or manual reconciliation via SePay API v2, and log all transactions to `payment_events`. See [sepay_integration](feature/sepay_integration.md).
 
 ## Project Structure
 
@@ -142,5 +144,3 @@ The backend exposes a RESTful API under the `/api/v1/` prefix. Key namespaces in
 - **`Zalo`** (`/api/v1/zalo/*`): Integration with Zalo mini-apps, bots, and webhook handling for notifications.
 - **`Payments`** (`/api/v1/payments/*`): SePay provider configuration, payment QR/link generation, transfer webhook handling, and transaction reconciliation via the SePay API v2.
 - **`Health`** (`/health`): Public health-check endpoint.
-
-*Note: All endpoints (except public auth & health) require a valid JWT Bearer token and appropriate role permissions.*
