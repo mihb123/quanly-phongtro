@@ -5,6 +5,14 @@
 - **Email:** `user@test.com`
 - **Pass:** `test01234`
 
+<p align="center">
+  <img src="../assets/mobile-1.jpg" width="18%" />
+  <img src="../assets/mobile-2.jpg" width="18%" />
+  <img src="../assets/mobile-3.jpg" width="18%" />
+  <img src="../assets/mobile-4.jpg" width="18%" />
+  <img src="../assets/mobile-5.jpg" width="18%" />
+</p>
+
 A full-stack property management application with a Go backend and a React frontend.
 
 In production the React frontend is built and **embedded into the Go binary**, so the whole app ships and runs as a **single executable** that serves both the API and the UI from the same origin (no separate web server needed). During development the frontend and backend still run as two separate dev servers.
