@@ -7,3 +7,6 @@ var RobotoBold []byte
 
 //go:embed Roboto-Regular.ttf
 var RobotoRegular []byte
+
+//go:embed geoip/GeoLite2-City.mmdb
+var GeoLite2City []byte

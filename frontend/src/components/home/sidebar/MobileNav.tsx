@@ -1,4 +1,4 @@
-import { LayoutDashboard, Building2, Users, Receipt, Wallet } from 'lucide-react'
+import { LayoutDashboard, Building2, Users, Receipt, Wallet } from '@/components/icons'
 import { useSelectedStore } from '@/data/selectedData'
 
 export function MobileNav() {

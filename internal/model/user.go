@@ -26,6 +26,8 @@ type User struct {
 	FullName          string    `json:"full_name"`
 	Phone             string    `json:"phone"`
 	IsActivated       bool      `json:"is_activated"`
+	Theme             string    `json:"theme"`
+	ColorMode         string    `json:"color_mode"`
 	ZaloBotToken      *string   `json:"zalo_bot_token"`
 	ZaloWebhookSecret *string   `json:"-"`
 	IsZaloBotActive   bool      `json:"is_zalo_bot_active"`
@@ -56,6 +58,8 @@ type UpdateUserInput struct {
 	Email             *string
 	PasswordHash      *string
 	IsActivated       *bool
+	Theme             *string
+	ColorMode         *string
 	ZaloBotToken      *string
 	ZaloWebhookSecret *string
 	IsZaloBotActive   *bool

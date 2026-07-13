@@ -36,7 +36,7 @@ func TestRecoverMiddleware(t *testing.T) {
 		if rec.Code != http.StatusInternalServerError {
 			t.Errorf("expected 500, got %d", rec.Code)
 		}
-		
+
 		body := rec.Body.String()
 		if !strings.Contains(body, "panic: something went wrong") {
 			t.Errorf("unexpected body: %s", body)

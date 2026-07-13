@@ -40,6 +40,7 @@ const (
 	InvoiceStatusPendingVerification = "PENDING_VERIFICATION"
 
 	PaymentMethodPayOS  = "PAYOS"
+	PaymentMethodSePay  = "SEPAY"
 	PaymentMethodManual = "MANUAL"
 )
 

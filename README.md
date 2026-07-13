@@ -2,6 +2,8 @@
 
 A full-stack property management application with a Go backend and a React frontend.
 
+In production the React frontend is built and **embedded into the Go binary**, so the whole app ships and runs as a **single executable** that serves both the API and the UI from the same origin (no separate web server needed). During development the frontend and backend still run as two separate dev servers.
+
 ## Main Features
 
 - **Authentication & Security:** Registration, login, refresh tokens, OTP-based email verification, and profile management with RBAC (manager/tenant roles). Secured via JWT with DPoP proofs, secure HTTP-only cookies, bcrypt password hashing, and AES-256 encryption for application secrets and bot tokens. Includes GeoIP and Geocoding integration for tracking. See [Documents/feature/security_dpop.md](Documents/feature/security_dpop.md).
@@ -25,8 +27,10 @@ This is a monorepo containing both the backend and frontend:
 │   ├── service/                  # Business Logic & Rules
 │   ├── repository/               # Data Access (Bun ORM)
 │   ├── db/                       # Database connection setup
-│   ├── router/                   # API Routes configuration
+│   ├── router/                   # API Routes configuration + SPA fallback
 │   ├── security/                 # JWT, bcrypt, encryption
+│   ├── assets/                   # Embedded assets (fonts, GeoIP DB)
+│   ├── web/                      # Embedded frontend build (dist) served by the API
 │   └── mock/                     # Mocks for unit testing
 ├── migrations/                   # SQL Schema migrations (golang-migrate)
 └── frontend/                     # React Frontend
@@ -80,22 +84,37 @@ migrate -path migrations -database "$POSTGRES_DSN" up
 go run ./cmd/seed
 ```
 
-### 2. Start the Backend (Go)
+### 2. Development (backend + frontend run separately)
 
+Start the backend:
 ```bash
 go run ./cmd/api
 ```
 The API server will start on port `8080` (or whatever `APP_PORT` is set to).
 
-### 3. Start the Frontend (React)
-
-Open a new terminal window, navigate to the `frontend` directory, and start the Vite development server:
-
+Open a new terminal and start the Vite dev server (it proxies `/api` to the backend automatically):
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
+The frontend is served at `http://localhost:5173`.
+
+> In dev mode the API serves **only** the API — the embedded frontend (`internal/web/dist`) is just a placeholder. The UI comes from the Vite dev server.
+
+### 3. Production (single binary)
+
+Build the frontend, embed it into the backend, and produce one self-contained executable:
+```bash
+make build
+```
+This runs `pnpm build`, copies `frontend/dist` into `internal/web/dist`, then `go build`. The resulting `quanly-phongtro-api` binary embeds the React app **and** the GeoIP database, and serves the UI plus the API on `APP_PORT`:
+```bash
+./quanly-phongtro-api
+```
+Open `http://localhost:8080` — the React UI is served directly; `/api/v1/*` is the API on the same origin.
+
+> The binary is self-contained for code, frontend, and GeoIP. At runtime it still needs: a reachable **PostgreSQL**, the **`.env`** config file next to it, and an **`uploads/`** directory for stored files.
 
 ## APIs Summary
 

@@ -1,24 +1,26 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2, Send } from 'lucide-react'
+import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2, Send } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { PageHeader } from '@/components/shared/PageHeader'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { StatusBadge } from '@/components/shared/StatusBadge'
 import { useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
-import { type Invoice } from '@/api/invoice'
+import { type Invoice, getInvoiceImageBlob } from '@/api/invoice'
+import { sendInvoiceViaZalo } from '@/api/zalo'
 import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
 import { EditInvoiceModal } from './modals/EditInvoiceModal'
 import { BackendImagePreviewModal } from './modals/BackendImagePreviewModal'
 import { toast } from 'sonner'
-import { apiClient } from '@/api/client'
+import { formatCurrency } from '@/utils/format'
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-}
-
+// View quản lý hóa đơn: lọc, thống kê nhanh, danh sách (card mobile + table desktop) và các modal tạo/sửa/xem.
 export function InvoicesView() {
   const { houses } = useHouseStore()
   const { getRoomsByHouse } = useRoomStore()
@@ -84,15 +86,13 @@ export function InvoicesView() {
     
     try {
       toast.loading('Đang tạo ảnh hóa đơn...', { id: 'download-invoice' });
-      
-      const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
-        responseType: 'blob', // Bắt buộc để tải file nhị phân (ảnh)
-      });
+
+      const imageData = await getInvoiceImageBlob(invoice.id);
 
       const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
       const houseName = houseNameRaw.replace(/\s+/g, '');
 
-      const blob = new Blob([response.data], { type: 'image/png' });
+      const blob = new Blob([imageData], { type: 'image/png' });
       const url = URL.createObjectURL(blob);
       const filename = `${invoice.room_name}_${invoice.period.replace('-', '_')}_${houseName}.png`;
       
@@ -131,15 +131,13 @@ export function InvoicesView() {
       for (let i = 0; i < invoices.length; i++) {
         const invoice = invoices[i];
         try {
-          const response = await apiClient.get(`/invoice/${invoice.id}/image`, {
-            responseType: 'blob',
-          });
-          
+          const imageData = await getInvoiceImageBlob(invoice.id);
+
           const houseNameRaw = houses.find(h => h.id === invoice.house_id)?.name || 'NhaTro';
           const houseName = houseNameRaw.replace(/\s+/g, '');
           const periodStr = invoice.period.replace('-', '_');
-          
-          const blob = new Blob([response.data], { type: 'image/png' });
+
+          const blob = new Blob([imageData], { type: 'image/png' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -174,7 +172,7 @@ export function InvoicesView() {
     }
     toast.loading('Đang gửi ảnh hóa đơn qua Zalo...', { id: 'send-zalo' });
     try {
-      await apiClient.post(`/zalo/invoices/${invoice.id}/send`);
+      await sendInvoiceViaZalo(invoice.id);
       toast.success('Đã gửi hóa đơn qua Zalo thành công', { id: 'send-zalo' });
     } catch (error: unknown) {
       console.error('Lỗi gửi Zalo:', error);
@@ -221,23 +219,23 @@ export function InvoicesView() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-slate-200 pb-6">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Quản lý hóa đơn</h1>
-          <p className="text-muted-foreground mt-1">Danh sách hóa đơn điện, nước, dịch vụ hàng tháng</p>
-        </div>
-        <div className="flex items-center gap-3">
-           <Button onClick={() => setShowQuickCreateModal(true)} variant="secondary" className="shadow-sm rounded-xl cursor-pointer px-6 font-bold transition-all active:scale-95 flex items-center gap-2 touch-target">
-             <Zap className="w-4 h-4" /> Ghi điện nước nhanh
-           </Button>
-           <Button onClick={() => setShowCreateModal(true)} className="shadow-sm rounded-xl cursor-pointer px-6 font-bold transition-all active:scale-95 flex items-center gap-2 touch-target">
-             <Plus className="w-4 h-4" /> Tạo hóa đơn
-           </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Quản lý hóa đơn"
+        description="Danh sách hóa đơn điện, nước, dịch vụ hàng tháng"
+        action={
+          <>
+            <Button onClick={() => setShowQuickCreateModal(true)} variant="secondary" className="font-bold touch-target">
+              <Zap className="size-4" /> Ghi điện nước nhanh
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)} className="font-bold touch-target">
+              <Plus className="size-4" /> Tạo hóa đơn
+            </Button>
+          </>
+        }
+      />
 
       {/* Top Section: Filters & Compact Stats */}
-      <Card className="bg-card border-border/60 shadow-sm flex flex-col">
+      <Card className="gap-0 p-0 flex flex-col">
         {/* Filters */}
         <div className="p-4 border-b border-border/40 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-end gap-4">
           <div className="w-full lg:flex-1 lg:min-w-[200px]">
@@ -305,50 +303,50 @@ export function InvoicesView() {
         </div>
 
         {/* Stats */}
-        <div className="p-4 bg-slate-50/50 grid grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 rounded-b-xl border-t border-slate-100/50">
+        <div className="p-4 bg-muted/30 grid grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 rounded-b-xl border-t border-border/40">
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/60 flex items-center justify-center shadow-sm shrink-0">
-               <Receipt className="w-4 h-4 text-slate-600" />
+             <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center shadow-sm shrink-0">
+               <Receipt className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">Tổng hóa đơn</p>
-               <p className="text-sm sm:text-base font-extrabold text-slate-800 leading-tight truncate">{stats.totalInvoices}</p>
+               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">Tổng hóa đơn</p>
+               <p className="text-sm sm:text-base font-extrabold text-foreground leading-tight truncate">{stats.totalInvoices}</p>
              </div>
           </div>
-          
-          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
-          
+
+          <div className="w-px h-8 bg-border hidden lg:block" />
+
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-blue-100 border border-blue-200/60 flex items-center justify-center shadow-sm shrink-0">
-               <TrendingUp className="w-4 h-4 text-blue-600" />
+             <div className="w-8 h-8 rounded-full bg-info/15 text-info flex items-center justify-center shadow-sm shrink-0">
+               <TrendingUp className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-blue-600/80 uppercase tracking-wider truncate">Tổng dự kiến</p>
-               <p className="text-sm sm:text-base font-extrabold text-blue-700 leading-tight truncate">{formatCurrency(stats.expectedRevenue)}</p>
+               <p className="text-[10px] font-bold text-info/80 uppercase tracking-wider truncate">Tổng dự kiến</p>
+               <p className="text-sm sm:text-base font-extrabold text-info leading-tight truncate">{formatCurrency(stats.expectedRevenue)}</p>
              </div>
           </div>
-          
-          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
-          
+
+          <div className="w-px h-8 bg-border hidden lg:block" />
+
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-green-100 border border-green-200/60 flex items-center justify-center shadow-sm shrink-0">
-               <CheckCircle2 className="w-4 h-4 text-green-600" />
+             <div className="w-8 h-8 rounded-full bg-success/15 text-success flex items-center justify-center shadow-sm shrink-0">
+               <CheckCircle2 className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-green-600/80 uppercase tracking-wider truncate">Đã thu</p>
-               <p className="text-sm sm:text-base font-extrabold text-green-700 leading-tight truncate">{formatCurrency(stats.collectedRevenue)}</p>
+               <p className="text-[10px] font-bold text-success/80 uppercase tracking-wider truncate">Đã thu</p>
+               <p className="text-sm sm:text-base font-extrabold text-success leading-tight truncate">{formatCurrency(stats.collectedRevenue)}</p>
              </div>
           </div>
-          
-          <div className="w-px h-8 bg-slate-200 hidden lg:block" />
-          
+
+          <div className="w-px h-8 bg-border hidden lg:block" />
+
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-orange-100 border border-orange-200/60 flex items-center justify-center shadow-sm shrink-0">
-               <Clock className="w-4 h-4 text-orange-600" />
+             <div className="w-8 h-8 rounded-full bg-warning/15 text-warning flex items-center justify-center shadow-sm shrink-0">
+               <Clock className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-orange-600/80 uppercase tracking-wider truncate">Chưa thu</p>
-               <p className="text-sm sm:text-base font-extrabold text-orange-700 leading-tight truncate">{formatCurrency(stats.unpaidRevenue)}</p>
+               <p className="text-[10px] font-bold text-warning/80 uppercase tracking-wider truncate">Chưa thu</p>
+               <p className="text-sm sm:text-base font-extrabold text-warning leading-tight truncate">{formatCurrency(stats.unpaidRevenue)}</p>
              </div>
           </div>
         </div>
@@ -357,16 +355,15 @@ export function InvoicesView() {
       {/* List */}
       {isLoading ? (
         <div className="text-center py-20">
-          <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto"></div>
+          <Loader2 className="size-8 text-primary animate-spin mx-auto" />
           <p className="text-muted-foreground mt-4 font-medium">Đang tải hóa đơn...</p>
         </div>
       ) : invoices.length === 0 ? (
-        <div className="text-center py-20">
-          <Receipt className="w-12 h-12 text-muted mx-auto mb-3" />
-          <p className="text-muted-foreground italic">Không tìm thấy hóa đơn nào.</p>
-        </div>
+        <Card className="p-0">
+          <EmptyState icon={Receipt} title="Không tìm thấy hóa đơn nào." className="py-20" />
+        </Card>
       ) : (
-        <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden">
+        <Card className="gap-0 p-0 overflow-hidden">
           {/* Mobile Card View */}
           <div className="block md:hidden divide-y divide-border/40">
             {invoices.map(invoice => (
@@ -387,55 +384,47 @@ export function InvoicesView() {
                   </div>
                   <div className="text-right">
                     <p className="font-bold text-foreground">{formatCurrency(invoice.total_amount)}</p>
-                    <span className={`inline-block mt-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                        invoice.status === 'PAID' 
-                          ? 'bg-green-100 text-green-700 border-green-200' 
-                          : invoice.status === 'PENDING_VERIFICATION'
-                            ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                            : 'bg-red-100 text-red-700 border-red-200'
-                      }`}>
-                      {invoice.status === 'PAID' ? 'Đã thu' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thu'}
-                    </span>
+                    <StatusBadge status={invoice.status} className="mt-1" />
                   </div>
                 </div>
                 <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/40">
-                  <span className="text-xs font-medium text-slate-500">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                   </span>
                   <div className="flex items-center gap-1">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => { e.stopPropagation(); setSelectedInvoiceId(invoice.id); setShowEditModal(true); }}
-                      className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground hover:text-primary h-8 w-8 p-0 rounded-full touch-target"
                     >
-                      <Pencil className="w-4 h-4" />
+                      <Pencil className="size-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => handleDownload(e, invoice)}
-                      className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground hover:text-info h-8 w-8 p-0 rounded-full touch-target"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="size-4" />
                     </Button>
-                    {invoice.status !== 'PAID' && (
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                    {invoice.status === 'UNPAID' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={(e) => handleSendZalo(e, invoice)}
-                        className="text-slate-500 hover:text-green-600 hover:bg-green-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                        className="text-muted-foreground hover:text-success h-8 w-8 p-0 rounded-full touch-target"
                       >
-                        <Send className="w-4 h-4" />
+                        <Send className="size-4" />
                       </Button>
                     )}
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={(e) => handleDelete(e, invoice)}
-                      className="text-slate-500 hover:text-red-600 hover:bg-red-50 cursor-pointer h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground hover:text-destructive h-8 w-8 p-0 rounded-full touch-target"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 </div>
@@ -444,19 +433,19 @@ export function InvoicesView() {
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-secondary/30 border-b border-border/40">
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Kỳ</th>
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Phòng</th>
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-right">Tổng tiền</th>
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-center">Trạng thái</th>
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap">Ngày tạo</th>
-                  <th className="py-4 px-6 font-bold text-muted-foreground text-sm whitespace-nowrap text-center">
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-secondary/30">
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Kỳ</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Phòng</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-right">Tổng tiền</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-center">Trạng thái</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Ngày tạo</TableHead>
+                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-center">
                     <div className="flex items-center justify-center gap-2">
                       Hành động
-                      <Button 
+                      <Button
                         onClick={handleDownloadAll}
                         disabled={invoices.length === 0 || isDownloadingAll}
                         variant="ghost"
@@ -464,98 +453,90 @@ export function InvoicesView() {
                         className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-full touch-target"
                         title="Tải tất cả hóa đơn (Mẫu 1)"
                       >
-                        {isDownloadingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                        {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
                       </Button>
                     </div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {invoices.map(invoice => (
-                  <tr 
-                    key={invoice.id} 
+                  <TableRow
+                    key={invoice.id}
                     onClick={() => setSelectedInvoiceId(invoice.id)}
-                    className="hover:bg-secondary/40 transition-colors cursor-pointer group"
+                    className="cursor-pointer group"
                   >
-                    <td className="py-4 px-6 font-bold text-foreground whitespace-nowrap">
+                    <TableCell className="px-6 py-4 font-bold text-foreground">
                       {invoice.period}
-                    </td>
-                    <td className="py-4 px-6 font-bold text-primary whitespace-nowrap" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
+                    </TableCell>
+                    <TableCell className="px-6 py-4 font-bold text-primary" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
                       {(() => {
                         if (invoiceFilter.house_id) return invoice.room_name;
                         const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
                         return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
                       })()}
-                    </td>
-                    <td className="py-4 px-6 font-bold text-foreground text-right whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 font-bold text-foreground text-right">
                       {formatCurrency(invoice.total_amount)}
-                    </td>
-                    <td className="py-4 px-6 text-center whitespace-nowrap">
-                      <span className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                        invoice.status === 'PAID' 
-                          ? 'bg-green-100 text-green-700 border-green-200' 
-                          : invoice.status === 'PENDING_VERIFICATION'
-                            ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                            : 'bg-red-100 text-red-700 border-red-200'
-                      }`}>
-                        {invoice.status === 'PAID' ? 'Đã thu' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thu'}
-                      </span>
-                    </td>
-                    <td className="py-4 px-6 text-sm font-medium text-slate-500 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-center">
+                      <StatusBadge status={invoice.status} />
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-sm font-medium text-muted-foreground">
                       {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                    </td>
-                    <td className="py-4 px-6 text-center whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedInvoiceId(invoice.id);
                             setShowEditModal(true);
                           }}
-                          className="text-slate-500 hover:text-purple-600 hover:bg-purple-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground hover:text-primary h-8 w-8 p-0 rounded-full"
                           title="Sửa hóa đơn"
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil className="size-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={(e) => handleDownload(e, invoice)}
-                          className="text-slate-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground hover:text-info h-8 w-8 p-0 rounded-full"
                           title="Tải hóa đơn (Mẫu 1)"
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="size-4" />
                         </Button>
-                        {invoice.status !== 'PAID' && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                        {invoice.status === 'UNPAID' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={(e) => handleSendZalo(e, invoice)}
-                            className="text-slate-500 hover:text-green-600 hover:bg-green-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                            className="text-muted-foreground hover:text-success h-8 w-8 p-0 rounded-full"
                             title="Gửi qua Zalo"
                           >
-                            <Send className="w-4 h-4" />
+                            <Send className="size-4" />
                           </Button>
                         )}
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={(e) => handleDelete(e, invoice)}
-                          className="text-slate-500 hover:text-red-600 hover:bg-red-50 cursor-pointer h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground hover:text-destructive h-8 w-8 p-0 rounded-full"
                           title="Xóa hóa đơn"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className="size-4" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   )

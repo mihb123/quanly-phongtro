@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
-import { Card } from '@/components/ui/card'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, Zap, Droplets, CheckCircle2 } from 'lucide-react'
+import { Save, Zap, Droplets, CheckCircle2 } from '@/components/icons'
 import { useRoomStore } from '@/data/roomData'
 import { useHouseStore } from '@/data/houseData'
 import { type Room } from '@/api/room'
@@ -12,6 +11,7 @@ import { useInvoiceStore } from '@/data/invoiceData'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 import { useRecommendedHouse } from '@/hooks/useRecommendedHouse'
 
+// Modal ghi nhanh chỉ số điện/nước & tạo hóa đơn cho nhiều phòng. Vỏ dùng AppModal; giữ nguyên logic lưu hàng loạt.
 export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const { houses } = useHouseStore()
   const { getRoomsByHouse } = useRoomStore()
@@ -231,28 +231,36 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const vehicleSpanClass = 'md:col-span-2'
   const utilitySpanClass = onlyOneColumn ? 'md:col-span-8' : 'md:col-span-4'
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) handleClose()
-      }}
-    >
-      <Card className="w-full max-w-4xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl shrink-0">
-          <div>
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <Zap className="w-5 h-5 text-primary" />
-              Ghi chỉ số điện nước & Tạo hóa đơn nhanh
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">Ghi nhanh chỉ số điện nước mới cho nhiều phòng cùng lúc.</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary/80">
-            <X className="w-5 h-5" />
+  return (
+    <>
+    <AppModal
+      open
+      onClose={handleClose}
+      dismissible={!isLoading}
+      title={
+        <span className="flex items-center gap-2">
+          <Zap className="w-5 h-5 text-primary" />
+          Ghi chỉ số điện nước & Tạo hóa đơn nhanh
+        </span>
+      }
+      description="Ghi nhanh chỉ số điện nước mới cho nhiều phòng cùng lúc."
+      contentClassName="sm:max-w-4xl"
+      footer={
+        <>
+          <Button variant="outline" onClick={handleClose} className="border-border text-foreground hover:bg-secondary/80 rounded-xl h-11 px-6 font-bold">
+            Hủy
           </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto bg-muted/10 flex flex-col">
+          <Button
+            disabled={isLoading || !selectedHouseId || rooms.length === 0}
+            onClick={handleSaveAll}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+          >
+            {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
+          </Button>
+        </>
+      }
+    >
+        <div className="-mx-6 -my-4 bg-muted/10 flex flex-col">
           <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
             <div className="w-full md:flex-1 md:max-w-[200px]">
               <label className="block text-xs font-bold text-muted-foreground mb-1">Chọn nhà trọ</label>
@@ -454,22 +462,8 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           )}
           </div>
         </div>
-
-        <div className="p-6 border-t border-border/40 flex justify-end gap-3 bg-card rounded-b-2xl">
-          <Button variant="outline" onClick={handleClose} className="border-border text-foreground hover:bg-secondary/80 rounded-xl h-11 px-6 font-bold">
-            Hủy
-          </Button>
-          <Button 
-            disabled={isLoading || !selectedHouseId || rooms.length === 0}
-            onClick={handleSaveAll}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
-          >
-            {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
-          </Button>
-        </div>
-      </Card>
-      {confirmModal}
-    </div>,
-    document.body
+    </AppModal>
+    {confirmModal}
+    </>
   )
 }

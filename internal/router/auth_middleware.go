@@ -2,18 +2,17 @@ package router
 
 import (
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
-func authMiddleware(tokens *security.JWTProvider, dpopVerificationURL ...string) func(http.Handler) http.Handler {
-	baseURL := ""
-	if len(dpopVerificationURL) > 0 {
-		baseURL = strings.TrimRight(dpopVerificationURL[0], "/")
-	}
-
+// authMiddleware validates the access token and, for DPoP-bound tokens, verifies
+// the DPoP proof against the public request origin (scheme/host derived from the
+// request, trusting X-Forwarded-* only from the given proxies).
+func authMiddleware(tokens *security.JWTProvider, trustedProxies []netip.Prefix) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var token string
@@ -57,10 +56,15 @@ func authMiddleware(tokens *security.JWTProvider, dpopVerificationURL ...string)
 					return
 				}
 
-				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, baseURL), token)
-				if err != nil || derivedJkt != jkt {
+				derivedJkt, err := security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, trustedProxies), token)
+				if err != nil {
 					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof", err)
-					writeError(w, http.StatusUnauthorized, "invalid DPoP proof")
+					writeError(w, http.StatusUnauthorized, err.Error())
+					return
+				}
+				if derivedJkt != jkt {
+					logger.Warn(r, http.StatusUnauthorized, "invalid DPoP proof: jkt mismatch", nil)
+					writeError(w, http.StatusUnauthorized, "invalid DPoP proof: jkt mismatch")
 					return
 				}
 			}

@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { X, Receipt, Loader2, Zap, Droplets, Download, Eye } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Receipt, Loader2, Zap, Droplets, Download, Eye } from '@/components/icons'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { useInvoiceStore } from '@/data/invoiceData'
 import type { Invoice } from '@/api/invoice'
@@ -20,6 +20,7 @@ interface Props {
   onEdit?: () => void
 }
 
+// Modal xem chi tiết hóa đơn (chỉ đọc). Vỏ dùng AppModal; giữ nguyên printRef/contentRef cho việc xuất ảnh hóa đơn.
 export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   const { payInvoice, unpayInvoice } = useInvoiceStore()
   const [isPaying, setIsPaying] = useState(false)
@@ -31,16 +32,6 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   
   const printRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-
-  // Handle Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
 
   useEffect(() => {
     let isMounted = true
@@ -229,38 +220,87 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     lines.push({ label: 'Giảm trừ khuyến mại', desc: 'Khấu trừ đặc biệt', value: invoice.discount, isDiscount: true })
   }
 
-  return createPortal(
+  return (
     <>
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
-      onClick={onClose}
-    >
-      <div 
-        ref={printRef}
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-2xl max-h-[90vh]  flex flex-col safe-fade-in overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 sm:p-6 border-b border-border/40 bg-muted/30 sticky top-0 z-10 backdrop-blur-md shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
-              <Receipt className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-foreground tracking-tight">Hóa đơn Phòng {invoice.room_name}</h2>
-              <p className="text-xs font-semibold text-muted-foreground mt-0.5">Kỳ: {invoice.period}</p>
-            </div>
+    <AppModal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-3">
+          <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+            <Receipt className="w-5 h-5" />
+          </span>
+          <span className="flex flex-col">
+            <span className="text-xl font-black text-foreground tracking-tight">Hóa đơn Phòng {invoice.room_name}</span>
+            <span className="text-xs font-semibold text-muted-foreground mt-0.5">Kỳ: {invoice.period}</span>
+          </span>
+        </span>
+      }
+      contentClassName="sm:max-w-2xl"
+      footer={
+        <div className="flex justify-between items-center gap-3 w-full no-print">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handlePreviewFrontend}
+              disabled={isPreviewing}
+              title="Xem trước hóa đơn"
+              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
+            >
+               {isPreviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              title="Tải hóa đơn"
+              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
+            >
+               {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            </Button>
           </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
 
+          <div className="flex gap-2 flex-1 justify-end">
+            {(invoice.status === 'UNPAID' || invoice.status === 'PENDING_VERIFICATION') && (
+              <>
+                {onEdit && (
+                  <Button
+                    onClick={onEdit}
+                    variant="outline"
+                    className="h-10 border-border bg-card hover:bg-background text-foreground font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Sửa
+                  </Button>
+                )}
+                <Button
+                  onClick={handlePay}
+                  disabled={isPaying}
+                  className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-sm shadow-primary/20 cursor-pointer active:scale-95 px-4"
+                >
+                  {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận Đã thu'}
+                </Button>
+              </>
+            )}
+
+            {invoice.status === 'PAID' && (
+              <Button
+                onClick={handleUnpay}
+                disabled={isPaying}
+                variant="outline"
+                className="h-10 border-destructive/20 hover:bg-destructive/10 text-destructive font-bold rounded-xl transition-colors cursor-pointer px-4"
+              >
+                {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hoàn tác'}
+              </Button>
+            )}
+          </div>
+        </div>
+      }
+    >
+      <div ref={printRef} className="bg-card text-card-foreground">
         {/* Content */}
-        <div ref={contentRef} className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1">
+        <div ref={contentRef} className="space-y-6">
           
           {/* Table 1: Utility Statement */}
           {showUtilityTable && (
@@ -383,71 +423,11 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
               </div>
             </div>
           )}
-          
-        </div>
 
-        {/* Footer (Actions) */}
-        <div className="p-4 bg-muted/30 border-t border-border/40 flex justify-between items-center gap-3 rounded-b-3xl mt-auto shrink-0 no-print">
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handlePreviewFrontend}
-              disabled={isPreviewing}
-              title="Xem trước hóa đơn"
-              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
-            >
-               {isPreviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="icon" 
-              onClick={handleDownload}
-              disabled={isDownloading}
-              title="Tải hóa đơn"
-              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
-            >
-               {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            </Button>
-          </div>
-
-          <div className="flex gap-2 flex-1 justify-end">
-            {(invoice.status === 'UNPAID' || invoice.status === 'PENDING_VERIFICATION') && (
-              <>
-                {onEdit && (
-                  <Button 
-                    onClick={onEdit}
-                    variant="outline"
-                    className="h-10 border-border bg-card hover:bg-background text-foreground font-bold rounded-xl transition-colors cursor-pointer"
-                  >
-                    Sửa
-                  </Button>
-                )}
-                <Button 
-                  onClick={handlePay}
-                  disabled={isPaying}
-                  className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-sm shadow-primary/20 cursor-pointer active:scale-95 px-4"
-                >
-                  {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận Đã thu'}
-                </Button>
-              </>
-            )}
-
-            {invoice.status === 'PAID' && (
-              <Button 
-                onClick={handleUnpay}
-                disabled={isPaying}
-                variant="outline"
-                className="h-10 border-destructive/20 hover:bg-destructive/10 text-destructive font-bold rounded-xl transition-colors cursor-pointer px-4"
-              >
-                {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hoàn tác'}
-              </Button>
-            )}
-          </div>
         </div>
       </div>
-    </div>
-    
+    </AppModal>
+
     {previewData && (
       <BackendImagePreviewModal
         imageUrl={previewData.url}
@@ -461,7 +441,6 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
         }}
       />
     )}
-    </>,
-    document.body
+    </>
   )
 }

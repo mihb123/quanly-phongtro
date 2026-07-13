@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Home, Settings } from 'lucide-react'
+import { Home, Settings } from '@/components/icons'
 import { useAuth } from '@/contexts/AuthContext'
 import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
 import { useSelectedStore } from '@/data/selectedData'

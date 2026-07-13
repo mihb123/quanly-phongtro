@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # Rollback hệ thống về version trước.
-# Hỗ trợ rollback riêng lẻ hoặc kết hợp: backend, frontend, database.
+# Hỗ trợ rollback riêng lẻ hoặc kết hợp: backend, database.
+# Frontend đã được nhúng vào binary nên rollback backend cũng tự động rollback frontend.
 #
 # Sử dụng:
-#   ./scripts/rollback.sh --backend                 — Rollback backend binary
-#   ./scripts/rollback.sh --frontend                — Rollback frontend
-#   ./scripts/rollback.sh --backend --frontend      — Rollback cả backend + frontend
+#   ./scripts/rollback.sh --backend                 — Rollback backend binary (gồm cả frontend)
 #   ./scripts/rollback.sh --db <file>               — Restore database từ file cụ thể
 #   ./scripts/rollback.sh --db                      — Restore database (interactive chọn file)
-#   ./scripts/rollback.sh --full                    — Rollback tất cả (db + backend + frontend)
+#   ./scripts/rollback.sh --full                    — Rollback tất cả (db + backend)
 #   ./scripts/rollback.sh --list                    — Liệt kê tất cả backup
 #
 # Yêu cầu: psql phải có sẵn nếu rollback database, file .env chứa POSTGRES_DSN.
@@ -20,7 +19,6 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="$PROJECT_DIR/backup"
 DB_BACKUP_DIR="$BACKUP_DIR/database"
 BINARY_BACKUP_DIR="$BACKUP_DIR/binary"
-FRONTEND_BACKUP_DIR="$BACKUP_DIR/frontend"
 SERVICE_NAME="quanly-phongtro-api"
 
 # ─── Helper functions ─────────────────────────────────────
@@ -169,23 +167,6 @@ restore_backend() {
   echo "✅ Restore backend thành công"
 }
 
-# Restore frontend từ backup
-restore_frontend() {
-  local backup_file="$1"
-
-  if [[ ! -f "$backup_file" ]]; then
-    echo "❌ File backup frontend không tồn tại: $backup_file"
-    return 1
-  fi
-
-  echo "📦 Đang restore frontend từ: $(basename "$backup_file")"
-  local frontend_destination="/var/www/quanly-phongtro"
-  rm -rf "$frontend_destination"/*
-  tar -xzf "$backup_file" -C "$frontend_destination"
-  sudo /usr/bin/systemctl reload nginx
-  echo "✅ Restore frontend thành công"
-}
-
 # ─── Command handlers ─────────────────────────────────────
 
 # Xử lý rollback backend (interactive chọn file)
@@ -193,15 +174,6 @@ handle_rollback_backend() {
   echo "── Backend ─────────────────────────────────────────"
   if select_backup_file "$BINARY_BACKUP_DIR" "${SERVICE_NAME}_*" "backend"; then
     restore_backend "$SELECTED_FILE"
-  fi
-  echo ""
-}
-
-# Xử lý rollback frontend (interactive chọn file)
-handle_rollback_frontend() {
-  echo "── Frontend ────────────────────────────────────────"
-  if select_backup_file "$FRONTEND_BACKUP_DIR" "frontend_*.tar.gz" "frontend"; then
-    restore_frontend "$SELECTED_FILE"
   fi
   echo ""
 }
@@ -240,11 +212,9 @@ show_rollback_footer() {
 # Hiển thị hướng dẫn sử dụng
 show_usage() {
   echo "Sử dụng:"
-  echo "  $0 --backend                Rollback backend binary"
-  echo "  $0 --frontend               Rollback frontend"
-  echo "  $0 --backend --frontend     Rollback cả backend + frontend"
+  echo "  $0 --backend                Rollback backend binary (gồm cả frontend)"
   echo "  $0 --db [file]              Restore database (interactive hoặc từ file cụ thể)"
-  echo "  $0 --full                   Rollback tất cả (db + backend + frontend)"
+  echo "  $0 --full                   Rollback tất cả (db + backend)"
   echo "  $0 --list                   Liệt kê tất cả các bản backup"
   echo "  $0 --help                   Hiển thị trợ giúp"
 }
@@ -252,7 +222,6 @@ show_usage() {
 # ─── Main: Parse flags ────────────────────────────────────
 
 DO_BACKEND=false
-DO_FRONTEND=false
 DO_DATABASE=false
 DO_LIST=false
 DB_FILE=""
@@ -261,10 +230,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --backend)
       DO_BACKEND=true
-      shift
-      ;;
-    --frontend)
-      DO_FRONTEND=true
       shift
       ;;
     --db)
@@ -278,7 +243,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --full)
       DO_BACKEND=true
-      DO_FRONTEND=true
       DO_DATABASE=true
       shift
       ;;
@@ -300,7 +264,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Nếu không truyền flag nào → hiển thị help
-if ! $DO_BACKEND && ! $DO_FRONTEND && ! $DO_DATABASE && ! $DO_LIST; then
+if ! $DO_BACKEND && ! $DO_DATABASE && ! $DO_LIST; then
   show_usage
   exit 0
 fi
@@ -309,7 +273,6 @@ fi
 if $DO_LIST; then
   list_backups_in_directory "$DB_BACKUP_DIR" "db_*.sql.gz" "database"
   list_backups_in_directory "$BINARY_BACKUP_DIR" "${SERVICE_NAME}_*" "backend"
-  list_backups_in_directory "$FRONTEND_BACKUP_DIR" "frontend_*.tar.gz" "frontend"
   exit 0
 fi
 
@@ -317,7 +280,6 @@ fi
 COMPONENTS=()
 $DO_DATABASE && COMPONENTS+=("Database")
 $DO_BACKEND && COMPONENTS+=("Backend")
-$DO_FRONTEND && COMPONENTS+=("Frontend")
 LABEL=$(IFS=" + "; echo "${COMPONENTS[*]}")
 
 show_rollback_header "$LABEL"
@@ -329,10 +291,6 @@ fi
 
 if $DO_BACKEND; then
   handle_rollback_backend
-fi
-
-if $DO_FRONTEND; then
-  handle_rollback_frontend
 fi
 
 show_rollback_footer

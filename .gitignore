@@ -18,6 +18,11 @@
 !*.css
 !*.svg
 !*.ico
+
+# PWA assets tĩnh (icon + manifest) — chỉ mở đúng thư mục public, tránh kéo theo
+# ảnh upload của người dùng trong uploads/.
+!frontend/public/*.png
+!frontend/public/*.webmanifest
 !Makefile
 !Dockerfile
 !*.sh
@@ -29,5 +34,8 @@
 !.gitignore
 uploads/*
 .kilo
-!nginx.conf
 mock/
+
+# Bản build frontend được nhúng vào binary (sinh ra bởi `make build`); chỉ giữ placeholder
+internal/web/dist/*
+!internal/web/dist/.gitkeep

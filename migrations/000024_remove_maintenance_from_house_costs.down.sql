@@ -1,0 +1,1 @@
+ALTER TABLE house_costs ADD COLUMN maintenance DECIMAL(12,2) NOT NULL DEFAULT 0;

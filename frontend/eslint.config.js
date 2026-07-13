@@ -20,4 +20,12 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // Primitive shadcn (base-luma) là code vendored: cho phép export kèm *Variants (cva)
+    // bên cạnh component — rule react-refresh chỉ ảnh hưởng HMR, không ảnh hưởng build.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from '@/components/icons'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
@@ -18,6 +18,7 @@ const zaloConfigSchema = z.object({
 
 type ZaloConfigForm = z.infer<typeof zaloConfigSchema>
 
+// Card cấu hình tích hợp Zalo Bot: lưu token, hiển thị trạng thái kết nối & yêu cầu liên kết.
 export function ZaloBotSettingsCard() {
   const [showBotToken, setShowBotToken] = useState(false)
   const [hasConfig, setHasConfig] = useState<boolean | null>(null)
@@ -83,12 +84,12 @@ export function ZaloBotSettingsCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {initialLoading ? (
-          <div className="flex items-center gap-2 text-slate-500">
+          <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             Đang tải trạng thái...
           </div>
         ) : (
-          <div className={`p-4 rounded-xl flex items-start gap-3 border ${hasConfig ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+          <div className={`p-4 rounded-xl flex items-start gap-3 border ${hasConfig ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
             {hasConfig ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
             <div>
               <p className="font-semibold">{hasConfig ? 'Đã kết nối Zalo Bot' : 'Chưa cấu hình Zalo Bot'}</p>
@@ -104,16 +105,16 @@ export function ZaloBotSettingsCard() {
         )}
 
         {!initialLoading && hasConfig && !isLinked && botId && (
-          <div className="p-4 rounded-xl flex items-start gap-3 border bg-blue-50 border-blue-200 text-blue-800">
-            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-blue-600" />
+          <div className="p-4 rounded-xl flex items-start gap-3 border bg-info/10 border-info/30 text-info">
+            <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-info" />
             <div>
-              <p className="font-semibold text-blue-900 mb-3">Yêu cầu hoàn tất liên kết tài khoản</p>
+              <p className="font-semibold text-info mb-3">Yêu cầu hoàn tất liên kết tài khoản</p>
               {isMobile ? (
                 <a
                   href={`https://zalo.me/${botId}?text=Kich hoat bot cho tai khoan: ${managerName}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-blue-600 text-white shadow hover:bg-blue-600/90 h-9 px-4 py-2"
+                  className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-info text-info-foreground shadow hover:bg-info/90 h-9 px-4 py-2"
                 >
                   Mở ứng dụng Zalo ngay
                 </a>
@@ -122,7 +123,7 @@ export function ZaloBotSettingsCard() {
                   href={`https://chat.zalo.me/?c=${botId}&text=Kich hoat bot cho tai khoan: ${managerName}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-blue-600 text-white shadow hover:bg-blue-600/90 h-9 px-4 py-2"
+                  className="inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors bg-info text-info-foreground shadow hover:bg-info/90 h-9 px-4 py-2"
                 >
                   Mở Zalo Web / PC
                 </a>
@@ -151,11 +152,11 @@ export function ZaloBotSettingsCard() {
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
                     onClick={() => setShowBotToken(!showBotToken)}
                   >
-                    {showBotToken ? <EyeOff className="h-4 w-4 text-slate-500" /> : <Eye className="h-4 w-4 text-slate-500" />}
+                    {showBotToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
                   </Button>
                 </div>
                 {form.formState.errors.botToken && (
-                  <p className="text-sm text-red-600">{form.formState.errors.botToken.message}</p>
+                  <p className="text-sm text-destructive">{form.formState.errors.botToken.message}</p>
                 )}
               </div>
 

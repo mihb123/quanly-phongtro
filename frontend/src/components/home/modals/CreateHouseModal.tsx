@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { createPortal } from 'react-dom'
-import { Building } from 'lucide-react'
-import { Card } from '@/components/ui/card'
+import { Building } from '@/components/icons'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,6 +33,7 @@ const houseSchema = z.object({
 
 type HouseFormValues = z.infer<typeof houseSchema>
 
+// Modal tạo nhà trọ mới kèm cấu hình tầng/số phòng tự sinh. Vỏ dùng AppModal, giữ nguyên RHF/Zod + auto sinh house_code.
 export function CreateHouseModal({ onClose }: { onClose: () => void }) {
   const { createHouse } = useHouseStore()
   const createRoom = useRoomStore(state => state.createRoom)
@@ -68,14 +68,6 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
   const [roomsPerFloor, setRoomsPerFloor] = useState<Record<number, number>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isHouseCodeTouched, setIsHouseCodeTouched] = useState(false)
-
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isLoading) onClose()
-    }
-    window.addEventListener('keydown', handleEsc)
-    return () => window.removeEventListener('keydown', handleEsc)
-  }, [onClose, isLoading])
 
   useEffect(() => {
     if (isHouseCodeTouched) return
@@ -165,22 +157,19 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
     return 'Giá nước mặc định / khối (VNĐ)'
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) onClose()
-      }}
+  return (
+    <AppModal
+      open
+      onClose={onClose}
+      title={
+        <span className="flex items-center gap-2">
+          <Building className="w-5 h-5 text-primary" />
+          Tạo nhà trọ mới & Cấu hình tầng
+        </span>
+      }
+      contentClassName="sm:max-w-2xl"
     >
-      <Card className="w-full max-w-2xl bg-card text-card-foreground shadow-xl border border-border/40 safe-fade-in max-h-[95vh] flex flex-col overflow-y-auto">
-        <div className="p-4 md:p-6 border-b border-border/40 shrink-0">
-          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Building className="w-5 h-5 text-primary" />
-            Tạo nhà trọ mới & Cấu hình tầng
-          </h2>
-        </div>
-        <div className="p-4 md:p-6 overflow-y-auto flex-1">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên nhà trọ</Label>
@@ -373,9 +362,6 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
         </form>
-        </div>
-      </Card>
-    </div>,
-    document.body
+    </AppModal>
   )
 }

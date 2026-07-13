@@ -1,9 +1,9 @@
-import { createPortal } from 'react-dom'
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, ChevronDown } from 'lucide-react'
+import { Loader2, ChevronDown } from '@/components/icons'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -36,6 +36,7 @@ interface Props {
   onClose: () => void
 }
 
+// Modal tạo hóa đơn mới (điện/nước/dịch vụ). Vỏ dùng AppModal; giữ nguyên RHF/Zod và logic tính phí.
 export function CreateInvoiceModal({ onClose }: Props) {
   const { houses } = useHouseStore()
   const { rooms, fetchRooms } = useRoomStore()
@@ -145,16 +146,6 @@ export function CreateInvoiceModal({ onClose }: Props) {
     fetchOldIndex()
   }, [watchRoomId, setValue])
 
-  // Handle Escape key
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
-  }, [onClose])
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleKeyDown])
-
   const onSubmit = async (data: InvoiceFormValues) => {
     setIsSubmitting(true)
     const payload: CreateInvoicePayload = {
@@ -185,29 +176,15 @@ export function CreateInvoiceModal({ onClose }: Props) {
     }
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
-      onClick={onClose}
+  return (
+    <AppModal
+      open
+      onClose={onClose}
+      title="Tạo hóa đơn mới"
+      description="Hóa đơn điện, nước, dịch vụ"
+      contentClassName="sm:max-w-lg"
     >
-      <div 
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg  safe-fade-in max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
-          <div>
-            <h2 className="text-xl font-extrabold text-foreground">Tạo hóa đơn mới</h2>
-            <p className="text-sm font-medium text-muted-foreground mt-1">Hóa đơn điện, nước, dịch vụ</p>
-          </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-bold text-foreground">Nhà trọ</label>
@@ -398,7 +375,6 @@ export function CreateInvoiceModal({ onClose }: Props) {
             </Button>
           </div>
         </form>
-      </div>
-    </div>
-  , document.body)
+    </AppModal>
+  )
 }

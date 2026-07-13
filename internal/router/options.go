@@ -1,18 +1,22 @@
 package router
 
-import "strings"
+import (
+	"io/fs"
+	"net/netip"
+)
 
 type Option func(*options)
 
 type options struct {
-	dpopVerificationURL string
+	trustedProxies      []netip.Prefix
 	uploadURLSigningKey string
+	staticFS            fs.FS
 }
 
-// WithDPoPVerificationURL configures the external API base URL used for DPoP htu.
-func WithDPoPVerificationURL(baseURL string) Option {
+// WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
+func WithTrustedProxies(prefixes []netip.Prefix) Option {
 	return func(o *options) {
-		o.dpopVerificationURL = strings.TrimRight(baseURL, "/")
+		o.trustedProxies = prefixes
 	}
 }
 
@@ -20,6 +24,13 @@ func WithDPoPVerificationURL(baseURL string) Option {
 func WithUploadURLSigningKey(key string) Option {
 	return func(o *options) {
 		o.uploadURLSigningKey = key
+	}
+}
+
+// WithStaticFS bật phục vụ frontend SPA đã nhúng từ cùng origin với API.
+func WithStaticFS(staticFS fs.FS) Option {
+	return func(o *options) {
+		o.staticFS = staticFS
 	}
 }
 

@@ -25,4 +25,5 @@ type AuthSessionRepository interface {
 	Create(ctx context.Context, session *AuthSession) error
 	FindByToken(ctx context.Context, token, userID string) (*AuthSession, error)
 	Revoke(ctx context.Context, token, userID string) error
+	UpdateLocation(ctx context.Context, refreshToken, userID, location string, geocodingSource *string) error
 }

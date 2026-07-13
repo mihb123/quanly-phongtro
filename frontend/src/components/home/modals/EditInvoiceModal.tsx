@@ -1,9 +1,9 @@
-import { createPortal } from 'react-dom'
 import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, Loader2, Save, ChevronDown } from 'lucide-react'
+import { Loader2, Save, ChevronDown } from '@/components/icons'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useInvoiceStore } from '@/data/invoiceData'
@@ -29,6 +29,7 @@ interface Props {
   onClose: () => void
 }
 
+// Modal sửa hóa đơn. Vỏ dùng AppModal (đóng qua handleClose để xác nhận khi form dirty), giữ nguyên RHF/Zod.
 export function EditInvoiceModal({ invoice, onClose }: Props) {
   const { houses } = useHouseStore()
   const { updateInvoice } = useInvoiceStore()
@@ -85,32 +86,16 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
     }
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0 bg-background/80 backdrop-blur-sm transition-opacity"
-      onClick={handleClose}
+  return (
+    <>
+    <AppModal
+      open
+      onClose={handleClose}
+      title="Sửa hóa đơn"
+      description={`Phòng ${invoice.room_name} - Kỳ ${invoice.period}`}
+      contentClassName="sm:max-w-lg"
     >
-      <div 
-        className="relative bg-card text-card-foreground rounded-3xl shadow-2xl border border-border/40 w-full max-w-lg max-h-[90vh] overflow-y-auto safe-fade-in"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center p-6 border-b border-border/40 bg-muted/30">
-          <div>
-            <h2 className="text-xl font-extrabold text-foreground">Sửa hóa đơn</h2>
-            <p className="text-sm font-medium text-muted-foreground mt-1">
-              Phòng {invoice.room_name} - Kỳ {invoice.period}
-            </p>
-          </div>
-          <button 
-            type="button"
-            onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-secondary text-muted-foreground hover:bg-secondary/80 hover:text-foreground transition-colors cursor-pointer"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {(!isElectricityFixed || !isWaterFixed) && (
             <div className="grid grid-cols-2 gap-4">
               {!isElectricityFixed && (
@@ -260,8 +245,8 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </Button>
           </div>
         </form>
-      </div>
-      {confirmModal}
-    </div>
-  , document.body)
+    </AppModal>
+    {confirmModal}
+    </>
+  )
 }

@@ -18,3 +18,9 @@ export const getZaloConfigStatus = async (): Promise<{ has_config: boolean, webh
   const response = await apiClient.get('/zalo/config')
   return response.data
 }
+
+// sendInvoiceViaZalo asks the backend to deliver an invoice image to the linked Zalo recipients.
+export const sendInvoiceViaZalo = async (id: string) => {
+  const response = await apiClient.post(`/zalo/invoices/${id}/send`)
+  return response.data
+}

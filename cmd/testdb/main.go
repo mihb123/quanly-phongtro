@@ -7,7 +7,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/config"
 	"github.com/mihb123/quanly-phongtro/internal/db"
-	"github.com/mihb123/quanly-phongtro/internal/repository"
+	"github.com/mihb123/quanly-phongtro/internal/repository/auth"
 )
 
 func main() {
@@ -22,9 +22,9 @@ func main() {
 	}
 	defer database.Close()
 
-	repo := repository.NewAuthSessionRepository(database)
+	repo := auth.NewAuthSessionRepository(database)
 	ctx := context.Background()
-	
+
 	session, err := repo.FindByToken(ctx, "non-existent", "94c0e326-d2af-4ff2-8c1e-578cfb62114b")
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)

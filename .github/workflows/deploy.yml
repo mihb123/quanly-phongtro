@@ -18,10 +18,6 @@ jobs:
       PROJECT_DIR: ${{ vars.PROJECT_DIR }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_GROUP: ${{ vars.DEPLOY_GROUP }}
-      FRONTEND_DIR: ${{ vars.FRONTEND_DIR }}
-      NGINX_SITE_NAME: ${{ vars.NGINX_SITE_NAME }}
-      NGINX_AVAILABLE_DIR: ${{ vars.NGINX_AVAILABLE_DIR }}
-      NGINX_ENABLED_DIR: ${{ vars.NGINX_ENABLED_DIR }}
 
     defaults:
       run:
@@ -43,17 +39,21 @@ jobs:
       - name: Lint, generate mocks and run tests
         run: bash "$PROJECT_DIR/scripts/deploy/lint-test.sh"
 
-      - name: Build backend and frontend
+      - name: Build single binary (frontend embedded into backend)
         run: bash "$PROJECT_DIR/scripts/deploy/build.sh"
 
-      - name: Backup database, binary, and frontend
+      - name: Backup database and binary
         run: bash "$PROJECT_DIR/scripts/deploy/backup.sh"
 
       - name: Run database migrations and seed
         run: bash "$PROJECT_DIR/scripts/deploy/database.sh"
 
-      - name: Deploy backend, frontend, and nginx
+      - name: Deploy backend service
         run: bash "$PROJECT_DIR/scripts/deploy/apply.sh"
 
       - name: Cleanup old backups
         run: bash "$PROJECT_DIR/scripts/deploy/cleanup.sh"
+
+      - name: Auto-fix deploy failure with local AI agent
+        if: failure()
+        run: bash "$GITHUB_WORKSPACE/scripts/deploy/auto-fix.sh"

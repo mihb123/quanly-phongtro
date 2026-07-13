@@ -6,20 +6,27 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/mihb123/quanly-phongtro/internal/handler"
+	"github.com/mihb123/quanly-phongtro/internal/handler/auth"
+	"github.com/mihb123/quanly-phongtro/internal/handler/house"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
+	"github.com/mihb123/quanly-phongtro/internal/handler/invoice"
+	"github.com/mihb123/quanly-phongtro/internal/handler/payment"
+	"github.com/mihb123/quanly-phongtro/internal/handler/room"
+	"github.com/mihb123/quanly-phongtro/internal/handler/tenant"
+	"github.com/mihb123/quanly-phongtro/internal/handler/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
 func New(
-	authHandler *handler.AuthHandler,
-	houseHandler *handler.HouseHandler,
-	roomHandler *handler.RoomHandler,
+	authHandler *auth.AuthHandler,
+	houseHandler *house.HouseHandler,
+	roomHandler *room.RoomHandler,
 	tokenProvider *security.JWTProvider,
-	tenantHandler *handler.TenantHandler,
-	invoiceHandler *handler.InvoiceHandler,
-	zaloHandler *handler.ZaloHandler,
-	houseCostHandler *handler.HouseCostHandler,
-	paymentHandler *handler.PaymentHandler,
+	tenantHandler *tenant.TenantHandler,
+	invoiceHandler *invoice.InvoiceHandler,
+	zaloHandler *zalo.ZaloHandler,
+	houseCostHandler *house.HouseCostHandler,
+	paymentHandler *payment.PaymentHandler,
 	options ...Option,
 ) *chi.Mux {
 	cfg := newOptions(options...)
@@ -34,17 +41,17 @@ func New(
 		r.Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
 		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
 			r.Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
-		r.With(authMiddleware(tokenProvider, cfg.dpopVerificationURL)).Get("/me", authHandler.GetMe)
-		r.With(authMiddleware(tokenProvider, cfg.dpopVerificationURL)).Patch("/me", authHandler.UpdateMe)
+		r.With(authMiddleware(tokenProvider, cfg.trustedProxies)).Get("/me", authHandler.GetMe)
+		r.With(authMiddleware(tokenProvider, cfg.trustedProxies)).Patch("/me", authHandler.UpdateMe)
 		r.Post("/logout", authHandler.Logout)
 	})
 
 	r.Route("/api/v1/house", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/create", houseHandler.CreateHouse)
 		r.Get("/{id}", houseHandler.GetHouseByID)
@@ -53,7 +60,7 @@ func New(
 		r.Delete("/{id}", houseHandler.DeleteHouse)
 	})
 	r.Route("/api/v1/room", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", roomHandler.CreateRoom)
 		r.Get("/", roomHandler.ListRooms)
@@ -63,7 +70,7 @@ func New(
 	})
 
 	r.Route("/api/v1/tenant", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", tenantHandler.RegisterTenant)
 		r.Get("/room/{id}", tenantHandler.ListTenantByRoomID)
@@ -74,7 +81,7 @@ func New(
 	})
 
 	r.Route("/api/v1/invoice", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", invoiceHandler.CreateInvoice)
 		r.Get("/", invoiceHandler.ListInvoices)
@@ -88,7 +95,7 @@ func New(
 	r.Route("/api/v1/zalo", func(r chi.Router) {
 		r.Post("/webhooks/{managerID}", zaloHandler.Webhook)
 		r.Group(func(r chi.Router) {
-			r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 			r.Use(requireRole("MANAGER"))
 			r.Get("/public-key", zaloHandler.GetPublicKey)
 			r.Get("/config", zaloHandler.GetConfigStatus)
@@ -104,12 +111,16 @@ func New(
 			r.Get("/providers/{provider}/cancel", paymentHandler.HandleProviderCancel)
 			r.Post("/providers/{provider}/managers/{managerID}/webhook", paymentHandler.HandleProviderWebhook)
 			r.Group(func(r chi.Router) {
-				r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+				r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 				r.Use(requireRole("MANAGER"))
 				r.Get("/public-key", paymentHandler.GetPublicKey)
 				r.Get("/providers/payos/config", paymentHandler.GetPayOSConfig)
 				r.Post("/providers/payos/config", paymentHandler.SavePayOSConfig)
 				r.Delete("/providers/payos/config", paymentHandler.DeletePayOSConfig)
+				r.Get("/providers/sepay/config", paymentHandler.GetSePayConfig)
+				r.Post("/providers/sepay/config", paymentHandler.SaveSePayConfig)
+				r.Delete("/providers/sepay/config", paymentHandler.DeleteSePayConfig)
+				r.Post("/providers/sepay/reconcile", paymentHandler.ReconcileSePay)
 			})
 		})
 		r.Route("/api/v1/payos", func(r chi.Router) {
@@ -120,7 +131,7 @@ func New(
 	}
 
 	r.Route("/api/v1/house-cost", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Post("/", houseCostHandler.CreateMonthlyCost)
 		r.Get("/", houseCostHandler.GetMonthlyCost)
@@ -128,17 +139,22 @@ func New(
 	})
 
 	r.Route("/api/v1/revenue-summary", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Get("/", houseCostHandler.GetRevenueSummaries)
 	})
 
 	r.Route("/api/v1/uploads/transactions", func(r chi.Router) {
-		r.Use(authMiddleware(tokenProvider, cfg.dpopVerificationURL))
+		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))
 		r.Get("/*", invoiceHandler.DownloadTransactionImage)
 	})
 	r.Get("/api/v1/uploads/zalo-invoices/*", signedUploadFileHandler("uploads/zalo-invoices", cfg.uploadURLSigningKey))
+
+	// Phục vụ frontend SPA đã nhúng cho mọi request không khớp route API ở trên.
+	if cfg.staticFS != nil {
+		r.NotFound(spaFileServer(cfg.staticFS))
+	}
 
 	return r
 }
@@ -153,7 +169,7 @@ func healthCheck(w http.ResponseWriter, _ *http.Request) {
 func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	resdata := handler.ResData{
+	resdata := httpx.ResData{
 		Status:  status,
 		Data:    nil,
 		Message: message,

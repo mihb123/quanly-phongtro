@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { Card } from '@/components/ui/card'
+import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { X, Save, DollarSign, Users, Copy, Trash2 } from 'lucide-react'
+import { X, Save, DollarSign, Users, Copy, Trash2 } from '@/components/icons'
 import type { Room } from '@/api/room'
 import { useRoomStore } from '@/data/roomData'
 import { formatNumber, parseNumber } from '@/utils/format'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
+// Modal sửa nhanh giá & sức chứa nhiều phòng cùng lúc (kèm nhân bản/xóa qua nhấn giữ). Vỏ dùng AppModal, giữ nguyên state cục bộ + xác nhận khi dirty.
 export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const rooms = useRoomStore(state => state.rooms)
   const deleteRoomStore = useRoomStore(state => state.deleteRoom)
@@ -143,28 +143,34 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
-      onMouseDown={e => {
-        if (e.target === e.currentTarget && !isLoading) handleClose()
-      }}
-    >
-      <Card className="w-full max-w-3xl bg-card text-card-foreground shadow-2xl border border-border/40 safe-fade-in flex flex-col h-full max-h-[85vh] overflow-y-auto">
-        <div className="p-6 border-b border-border/40 flex justify-between items-center bg-muted/30 rounded-t-2xl">
-          <div>
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-primary" />
-              Sửa giá & công năng phòng nhanh
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc.</p>
-          </div>
-          <Button variant="ghost" size="icon" onClick={handleClose} className="rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary">
-            <X className="w-5 h-5" />
+  return (
+    <>
+    <AppModal
+      open
+      onClose={handleClose}
+      contentClassName="sm:max-w-3xl"
+      title={
+        <span className="flex items-center gap-2">
+          <DollarSign className="w-5 h-5 text-primary" />
+          Sửa giá & công năng phòng nhanh
+        </span>
+      }
+      description="Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc."
+      footer={
+        <>
+          <Button variant="outline" onClick={handleClose} className="rounded-xl h-11 px-6 font-bold">
+            Hủy
           </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6">
+          <Button
+            disabled={isLoading}
+            onClick={handleSaveAll}
+            className="shadow-sm rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+          >
+            {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
+          </Button>
+        </>
+      }
+    >
           <div className="space-y-4">
             <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
               <div className="col-span-4">Tên phòng</div>
@@ -240,23 +246,8 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
               ))}
             </div>
           </div>
-        </div>
-
-        <div className="p-6 border-t border-border/40 flex justify-end gap-3 bg-muted/30 rounded-b-2xl">
-          <Button variant="outline" onClick={handleClose} className="rounded-xl h-11 px-6 font-bold">
-            Hủy
-          </Button>
-          <Button 
-            disabled={isLoading}
-            onClick={handleSaveAll}
-            className="shadow-sm rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
-          >
-            {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
-          </Button>
-        </div>
-      </Card>
-      {confirmModal}
-    </div>,
-    document.body
+    </AppModal>
+    {confirmModal}
+    </>
   )
 }

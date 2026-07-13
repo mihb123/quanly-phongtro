@@ -9,7 +9,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/config"
 	"github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	"github.com/mihb123/quanly-phongtro/internal/repository"
+	"github.com/mihb123/quanly-phongtro/internal/repository/auth"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
@@ -25,7 +25,7 @@ func main() {
 	}
 	defer database.Close()
 
-	userRepository := repository.NewUserRepository(database)
+	userRepository := auth.NewUserRepository(database)
 	hasher := security.NewBcryptHasher()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

@@ -24,6 +24,7 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: `http://localhost:${backendPort}`,
           changeOrigin: true,
+          xfwd: true,
         }
       }
     }

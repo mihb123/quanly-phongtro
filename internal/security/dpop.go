@@ -122,12 +122,12 @@ func VerifyDPoPProof(dpopStr, htm, htu, accessToken string) (string, error) {
 
 	// 2. Validate Claims (htm, htu)
 	if claims.Htm != htm {
-		return "", fmt.Errorf("%w: htm mismatch", ErrInvalidDPoPProof)
+		return "", fmt.Errorf("%w: htm mismatch (expected: %s, got: %s)", ErrInvalidDPoPProof, htm, claims.Htm)
 	}
 
 	// Normalize URL by removing query params if needed, but standard DPoP requires exact match of scheme://host:port/path
 	if claims.Htu != htu {
-		return "", fmt.Errorf("%w: htu mismatch", ErrInvalidDPoPProof)
+		return "", fmt.Errorf("%w: htu mismatch (expected: %s, got: %s)", ErrInvalidDPoPProof, htu, claims.Htu)
 	}
 
 	// 3. Validate iat (Time window: +/- 5 minutes)

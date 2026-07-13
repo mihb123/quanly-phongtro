@@ -33,3 +33,52 @@ export const deletePayOSConfig = async () => {
   const response = await apiClient.delete('/payments/providers/payos/config')
   return response.data
 }
+
+export interface SePayConfigPayload {
+  bank_short_name: string
+  account_number: string
+  account_name: string
+  code_prefix: string
+  webhook_auth_method: string
+  webhook_api_key?: string
+  webhook_secret?: string
+  api_token?: string
+}
+
+export interface SePayConfigStatus {
+  has_config: boolean
+  is_active: boolean
+  provider: string
+  masked_account_number: string
+  bank_short_name: string
+  code_prefix: string
+  webhook_auth_method: string
+  webhook_url: string
+}
+
+export const getSePayConfig = async (): Promise<SePayConfigStatus> => {
+  const response = await apiClient.get('/payments/providers/sepay/config')
+  return response.data
+}
+
+export const saveSePayConfig = async (payload: SePayConfigPayload) => {
+  const response = await apiClient.post('/payments/providers/sepay/config', payload)
+  return response.data
+}
+
+export const deleteSePayConfig = async () => {
+  const response = await apiClient.delete('/payments/providers/sepay/config')
+  return response.data
+}
+
+export interface SePayReconcileResult {
+  pages_fetched: number
+  scanned: number
+  processed: number
+  truncated: boolean
+}
+
+export const reconcileSePay = async (): Promise<SePayReconcileResult> => {
+  const response = await apiClient.post('/payments/providers/sepay/reconcile', {})
+  return response.data
+}

@@ -16,8 +16,43 @@ Không fallback sang PayOS khi SePay đã active nhưng tạo QR/webhook bị l�
 
 - SePay Cổng thanh toán: https://developer.sepay.vn/vi/cong-thanh-toan/gioi-thieu
 - SePay Webhooks: https://developer.sepay.vn/vi/sepay-webhooks
+- SePay Webhooks – Xác thực: https://developer.sepay.vn/en/sepay-webhooks/xac-thuc
+- SePay Webhooks – Tích hợp/payload: https://developer.sepay.vn/en/sepay-webhooks/tich-hop-webhook
 - SePay API v2: https://developer.sepay.vn/vi/sepay-api/v2/gioi-thieu
+- VietQR động (qr.sepay.vn / vietqr.app): https://qr.sepay.vn
 - Tài liệu workflow hiện có: `Documents/feature/payment_gateway_integration.md`
+
+## Sự kiện kỹ thuật SePay đã xác thực (nguồn sự thật)
+
+> Trích từ tài liệu chính thức SePay (mục Webhooks – Xác thực, Tích hợp webhook, VietQR). Các mục bên dưới tham chiếu phần này thay vì lặp lại; nếu SePay đổi tài liệu, sửa ở đây trước.
+
+### QR động
+
+- Endpoint ảnh QR: `https://qr.sepay.vn/img` (mirror của `https://vietqr.app/img`).
+- Param **bắt buộc**: `acc` (số tài khoản nhận), `bank` (short name như `MBBank`/`Vietcombank`, hoặc BIN).
+- Param **tùy chọn**: `amount`, `des` (nội dung CK), `template` (`compact`/`qronly`/`standee`), `showinfo`, `download`, `fullacc`, `holder`, `store`.
+
+### Webhook tiền vào
+
+- SePay hỗ trợ **4 phương thức xác thực** cho webhook: **API Key**, **HMAC-SHA256**, **OAuth 2.0**, hoặc **none**. KHÔNG mặc định là HMAC.
+  - **API Key** (đơn giản nhất, khuyến nghị mặc định): SePay gửi header `Authorization: Apikey <KEY>`. Server so sánh `<KEY>` với giá trị đã cấu hình.
+  - **HMAC-SHA256**: SePay gửi `X-SePay-Signature: sha256={hex}` và `X-SePay-Timestamp: <unix_seconds>`. Chữ ký = HMAC-SHA256(secret, `"{timestamp}.{raw_body}"`), hex-encode. **Phải ký trên raw body bytes**, không phải JSON re-serialize.
+  - **OAuth 2.0**: `Authorization: Bearer <token>` (phức tạp, không cần cho phase 1).
+- Payload JSON (field chính):
+  - `id` (int) — **transaction ID của SePay; bất biến qua retry/replay → đây là KEY chống trùng (dedup)**.
+  - `transferType` (string) — `in` = tiền vào, `out` = tiền ra. Chỉ xử lý `in`.
+  - `transferAmount` (int) — số tiền VND, **luôn dương** (không phân biệt dấu theo chiều tiền).
+  - `code` (string, **nullable**) — mã thanh toán SePay tự tách từ `content` theo **prefix cấu hình trong SePay dashboard** (Company → General settings). `null`/rỗng nếu không match prefix → giao dịch unmatched.
+  - `content` (string) — nội dung CK gốc từ ngân hàng.
+  - `referenceCode` (string) — mã tham chiếu của ngân hàng (KHÁC `id`).
+  - `accountNumber`, `gateway`, `transactionDate` (`YYYY-MM-DD HH:mm:ss`, giờ VN), `subAccount`, `accumulated`, `description`.
+- Response server **phải** trả: HTTP **200 hoặc 201**, body **đúng** `{"success": true}`, trong **30 giây**. Trả khác/chậm → SePay retry → bắt buộc idempotency.
+
+### API v2 (đối soát)
+
+- Base URL: `https://userapi.sepay.vn/v2`. Auth: `Authorization: Bearer <API_TOKEN>`.
+- Liệt kê giao dịch: `GET /v2/transactions`. Filter: `since_id`, `page` + `limit` (tối đa 100), `transaction_date_from`/`transaction_date_to`.
+- Rate limit (theo agy đọc tài liệu, cần xác nhận lại trước khi dựa vào): ~3 req/s, vượt → `429`.
 
 ## Kiến trúc hiện có cần tái sử dụng
 
@@ -111,25 +146,39 @@ Lưu trong `payment_provider_credentials.encrypted_credentials` dạng JSON đã
   "bank_short_name": "MBBank",
   "account_number": "123456789",
   "account_name": "NGUYEN VAN A",
-  "webhook_secret": "secret-used-for-hmac",
   "code_prefix": "PT",
-  "api_token": "optional-for-reconciliation"
+  "webhook_auth_method": "apikey",
+  "webhook_api_key": "key-for-Authorization-Apikey-header",
+  "webhook_secret": "secret-for-hmac-sha256",
+  "api_token": "optional-for-reconciliation-v2"
 }
 ```
 
-Field bắt buộc:
+> Lưu ý quan trọng: SePay có **tới 3 secret khác nhau, đừng gộp**:
+> - `webhook_api_key`: dùng khi `webhook_auth_method = "apikey"` — server so sánh với header `Authorization: Apikey ...`.
+> - `webhook_secret`: dùng khi `webhook_auth_method = "hmac"` — Secret Key để verify `X-SePay-Signature`.
+> - `api_token`: chỉ cho **đối soát API v2** (`Authorization: Bearer ...`), KHÔNG liên quan webhook. Plan cũ mô tả `api_token` mơ hồ — đây là thực thể tách biệt.
+
+Field **bắt buộc** (tạo QR + auto-detect mã):
 
 - `bank_short_name`
 - `account_number`
 - `account_name`
-- `webhook_secret`
-- `code_prefix`
+- `code_prefix` — **phải trùng** prefix cấu hình trong SePay dashboard, nếu không `code` webhook trả về sẽ `null` và mọi giao dịch thành unmatched.
 
-Field tùy chọn:
+Field **xác thực webhook** (chọn 1 phương thức; xem [Sự kiện kỹ thuật đã xác thực](#webhook-tiền-vào)):
+
+- `webhook_auth_method`: `"apikey"` (mặc định khuyến nghị) | `"hmac"` | `"none"`.
+- `webhook_api_key`: bắt buộc nếu method = `apikey`.
+- `webhook_secret`: bắt buộc nếu method = `hmac`.
+
+Field **tùy chọn**:
 
 - `api_token`: chỉ cần nếu làm đối soát bằng API v2.
 
 Không cần thêm bảng DB mới cho phase 1. Unique `(manager_id, provider)` trong `payment_provider_credentials` đã đủ.
+
+> Refactor đi kèm: hiện `decryptCredentials`/`decryptPayOSCredentials` đang **gắn cứng kiểu PayOS** (`internal/service/payment_credential_service.go`). Cần thêm `SePayCredentials` struct + `sePayCredentialsMap` và một nhánh decrypt riêng cho `provider == sepay`, không tái dùng struct PayOS.
 
 ## Backend plan
 
@@ -196,11 +245,17 @@ SePay phase 1 không cần gọi API ngoài. Adapter chỉ tạo thông tin QR:
    - `PT` + short code từ invoice ID
    - nếu trùng thì thêm suffix attempt
 4. Dùng `ProviderOrderRefExists` để đảm bảo code chưa tồn tại.
-5. Tạo QR URL:
+5. Tạo QR URL (xem param đã xác thực ở mục trên):
 
 ```text
 https://qr.sepay.vn/img?acc={account_number}&bank={bank_short_name}&amount={amount}&des={payment_code}
 ```
+
+> Ràng buộc khớp mã (rất dễ sai):
+> - `des` = **payment_code đầy đủ kèm prefix** (vd `PT1A2B3C`). SePay tách `code` từ nội dung CK theo prefix dashboard và trả lại **cả prefix** (vd payload mẫu: content `SEVN63DC8E5C ...` → `code = "SEVN63DC8E5C"`).
+> - Vì vậy `ProviderOrderRef` lưu xuống DB **phải đúng bằng chuỗi** SePay sẽ trả ở field `code`. Đừng lưu phần sau prefix rồi kỳ vọng match.
+> - `code_prefix` của credential phải trùng prefix dashboard, nếu không `code` về `null`.
+> - URL-encode `des`/`amount` khi build query.
 
 6. Trả `PaymentProviderLink`:
 
@@ -224,35 +279,40 @@ SePay QR chuyển khoản không có remote payment link để hủy. Adapter c�
 
 Cần parse raw body SePay webhook và map sang `VerifiedPaymentEvent`.
 
-Cần thay đổi `PaymentWebhookInput` để có header:
+Cần thêm header vào `PaymentWebhookInput` (hiện struct chỉ có `Body`, `Credentials`):
 
 ```go
 type PaymentWebhookInput struct {
     Body        []byte
-    Headers     http.Header
+    Headers     http.Header // MỚI: cần cho Authorization Apikey / X-SePay-Signature
     Credentials map[string]string
 }
 ```
 
-Handler truyền `r.Header` vào service/provider.
+> Thay đổi lan tỏa (đã verify trên code hiện tại):
+> - Interface `PaymentService.HandleWebhook(ctx, provider, managerID, body []byte)` **chưa nhận header** → phải đổi chữ ký thành `HandleWebhook(ctx, provider, managerID string, body []byte, headers http.Header)` và truyền tiếp vào `PaymentWebhookInput.Headers`.
+> - `internal/handler/payment_handler.go > handleWebhook` đã đọc raw body sẵn; chỉ cần truyền thêm `r.Header`.
+> - PayOS provider hiện không dùng header → giữ nguyên hành vi, chỉ nhận thêm tham số.
 
-Verify:
+Verify (theo phương thức cấu hình trong `webhook_auth_method`):
 
-1. Parse JSON body.
-2. Verify HMAC theo SePay docs nếu webhook secret được cấu hình.
-3. Chỉ xử lý giao dịch tiền vào.
-4. Nếu payload không có mã thanh toán (`code`) thì return `ErrPaymentWebhookIgnored` hoặc tạo event unmatched tùy policy.
-5. Map event:
+1. Xác thực request TRƯỚC khi parse nghiệp vụ:
+   - `apikey`: đọc header `Authorization`, tách `Apikey <key>`, so sánh **constant-time** (`hmac.Equal`) với `webhook_api_key`. Sai → `ErrPaymentWebhookInvalid` (handler trả `400`/`401`).
+   - `hmac`: lấy `X-SePay-Signature` (dạng `sha256={hex}`) + `X-SePay-Timestamp`, tính `HMAC-SHA256(webhook_secret, timestamp + "." + string(input.Body))`, hex-encode, so khớp constant-time. **Dùng `input.Body` raw**, không re-marshal. Sai → `ErrPaymentWebhookInvalid`. (Cân nhắc kiểm tra độ lệch `timestamp` để chống replay.)
+   - `none`: bỏ qua xác thực (kém an toàn) — log cảnh báo, `SignatureResult = "VALID"` chỉ mang tính danh nghĩa.
+2. Parse JSON body.
+3. Chỉ xử lý `transferType == "in"`; nếu `"out"` → `ErrPaymentWebhookIgnored`.
+4. Nếu `code` rỗng/`null` → `ErrPaymentWebhookIgnored` (hoặc tạo event unmatched tùy policy ở `HandleWebhook` — code rỗng nhưng `id` vẫn unique nên dedup vẫn an toàn).
+5. Map event (lưu ý `id` là dedup key, KHÔNG dùng `referenceCode`):
 
 ```go
 VerifiedPaymentEvent{
-    ProviderOrderRef:     webhook.Code,
-    Amount:               webhook.TransferAmount,
-    TransactionReference: webhook.ID or webhook.ReferenceCode,
-    PayerAccount:         optional payer account,
-    CounterAccount:       receiving account,
+    ProviderOrderRef:     webhook.Code,           // = des đã gửi, gồm prefix
+    Amount:               webhook.TransferAmount, // luôn dương
+    TransactionReference: strconv.Itoa(webhook.ID), // id SePay = dedup key bất biến qua retry
+    CounterAccount:       &webhook.AccountNumber, // tài khoản nhận tiền của manager
     RawPayload:           string(input.Body),
-    SignatureResult:      paymentSignatureValid,
+    SignatureResult:      paymentSignatureValid,  // hoặc paymentSignatureInvalid
     MatchingMethod:       paymentMatchOrderRef,
 }
 ```
@@ -261,32 +321,29 @@ VerifiedPaymentEvent{
 
 Trong `internal/handler/payment_handler.go`:
 
-- `handleWebhook` đọc raw body như hiện tại.
-- Truyền header vào `PaymentService.HandleWebhook`.
-- Sửa response success thành JSON hợp lệ:
-
-```json
-{"success": true}
-```
-
-Nếu SePay yêu cầu HTTP `200` hoặc `201`, giữ `200 OK` là đủ.
+- `handleWebhook` **đã** đọc raw body có giới hạn (`maxPaymentWebhookBodyBytes`) — giữ nguyên.
+- **Việc cần làm**: truyền thêm `r.Header` vào `PaymentService.HandleWebhook` (kéo theo đổi chữ ký interface, xem mục VerifyWebhook).
+- Response success **đã đúng chuẩn SePay**: `writePaymentWebhookSuccess` đã trả `200 OK` + body `{"success": true}`. SePay chấp nhận `200` hoặc `201` nên không cần sửa. (Plan cũ ghi "sửa response" — thực tế đã xong, bỏ bước này.)
+- Map lỗi hiện có đã hợp lý cho SePay: `ErrPaymentWebhookInvalid` → `400`, `ErrPaymentCredentialsNotFound` → `401` → khớp test plan handler.
 
 ### 5. Cập nhật `PaymentService.HandleWebhook`
 
-Thêm guard trước khi mark paid:
+Luồng hiện tại (đã verify) đã có: `CheckProviderEventExists` (dedup) → `GetPaymentLinkByProviderOrderRefForManager` → ghi `payment_event` → nếu có invoice thì `processInvoicePayment`. **Nhưng `processInvoicePayment` đang mark `PAID` vô điều kiện — chưa có amount guard.** Cần bổ sung:
 
-1. Tìm `paymentLink` theo `managerID + provider + provider_order_ref`.
-2. Nếu không tìm thấy, ghi event `UNMATCHED`, không update invoice.
-3. Nếu `verifiedEvent.Amount < paymentLink.Amount`, ghi event nhưng không mark `PAID`.
-4. Nếu amount đủ, mark invoice `PAID`.
-5. Mark payment link `PAID`.
-6. Gửi thông báo tenant/manager.
+1. Tìm `paymentLink` theo `managerID + provider + provider_order_ref` (đã có).
+2. Nếu không tìm thấy, ghi event `UNMATCHED`, không update invoice (đã có).
+3. **MỚI**: nếu `verifiedEvent.Amount < paymentLink.Amount`, ghi event nhưng **không** gọi `processInvoicePayment` (không mark `PAID`). Chèn guard này trong `HandleWebhook` ngay trước nhánh gọi `processInvoicePayment`.
+4. Nếu amount đủ, mark invoice `PAID` (đã có trong `processInvoicePayment`).
+5. Mark payment link `PAID` (đã có).
+6. Gửi thông báo tenant/manager (đã có).
 
-Cần đảm bảo idempotency bằng unique hiện có:
+Idempotency: dùng unique hiện có `CheckProviderEventExists(provider, provider_order_ref, transaction_reference)`:
 
 ```text
-provider + provider_order_ref + transaction_reference
+sepay + code + id   (id = SePay transaction id, bất biến qua retry/replay)
 ```
+
+> Vì SePay **retry khi không nhận `{"success": true}` trong 30s**, dedup theo `id` là bắt buộc. Map `TransactionReference = id` (không phải `referenceCode`) để retry cùng giao dịch không bị xử lý lại.
 
 ### 6. Cập nhật Zalo invoice delivery
 
@@ -335,6 +392,7 @@ Response `GET /config` nên trả:
   "masked_account_number": "****6789",
   "bank_short_name": "MBBank",
   "code_prefix": "PT",
+  "webhook_auth_method": "apikey",
   "webhook_url": "https://domain/api/v1/payments/providers/sepay/managers/{managerID}/webhook"
 }
 ```
@@ -362,9 +420,13 @@ Fields:
 - Bank short name
 - Account number
 - Account name
-- Webhook secret
 - Code prefix
-- API token optional
+- Webhook auth method (select: `apikey` mặc định | `hmac`)
+- Webhook API key (hiện khi method = `apikey`)
+- Webhook secret (hiện khi method = `hmac`)
+- API token optional (chỉ cho đối soát v2)
+
+> RSA-encrypt các field bí mật (`webhook_api_key`, `webhook_secret`, `api_token`) qua `/payments/public-key` như PayOS card; `bank_short_name`/`account_number`/`account_name`/`code_prefix` không cần mã hóa.
 
 UI behavior:
 
@@ -395,20 +457,34 @@ Trong SePay dashboard, manager cần:
 https://domain/api/v1/payments/providers/sepay/managers/{managerID}/webhook
 ```
 
-5. Bật HMAC/webhook secret nếu SePay dashboard hỗ trợ.
+5. Chọn phương thức xác thực webhook và nhập cùng giá trị vào SePaySettingsCard:
+   - **API Key** (khuyến nghị, đơn giản): SePay gửi `Authorization: Apikey <key>` → lưu vào `webhook_api_key`.
+   - **HMAC-SHA256** (an toàn hơn): lưu Secret Key vào `webhook_secret`.
 6. Nếu có option lọc giao dịch không có mã thanh toán, bật lọc để giảm unmatched events.
 
 ## Đối soát bằng API v2
 
-Phase 1 có thể chưa cần. Nếu làm thêm:
+Phase 1 có thể chưa cần. Nếu làm thêm (thông số đã xác thực ở mục [API v2](#api-v2-đối-soát)):
 
-1. Lưu `api_token` trong SePay credentials.
-2. Thêm service `SePayReconciliationService`.
-3. Kéo transactions theo thời gian hoặc `since_id`.
-4. Reuse cùng logic match `provider_order_ref`.
-5. Chỉ xử lý giao dịch chưa tồn tại trong `payment_events`.
+1. Lưu `api_token` trong SePay credentials (khác `webhook_api_key`).
+2. Thêm service `SePayReconciliationService`. Base `https://userapi.sepay.vn/v2`, header `Authorization: Bearer <api_token>`.
+3. Kéo transactions: `GET /v2/transactions` với `since_id` (polling tăng dần) hoặc `transaction_date_from`/`transaction_date_to`; phân trang `page` + `limit` (≤100).
+4. Reuse cùng logic match `provider_order_ref` (field `code`) và amount guard như webhook.
+5. Chỉ xử lý giao dịch chưa tồn tại trong `payment_events` (dedup theo `id`).
 
-Cần throttle request theo rate limit của SePay API v2.
+Cần throttle theo rate limit (~3 req/s theo agy đọc tài liệu — **xác nhận lại trước khi triển khai**); vượt → `429`, cần backoff.
+
+### Đã implement (phase 2)
+
+Contract đã verify từ docs chính thức (`GET https://userapi.sepay.vn/v2/transactions`, `Authorization: Bearer`, response `{status, data[], meta.pagination}`, transaction field snake_case, **`id` là UUID** — KHÁC webhook `id` integer; rate limit 3 req/s).
+
+- `internal/service/sepay_client.go` — `SePayClient.ListTransactions` (Bearer, phân trang `page`/`per_page≤100`, lọc `transaction_date_from/to`).
+- `internal/service/sepay_reconciliation_service.go` — `SePayReconciliationService.ReconcileManager(ctx, managerID, dateFrom, dateTo)`: loop trang (throttle 350ms < 3 req/s, cap 100 trang chống loop), chỉ xử lý `transfer_type=in` có `code`, map `amount_in`/`id`(UUID).
+- `internal/service/payment_service.go` — tách lõi dùng chung `ProcessVerifiedTransaction` (webhook + reconciliation) + **guard cross-source dedup**: vì v2-id(UUID) ≠ webhook-id(int) không match được, dùng **trạng thái link đã PAID** để bỏ qua settle/notify lại (chỉ ghi audit).
+- Endpoint: `POST /api/v1/payments/providers/sepay/reconcile` (manager auth; body optional `date_from`/`date_to`, mặc định 7 ngày gần nhất) → trả `SePayReconcileResult`.
+- Tests: paging/filter/mapping, thiếu `api_token`, và guard paid-link.
+
+Chưa có UI trigger (manager đang phải gọi endpoint trực tiếp / qua cron) — tùy chọn thêm nút "Đối soát" trong SePaySettingsCard.
 
 ## Test plan
 
@@ -425,10 +501,11 @@ Cần throttle request theo rate limit của SePay API v2.
   - retry khi code trùng
   - reject amount <= 0
 - `SePayProvider.VerifyWebhook`:
-  - valid signature
-  - invalid signature
-  - outgoing transfer ignored
-  - missing code ignored/unmatched theo policy
+  - method `apikey`: header `Authorization: Apikey <đúng>` pass; sai/thiếu → `ErrPaymentWebhookInvalid`
+  - method `hmac`: `X-SePay-Signature` đúng (ký trên `timestamp.raw_body`) pass; sai → `ErrPaymentWebhookInvalid`
+  - `transferType: "out"` → `ErrPaymentWebhookIgnored`
+  - `code` rỗng/null → ignored/unmatched theo policy
+  - `TransactionReference` map từ `id` (không phải `referenceCode`)
 - `PaymentService.HandleWebhook`:
   - matched SePay event mark invoice `PAID`
   - duplicate transaction không xử lý lại
@@ -438,8 +515,8 @@ Cần throttle request theo rate limit của SePay API v2.
 ### Handler tests
 
 - `POST /api/v1/payments/providers/sepay/managers/{managerID}/webhook` trả `200` với body `{"success": true}` khi event hợp lệ.
-- Invalid HMAC trả `400`.
-- Missing credentials trả `401`.
+- Xác thực sai (`Authorization: Apikey` sai hoặc `X-SePay-Signature` sai) → `400`.
+- Missing credentials (manager chưa cấu hình SePay) → `401`.
 
 ### Frontend tests/manual QA
 

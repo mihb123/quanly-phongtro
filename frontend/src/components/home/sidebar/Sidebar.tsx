@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Home, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt, Wallet } from 'lucide-react'
+import { Home, Settings, Users, LayoutDashboard, ChevronRight, Building, ChevronDown, Trash2, Edit, Receipt, Wallet } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
 import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
@@ -13,7 +13,7 @@ import { CreateHouseModal } from '@/components/home/modals/CreateHouseModal'
 import { EditHouseModal } from '@/components/home/modals/EditHouseModal'
 import { ConfirmModal } from '@/components/home/modals/ConfirmModal'
 import type { House } from '@/api/house'
-import { Plus } from 'lucide-react'
+import { Plus } from '@/components/icons'
 
 export function Sidebar() {
   const { user } = useAuth()
@@ -124,7 +124,7 @@ export function Sidebar() {
 
       {contextMenu && (
         <div
-          className="fixed z-[100] bg-white border border-slate-200 shadow-2xl rounded-xl py-1 w-48 safe-fade-in"
+          className="fixed z-[100] w-48 rounded-2xl border border-border bg-popover py-1 text-popover-foreground shadow-xl ring-1 ring-foreground/5 safe-fade-in"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -133,18 +133,18 @@ export function Sidebar() {
               setHouseToEdit(contextMenu.house)
               setContextMenu(null)
             }}
-            className="flex items-center gap-3 w-full px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+            className="flex items-center gap-3 w-full px-4 py-2 text-sm font-bold text-foreground hover:bg-secondary transition-colors cursor-pointer"
           >
             <Edit className="w-4 h-4" />
             <span>Sửa thông tin</span>
           </button>
-          <div className="h-px bg-slate-100 my-1 mx-2" />
+          <div className="h-px bg-border my-1 mx-2" />
           <button
             onClick={() => {
               setHouseToDelete(contextMenu.house)
               setContextMenu(null)
             }}
-            className="flex items-center gap-3 w-full px-4 py-2 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            className="flex items-center gap-3 w-full px-4 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
             <span>Xóa nhà trọ</span>
@@ -183,7 +183,7 @@ export function Sidebar() {
             collapsed={isSidebarCollapsed}
           />
 
-          <div className={`mt-2 ${!isSidebarCollapsed && isHouseListOpen ? 'bg-slate-50/50 rounded-2xl pb-2' : ''} transition-all duration-300`}>
+          <div className={`mt-2 ${!isSidebarCollapsed && isHouseListOpen ? 'bg-secondary/40 rounded-2xl pb-2' : ''} transition-all duration-300`}>
             <button
               onClick={() => {
                 if (isSidebarCollapsed) setIsSidebarCollapsed(false);
