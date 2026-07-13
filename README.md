@@ -7,19 +7,30 @@
 - **Email:** `user@test.com`
 - **Pass:** `test01234`
 
+### Mobile
+
+<p align="center">
+  <img src="assets/guide.jpg" width="25%" />
+  <img src="assets/mobile-1.jpg" width="25%" />
+  <img src="assets/mobile-2.jpg" width="25%" />
+  <img src="assets/mobile-3.jpg" width="25%" />
+  <img src="assets/mobile-4.jpg" width="25%" />
+  <img src="assets/mobile-5.jpg" width="25%" />
+</p>
+
 Ứng dụng quản lý nhà trọ/phòng trọ full-stack với backend viết bằng Go và frontend bằng React.
 
 Trong môi trường production, frontend React được build và **nhúng trực tiếp vào file thực thi Go**, toàn bộ ứng dụng được đóng gói và chạy dưới dạng **một file thực thi duy nhất**. Trong quá trình phát triển (development), frontend và backend vẫn chạy như hai dev server riêng biệt.
 
 ## Các tính năng chính
 
-- **Xác thực & Bảo mật:** Đăng ký/đăng nhập, refresh token, xác minh email qua OTP, phân quyền RBAC (quản lý/người thuê). Bảo mật bằng JWT + DPoP, cookie HTTP-only, bcrypt, mã hóa AES-256 cho secret, kèm GeoIP/Geocoding. Xem [security_dpop](Documents/feature/security_dpop.md).
+- **Xác thực & Bảo mật:** Đăng ký/đăng nhập, refresh token, xác minh email, phân quyền RBAC (quản lý/người thuê). Bảo mật bằng JWT + DPoP. Xem [security_dpop](Documents/feature/security_dpop.md).
 - **Quản lý nhà & phòng:** CRUD nhà và phòng, cấu hình linh hoạt giá thuê, điện, nước, Wi-Fi, chỗ để xe và dịch vụ/phụ phí tùy chỉnh ở cả cấp nhà lẫn phòng.
 - **Quản lý người thuê:** Đăng ký người thuê theo phòng, cập nhật hồ sơ, lưu CCCD/hợp đồng và tìm kiếm theo phòng hoặc nhà.
 - **Hóa đơn & Thanh toán:** Tự động tạo hóa đơn hàng tháng (tiện ích, dịch vụ, phụ phí, giảm giá), theo dõi trạng thái thanh toán, lưu ảnh giao dịch và render ảnh hóa đơn.
 - **Doanh thu & Chi phí:** Ghi nhận chi phí định kỳ, tổng hợp doanh thu/chi phí/lợi nhuận theo từng nhà qua background worker hướng sự kiện (`EventBus` + `RevenueWorker`).
 - **Tích hợp Zalo & PayOS:** Tạo QR/liên kết thanh toán PayOS, cập nhật trạng thái qua webhook; bot Zalo gửi hóa đơn, tạo/cập nhật hóa đơn qua chat và cron kiểm tra token. Xem [zalo_bot_feature](Documents/feature/zalo_bot_feature.md), [zalo_automation](Documents/feature/zalo_automation_mark_paid_invoice.md).
-- **Tích hợp SePay:** Provider chuyển khoản ngân hàng theo kiến trúc adapter (ưu tiên trước PayOS): tài khoản nhận tiền theo từng người (AES-256, secret qua RSA), QR động cho hóa đơn, tự động đánh dấu `PAID` qua webhook (API Key/HMAC) hoặc đối soát thủ công qua SePay API v2, ghi mọi giao dịch vào `payment_events`. Xem [sepay_integration](Documents/feature/sepay_integration.md).
+- **Tích hợp SePay:** QR động cho hóa đơn, tự động đánh dấu `PAID` qua webhook hoặc đối soát thủ công qua SePay API v2, ghi mọi giao dịch vào `payment_events`. Xem [sepay_integration](Documents/feature/sepay_integration.md).
 
 ## Cấu trúc dự án
 
