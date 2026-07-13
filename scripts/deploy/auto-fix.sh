@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # auto-fix.sh — Khi deploy thất bại, nhờ một AI coding agent có sẵn trên self-hosted
 # server tự phân tích log, sửa lỗi, rồi TỰ commit + push để kích hoạt deploy lại.
-# Thứ tự fallback: claude -> agy -> codex. Agent ĐẦU TIÊN chạy xong (exit 0) thì dừng.
+# Thứ tự fallback: agy -> claude -> codex. Agent ĐẦU TIÊN chạy xong (exit 0) thì dừng.
 #
 # An toàn:
 #   - Chống vòng lặp: nếu commit đang deploy đã là commit auto-fix (có marker AUTOFIX_MARKER)
@@ -79,22 +79,22 @@ EOF
 
 # --- 3. AGENT RUNNERS ---
 
-# Nhờ Claude Code sửa lỗi (ưu tiên đầu tiên).
-try_claude() {
-  command -v claude >/dev/null 2>&1 || { echo "claude: không tìm thấy trên server"; return 127; }
-  timeout "$AGENT_TIMEOUT" claude -p "$PROMPT" \
-    --model sonnet \
-    --add-dir "$FIX_DIR" \
-    --dangerously-skip-permissions
-}
-
-# Fallback sang Antigravity (Gemini).
+# Nhờ Antigravity (Gemini) sửa lỗi (ưu tiên đầu tiên).
 try_agy() {
   command -v agy >/dev/null 2>&1 || { echo "agy: không tìm thấy trên server"; return 127; }
   timeout "$AGENT_TIMEOUT" agy -p "$PROMPT" \
     --add-dir "$FIX_DIR" \
     --dangerously-skip-permissions \
     --print-timeout "$AGENT_TIMEOUT"
+}
+
+# Fallback sang Claude Code.
+try_claude() {
+  command -v claude >/dev/null 2>&1 || { echo "claude: không tìm thấy trên server"; return 127; }
+  timeout "$AGENT_TIMEOUT" claude -p "$PROMPT" \
+    --model sonnet \
+    --add-dir "$FIX_DIR" \
+    --dangerously-skip-permissions
 }
 
 # Fallback cuối cùng sang Codex CLI.
@@ -178,10 +178,10 @@ BEFORE_SNAPSHOT="$(snapshot_worktree)"
 AGENT_LOG="$(mktemp -t autofix-agent-XXXXXX.log)"
 AGENT_ERRORS=()  # gom lý do thất bại của từng agent để báo cuối cùng.
 
-notify "🔧 Deploy thất bại — đang thử tự động sửa lỗi bằng AI agent (claude → agy → codex)..."
+notify "🔧 Deploy thất bại — đang thử tự động sửa lỗi bằng AI agent (agy → claude → codex)..."
 
 # Chạy lần lượt các agent theo thứ tự fallback; dừng ngay khi có agent chạy xong.
-for agent in claude agy codex; do
+for agent in agy claude codex; do
   echo "===== Thử agent: $agent ====="
 
   # Lưu output agent ra log để trích lý do lỗi chính xác; vẫn hiện trên log workflow.
@@ -230,7 +230,7 @@ $FILE_LIST
   exit 0
 done
 
-notify "⚠️ Cả claude, agy và codex đều KHÔNG sửa được lỗi deploy. Cần can thiệp thủ công.
+notify "⚠️ Cả agy, claude và codex đều KHÔNG sửa được lỗi deploy. Cần can thiệp thủ công.
 
 ❌ Lý do từng agent:
 $(printf '%s\n' "${AGENT_ERRORS[@]}")"
