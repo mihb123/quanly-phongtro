@@ -53,6 +53,15 @@ install_systemd_unit() {
 restart_backend_service() {
   run_sudo "$SYSTEMCTL_CMD" daemon-reload
   run_sudo "$SYSTEMCTL_CMD" enable "$SERVICE_NAME"
+  run_sudo "$SYSTEMCTL_CMD" stop "$SERVICE_NAME" || true
+
+  # Forcefully kill any remaining process holding the app port (e.g. from a manual dev server)
+  local app_port
+  if app_port=$(grep -E "^APP_PORT=" "$PROJECT_DIR/.env" | cut -d '=' -f2 | tr -d '"'\'' ') && [[ -n "$app_port" ]]; then
+    echo "Freeing port $app_port..."
+    fuser -k -9 "${app_port}/tcp" 2>/dev/null || true
+  fi
+
   run_sudo "$SYSTEMCTL_CMD" restart "$SERVICE_NAME"
   sleep 2
   run_sudo "$SYSTEMCTL_CMD" status "$SERVICE_NAME" --no-pager
