@@ -1,5 +1,10 @@
 # quanly-phongtro
 
+## Live Demo
+- **URL:** https://quanly.ptro.site
+- **Email:** `user@test.com`
+- **Pass:** `test01234`
+
 A full-stack property management application with a Go backend and a React frontend.
 
 In production the React frontend is built and **embedded into the Go binary**, so the whole app ships and runs as a **single executable** that serves both the API and the UI from the same origin (no separate web server needed). During development the frontend and backend still run as two separate dev servers.

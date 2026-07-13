@@ -7,8 +7,9 @@ import (
 )
 
 var (
-	ErrHouseNotFound = errors.New("house not found")
-	ErrRoomNotFound  = errors.New("room not found")
+	ErrHouseNotFound   = errors.New("house not found")
+	ErrRoomNotFound    = errors.New("room not found")
+	ErrHouseCodeExists = errors.New("Mã nhà đã tồn tại")
 )
 
 type House struct {
@@ -58,6 +59,9 @@ type HouseRepository interface {
 	CreateHouse(ctx context.Context, house *House) error
 	GetByID(ctx context.Context, id, managerID string) (*House, error)
 	GetHouseByCode(ctx context.Context, managerID, houseCode string) (*House, error)
+	// IsHouseCodeTaken reports whether houseCode is already used by any house
+	// system-wide (case-insensitive), ignoring the house identified by excludeHouseID.
+	IsHouseCodeTaken(ctx context.Context, houseCode, excludeHouseID string) (bool, error)
 	ListHouseByManagerID(ctx context.Context, managerID string, limit, offset int, search string) ([]House, error)
 	UpdateHouse(ctx context.Context, id, managerID string, params UpdateHouseParams) (*House, error)
 	DeleteHouse(ctx context.Context, id, managerID string) error

@@ -28,6 +28,8 @@ func TestHouseService_CreateHouse(t *testing.T) {
 		ManagerID: "manager-1",
 	}
 
+	// Happy path: house_code chưa tồn tại toàn hệ thống → cho phép tạo.
+	mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "").Return(false, nil)
 	mockRepo.EXPECT().CreateHouse(ctx, house).Return(nil)
 	mockCostRepo.EXPECT().Create(ctx, gomock.Any()).Return(nil)
 
@@ -38,6 +40,7 @@ func TestHouseService_CreateHouse(t *testing.T) {
 
 	// Error case
 	expectedErr := errors.New("db error")
+	mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "").Return(false, nil)
 	mockRepo.EXPECT().CreateHouse(ctx, house).Return(expectedErr)
 
 	err = houseService.CreateHouse(ctx, house)
@@ -46,12 +49,21 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	}
 
 	// Seed cost error case
+	mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "").Return(false, nil)
 	mockRepo.EXPECT().CreateHouse(ctx, house).Return(nil)
 	mockCostRepo.EXPECT().Create(ctx, gomock.Any()).Return(expectedErr)
 
 	err = houseService.CreateHouse(ctx, house)
 	if err != expectedErr {
 		t.Errorf("expected %v, got %v", expectedErr, err)
+	}
+
+	// Duplicate house code: mã đã bị nhà khác dùng → từ chối, không gọi CreateHouse.
+	mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "").Return(true, nil)
+
+	err = houseService.CreateHouse(ctx, house)
+	if !errors.Is(err, model.ErrHouseCodeExists) {
+		t.Errorf("expected ErrHouseCodeExists, got %v", err)
 	}
 }
 
@@ -151,6 +163,7 @@ func TestHouseService_UpdateHouse(t *testing.T) {
 			Name: "Updated Name",
 		}
 		expectedHouse := &model.House{ID: "house-1", Name: "Updated Name"}
+		mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "house-1").Return(false, nil)
 		mockRepo.EXPECT().UpdateHouse(ctx, "house-1", "manager-1", params).Return(expectedHouse, nil)
 
 		house, err := houseService.UpdateHouse(ctx, "house-1", "manager-1", input)
@@ -170,11 +183,36 @@ func TestHouseService_UpdateHouse(t *testing.T) {
 			Name: "Updated Name",
 		}
 		expectedErr := errors.New("db error")
+		mockRepo.EXPECT().IsHouseCodeTaken(ctx, "", "house-1").Return(false, nil)
 		mockRepo.EXPECT().UpdateHouse(ctx, "house-1", "manager-1", params).Return(nil, expectedErr)
 
 		_, err := houseService.UpdateHouse(ctx, "house-1", "manager-1", input)
 		if err != expectedErr {
 			t.Errorf("expected %v, got %v", expectedErr, err)
+		}
+	})
+
+	t.Run("Duplicate code on another house", func(t *testing.T) {
+		input := housesvc.UpdateHouseInput{Name: "Updated Name", HouseCode: "dup"}
+		mockRepo.EXPECT().IsHouseCodeTaken(ctx, "dup", "house-1").Return(true, nil)
+
+		_, err := houseService.UpdateHouse(ctx, "house-1", "manager-1", input)
+		if !errors.Is(err, model.ErrHouseCodeExists) {
+			t.Errorf("expected ErrHouseCodeExists, got %v", err)
+		}
+	})
+
+	t.Run("Keeps its own code", func(t *testing.T) {
+		input := housesvc.UpdateHouseInput{Name: "Updated Name", HouseCode: "same"}
+		params := model.UpdateHouseParams{Name: "Updated Name", HouseCode: "same"}
+		expectedHouse := &model.House{ID: "house-1", Name: "Updated Name", HouseCode: "same"}
+		// Mã bỏ qua chính nhà đang sửa (excludeID) → không coi là trùng → cho phép cập nhật.
+		mockRepo.EXPECT().IsHouseCodeTaken(ctx, "same", "house-1").Return(false, nil)
+		mockRepo.EXPECT().UpdateHouse(ctx, "house-1", "manager-1", params).Return(expectedHouse, nil)
+
+		_, err := houseService.UpdateHouse(ctx, "house-1", "manager-1", input)
+		if err != nil {
+			t.Errorf("error was not expected: %s", err)
 		}
 	})
 }

@@ -1,5 +1,18 @@
 export const HOUSE_CODE_PATTERN = /^[a-zA-Z0-9_-]+$/
 
+// isHouseCodeTaken kiểm tra nhanh (best-effort) house_code có trùng trong danh sách nhà đang có ở client chưa
+// (so khớp không phân biệt hoa/thường); bỏ qua nhà excludeId khi sửa. Backend mới là nơi kiểm tra trùng toàn hệ thống.
+export function isHouseCodeTaken(
+  houses: { id: string; house_code: string }[],
+  code: string,
+  excludeId?: string,
+): boolean {
+  const normalized = code.trim().toLowerCase()
+  return houses.some(
+    house => house.id !== excludeId && house.house_code.trim().toLowerCase() === normalized,
+  )
+}
+
 // generateHouseCode creates a short readable code from a house name.
 export function generateHouseCode(name: string) {
   const normalized = name

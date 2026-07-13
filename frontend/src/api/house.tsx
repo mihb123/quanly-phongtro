@@ -41,3 +41,11 @@ export const deleteHouse = async (id: string) => {
   const { data } = await apiClient.delete(`/house/${id}`)
   return data
 }
+
+// checkHouseCode hỏi backend xem house_code còn dùng được không (duy nhất toàn hệ thống); excludeId là nhà đang sửa (bỏ qua chính nó).
+export const checkHouseCode = async (code: string, excludeId?: string) => {
+  const params = new URLSearchParams({ code })
+  if (excludeId) params.set('exclude', excludeId)
+  const { data } = await apiClient.get(`/house/check-code?${params.toString()}`)
+  return data.data as { available: boolean }
+}

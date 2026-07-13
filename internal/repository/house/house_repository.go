@@ -61,6 +61,22 @@ func (r *HouseRepository) GetHouseByCode(ctx context.Context, managerID, houseCo
 	return &h, nil
 }
 
+// IsHouseCodeTaken reports whether house_code is used by any house system-wide
+// (case-insensitive), ignoring excludeHouseID (empty means check all houses).
+func (r *HouseRepository) IsHouseCodeTaken(ctx context.Context, houseCode, excludeHouseID string) (bool, error) {
+	q := r.db.NewSelect().
+		Model((*model.House)(nil)).
+		Where("LOWER(house_code) = LOWER(?)", houseCode)
+	if excludeHouseID != "" {
+		q = q.Where("id <> ?", excludeHouseID)
+	}
+	exists, err := q.Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("is house code taken: %w", err)
+	}
+	return exists, nil
+}
+
 func (r *HouseRepository) ListHouseByManagerID(ctx context.Context, managerID string, limit, offset int, search string) ([]model.House, error) {
 	var houses []model.House
 	q := r.db.NewSelect().

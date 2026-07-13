@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FocusEvent } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,9 +9,9 @@ import { formatNumber, parseNumber } from '@/utils/format'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import type { House } from '@/api/house'
+import { checkHouseCode, type House } from '@/api/house'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
-import { HOUSE_CODE_PATTERN } from '@/utils/houseCode'
+import { HOUSE_CODE_PATTERN, isHouseCodeTaken } from '@/utils/houseCode'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
@@ -41,10 +41,10 @@ interface EditHouseModalProps {
 
 // Modal cập nhật thông tin nhà trọ (giá mặc định, cách tính điện/nước, phụ thu). Vỏ dùng AppModal, giữ RHF/Zod + xác nhận khi dirty.
 export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
-  const { updateHouse } = useHouseStore()
+  const { updateHouse, houses } = useHouseStore()
   const { selectedHouse, selectHouse } = useSelectedStore()
   
-  const { register, handleSubmit, control, watch, setError, formState: { errors, isDirty } } = useForm<HouseFormValues>({
+  const { register, handleSubmit, control, watch, setError, clearErrors, formState: { errors, isDirty } } = useForm<HouseFormValues>({
     resolver: zodResolver(houseSchema),
     defaultValues: {
       name: house.name || '',
@@ -72,10 +72,36 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
+  // Kiểm tra tức thời house_code khi rời ô nhập: cảnh báo ngay nếu trùng nhà khác trong hệ thống (bỏ qua chính nhà đang sửa).
+  const handleHouseCodeBlur = async (e: FocusEvent<HTMLInputElement>) => {
+    const code = e.target.value.trim()
+    if (!code || !HOUSE_CODE_PATTERN.test(code) || code.length > 12) return // sai định dạng: để zod xử lý
+    if (isHouseCodeTaken(houses, code, house.id)) {
+      setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      return
+    }
+    try {
+      const { available } = await checkHouseCode(code, house.id)
+      if (!available) {
+        setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      } else {
+        clearErrors('house_code')
+      }
+    } catch {
+      // Bỏ qua lỗi mạng; backend vẫn validate khi submit.
+    }
+  }
+
   const onSubmit = async (values: HouseFormValues) => {
+    // Chặn sớm mã nhà trùng với nhà khác (bỏ qua chính nhà đang sửa); backend vẫn là nguồn kiểm tra cuối cùng.
+    if (isHouseCodeTaken(houses, values.house_code, house.id)) {
+      setError('house_code', { message: 'Mã nhà đã tồn tại, vui lòng chọn mã khác' })
+      return
+    }
+
     setIsLoading(true)
     try {
-      const res = await updateHouse(house.id, { 
+      const res = await updateHouse(house.id, {
          name: values.name, 
          house_code: values.house_code,
          address: values.address,
@@ -137,7 +163,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Mã nhà (House Code)</Label>
-              <Input {...register('house_code')} placeholder="vd: ntcg" maxLength={12} className="border-slate-200 dark:border-slate-700" />
+              <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-slate-200 dark:border-slate-700" />
               {errors.house_code && <span className="text-red-500 text-xs">{errors.house_code.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
