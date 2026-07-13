@@ -1,131 +1,135 @@
-# quanly-phongtro (Clean Architecture)
+# quanly-phongtro
 
-A full-stack property management application with a Go backend and a React frontend.
+[Bản tiếng Anh 🇺🇸](Documents/README_EN.md)
 
-In production the React frontend is built and **embedded into the Go binary**, so the whole app ships and runs as a **single executable** that serves both the API and the UI from the same origin (no separate web server needed). During development the frontend and backend still run as two separate dev servers.
+Ứng dụng quản lý nhà trọ/phòng trọ full-stack với backend viết bằng Go và frontend bằng React.
 
-## Main Features
+Trong môi trường thực tế (production), frontend React được build và **nhúng trực tiếp vào file thực thi Go**, do đó toàn bộ ứng dụng được đóng gói và chạy dưới dạng **một file thực thi duy nhất**, phục vụ cả API và giao diện (UI) từ cùng một nguồn (không cần web server riêng biệt). Trong quá trình phát triển (development), frontend và backend vẫn chạy như hai dev server riêng biệt.
 
-- **Authentication & Security:** Registration, login, refresh tokens, OTP-based email verification, and profile management with RBAC (manager/tenant roles). Secured via JWT with DPoP proofs, secure HTTP-only cookies, bcrypt password hashing, and AES-256 encryption for application secrets and bot tokens. Includes GeoIP and Geocoding integration for tracking. See [Documents/feature/security_dpop.md](Documents/feature/security_dpop.md).
-- **House & Room Management:** Complete CRUD operations for houses and rooms. Flexible configuration for rent prices, electricity, water, Wi-Fi, parking, and custom services/surcharges at both house and room levels.
-- **Tenant Management:** Room-based tenant registration, profile updates, storage of ID cards (CCCD) and contracts, along with comprehensive tenant search by room or house.
-- **Invoice & Payment Processing:** Automated monthly room invoicing encompassing utilities, services, surcharges, and discounts. Features include payment status tracking, transaction image storage, and dynamic invoice image generation.
-- **Revenue & Operating Costs:** Periodic expense recording and automated asynchronous aggregation of revenue, expenses, and profits per house using event-driven background workers (`EventBus` + `RevenueWorker`).
-- **Zalo & PayOS Integrations:** Automated payment links/QR code generation via PayOS with webhook-driven status updates. Deep Zalo integration featuring bot configurations, webhook handling, sending invoices directly via Zalo, Zalo bot commands (creating and updating invoices via chat), and a background cron service for active token health checks. See [Documents/feature/zalo_bot_feature.md](Documents/feature/zalo_bot_feature.md) and [Documents/feature/zalo_automation_mark_paid_invoice.md](Documents/feature/zalo_automation_mark_paid_invoice.md).
+## Các tính năng chính
 
-## Project Structure
+- **Xác thực & Bảo mật:** Đăng ký, đăng nhập, refresh token, xác minh email qua mã OTP, và quản lý hồ sơ với phân quyền RBAC (vai trò quản lý/người thuê). Bảo mật thông qua JWT với bằng chứng DPoP, cookie HTTP-only an toàn, băm mật khẩu bcrypt, và mã hóa AES-256 cho các secret của ứng dụng và token của bot. Bao gồm tích hợp GeoIP và Geocoding để theo dõi. Xem thêm [Documents/feature/security_dpop.md](Documents/feature/security_dpop.md).
+- **Quản lý nhà & phòng:** Các thao tác CRUD đầy đủ cho nhà và phòng. Cấu hình linh hoạt cho giá thuê, điện, nước, Wi-Fi, chỗ để xe, và các dịch vụ/phụ phí tùy chỉnh ở cả cấp độ nhà và phòng.
+- **Quản lý người thuê:** Đăng ký người thuê theo phòng, cập nhật hồ sơ, lưu trữ CCCD và hợp đồng, cùng với khả năng tìm kiếm người thuê toàn diện theo phòng hoặc nhà.
+- **Xử lý hóa đơn & Thanh toán:** Tự động tạo hóa đơn tiền phòng hàng tháng bao gồm các tiện ích, dịch vụ, phụ phí và giảm giá. Các tính năng bao gồm theo dõi trạng thái thanh toán, lưu trữ hình ảnh giao dịch và tạo hình ảnh hóa đơn động.
+- **Doanh thu & Chi phí vận hành:** Ghi nhận chi phí định kỳ và tự động tổng hợp không đồng bộ (asynchronous) doanh thu, chi phí và lợi nhuận cho từng nhà bằng cách sử dụng các background worker điều hướng qua sự kiện (`EventBus` + `RevenueWorker`).
+- **Tích hợp Zalo & PayOS:** Tự động tạo liên kết thanh toán/mã QR qua PayOS với cập nhật trạng thái thông qua webhook. Tích hợp sâu với Zalo bao gồm cấu hình bot, xử lý webhook, gửi hóa đơn trực tiếp qua Zalo, các lệnh bot Zalo (tạo và cập nhật hóa đơn qua chat), và dịch vụ cron chạy ngầm để kiểm tra trạng thái hoạt động của token. Xem thêm [Documents/feature/zalo_bot_feature.md](Documents/feature/zalo_bot_feature.md) và [Documents/feature/zalo_automation_mark_paid_invoice.md](Documents/feature/zalo_automation_mark_paid_invoice.md).
+- **Tích hợp SePay:** Payment provider chuyển khoản ngân hàng theo kiến trúc adapter (ưu tiên SePay trước PayOS). Manager cấu hình tài khoản nhận tiền theo từng người (mã hóa AES-256, secret truyền qua RSA), tạo QR chuyển khoản động cho hóa đơn, tự động đánh dấu hóa đơn `PAID` qua webhook SePay (xác thực API Key hoặc HMAC) hoặc đối soát thủ công qua SePay User API v2. Mọi giao dịch được ghi vào `payment_events` để audit. Xem thêm [Documents/feature/sepay_integration.md](Documents/feature/sepay_integration.md).
 
-This is a monorepo containing both the backend and frontend:
+## Cấu trúc dự án
+
+Đây là một monorepo chứa cả backend và frontend:
 
 ```text
 ├── cmd/
-│   ├── api/main.go               # Go Backend entrypoint
-│   └── seed/main.go              # Database seeder
-├── internal/                     # Go Backend (Clean Architecture)
-│   ├── model/                    # Entities and Interfaces
+│   ├── api/main.go               # Điểm vào (entrypoint) của Backend Go
+│   └── seed/main.go              # Database seeder (tạo dữ liệu mẫu)
+├── internal/                     # Backend Go (Kiến trúc Clean Architecture)
+│   ├── model/                    # Entities và Interfaces
 │   ├── handler/                  # HTTP Handlers (chi router)
 │   ├── service/                  # Business Logic & Rules
 │   ├── repository/               # Data Access (Bun ORM)
-│   ├── db/                       # Database connection setup
-│   ├── router/                   # API Routes configuration + SPA fallback
-│   ├── security/                 # JWT, bcrypt, encryption
-│   ├── assets/                   # Embedded assets (fonts, GeoIP DB)
-│   ├── web/                      # Embedded frontend build (dist) served by the API
-│   └── mock/                     # Mocks for unit testing
+│   ├── db/                       # Thiết lập kết nối cơ sở dữ liệu
+│   ├── router/                   # Cấu hình API Routes + SPA fallback
+│   ├── security/                 # JWT, bcrypt, mã hóa
+│   ├── assets/                   # Các tài sản được nhúng (fonts, DB GeoIP)
+│   ├── web/                      # Bản build frontend được nhúng (dist) phục vụ bởi API
+│   └── mock/                     # Mocks cho unit testing
 ├── migrations/                   # SQL Schema migrations (golang-migrate)
-└── frontend/                     # React Frontend
-    ├── src/components/           # Reusable UI components (shadcn)
-    ├── src/pages/                # Application views
-    ├── src/router/               # React Router configuration
-    └── src/data/                 # API integration and State (Zustand)
+└── frontend/                     # Frontend React
+    ├── src/components/           # Các UI component có thể tái sử dụng (shadcn)
+    ├── src/pages/                # Các trang (views) của ứng dụng
+    ├── src/router/               # Cấu hình React Router
+    └── src/data/                 # Tích hợp API và Quản lý trạng thái (Zustand)
 ```
 
-## Tech Stack
+## Công nghệ sử dụng
 
 ### Backend
-- **Language:** Go 1.26
+- **Ngôn ngữ:** Go 1.26
 - **Framework:** chi/v5 (Router)
-- **Database:** PostgreSQL with Bun ORM
+- **Cơ sở dữ liệu:** PostgreSQL với Bun ORM
 - **Migrations:** golang-migrate
 - **Validation:** go-playground/validator
-- **Security:** bcrypt + JWT
+- **Bảo mật:** bcrypt + JWT
 
 ### Frontend
 - **Framework:** React 19 + Vite
 - **Styling:** Tailwind CSS v4 + Base UI
-- **State Management:** Zustand
+- **Quản lý trạng thái:** Zustand
 - **Forms:** React Hook Form + Zod
 - **Routing:** React Router DOM v7
 
-## Environment Setup
+## Thiết lập môi trường
 
-Use `.env.example` as a reference to create your `.env` file in the root directory:
+Sử dụng file `.env.example` làm tài liệu tham khảo để tạo file `.env` của bạn ở thư mục gốc:
 ```bash
 cp .env.example .env
 ```
 
-## Running the Application
+## Chạy ứng dụng
 
-### 1. Database Migrations
+### 1. Database Migrations (Chạy kịch bản cơ sở dữ liệu)
 
-The project uses `golang-migrate` to manage the PostgreSQL database schema.
+Dự án sử dụng `golang-migrate` để quản lý schema cơ sở dữ liệu PostgreSQL.
 
-Apply all pending migrations:
+Áp dụng tất cả các migration đang chờ xử lý:
 ```bash
-# Load environment variables from .env
+# Tải các biến môi trường từ .env
 set -a && source .env && set +a
 
-# Run up migrations
+# Chạy up migrations
 migrate -path migrations -database "$POSTGRES_DSN" up
 ```
 
-*(Optional)* Seed test data:
+*(Tùy chọn)* Tạo dữ liệu mẫu (Seed):
 ```bash
 go run ./cmd/seed
 ```
 
-### 2. Development (backend + frontend run separately)
+### 2. Môi trường Phát triển (backend + frontend chạy riêng biệt)
 
-Start the backend:
+Khởi động backend:
 ```bash
 go run ./cmd/api
 ```
-The API server will start on port `8080` (or whatever `APP_PORT` is set to).
+API server sẽ khởi động trên cổng `8080` (hoặc bất kỳ cổng nào được đặt trong biến `APP_PORT`).
 
-Open a new terminal and start the Vite dev server (it proxies `/api` to the backend automatically):
+Mở một terminal mới và khởi động Vite dev server (nó sẽ tự động proxy các request `/api` sang backend):
 ```bash
 cd frontend
 pnpm install
 pnpm dev
 ```
-The frontend is served at `http://localhost:5173`.
+Frontend sẽ được phục vụ tại `http://localhost:5173`.
 
-> In dev mode the API serves **only** the API — the embedded frontend (`internal/web/dist`) is just a placeholder. The UI comes from the Vite dev server.
+> Trong chế độ dev, API **chỉ** phục vụ API — frontend được nhúng (`internal/web/dist`) chỉ là một placeholder (giữ chỗ). Giao diện người dùng sẽ được lấy từ Vite dev server.
 
-### 3. Production (single binary)
+### 3. Môi trường Thực tế (Production - file thực thi duy nhất)
 
-Build the frontend, embed it into the backend, and produce one self-contained executable:
+Build frontend, nhúng nó vào backend và tạo ra một file thực thi duy nhất:
 ```bash
 make build
 ```
-This runs `pnpm build`, copies `frontend/dist` into `internal/web/dist`, then `go build`. The resulting `quanly-phongtro-api` binary embeds the React app **and** the GeoIP database, and serves the UI plus the API on `APP_PORT`:
+Lệnh này sẽ chạy `pnpm build`, copy thư mục `frontend/dist` vào `internal/web/dist`, sau đó chạy `go build`. File binary `quanly-phongtro-api` thu được sẽ nhúng cả ứng dụng React **và** database GeoIP, và phục vụ cả UI cùng với API trên cổng `APP_PORT`:
 ```bash
 ./quanly-phongtro-api
 ```
-Open `http://localhost:8080` — the React UI is served directly; `/api/v1/*` is the API on the same origin.
+Mở `http://localhost:8080` — UI React được phục vụ trực tiếp; `/api/v1/*` là các API trên cùng một origin.
 
-> The binary is self-contained for code, frontend, and GeoIP. At runtime it still needs: a reachable **PostgreSQL**, the **`.env`** config file next to it, and an **`uploads/`** directory for stored files.
+> File thực thi tự bao gồm code, frontend và GeoIP. Tại thời điểm chạy (runtime), nó vẫn cần: một kết nối đến **PostgreSQL**, file cấu hình **`.env`** nằm cạnh nó và một thư mục **`uploads/`** để lưu trữ các file tải lên.
 
-## APIs Summary
+## Tổng quan API
 
-The backend exposes a RESTful API under the `/api/v1/` prefix. Key namespaces include:
+Backend cung cấp một RESTful API dưới tiền tố `/api/v1/`. Các namespace chính bao gồm:
 
-- **`Auth`** (`/api/v1/auth/*`): Registration, login, token refresh, and email verification.
-- **`House`** (`/api/v1/house/*`): CRUD operations for properties/houses (Managers only).
-- **`Room`** (`/api/v1/room/*`): CRUD operations for individual rooms within a house, including custom pricing and surcharges.
-- **`Tenant`** (`/api/v1/tenant/*`): Tenant registration and management per room/house.
-- **`Invoice`** (`/api/v1/invoice/*`): Generation, tracking, image generation, and payment status of monthly rent/utility invoices.
-- **`Zalo`** (`/api/v1/zalo/*`): Integration with Zalo mini-apps, bots, and webhook handling for notifications.
-- **`Health`** (`/health`): Public health-check endpoint.
+- **`Auth`** (`/api/v1/auth/*`): Đăng ký, đăng nhập, refresh token, và xác minh email.
+- **`House`** (`/api/v1/house/*`): Các thao tác CRUD cho các khu nhà/phòng trọ (Chỉ dành cho Quản lý).
+- **`Room`** (`/api/v1/room/*`): Các thao tác CRUD cho từng phòng trong một nhà, bao gồm định giá tùy chỉnh và phụ phí.
+- **`Tenant`** (`/api/v1/tenant/*`): Đăng ký và quản lý người thuê theo phòng/nhà.
+- **`Invoice`** (`/api/v1/invoice/*`): Tạo, theo dõi, tạo hình ảnh và trạng thái thanh toán của các hóa đơn tiện ích/tiền thuê phòng hàng tháng.
+- **`Zalo`** (`/api/v1/zalo/*`): Tích hợp với Zalo mini-app, bot, và xử lý webhook cho các thông báo.
+- **`Payments`** (`/api/v1/payments/*`): Cấu hình provider SePay, tạo QR/liên kết thanh toán, xử lý webhook chuyển khoản và đối soát giao dịch qua SePay API v2.
+- **`Health`** (`/health`): Endpoint kiểm tra tình trạng (health-check) công khai.
 
-*Note: All endpoints (except public auth & health) require a valid JWT Bearer token and appropriate role permissions.*
+*Lưu ý: Tất cả các endpoint (ngoại trừ auth & health công khai) đều yêu cầu một JWT Bearer token hợp lệ và quyền hạn vai trò tương ứng.*
