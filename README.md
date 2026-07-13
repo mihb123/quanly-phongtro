@@ -10,12 +10,13 @@
 ### Mobile
 
 <p align="center">
-  <img src="assets/guide.jpg" width="25%" />
-  <img src="assets/mobile-1.jpg" width="25%" />
-  <img src="assets/mobile-2.jpg" width="25%" />
-  <img src="assets/mobile-3.jpg" width="25%" />
-  <img src="assets/mobile-4.jpg" width="25%" />
-  <img src="assets/mobile-5.jpg" width="25%" />
+  <img src="assets/guide.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/mobile-1.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/mobile-2.jpg" width="28%" />
+  <br /><br />
+  <img src="assets/mobile-3.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/mobile-4.jpg" width="28%" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/mobile-5.jpg" width="28%" />
 </p>
 
 Ứng dụng quản lý nhà trọ/phòng trọ full-stack với backend viết bằng Go và frontend bằng React.
