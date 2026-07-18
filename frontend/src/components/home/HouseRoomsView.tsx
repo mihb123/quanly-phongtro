@@ -52,8 +52,8 @@ export function HouseRoomsView() {
           description="Vui lòng chọn một nhà trọ để xem danh sách phòng"
           className="border-b border-border pb-6"
           action={
-            <Button onClick={() => setShowCreateHouse(true)} className="font-bold">
-              <Plus className="size-4" /> Tạo nhà
+            <Button onClick={() => setShowCreateHouse(true)}>
+              <Plus data-icon="inline-start" /> Tạo nhà
             </Button>
           }
         />
@@ -69,12 +69,12 @@ export function HouseRoomsView() {
               className="cursor-pointer p-6 transition-all hover:shadow-md group"
             >
               <div className="flex items-center gap-4">
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform group-hover:scale-110">
-                  <Building className="size-6" />
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <Building className="size-5" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors truncate">{house.name}</h3>
-                  <p className="text-sm text-muted-foreground truncate">{house.address || 'Chưa cập nhật địa chỉ'}</p>
+                  <h3 className="truncate text-base font-semibold text-foreground">{house.name}</h3>
+                  <p className="truncate text-sm text-muted-foreground">{house.address || 'Chưa cập nhật địa chỉ'}</p>
                 </div>
               </div>
             </Card>
@@ -136,7 +136,7 @@ export function HouseRoomsView() {
         title={
           <span className="flex items-center gap-3">
             <span className="line-clamp-2">{selectedHouse.name}</span>
-            <Button variant="outline" size="sm" onClick={() => useSelectedStore.getState().selectHouse(null)} className="font-semibold md:hidden touch-target">
+            <Button variant="outline" size="sm" onClick={() => useSelectedStore.getState().selectHouse(null)} className="md:hidden">
               Đổi nhà
             </Button>
           </span>
@@ -144,11 +144,11 @@ export function HouseRoomsView() {
         description={selectedHouse.address}
         action={
           <>
-            <Button onClick={() => setShowQuickSetPrice(true)} variant="outline" className="flex-1 font-bold touch-target md:flex-none">
-              <DollarSign className="size-4" /> Set giá nhanh
+            <Button onClick={() => setShowQuickSetPrice(true)} variant="outline" className="flex-1 md:flex-none">
+              <DollarSign data-icon="inline-start" /> Set giá nhanh
             </Button>
-            <Button onClick={() => setShowCreateRoom(true)} className="flex-1 font-bold touch-target md:flex-none">
-              <Plus className="size-4" /> Thêm phòng
+            <Button onClick={() => setShowCreateRoom(true)} className="flex-1 md:flex-none">
+              <Plus data-icon="inline-start" /> Thêm phòng
             </Button>
           </>
         }
@@ -160,38 +160,38 @@ export function HouseRoomsView() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map((room, index) => (
-              <Card key={room.id} onClick={() => setEditRoom(room)} className="group relative cursor-pointer p-6 transition-shadow hover:shadow-md safe-fade-in slide-in-from-bottom-2 fill-mode-both" style={{ animationDelay: `${index * 50}ms` }}>
+              <Card key={room.id} onClick={() => setEditRoom(room)} className="group relative cursor-pointer p-5 transition-shadow hover:shadow-md safe-fade-in fill-mode-both" style={{ animationDelay: `${index * 30}ms` }}>
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
-                    <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform group-hover:scale-110">
-                      <DoorOpen className="size-5" />
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                      <DoorOpen className="size-4" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="font-bold text-lg text-foreground">{room.name}</h3>
+                      <h3 className="text-base font-semibold text-foreground">{room.name}</h3>
                       <StatusBadge status={room.status} />
                     </div>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="rounded-full text-muted-foreground hover:bg-success/10 hover:text-success" title="Thêm khách thuê">
-                      <UserPlus className="size-4" />
+                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="text-muted-foreground" title="Thêm khách thuê">
+                      <UserPlus />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary" title="Sửa thông tin phòng">
-                      <Pencil className="size-4" />
+                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="text-muted-foreground" title="Sửa thông tin phòng">
+                      <Pencil />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setRoomToDelete(room) }} className="rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive" title="Xóa phòng">
-                      <Trash2 className="size-4" />
+                    <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setRoomToDelete(room) }} className="text-muted-foreground hover:text-destructive" title="Xóa phòng">
+                      <Trash2 />
                     </Button>
                   </div>
                 </div>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex justify-between items-center rounded-md bg-secondary/50 p-2">
+                <div className="space-y-1 text-sm text-muted-foreground">
+                  <div className="flex justify-between items-center rounded-md bg-secondary/50 px-2 py-1.5">
                     <span>Giá thuê:</span>
-                    <span className="font-semibold text-foreground text-base">{(room.price || 0).toLocaleString()}đ</span>
+                    <span className="font-semibold tabular-nums text-foreground">{(room.price || 0).toLocaleString()}đ</span>
                   </div>
-                  <div className="flex justify-between items-center p-2">
+                  <div className="flex justify-between items-center px-2 py-1.5">
                     <span>Số người đang ở:</span>
                     <span
-                      className="font-semibold text-foreground cursor-pointer hover:text-primary hover:underline transition-colors"
+                      className="font-medium tabular-nums text-foreground cursor-pointer hover:underline"
                       title="Xem danh sách khách thuê"
                       onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('list') }}
                     >
@@ -214,7 +214,7 @@ export function HouseRoomsView() {
               >
                 Trang trước
               </Button>
-              <span className="text-sm font-bold text-muted-foreground">Trang {roomPage}</span>
+              <span className="text-sm font-medium tabular-nums text-muted-foreground">Trang {roomPage}</span>
               <Button
                 variant="outline"
                 size="sm"

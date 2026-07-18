@@ -20,10 +20,10 @@ export function EditNoteModal({ initialNote, onSave, onClose }: EditNoteModalPro
       title="Chỉnh sửa ghi chú"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} className="flex-1 font-bold sm:flex-none">
+          <Button variant="outline" onClick={onClose} className="flex-1 sm:flex-none">
             Hủy
           </Button>
-          <Button onClick={() => onSave(note)} className="flex-1 font-bold sm:flex-none">
+          <Button onClick={() => onSave(note)} className="flex-1 sm:flex-none">
             Hoàn tất
           </Button>
         </>

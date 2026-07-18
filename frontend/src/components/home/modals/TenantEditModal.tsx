@@ -155,16 +155,16 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
               {errors.startDate && <span className="text-destructive text-xs">{errors.startDate.message}</span>}
             </div>
 
-            <div className="space-y-4 col-span-2 mt-4 p-4 rounded-xl border border-border/50 bg-card">
-              <h3 className="text-sm font-bold text-foreground mb-2">Tài liệu đính kèm</h3>
+            <div className="space-y-4 col-span-2 mt-4 p-4 rounded-lg border border-border/50 bg-card">
+              <h3 className="text-sm font-medium text-foreground mb-2">Tài liệu đính kèm</h3>
               <div className="grid grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
                 {/* CCCD Upload */}
                 <div className="space-y-2 col-span-2 md:col-span-1">
                   <Label>Ảnh CCCD</Label>
                   {existingCccdPaths.length === 0 && cccdFiles.length === 0 ? (
-                    <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-xl border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
+                    <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
                       <Upload className="w-5 h-5 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground font-semibold px-4 text-center">Tải lên ảnh CCCD</span>
+                      <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên ảnh CCCD</span>
                       <input type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) setCccdFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
                     </label>
                   ) : (
@@ -173,8 +173,8 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                         <div key={`exist-cccd-${idx}`} className="flex flex-col gap-2">
                           <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                             <div className="flex items-center gap-2 overflow-hidden truncate">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                              <span className="text-[10px] font-semibold text-primary truncate">{getFileName(path)}</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                              <span className="text-xs font-semibold text-primary truncate">{getFileName(path)}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <button type="button" onClick={() => handleExistingImagePreview(path)} disabled={loadingFilePath === path} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer disabled:opacity-50" title="Xem trước">
@@ -198,7 +198,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                           ) : (
                             <div className="rounded-lg border border-border/50 aspect-video bg-muted/30 flex flex-col items-center justify-center text-muted-foreground">
                               <FileIcon className="w-8 h-8" />
-                              <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                              <span className="text-xs font-medium">FILE TÀI LIỆU</span>
                             </div>
                           )}
                         </div>
@@ -207,8 +207,8 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                         <div key={`new-cccd-${idx}`} className="flex flex-col gap-2">
                           <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                             <div className="flex items-center gap-2 overflow-hidden truncate">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                              <span className="text-[10px] font-semibold text-primary truncate">{file.name}</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                              <span className="text-xs font-semibold text-primary truncate">{file.name}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
@@ -243,9 +243,9 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                 <div className="space-y-2 col-span-2 md:col-span-1">
                   <Label>Hợp đồng</Label>
                   {existingContractPaths.length === 0 && contractFiles.length === 0 ? (
-                    <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-xl border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
+                    <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
                       <Upload className="w-5 h-5 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground font-semibold px-4 text-center">Tải lên hợp đồng</span>
+                      <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên hợp đồng</span>
                       <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { if (e.target.files) setContractFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
                     </label>
                   ) : (
@@ -254,8 +254,8 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                         <div key={`exist-contract-${idx}`} className="flex flex-col gap-2">
                           <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                             <div className="flex items-center gap-2 overflow-hidden truncate">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                              <span className="text-[10px] font-semibold text-primary truncate">{getFileName(path)}</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                              <span className="text-xs font-semibold text-primary truncate">{getFileName(path)}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               {isImagePath(path) && (
@@ -281,7 +281,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                           ) : (
                             <div className="rounded-lg border border-border/50 aspect-video bg-muted/30 flex flex-col items-center justify-center text-muted-foreground">
                               <FileIcon className="w-8 h-8" />
-                              <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                              <span className="text-xs font-medium">FILE TÀI LIỆU</span>
                             </div>
                           )}
                         </div>
@@ -290,8 +290,8 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                         <div key={`new-contract-${idx}`} className="flex flex-col gap-2">
                           <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                             <div className="flex items-center gap-2 overflow-hidden truncate">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                              <span className="text-[10px] font-semibold text-primary truncate">{file.name}</span>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                              <span className="text-xs font-semibold text-primary truncate">{file.name}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               {file.type.startsWith('image/') && (
@@ -317,7 +317,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                           ) : (
                             <div className="rounded-lg border border-border/50 aspect-video bg-muted/30 flex flex-col items-center justify-center text-muted-foreground">
                               <FileIcon className="w-8 h-8" />
-                              <span className="text-[10px] font-bold">FILE TÀI LIỆU</span>
+                              <span className="text-xs font-medium">FILE TÀI LIỆU</span>
                             </div>
                           )}
                         </div>
@@ -335,8 +335,8 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t border-border/40">
-            <Button type="button" variant="outline" onClick={onClose} className="font-bold cursor-pointer">Hủy</Button>
-            <Button type="submit" disabled={isSubmitting} className="shadow-sm font-bold transition-all cursor-pointer">
+            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>
@@ -361,10 +361,10 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess }: TenantEdit
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <div className="bg-card text-card-foreground p-8 rounded-2xl flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-card text-card-foreground p-8 rounded-lg flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
                 <FileIcon className="w-16 h-16 text-primary" />
                 <div>
-                  <h3 className="font-bold text-foreground text-xl">Định dạng file đặc biệt</h3>
+                  <h3 className="font-medium text-foreground text-xl">Định dạng file đặc biệt</h3>
                   <p className="text-muted-foreground">File này không thể xem trước trực tiếp.</p>
                 </div>
                 <Button onClick={() => window.open(selectedImageUrl, '_blank')} className="shadow-sm">Tải về hoặc Mở tab mới</Button>

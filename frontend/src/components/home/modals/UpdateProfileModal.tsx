@@ -139,13 +139,13 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
 
           {/* Thông tin cá nhân */}
           <div className="space-y-4">
-            <h3 className="font-bold text-foreground text-sm flex items-center gap-2 border-b border-border/40 pb-2">
+            <h3 className="font-medium text-foreground text-sm flex items-center gap-2 border-b border-border/40 pb-2">
               <Shield className="w-4 h-4 text-muted-foreground"/>
               Thông tin cá nhân
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Họ và tên</Label>
+                <Label className="text-xs font-semibold text-muted-foreground">Họ và tên</Label>
                 <div className="relative">
                   <UserCircle className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input {...register('full_name')} placeholder="Nhập họ tên" className="pl-9 border-border/60 bg-background" />
@@ -154,7 +154,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Số điện thoại</Label>
+                <Label className="text-xs font-semibold text-muted-foreground">Số điện thoại</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input {...register('phone')} placeholder="09xxxxxxx" className="pl-9 border-border/60 bg-background" />
@@ -166,7 +166,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full justify-start gap-3 h-12 rounded-xl border-border/60 hover:bg-secondary transition-colors"
+                  className="w-full justify-start gap-3 h-12 rounded-lg border-border/60 hover:bg-secondary transition-colors"
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
@@ -177,8 +177,8 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                     <Key className="w-4 h-4 text-primary" />
                   </div>
                   <div className="flex flex-col items-start">
-                    <span className="font-bold text-sm">Đổi mật khẩu</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">Bảo mật tài khoản của bạn</span>
+                    <span className="font-medium text-sm">Đổi mật khẩu</span>
+                    <span className="text-xs text-muted-foreground font-normal">Bảo mật tài khoản của bạn</span>
                   </div>
                 </Button>
               </div>
@@ -187,14 +187,14 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
 
           {/* Giao diện: chọn theme màu, áp dụng ngay và lưu vào tài khoản để đồng bộ đa thiết bị */}
           <div className="space-y-4">
-            <h3 className="font-bold text-foreground text-sm flex items-center gap-2 border-b border-border/40 pb-2">
+            <h3 className="font-medium text-foreground text-sm flex items-center gap-2 border-b border-border/40 pb-2">
               <Droplets className="w-4 h-4 text-muted-foreground" />
               Giao diện
             </h3>
 
             {/* Chế độ sáng/tối/hệ thống — áp dụng ngay và lưu để đồng bộ đa thiết bị */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Chế độ</Label>
+              <Label className="text-xs font-semibold text-muted-foreground">Chế độ</Label>
               <div className="grid grid-cols-3 gap-2">
                 {COLOR_MODES.map((mode) => {
                   const Icon = COLOR_MODE_ICONS[mode.id]
@@ -207,7 +207,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                       onClick={() => handleSelectMode(mode.id)}
                       disabled={savingMode !== null}
                       aria-pressed={isActive}
-                      className={`cursor-pointer flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 transition-colors disabled:opacity-60 ${
+                      className={`cursor-pointer flex flex-col items-center justify-center gap-1.5 rounded-lg border py-3 transition-colors disabled:opacity-60 ${
                         isActive
                           ? 'border-primary ring-2 ring-primary/30 bg-primary/5 text-primary'
                           : 'border-border/60 hover:bg-secondary text-muted-foreground'
@@ -218,7 +218,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                       ) : (
                         <Icon className="h-5 w-5" />
                       )}
-                      <span className="text-xs font-bold">{mode.label}</span>
+                      <span className="text-xs font-medium">{mode.label}</span>
                     </button>
                   )
                 })}
@@ -226,7 +226,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Tông màu — chọn theme màu (Red/Sky) */}
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tông màu</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Tông màu</Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {THEMES.map((theme) => {
                 const isActive = activeTheme === theme.id
@@ -238,7 +238,7 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                     onClick={() => handleSelectTheme(theme.id)}
                     disabled={savingTheme !== null}
                     aria-pressed={isActive}
-                    className={`cursor-pointer relative flex items-center gap-3 rounded-xl border p-3 text-left transition-colors disabled:opacity-60 ${
+                    className={`cursor-pointer relative flex items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:opacity-60 ${
                       isActive
                         ? 'border-primary ring-2 ring-primary/30 bg-primary/5'
                         : 'border-border/60 hover:bg-secondary'
@@ -249,8 +249,8 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                       style={{ backgroundColor: theme.swatch }}
                     />
                     <span className="flex flex-col">
-                      <span className="font-bold text-sm">{theme.label}</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">{theme.description}</span>
+                      <span className="font-medium text-sm">{theme.label}</span>
+                      <span className="text-xs text-muted-foreground font-normal">{theme.description}</span>
                     </span>
                     {isSaving ? (
                       <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
@@ -273,14 +273,14 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
                 await logout()
                 navigate('/login')
               }}
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive gap-2 font-bold rounded-xl px-4"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut className="w-4 h-4" /> Đăng xuất
             </Button>
 
             <div className="flex gap-3">
-              <Button type="button" variant="outline" onClick={onClose} className="font-bold rounded-xl px-6">Hủy</Button>
-              <Button type="submit" disabled={isLoading} className="shadow-sm font-bold rounded-xl px-6 flex items-center gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+              <Button type="submit" disabled={isLoading}>
                 {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu thay đổi</>}
               </Button>
             </div>

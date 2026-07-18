@@ -134,8 +134,8 @@ export function DashboardView() {
         title="Tổng quan"
         description={`Quản lý ${houses.length} nhà trọ với tổng cộng ${totalRooms} phòng.`}
         action={
-          <Button onClick={() => setShowCreateHouse(true)} className="font-bold touch-target">
-            <Plus className="size-4" /> Tạo nhà trọ
+          <Button onClick={() => setShowCreateHouse(true)}>
+            <Plus data-icon="inline-start" /> Tạo nhà trọ
           </Button>
         }
       />
@@ -156,8 +156,8 @@ export function DashboardView() {
           icon={TrendingUp}
           tone="info"
           sub={
-            <span className="flex items-center gap-1 text-success">
-              <CheckCircle2 className="size-3 shrink-0" />
+            <span className="flex items-center gap-1">
+              <CheckCircle2 className="size-3 shrink-0 text-success" />
               <span className="truncate">Đã thu: {formatCurrency(collectedRevenue)}</span>
             </span>
           }
@@ -167,7 +167,7 @@ export function DashboardView() {
           value={`${pendingInvoicesCount} phiếu`}
           icon={AlertCircle}
           tone="warning"
-          sub={<span className="text-warning">Tổng nợ: {formatCurrency(unpaidRevenue)}</span>}
+          sub={`Tổng nợ: ${formatCurrency(unpaidRevenue)}`}
         />
         <StatCard
           label="Tỷ lệ lấp đầy"
@@ -196,8 +196,9 @@ export function DashboardView() {
             icon={AlertCircle}
             title={`Cần thu tiền (${unpaidInvoices.length})`}
             action={
-              <Button variant="ghost" size="sm" onClick={() => setActiveTab('invoices')} className="text-xs font-semibold text-primary">
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab('invoices')} className="text-muted-foreground">
                 Xem tất cả
+                <ArrowRight data-icon="inline-end" />
               </Button>
             }
             bodyClassName="divide-y divide-border/40 max-h-[300px] overflow-y-auto"
@@ -210,11 +211,11 @@ export function DashboardView() {
               unpaidInvoices.map(inv => (
                 <div key={inv.id} className="p-4 hover:bg-secondary/30 transition-colors flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('invoices')}>
                   <div>
-                    <p className="font-bold text-sm text-foreground">{inv.room_name}</p>
+                    <p className="text-sm font-medium text-foreground">{inv.room_name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">Kỳ: {inv.period}</p>
                   </div>
                   <div className="text-right space-y-1">
-                    <p className="font-bold text-sm text-warning">{formatCurrency(inv.total_amount)}</p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(inv.total_amount)}</p>
                     <StatusBadge status={inv.status} />
                   </div>
                 </div>
@@ -241,13 +242,13 @@ export function DashboardView() {
                       {inv.status === 'PAID' ? <CheckCircle2 className="size-4" /> : <Clock className="size-4" />}
                     </div>
                     <div>
-                      <p className="font-semibold text-sm text-foreground">{inv.room_name} <span className="text-muted-foreground font-normal">· Kỳ {inv.period}</span></p>
+                      <p className="text-sm font-medium text-foreground">{inv.room_name} <span className="text-muted-foreground font-normal">· Kỳ {inv.period}</span></p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {new Date(inv.created_at).toLocaleDateString('vi-VN')}
                       </p>
                     </div>
                   </div>
-                  <p className="font-bold text-sm text-foreground">{formatCurrency(inv.total_amount)}</p>
+                  <p className="text-sm font-semibold tabular-nums text-foreground">{formatCurrency(inv.total_amount)}</p>
                 </div>
               ))
             )}
@@ -275,11 +276,11 @@ export function DashboardView() {
                   onClick={() => navigateToHouse(room.house_id)}
                 >
                   <div className="flex justify-between items-start mb-1">
-                    <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{room.name}</p>
-                    <p className="font-semibold text-sm text-foreground">{room.price ? formatCurrency(room.price) : 'Chưa đặt giá'}</p>
+                    <p className="text-sm font-medium text-foreground">{room.name}</p>
+                    <p className="text-sm font-semibold tabular-nums text-foreground">{room.price ? formatCurrency(room.price) : 'Chưa đặt giá'}</p>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-md line-clamp-1">{room.houseName}</p>
+                    <p className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-sm line-clamp-1">{room.houseName}</p>
                     <ArrowRight className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>

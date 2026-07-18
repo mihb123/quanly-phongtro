@@ -113,10 +113,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <form onSubmit={handleSubmit(onSubmit)} className="contents">
           <CardHeader>
-            <div className="flex items-center justify-center size-12 rounded-xl bg-primary/10 border border-primary/20 mb-2">
+            <div className="flex items-center justify-center size-12 rounded-lg bg-primary/10 border border-primary/20 mb-2">
               <LogIn className="size-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">Đăng nhập</CardTitle>
+            <CardTitle className="text-2xl font-semibold tracking-tight">Đăng nhập</CardTitle>
             <CardDescription>
               Nhập email và mật khẩu của bạn để tiếp tục
             </CardDescription>
@@ -137,7 +137,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="vd: user@example.com"
-                className="h-11"
+               
                 {...register('email')}
               />
               {errors.email && (
@@ -154,7 +154,7 @@ export default function LoginPage() {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập mật khẩu"
-                  className="h-11 pr-10"
+                  className="pr-10"
                   {...register('password')}
                 />
                 <button
@@ -176,7 +176,7 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 font-semibold"
+              className="w-full"
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

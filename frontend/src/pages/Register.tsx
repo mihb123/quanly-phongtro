@@ -102,10 +102,10 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <form onSubmit={handleSubmit(onSubmit)} className="contents">
           <CardHeader>
-            <div className="flex items-center justify-center size-12 rounded-xl bg-primary/10 border border-primary/20 mb-2">
+            <div className="flex items-center justify-center size-12 rounded-lg bg-primary/10 border border-primary/20 mb-2">
               <UserPlus className="size-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">Đăng ký tài khoản</CardTitle>
+            <CardTitle className="text-2xl font-semibold tracking-tight">Đăng ký tài khoản</CardTitle>
             <CardDescription>
               Tạo tài khoản mới để bắt đầu sử dụng
             </CardDescription>
@@ -126,7 +126,7 @@ export default function RegisterPage() {
                 id="email"
                 type="email"
                 placeholder="Nhập địa chỉ email"
-                className="h-11"
+               
                 {...register('email')}
               />
               {errors.email && (
@@ -143,7 +143,7 @@ export default function RegisterPage() {
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập mật khẩu"
-                  className="h-11 pr-10"
+                  className="pr-10"
                   {...register('password')}
                 />
                 <button
@@ -169,7 +169,7 @@ export default function RegisterPage() {
                   id="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Nhập lại mật khẩu"
-                  className="h-11 pr-10"
+                  className="pr-10"
                   {...register('confirmPassword')}
                 />
                 <button
@@ -191,7 +191,7 @@ export default function RegisterPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full h-11 font-semibold"
+              className="w-full"
             >
               {isLoading ? (
                 <span className="flex items-center gap-2">

@@ -119,8 +119,8 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
           </div>
           
           <hr className="my-2 border-border/50" />
-          <div className="bg-muted/30 p-4 rounded-xl border border-border/50">
-             <h3 className="font-bold text-foreground text-sm">Tuỳ chỉnh giá phát sinh riêng</h3>
+          <div className="bg-muted/30 p-4 rounded-lg border border-border/50">
+             <h3 className="font-medium text-foreground text-sm">Tuỳ chỉnh giá phát sinh riêng</h3>
              <p className="text-xs text-muted-foreground mb-3">Nếu để trống, hệ thống sẽ tự động dùng giá mặc định của nhà trọ.</p>
              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                 <div className="space-y-1">
@@ -176,8 +176,8 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
               </div>
           </div>
 
-          <div className="bg-secondary/30 p-4 rounded-xl border border-border/50">
-             <h3 className="font-bold text-foreground text-sm">Phụ thu vượt mức</h3>
+          <div className="bg-secondary/30 p-4 rounded-lg border border-border/50">
+             <h3 className="font-medium text-foreground text-sm">Phụ thu vượt mức</h3>
              <p className="text-xs text-muted-foreground mb-3">Nếu để trống, hệ thống sẽ tự động dùng cấu hình mặc định của nhà trọ.</p>
              <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="space-y-1">
@@ -211,8 +211,8 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
              </div>
           </div>
 
-          <div className="bg-info/10 p-4 rounded-xl border border-info/30">
-             <h3 className="font-bold text-info text-sm mb-1">Zalo Bot Auto-linking</h3>
+          <div className="bg-info/10 p-4 rounded-lg border border-info/30">
+             <h3 className="font-medium text-info text-sm mb-1">Zalo Bot Auto-linking</h3>
              <p className="text-xs text-info/80 mb-3">Group Chat ID sẽ tự động cập nhật khi bot được thêm vào nhóm. Bạn có thể sửa thủ công nếu bị lỗi.</p>
              <div className="space-y-1">
                <Label className="text-xs text-info">Group Chat ID</Label>
@@ -221,8 +221,8 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} className="font-bold">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="shadow-sm font-bold">
+            <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>

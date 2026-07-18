@@ -13,11 +13,13 @@ const iconChipClass: Record<StatTone, string> = {
   info: 'bg-info/15 text-info',
 }
 
+// Giá trị giữ màu foreground trung tính (tone chỉ thể hiện qua icon chip);
+// riêng negative giữ màu destructive vì là cảnh báo nghiệp vụ thực sự.
 const valueClass: Record<StatTone, string> = {
   default: 'text-foreground',
-  positive: 'text-success',
+  positive: 'text-foreground',
   negative: 'text-destructive',
-  warning: 'text-warning',
+  warning: 'text-foreground',
   info: 'text-foreground',
 }
 
@@ -46,12 +48,12 @@ export function StatCard({ label, value, icon: Icon, tone = 'default', sub, onCl
         <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', iconChipClass[tone])}>
           <Icon className="size-4" />
         </span>
-        <h3 className="line-clamp-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:text-xs">
+        <h3 className="line-clamp-1 text-xs font-medium text-muted-foreground">
           {label}
         </h3>
       </div>
-      <p className={cn('truncate text-lg font-extrabold sm:text-2xl', valueClass[tone])}>{value}</p>
-      {sub ? <div className="text-[10px] font-medium text-muted-foreground sm:text-xs">{sub}</div> : null}
+      <p className={cn('truncate text-lg font-semibold tabular-nums sm:text-2xl', valueClass[tone])}>{value}</p>
+      {sub ? <div className="text-xs text-muted-foreground">{sub}</div> : null}
     </Card>
   )
 }
