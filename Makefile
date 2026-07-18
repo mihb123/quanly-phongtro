@@ -5,6 +5,7 @@ BINARY ?= quanly-phongtro-api
 build: frontend
 	rm -rf internal/web/dist
 	cp -r frontend/dist internal/web/dist
+	touch internal/web/dist/.gitkeep
 	CGO_ENABLED=0 go build -o $(BINARY) ./cmd/api
 	@echo "Built single binary: ./$(BINARY)"
 

@@ -220,10 +220,10 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             </div>
             
             {/* Điện */}
-            <div className="space-y-2 col-span-2 bg-muted/30 rounded-xl p-4 border border-border/50">
+            <div className="space-y-2 col-span-2 bg-muted/30 rounded-lg p-4 border border-border/50">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-foreground">Cách tính tiền điện</Label>
+                  <Label className="text-xs font-medium text-foreground">Cách tính tiền điện</Label>
                   <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
@@ -231,7 +231,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                 </div>
                 {electricityBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-foreground">Đơn vị tính</Label>
+                    <Label className="text-xs font-medium text-foreground">Đơn vị tính</Label>
                     <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
@@ -252,10 +252,10 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Nước */}
-            <div className="space-y-2 col-span-2 bg-muted/30 rounded-xl p-4 border border-border/50">
+            <div className="space-y-2 col-span-2 bg-muted/30 rounded-lg p-4 border border-border/50">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-foreground">Cách tính tiền nước</Label>
+                  <Label className="text-xs font-medium text-foreground">Cách tính tiền nước</Label>
                   <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
@@ -263,7 +263,7 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                 </div>
                 {waterBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-foreground">Đơn vị tính</Label>
+                    <Label className="text-xs font-medium text-foreground">Đơn vị tính</Label>
                     <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
@@ -316,8 +316,8 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Phụ thu */}
-            <div className="space-y-2 col-span-2 bg-secondary/30 rounded-xl p-4 border border-border/50 mt-2">
-              <Label className="text-xs font-bold text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
+            <div className="space-y-2 col-span-2 bg-secondary/30 rounded-lg p-4 border border-border/50 mt-2">
+              <Label className="text-xs font-medium text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Phụ thu nếu quá X người</Label>
@@ -346,13 +346,13 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
+              <p className="text-xs text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
             </div>
           </div>
           
           <hr className="my-4 border-border/50" />
-          <div className="space-y-4 bg-secondary/20 rounded-xl p-4 border border-border/50">
-            <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+          <div className="space-y-4 bg-secondary/20 rounded-lg p-4 border border-border/50">
+            <h3 className="font-medium text-foreground text-sm flex items-center gap-2">
               <Building className="w-4 h-4 text-primary"/>
               Cấu trúc số phòng theo tầng
             </h3>
@@ -383,8 +383,8 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} className="font-bold">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="shadow-sm font-bold">
+            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? 'Đang khởi tạo...' : 'Xác nhận tạo'}
             </Button>
           </div>

@@ -2,7 +2,7 @@
 // Each theme id maps to a `[data-theme="..."]` block in src/index.css and must
 // stay in sync with the backend allow-list (internal/service/auth_service.go).
 
-export type ThemeId = 'lime' | 'sky'
+export type ThemeId = 'neutral' | 'lime' | 'sky'
 
 export interface ThemeOption {
   id: ThemeId
@@ -12,12 +12,18 @@ export interface ThemeOption {
   swatch: string
 }
 
-export const DEFAULT_THEME: ThemeId = 'lime'
+export const DEFAULT_THEME: ThemeId = 'neutral'
 
 // Storage key shared with the inline boot script in index.html (no-flash).
 export const THEME_STORAGE_KEY = 'color-theme'
 
 export const THEMES: ThemeOption[] = [
+  {
+    id: 'neutral',
+    label: 'Neutral',
+    description: 'Tối giản, tinh tế (mặc định)',
+    swatch: 'oklch(0.205 0 0)',
+  },
   {
     id: 'lime',
     label: 'Lime',

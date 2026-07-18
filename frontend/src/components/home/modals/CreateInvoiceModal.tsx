@@ -187,10 +187,10 @@ export function CreateInvoiceModal({ onClose }: Props) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Nhà trọ</label>
+              <label className="text-sm font-medium text-foreground">Nhà trọ</label>
               <select 
                 {...register('house_id')}
-                className="w-full h-11 px-3 rounded-xl border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
                 disabled={isHouseLoading}
               >
                 <option value="">-- Chọn nhà trọ --</option>
@@ -202,10 +202,10 @@ export function CreateInvoiceModal({ onClose }: Props) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-bold text-foreground">Phòng</label>
+              <label className="text-sm font-medium text-foreground">Phòng</label>
               <select 
                 {...register('room_id')}
-                className="w-full h-11 px-3 rounded-xl border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
                 disabled={!watchHouseId || isLoadingRoom}
               >
                 <option value="">{isLoadingRoom ? 'Đang tìm phòng...' : '-- Chọn phòng --'}</option>
@@ -218,11 +218,11 @@ export function CreateInvoiceModal({ onClose }: Props) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-bold text-foreground">Kỳ hóa đơn</label>
+            <label className="text-sm font-medium text-foreground">Kỳ hóa đơn</label>
             <Input 
               type="month"
               {...register('period')}
-              className="h-11 rounded-xl border-border bg-background"
+              className="h-11 rounded-lg border-border bg-background"
             />
             {errors.period && <p className="text-destructive text-xs font-medium">{errors.period.message}</p>}
           </div>
@@ -233,21 +233,21 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isElectricityFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Chỉ số điện cũ (tùy chọn)</label>
+                    <label className="text-sm font-medium text-foreground">Chỉ số điện cũ (tùy chọn)</label>
                     <Input 
                       type="number" 
                       {...register('old_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Tự động tính nếu trống"
                     />
                     {errors.old_electricity_index && <p className="text-destructive text-xs font-medium">{errors.old_electricity_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Chỉ số điện mới</label>
+                    <label className="text-sm font-medium text-foreground">Chỉ số điện mới</label>
                     <Input 
                       type="number" 
                       {...register('new_electricity_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Ví dụ: 1520"
                     />
                     {errors.new_electricity_index && <p className="text-destructive text-xs font-medium">{errors.new_electricity_index.message}</p>}
@@ -258,21 +258,21 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isWaterFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Chỉ số nước cũ (tùy chọn)</label>
+                    <label className="text-sm font-medium text-foreground">Chỉ số nước cũ (tùy chọn)</label>
                     <Input 
                       type="number" 
                       {...register('old_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Tự động tính nếu trống"
                     />
                     {errors.old_water_index && <p className="text-destructive text-xs font-medium">{errors.old_water_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Chỉ số nước mới</label>
+                    <label className="text-sm font-medium text-foreground">Chỉ số nước mới</label>
                     <Input 
                       type="number" 
                       {...register('new_water_index', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Ví dụ: 105"
                     />
                     {errors.new_water_index && <p className="text-destructive text-xs font-medium">{errors.new_water_index.message}</p>}
@@ -284,7 +284,7 @@ export function CreateInvoiceModal({ onClose }: Props) {
 
           {/* Info khi FIXED */}
           {(isElectricityFixed || isWaterFixed) && (
-            <div className="bg-primary/10 border border-primary/20 rounded-xl p-3 text-xs text-primary font-medium space-y-1">
+            <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-xs text-primary font-medium space-y-1">
               {isElectricityFixed && (
                 <p>⚡ Tiền điện tính theo giá mặc định ({selectedHouseData?.electricity_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
               )}
@@ -294,13 +294,13 @@ export function CreateInvoiceModal({ onClose }: Props) {
             </div>
           )}
 
-          <div className="border border-border/40 rounded-xl overflow-hidden bg-card">
+          <div className="border border-border/40 rounded-lg overflow-hidden bg-card">
             <button 
               type="button" 
               onClick={() => setIsAdditionalOpen(!isAdditionalOpen)}
               className="w-full flex justify-between items-center p-4 hover:bg-muted/30 transition-colors focus:outline-none"
             >
-              <span className="text-sm font-bold text-foreground">Thông tin bổ sung</span>
+              <span className="text-sm font-medium text-foreground">Thông tin bổ sung</span>
               <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isAdditionalOpen ? 'rotate-180' : ''}`} />
             </button>
             
@@ -308,22 +308,22 @@ export function CreateInvoiceModal({ onClose }: Props) {
               <div className="p-4 pt-0 space-y-4 border-t border-border/40 mt-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Số người ở</label>
+                    <label className="text-sm font-medium text-foreground">Số người ở</label>
                     <Input 
                       type="number" 
                       {...register('tenant_count', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Ví dụ: 2"
                     />
                     {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Số lượng xe</label>
+                    <label className="text-sm font-medium text-foreground">Số lượng xe</label>
                     <Input 
                       type="number" 
                       {...register('vehicle_count', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="Ví dụ: 2"
                     />
                     {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
@@ -332,22 +332,22 @@ export function CreateInvoiceModal({ onClose }: Props) {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Phí khác (VNĐ)</label>
+                    <label className="text-sm font-medium text-foreground">Phí khác (VNĐ)</label>
                     <Input 
                       type="number" 
                       {...register('other_fee', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="0"
                     />
                     {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-foreground">Giảm giá (VNĐ)</label>
+                    <label className="text-sm font-medium text-foreground">Giảm giá (VNĐ)</label>
                     <Input 
                       type="number" 
                       {...register('discount', { valueAsNumber: true })}
-                      className="h-11 rounded-xl border-border bg-background"
+                      className="h-11 rounded-lg border-border bg-background"
                       placeholder="0"
                     />
                     {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
@@ -362,14 +362,14 @@ export function CreateInvoiceModal({ onClose }: Props) {
               type="button" 
               variant="outline" 
               onClick={onClose}
-              className="flex-1 rounded-xl h-12 font-bold cursor-pointer"
+              className="flex-1"
             >
               Hủy bỏ
             </Button>
             <Button 
               type="submit" 
               disabled={isSubmitting}
-              className="flex-1 rounded-xl h-12 shadow-sm font-bold cursor-pointer active:scale-95 transition-all"
+              className="flex-1"
             >
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Tạo hóa đơn'}
             </Button>

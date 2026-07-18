@@ -1,36 +1,34 @@
 import { LayoutDashboard, Building2, Users, Receipt, Wallet } from '@/components/icons'
-import { useSelectedStore } from '@/data/selectedData'
+import { useSelectedStore, type TabType } from '@/data/selectedData'
+import { cn } from '@/lib/utils'
 
 export function MobileNav() {
   const { activeTab, setActiveTab } = useSelectedStore()
 
-  const tabs = [
+  const tabs: { id: TabType; icon: typeof LayoutDashboard; label: string }[] = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
     { id: 'house_rooms', icon: Building2, label: 'Nhà trọ' },
     { id: 'tenants', icon: Users, label: 'Khách thuê' },
     { id: 'invoices', icon: Receipt, label: 'Hóa đơn' },
-    { id: 'revenue', icon: Wallet, label: 'Doanh thu' }
-  ] as const
+    { id: 'revenue', icon: Wallet, label: 'Doanh thu' },
+  ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.02)] safe-bottom pb-[env(safe-area-inset-bottom)] md:hidden">
-      <div className="flex items-center justify-around p-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background safe-bottom pb-[env(safe-area-inset-bottom)] md:hidden">
+      <div className="flex items-center justify-around px-2 py-1">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'dashboard' | 'house_rooms' | 'tenants' | 'invoices')}
-              className={`flex flex-col items-center justify-center min-w-[64px] touch-target rounded-xl transition-all active:scale-95 cursor-pointer ${
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              }`}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'flex min-w-16 touch-target cursor-pointer flex-col items-center justify-center gap-1 rounded-md transition-colors active:scale-95',
+                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+              )}
             >
-              <div className={`p-1.5 rounded-lg mb-1 transition-colors ${isActive ? 'bg-primary/10' : ''}`}>
-                <tab.icon className={`w-5 h-5 ${isActive ? 'fill-primary/20' : ''}`} />
-              </div>
-              <span className={`text-[10px] font-bold ${isActive ? 'text-primary' : ''}`}>
-                {tab.label}
-              </span>
+              <tab.icon className="size-5" />
+              <span className="text-[11px] font-medium">{tab.label}</span>
             </button>
           )
         })}

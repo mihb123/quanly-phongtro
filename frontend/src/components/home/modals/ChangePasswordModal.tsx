@@ -71,7 +71,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mật khẩu cũ</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Mật khẩu cũ</Label>
             <div className="relative">
               <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input type="password" {...register('old_password')} placeholder="Nhập mật khẩu hiện tại" className="pl-9 border-border/60 bg-background" />
@@ -80,7 +80,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="space-y-2 pt-2 border-t border-border/40">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Mật khẩu mới</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Mật khẩu mới</Label>
             <div className="relative">
               <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input type="password" {...register('password')} placeholder="Nhập mật khẩu mới" className="pl-9 border-border/60 bg-background" />
@@ -89,7 +89,7 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Xác nhận mật khẩu mới</Label>
+            <Label className="text-xs font-semibold text-muted-foreground">Xác nhận mật khẩu mới</Label>
             <div className="relative">
               <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input type="password" {...register('confirm_password')} placeholder="Nhập lại mật khẩu mới" className="pl-9 border-border/60 bg-background" />
@@ -99,8 +99,8 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
-          <Button type="button" variant="outline" onClick={onClose} className="font-bold rounded-xl px-6">Hủy</Button>
-          <Button type="submit" disabled={isLoading} className="shadow-sm font-bold rounded-xl px-6 flex items-center gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+          <Button type="submit" disabled={isLoading}>
             {isLoading ? 'Đang xử lý...' : <><Save className="w-4 h-4" /> Xác nhận đổi</>}
           </Button>
         </div>

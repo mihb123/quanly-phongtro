@@ -7,11 +7,9 @@ interface SelectedDataState {
   selectedHouse: House | null
   activeTab: TabType
   isHouseListOpen: boolean
-  isSidebarCollapsed: boolean
   selectHouse: (house: House | null) => void
   setActiveTab: (tab: TabType) => void
   setIsHouseListOpen: (open: boolean) => void
-  setIsSidebarCollapsed: (collapsed: boolean) => void
   tabChangeInterceptor: ((nextTab: TabType) => boolean) | null
   setTabChangeInterceptor: (interceptor: ((nextTab: TabType) => boolean) | null) => void
 }
@@ -23,7 +21,6 @@ export const useSelectedStore = create<SelectedDataState>((set, get) => ({
   selectedHouse: null, // this will be hydrated in Home.tsx after fetchHouses
   activeTab: savedTab || 'dashboard',
   isHouseListOpen: !!savedHouseId,
-  isSidebarCollapsed: false,
   tabChangeInterceptor: null,
   
   setTabChangeInterceptor: (interceptor) => set({ tabChangeInterceptor: interceptor }),
@@ -47,5 +44,4 @@ export const useSelectedStore = create<SelectedDataState>((set, get) => ({
   },
   
   setIsHouseListOpen: (open: boolean) => set({ isHouseListOpen: open }),
-  setIsSidebarCollapsed: (collapsed: boolean) => set({ isSidebarCollapsed: collapsed }),
 }))

@@ -102,6 +102,28 @@ export const Loader2 = makeIcon(Loading03Icon)
 export const Lock = makeIcon(LockIcon)
 export const LogIn = makeIcon(Login03Icon)
 export const LogOut = makeIcon(Logout03Icon)
+// Three-dots ngang (⋯) vẽ filled thủ công: glyph hugeicons dùng stroke r=1 quá mảnh,
+// render ở 16px nhìn không rõ là ba dấu chấm. Bọc qua factory để giữ dạng
+// `export const X = f()` như makeIcon (tránh rule react-refresh/only-export-components).
+const makeFilledMoreHorizontal = () =>
+  function MoreHorizontalGlyph({ className, ...props }: React.SVGProps<SVGSVGElement>) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        width={24}
+        height={24}
+        fill="currentColor"
+        aria-hidden="true"
+        className={className}
+        {...props}
+      >
+        <circle cx="5" cy="12" r="2" />
+        <circle cx="12" cy="12" r="2" />
+        <circle cx="19" cy="12" r="2" />
+      </svg>
+    )
+  }
+export const MoreHorizontal = makeFilledMoreHorizontal()
 export const Mail = makeIcon(Mail01Icon)
 export const Pencil = makeIcon(PencilEdit02Icon)
 export const Phone = makeIcon(TelephoneIcon)

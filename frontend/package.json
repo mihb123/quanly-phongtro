@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "assets:pwa": "node scripts/generate-pwa-assets.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -26,6 +27,7 @@
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.72.0",
     "react-router-dom": "^7.13.2",
+    "recharts": "3.8.0",
     "shadcn": "^4.12.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",

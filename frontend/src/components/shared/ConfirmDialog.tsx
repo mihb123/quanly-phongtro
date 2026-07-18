@@ -40,10 +40,10 @@ export function ConfirmDialog({
             <DialogDescription className="text-sm">{message}</DialogDescription>
           </div>
           <div className="flex w-full gap-3 pt-2">
-            <Button variant="outline" onClick={onCancel} disabled={isLoading} className="flex-1 font-bold">
+            <Button variant="outline" onClick={onCancel} disabled={isLoading} className="flex-1">
               {cancelText}
             </Button>
-            <Button variant="destructive" onClick={onConfirm} disabled={isLoading} className="flex-1 font-bold">
+            <Button variant="destructive" onClick={onConfirm} disabled={isLoading} className="flex-1">
               {isLoading ? 'Đang thực hiện...' : confirmText}
             </Button>
           </div>

@@ -462,7 +462,7 @@ func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, e
 
 // validThemes lists the color themes the UI supports. Kept in sync with the
 // frontend theme registry (see frontend/src/lib/theme.ts).
-var validThemes = map[string]bool{"lime": true, "sky": true}
+var validThemes = map[string]bool{"neutral": true, "lime": true, "sky": true}
 
 // isValidTheme reports whether the given id is a supported UI color theme.
 func isValidTheme(theme string) bool {

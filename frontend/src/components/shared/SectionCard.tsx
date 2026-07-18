@@ -15,8 +15,8 @@ interface SectionCardProps {
 export function SectionCard({ title, icon: Icon, action, children, className, bodyClassName }: SectionCardProps) {
   return (
     <Card className={cn('gap-0 p-0', className)}>
-      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-5 py-4">
-        <h3 className="flex items-center gap-2 font-bold text-foreground">
+      <div className="flex items-center justify-between gap-2 border-b px-5 py-3.5">
+        <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           {Icon ? <Icon className="size-4 text-muted-foreground" /> : null}
           {title}
         </h3>

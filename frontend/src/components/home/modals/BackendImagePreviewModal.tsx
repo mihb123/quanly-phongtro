@@ -33,12 +33,12 @@ export function BackendImagePreviewModal({ imageUrl, filename, title = "Xem trư
       contentClassName="sm:max-w-3xl"
       footer={
         <>
-          <Button variant="outline" onClick={onClose} className="rounded-xl font-bold">
+          <Button variant="outline" onClick={onClose}>
             Đóng
           </Button>
           <Button
             onClick={handleDownload}
-            className="shadow-sm font-bold flex items-center gap-2"
+           
           >
             <Download className="w-4 h-4" /> Tải về máy
           </Button>

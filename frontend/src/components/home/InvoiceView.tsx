@@ -224,11 +224,11 @@ export function InvoicesView() {
         description="Danh sách hóa đơn điện, nước, dịch vụ hàng tháng"
         action={
           <>
-            <Button onClick={() => setShowQuickCreateModal(true)} variant="secondary" className="font-bold touch-target">
-              <Zap className="size-4" /> Ghi điện nước nhanh
+            <Button onClick={() => setShowQuickCreateModal(true)} variant="outline">
+              <Zap data-icon="inline-start" /> Ghi điện nước nhanh
             </Button>
-            <Button onClick={() => setShowCreateModal(true)} className="font-bold touch-target">
-              <Plus className="size-4" /> Tạo hóa đơn
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus data-icon="inline-start" /> Tạo hóa đơn
             </Button>
           </>
         }
@@ -239,9 +239,9 @@ export function InvoicesView() {
         {/* Filters */}
         <div className="p-4 border-b border-border/40 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-end gap-4">
           <div className="w-full lg:flex-1 lg:min-w-[200px]">
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Nhà trọ</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               value={invoiceFilter.house_id || ''}
               onChange={(e) => {
                 const newHouseId = e.target.value;
@@ -258,9 +258,9 @@ export function InvoicesView() {
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Phòng</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Phòng</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:bg-muted disabled:text-muted-foreground bg-background"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
               value={invoiceFilter.room_id || ''}
               onChange={(e) => setInvoiceFilter({ room_id: e.target.value })}
               disabled={!invoiceFilter.house_id}
@@ -273,19 +273,19 @@ export function InvoicesView() {
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Kỳ hóa đơn</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Kỳ hóa đơn</label>
             <input 
               type="month"
-              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               value={invoiceFilter.period || ''}
               onChange={(e) => setInvoiceFilter({ period: e.target.value })}
             />
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Trạng thái</label>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Trạng thái</label>
             <select 
-              className="w-full h-9 px-3 rounded-lg border border-input focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               value={invoiceFilter.status || ''}
               onChange={(e) => setInvoiceFilter({ status: e.target.value })}
             >
@@ -296,7 +296,7 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <Button variant="ghost" onClick={handleClearFilter} className="w-full sm:col-span-2 lg:col-span-1 lg:w-auto h-9 px-3 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg flex items-center justify-center gap-1.5 transition-all">
+          <Button variant="ghost" onClick={handleClearFilter} className="w-full text-muted-foreground sm:col-span-2 lg:col-span-1 lg:w-auto">
             <FilterX className="w-3.5 h-3.5" />
             Xóa lọc
           </Button>
@@ -305,48 +305,48 @@ export function InvoicesView() {
         {/* Stats */}
         <div className="p-4 bg-muted/30 grid grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 rounded-b-xl border-t border-border/40">
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center shadow-sm shrink-0">
+             <div className="size-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center shrink-0">
                <Receipt className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate">Tổng hóa đơn</p>
-               <p className="text-sm sm:text-base font-extrabold text-foreground leading-tight truncate">{stats.totalInvoices}</p>
+               <p className="truncate text-xs font-medium text-muted-foreground">Tổng hóa đơn</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{stats.totalInvoices}</p>
              </div>
           </div>
 
           <div className="w-px h-8 bg-border hidden lg:block" />
 
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-info/15 text-info flex items-center justify-center shadow-sm shrink-0">
+             <div className="size-8 rounded-full bg-info/15 text-info flex items-center justify-center shrink-0">
                <TrendingUp className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-info/80 uppercase tracking-wider truncate">Tổng dự kiến</p>
-               <p className="text-sm sm:text-base font-extrabold text-info leading-tight truncate">{formatCurrency(stats.expectedRevenue)}</p>
+               <p className="truncate text-xs font-medium text-muted-foreground">Tổng dự kiến</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.expectedRevenue)}</p>
              </div>
           </div>
 
           <div className="w-px h-8 bg-border hidden lg:block" />
 
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-success/15 text-success flex items-center justify-center shadow-sm shrink-0">
+             <div className="size-8 rounded-full bg-success/15 text-success flex items-center justify-center shrink-0">
                <CheckCircle2 className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-success/80 uppercase tracking-wider truncate">Đã thu</p>
-               <p className="text-sm sm:text-base font-extrabold text-success leading-tight truncate">{formatCurrency(stats.collectedRevenue)}</p>
+               <p className="truncate text-xs font-medium text-muted-foreground">Đã thu</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.collectedRevenue)}</p>
              </div>
           </div>
 
           <div className="w-px h-8 bg-border hidden lg:block" />
 
           <div className="flex items-center gap-3">
-             <div className="w-8 h-8 rounded-full bg-warning/15 text-warning flex items-center justify-center shadow-sm shrink-0">
+             <div className="size-8 rounded-full bg-warning/15 text-warning flex items-center justify-center shrink-0">
                <Clock className="size-4" />
              </div>
              <div className="min-w-0">
-               <p className="text-[10px] font-bold text-warning/80 uppercase tracking-wider truncate">Chưa thu</p>
-               <p className="text-sm sm:text-base font-extrabold text-warning leading-tight truncate">{formatCurrency(stats.unpaidRevenue)}</p>
+               <p className="truncate text-xs font-medium text-muted-foreground">Chưa thu</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.unpaidRevenue)}</p>
              </div>
           </div>
         </div>
@@ -374,16 +374,16 @@ export function InvoicesView() {
               >
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <p className="font-bold text-primary">{(() => {
+                    <p className="text-sm font-medium text-foreground">{(() => {
                         if (invoiceFilter.house_id) return invoice.room_name;
                         const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
                         return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
                       })()}
                     </p>
-                    <p className="text-sm font-bold text-foreground mt-0.5">Kỳ: {invoice.period}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Kỳ: {invoice.period}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-foreground">{formatCurrency(invoice.total_amount)}</p>
+                    <p className="font-semibold tabular-nums text-foreground">{formatCurrency(invoice.total_amount)}</p>
                     <StatusBadge status={invoice.status} className="mt-1" />
                   </div>
                 </div>
@@ -394,35 +394,35 @@ export function InvoicesView() {
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-sm"
                       onClick={(e) => { e.stopPropagation(); setSelectedInvoiceId(invoice.id); setShowEditModal(true); }}
-                      className="text-muted-foreground hover:text-primary h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground"
                     >
                       <Pencil className="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-sm"
                       onClick={(e) => handleDownload(e, invoice)}
-                      className="text-muted-foreground hover:text-info h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground"
                     >
                       <Download className="size-4" />
                     </Button>
                     {invoice.status === 'UNPAID' && (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon-sm"
                         onClick={(e) => handleSendZalo(e, invoice)}
-                        className="text-muted-foreground hover:text-success h-8 w-8 p-0 rounded-full touch-target"
+                        className="text-muted-foreground"
                       >
                         <Send className="size-4" />
                       </Button>
                     )}
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="icon-sm"
                       onClick={(e) => handleDelete(e, invoice)}
-                      className="text-muted-foreground hover:text-destructive h-8 w-8 p-0 rounded-full touch-target"
+                      className="text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -437,12 +437,12 @@ export function InvoicesView() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Kỳ</TableHead>
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Phòng</TableHead>
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-right">Tổng tiền</TableHead>
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-center">Trạng thái</TableHead>
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground">Ngày tạo</TableHead>
-                  <TableHead className="px-6 py-4 font-bold text-muted-foreground text-center">
+                  <TableHead className="px-6">Kỳ</TableHead>
+                  <TableHead className="px-6">Phòng</TableHead>
+                  <TableHead className="px-6 text-right">Tổng tiền</TableHead>
+                  <TableHead className="px-6 text-center">Trạng thái</TableHead>
+                  <TableHead className="px-6">Ngày tạo</TableHead>
+                  <TableHead className="px-6 text-center">
                     <div className="flex items-center justify-center gap-2">
                       Hành động
                       <Button
@@ -450,7 +450,7 @@ export function InvoicesView() {
                         disabled={invoices.length === 0 || isDownloadingAll}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10 rounded-full touch-target"
+                        className="text-muted-foreground"
                         title="Tải tất cả hóa đơn (Mẫu 1)"
                       >
                         {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
@@ -466,45 +466,45 @@ export function InvoicesView() {
                     onClick={() => setSelectedInvoiceId(invoice.id)}
                     className="cursor-pointer group"
                   >
-                    <TableCell className="px-6 py-4 font-bold text-foreground">
+                    <TableCell className="px-6 py-3 font-medium text-foreground">
                       {invoice.period}
                     </TableCell>
-                    <TableCell className="px-6 py-4 font-bold text-primary" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
+                    <TableCell className="px-6 py-3 font-medium text-foreground" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
                       {(() => {
                         if (invoiceFilter.house_id) return invoice.room_name;
                         const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
                         return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
                       })()}
                     </TableCell>
-                    <TableCell className="px-6 py-4 font-bold text-foreground text-right">
+                    <TableCell className="px-6 py-3 text-right font-semibold tabular-nums text-foreground">
                       {formatCurrency(invoice.total_amount)}
                     </TableCell>
-                    <TableCell className="px-6 py-4 text-center">
+                    <TableCell className="px-6 py-3 text-center">
                       <StatusBadge status={invoice.status} />
                     </TableCell>
-                    <TableCell className="px-6 py-4 text-sm font-medium text-muted-foreground">
+                    <TableCell className="px-6 py-3 text-sm text-muted-foreground">
                       {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                     </TableCell>
-                    <TableCell className="px-6 py-4 text-center">
+                    <TableCell className="px-6 py-3 text-center">
                       <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon-sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedInvoiceId(invoice.id);
                             setShowEditModal(true);
                           }}
-                          className="text-muted-foreground hover:text-primary h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground"
                           title="Sửa hóa đơn"
                         >
                           <Pencil className="size-4" />
                         </Button>
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon-sm"
                           onClick={(e) => handleDownload(e, invoice)}
-                          className="text-muted-foreground hover:text-info h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground"
                           title="Tải hóa đơn (Mẫu 1)"
                         >
                           <Download className="size-4" />
@@ -512,9 +512,9 @@ export function InvoicesView() {
                         {invoice.status === 'UNPAID' && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon-sm"
                             onClick={(e) => handleSendZalo(e, invoice)}
-                            className="text-muted-foreground hover:text-success h-8 w-8 p-0 rounded-full"
+                            className="text-muted-foreground"
                             title="Gửi qua Zalo"
                           >
                             <Send className="size-4" />
@@ -522,9 +522,9 @@ export function InvoicesView() {
                         )}
                         <Button
                           variant="ghost"
-                          size="sm"
+                          size="icon-sm"
                           onClick={(e) => handleDelete(e, invoice)}
-                          className="text-muted-foreground hover:text-destructive h-8 w-8 p-0 rounded-full"
+                          className="text-muted-foreground hover:text-destructive"
                           title="Xóa hóa đơn"
                         >
                           <Trash2 className="size-4" />
