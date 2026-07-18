@@ -22,6 +22,8 @@ export function StayingBadge() {
 
 // Thẻ khách thuê mobile ưu tiên tên, phòng và số điện thoại với vùng chạm dễ thao tác.
 export function TenantMobileCard({ tenant, onEdit, onOpenRoom, onCopyPhone }: TenantMobileCardProps) {
+  const phone = tenant.phone?.trim()
+
   return (
     <li className="rounded-lg bg-secondary/25 ring-1 ring-foreground/10">
       <div className="flex items-center gap-2 px-3 pt-2">
@@ -57,18 +59,24 @@ export function TenantMobileCard({ tenant, onEdit, onOpenRoom, onCopyPhone }: Te
           <DoorOpen data-icon="inline-start" />
           <span className="truncate">Phòng {tenant.room_name || 'N/A'}</span>
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={onCopyPhone}
-          className="min-w-0 cursor-pointer justify-start"
-          aria-label={`Sao chép số điện thoại ${tenant.phone}`}
-        >
-          <Phone data-icon="inline-start" />
-          <span className="truncate tabular-nums">{tenant.phone}</span>
-          <Copy data-icon="inline-end" />
-        </Button>
+        {phone ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={onCopyPhone}
+            className="min-w-0 cursor-pointer justify-start"
+            aria-label={`Sao chép số điện thoại ${phone}`}
+          >
+            <Phone data-icon="inline-start" />
+            <span className="truncate tabular-nums">{phone}</span>
+            <Copy data-icon="inline-end" />
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="lg" disabled className="min-w-0 justify-start">
+            <span className="truncate">Chưa có SĐT</span>
+          </Button>
+        )}
       </div>
     </li>
   )

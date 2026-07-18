@@ -4,7 +4,6 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/utils/format'
 
 interface InvoiceMobileCardProps {
@@ -17,7 +16,7 @@ interface InvoiceMobileCardProps {
   onDelete: () => void
 }
 
-// Thẻ hóa đơn mobile gom thông tin quan trọng lên đầu và đặt hành động thành nút có nhãn rõ ràng.
+// Thẻ hóa đơn mobile nhóm thông tin theo thứ tự quét và giữ hành động icon-only dễ chạm.
 export function InvoiceMobileCard({
   invoice,
   houseName,
@@ -43,19 +42,24 @@ export function InvoiceMobileCard({
           className="h-auto w-full cursor-pointer justify-start whitespace-normal rounded-none p-3 text-left"
           aria-label={`Xem hóa đơn phòng ${invoice.room_name}, kỳ ${invoice.period}`}
         >
-          <span className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-            <span className="flex min-w-0 flex-col gap-1">
+          <span className="flex w-full min-w-0 flex-col gap-2">
+            <span className="flex min-w-0 items-baseline justify-between gap-3">
               <span className="truncate text-base font-semibold text-foreground">Phòng {invoice.room_name}</span>
-              {houseName ? <span className="truncate text-sm font-normal text-muted-foreground">{houseName}</span> : null}
-              <span className="text-sm font-normal text-muted-foreground">
-                Kỳ {periodLabel} · Lập {createdDate}
-              </span>
-            </span>
-            <span className="flex shrink-0 flex-col items-end gap-2">
-              <span className="text-base font-semibold tabular-nums text-foreground">
+              <span className="shrink-0 text-lg font-semibold tabular-nums text-foreground">
                 {formatCurrency(invoice.total_amount)}
               </span>
-              <StatusBadge status={invoice.status} />
+            </span>
+            <span className="flex min-w-0 items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-1 text-sm font-normal text-muted-foreground">
+                {houseName ? (
+                  <>
+                    <span className="truncate">{houseName}</span>
+                    <span aria-hidden="true">·</span>
+                  </>
+                ) : null}
+                <span className="shrink-0">Kỳ {periodLabel}</span>
+              </span>
+              <StatusBadge status={invoice.status} className="shrink-0" />
             </span>
           </span>
         </Button>
@@ -63,29 +67,53 @@ export function InvoiceMobileCard({
 
       <Separator />
 
-      <CardFooter
-        className={cn(
-          'grid gap-1 px-2 py-1',
-          canSendZalo ? 'grid-cols-4' : 'grid-cols-3',
-        )}
-      >
-        <Button type="button" variant="ghost" size="lg" onClick={onEdit} className="min-w-0 cursor-pointer px-1">
+      <CardFooter className="flex items-center gap-1 px-2 py-1">
+        <span className="mr-auto min-w-0 truncate px-1 text-xs text-muted-foreground">Lập {createdDate}</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          onClick={onEdit}
+          className="size-11 cursor-pointer"
+          aria-label={`Sửa hóa đơn phòng ${invoice.room_name}`}
+          title="Sửa hóa đơn"
+        >
           <Pencil data-icon="inline-start" />
-          <span className="truncate">Sửa</span>
         </Button>
-        <Button type="button" variant="ghost" size="lg" onClick={onDownload} className="min-w-0 cursor-pointer px-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          onClick={onDownload}
+          className="size-11 cursor-pointer"
+          aria-label={`Tải hóa đơn phòng ${invoice.room_name}`}
+          title="Tải hóa đơn"
+        >
           <Download data-icon="inline-start" />
-          <span className="truncate">Tải</span>
         </Button>
         {canSendZalo ? (
-          <Button type="button" variant="ghost" size="lg" onClick={onSendZalo} className="min-w-0 cursor-pointer px-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            onClick={onSendZalo}
+            className="size-11 cursor-pointer"
+            aria-label={`Gửi hóa đơn phòng ${invoice.room_name} qua Zalo`}
+            title="Gửi qua Zalo"
+          >
             <Send data-icon="inline-start" />
-            <span className="truncate">Gửi</span>
           </Button>
         ) : null}
-        <Button type="button" variant="ghost" size="lg" onClick={onDelete} className="min-w-0 cursor-pointer px-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-lg"
+          onClick={onDelete}
+          className="size-11 cursor-pointer"
+          aria-label={`Xóa hóa đơn phòng ${invoice.room_name}`}
+          title="Xóa hóa đơn"
+        >
           <Trash2 data-icon="inline-start" />
-          <span className="truncate">Xóa</span>
         </Button>
       </CardFooter>
     </Card>

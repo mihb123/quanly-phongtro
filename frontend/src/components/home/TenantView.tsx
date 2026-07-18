@@ -71,8 +71,11 @@ function HouseTenantTable({ house }: { house: House }) {
   }
 
   const handlePhoneClick = (phone: string) => {
-    navigator.clipboard.writeText(phone).then(() => {
-      toast.success('Sao chép thành công', { description: phone })
+    const normalizedPhone = phone.trim()
+    if (!normalizedPhone) return
+
+    navigator.clipboard.writeText(normalizedPhone).then(() => {
+      toast.success('Sao chép thành công', { description: normalizedPhone })
     })
   }
 
@@ -162,13 +165,17 @@ function HouseTenantTable({ house }: { house: House }) {
                       </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      <span
-                        onClick={() => handlePhoneClick(t.phone)}
-                        className="cursor-pointer underline-offset-4 hover:underline"
-                        title="Sao chép số điện thoại"
-                      >
-                        {t.phone}
-                      </span>
+                      {t.phone?.trim() ? (
+                        <span
+                          onClick={() => handlePhoneClick(t.phone)}
+                          className="cursor-pointer underline-offset-4 hover:underline"
+                          title="Sao chép số điện thoại"
+                        >
+                          {t.phone.trim()}
+                        </span>
+                      ) : (
+                        <span className="italic">Chưa cập nhật</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{new Date(t.start_date).toLocaleDateString('vi-VN')}</TableCell>
                     <TableCell><StayingBadge /></TableCell>
