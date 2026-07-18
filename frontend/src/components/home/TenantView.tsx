@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
-import { Building, Plus, CheckCircle2, Users } from '@/components/icons'
+import { Building, Plus, Users } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -15,15 +14,7 @@ import { type Room } from '@/api/room'
 import { type Tenant } from '@/api/tenant'
 import { useRoomStore } from '@/data/roomData'
 import { toast } from 'sonner'
-
-// Badge "Đang ở" cho khách thuê — dùng token success thay cho màu hardcode.
-function StayingBadge() {
-  return (
-    <Badge variant="ghost" className="bg-success/10 font-medium text-success">
-      <CheckCircle2 className="size-3" /> Đang ở
-    </Badge>
-  )
-}
+import { StayingBadge, TenantMobileCard } from './tenant/TenantMobileCard'
 
 // Bảng khách thuê của 1 nhà trọ: card mobile + table desktop, mở modal thêm/sửa/xem phòng.
 function HouseTenantTable({ house }: { house: House }) {
@@ -86,59 +77,41 @@ function HouseTenantTable({ house }: { house: House }) {
   }
 
   return (
-    <Card className="relative mb-6 gap-4 p-6">
+    <Card className="relative gap-3 p-3 sm:gap-4 sm:p-6">
       {isFetchingRoom && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/50 backdrop-blur-sm">
           <div className="text-muted-foreground font-medium">Đang tải thông tin phòng...</div>
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex min-w-0 items-center gap-2 text-base font-semibold text-foreground">
           <Building className="size-4 text-muted-foreground" />
-          {house.name}
+          <span className="truncate">{house.name}</span>
         </h2>
-        <Button onClick={() => setIsSelectRoomModalOpen(true)}>
+        <Button size="lg" onClick={() => setIsSelectRoomModalOpen(true)} className="cursor-pointer">
           <Plus data-icon="inline-start" /> Thêm khách thuê
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-lg border bg-card">
+      <div className="md:overflow-hidden md:rounded-lg md:border md:bg-card">
         {/* Mobile Card View */}
-        <div className="block md:hidden divide-y divide-border/40">
+        <div className="block md:hidden">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground italic">Đang tải dữ liệu...</div>
           ) : tenants.length === 0 ? (
             <EmptyState icon={Users} title="Chưa có khách thuê nào trong nhà này." />
           ) : (
-            tenants.map(t => (
-              <div key={t.id} className="p-4 hover:bg-secondary/40 transition-colors">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p
-                      onClick={() => handleTenantClick(t)}
-                      className="cursor-pointer text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                    >
-                      {t.full_name}
-                    </p>
-                    <p className="mt-0.5 text-sm text-muted-foreground">
-                      Phòng: <span onClick={() => handleRoomClick(t.room_id)} className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline">{t.room_name || 'N/A'}</span>
-                    </p>
-                  </div>
-                  <StayingBadge />
-                </div>
-                <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/40">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Từ: {new Date(t.start_date).toLocaleDateString('vi-VN')}
-                  </span>
-                  <span
-                    onClick={() => handlePhoneClick(t.phone)}
-                    className="cursor-pointer px-2 py-1 -mr-2 text-sm text-muted-foreground underline-offset-4 hover:underline touch-target"
-                  >
-                    {t.phone}
-                  </span>
-                </div>
-              </div>
-            ))
+            <ul className="flex flex-col gap-2">
+              {tenants.map(tenant => (
+                <TenantMobileCard
+                  key={tenant.id}
+                  tenant={tenant}
+                  onEdit={() => handleTenantClick(tenant)}
+                  onOpenRoom={() => handleRoomClick(tenant.room_id)}
+                  onCopyPhone={() => handlePhoneClick(tenant.phone)}
+                />
+              ))}
+            </ul>
           )}
         </div>
 
@@ -241,7 +214,7 @@ export function TenantsView() {
   const { houses } = useHouseStore()
 
   return (
-    <div className="space-y-8 safe-fade-in">
+    <div className="flex flex-col gap-6 safe-fade-in">
       <PageHeader
         title="Danh sách Khách thuê"
         description="Thông tin khách thuê được nhóm theo từng nhà trọ."
