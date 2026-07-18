@@ -19,6 +19,7 @@ import { EditInvoiceModal } from './modals/EditInvoiceModal'
 import { BackendImagePreviewModal } from './modals/BackendImagePreviewModal'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
+import { InvoiceMobileCard } from './invoice/InvoiceMobileCard'
 
 // View quản lý hóa đơn: lọc, thống kê nhanh, danh sách (card mobile + table desktop) và các modal tạo/sửa/xem.
 export function InvoicesView() {
@@ -81,9 +82,7 @@ export function InvoicesView() {
     return { totalInvoices, expectedRevenue, collectedRevenue, unpaidRevenue };
   }, [invoices]);
 
-  const handleDownload = async (e: React.MouseEvent, invoice: Invoice) => {
-    e.stopPropagation();
-    
+  const handleDownload = async (invoice: Invoice) => {
     try {
       toast.loading('Đang tạo ảnh hóa đơn...', { id: 'download-invoice' });
 
@@ -104,8 +103,7 @@ export function InvoicesView() {
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, invoice: Invoice) => {
-    e.stopPropagation();
+  const handleDelete = async (invoice: Invoice) => {
     if (invoice.status === 'PAID') {
       toast.error('Không thể xóa hóa đơn đã thanh toán', { id: 'delete-invoice' });
       return;
@@ -164,8 +162,7 @@ export function InvoicesView() {
     }
   };
 
-  const handleSendZalo = async (e: React.MouseEvent, invoice: Invoice) => {
-    e.stopPropagation();
+  const handleSendZalo = async (invoice: Invoice) => {
     if (invoice.status === 'PAID') {
       toast.error('Hóa đơn đã thanh toán', { id: 'send-zalo' });
       return;
@@ -182,7 +179,7 @@ export function InvoicesView() {
   };
 
   return (
-    <div className="space-y-6 safe-fade-in">
+    <div className="flex flex-col gap-6 safe-fade-in">
       {/* Modals */}
       {showCreateModal && (
         <CreateInvoiceModal onClose={() => setShowCreateModal(false)} />
@@ -224,10 +221,12 @@ export function InvoicesView() {
         description="Danh sách hóa đơn điện, nước, dịch vụ hàng tháng"
         action={
           <>
-            <Button onClick={() => setShowQuickCreateModal(true)} variant="outline">
-              <Zap data-icon="inline-start" /> Ghi điện nước nhanh
+            <Button onClick={() => setShowQuickCreateModal(true)} variant="outline" size="lg" className="cursor-pointer">
+              <Zap data-icon="inline-start" />
+              <span className="sm:hidden">Ghi nhanh</span>
+              <span className="hidden sm:inline">Ghi điện nước nhanh</span>
             </Button>
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => setShowCreateModal(true)} size="lg" className="cursor-pointer">
               <Plus data-icon="inline-start" /> Tạo hóa đơn
             </Button>
           </>
@@ -237,11 +236,11 @@ export function InvoicesView() {
       {/* Top Section: Filters & Compact Stats */}
       <Card className="gap-0 p-0 flex flex-col">
         {/* Filters */}
-        <div className="p-4 border-b border-border/40 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-end gap-4">
-          <div className="w-full lg:flex-1 lg:min-w-[200px]">
+        <div className="grid grid-cols-2 items-end gap-3 border-b border-border/40 p-3 sm:gap-4 sm:p-4 lg:flex lg:flex-wrap">
+          <div className="col-span-2 w-full sm:col-span-1 lg:min-w-[200px] lg:flex-1">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</label>
             <select 
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
               value={invoiceFilter.house_id || ''}
               onChange={(e) => {
                 const newHouseId = e.target.value;
@@ -260,7 +259,7 @@ export function InvoicesView() {
           <div className="w-full lg:w-[160px]">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Phòng</label>
             <select 
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground sm:h-9 sm:text-sm"
               value={invoiceFilter.room_id || ''}
               onChange={(e) => setInvoiceFilter({ room_id: e.target.value })}
               disabled={!invoiceFilter.house_id}
@@ -276,7 +275,7 @@ export function InvoicesView() {
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Kỳ hóa đơn</label>
             <input 
               type="month"
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
               value={invoiceFilter.period || ''}
               onChange={(e) => setInvoiceFilter({ period: e.target.value })}
             />
@@ -285,7 +284,7 @@ export function InvoicesView() {
           <div className="w-full lg:w-[160px]">
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Trạng thái</label>
             <select 
-              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
               value={invoiceFilter.status || ''}
               onChange={(e) => setInvoiceFilter({ status: e.target.value })}
             >
@@ -296,14 +295,14 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <Button variant="ghost" onClick={handleClearFilter} className="w-full text-muted-foreground sm:col-span-2 lg:col-span-1 lg:w-auto">
-            <FilterX className="w-3.5 h-3.5" />
+          <Button variant="ghost" size="lg" onClick={handleClearFilter} className="w-full cursor-pointer text-muted-foreground lg:w-auto">
+            <FilterX data-icon="inline-start" />
             Xóa lọc
           </Button>
         </div>
 
         {/* Stats */}
-        <div className="p-4 bg-muted/30 grid grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 rounded-b-xl border-t border-border/40">
+        <div className="grid grid-cols-2 gap-3 rounded-b-xl border-t border-border/40 bg-muted/30 p-3 sm:gap-4 sm:p-4 lg:flex lg:items-center lg:gap-8">
           <div className="flex items-center gap-3">
              <div className="size-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center shrink-0">
                <Receipt className="size-4" />
@@ -363,77 +362,34 @@ export function InvoicesView() {
           <EmptyState icon={Receipt} title="Không tìm thấy hóa đơn nào." className="py-20" />
         </Card>
       ) : (
-        <Card className="gap-0 p-0 overflow-hidden">
+        <>
           {/* Mobile Card View */}
-          <div className="block md:hidden divide-y divide-border/40">
-            {invoices.map(invoice => (
-              <div 
-                key={invoice.id} 
-                onClick={() => setSelectedInvoiceId(invoice.id)}
-                className="p-4 hover:bg-secondary/40 transition-colors cursor-pointer"
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{(() => {
-                        if (invoiceFilter.house_id) return invoice.room_name;
-                        const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
-                        return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
-                      })()}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Kỳ: {invoice.period}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold tabular-nums text-foreground">{formatCurrency(invoice.total_amount)}</p>
-                    <StatusBadge status={invoice.status} className="mt-1" />
-                  </div>
-                </div>
-                <div className="flex justify-between items-center mt-3 pt-3 border-t border-border/40">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => { e.stopPropagation(); setSelectedInvoiceId(invoice.id); setShowEditModal(true); }}
-                      className="text-muted-foreground"
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => handleDownload(e, invoice)}
-                      className="text-muted-foreground"
-                    >
-                      <Download className="size-4" />
-                    </Button>
-                    {invoice.status === 'UNPAID' && (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={(e) => handleSendZalo(e, invoice)}
-                        className="text-muted-foreground"
-                      >
-                        <Send className="size-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={(e) => handleDelete(e, invoice)}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col gap-2 md:hidden">
+            {invoices.map(invoice => {
+              const houseName = invoiceFilter.house_id
+                ? undefined
+                : houses.find(house => house.id === invoice.house_id)?.name || 'Không rõ nhà trọ'
+
+              return (
+                <InvoiceMobileCard
+                  key={invoice.id}
+                  invoice={invoice}
+                  houseName={houseName}
+                  onOpen={() => setSelectedInvoiceId(invoice.id)}
+                  onEdit={() => {
+                    setSelectedInvoiceId(invoice.id)
+                    setShowEditModal(true)
+                  }}
+                  onDownload={() => handleDownload(invoice)}
+                  onSendZalo={() => handleSendZalo(invoice)}
+                  onDelete={() => handleDelete(invoice)}
+                />
+              )
+            })}
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block">
+          <Card className="hidden gap-0 overflow-hidden p-0 md:flex">
             <Table>
               <TableHeader>
                 <TableRow className="bg-secondary/30">
@@ -503,8 +459,12 @@ export function InvoicesView() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={(e) => handleDownload(e, invoice)}
-                          className="text-muted-foreground"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(invoice)
+                          }}
+                          className="cursor-pointer text-muted-foreground"
+                          aria-label={`Tải hóa đơn phòng ${invoice.room_name}`}
                           title="Tải hóa đơn (Mẫu 1)"
                         >
                           <Download className="size-4" />
@@ -513,8 +473,12 @@ export function InvoicesView() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={(e) => handleSendZalo(e, invoice)}
-                            className="text-muted-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSendZalo(invoice)
+                            }}
+                            className="cursor-pointer text-muted-foreground"
+                            aria-label={`Gửi hóa đơn phòng ${invoice.room_name} qua Zalo`}
                             title="Gửi qua Zalo"
                           >
                             <Send className="size-4" />
@@ -523,8 +487,12 @@ export function InvoicesView() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          onClick={(e) => handleDelete(e, invoice)}
-                          className="text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(invoice)
+                          }}
+                          className="cursor-pointer text-muted-foreground hover:text-destructive"
+                          aria-label={`Xóa hóa đơn phòng ${invoice.room_name}`}
                           title="Xóa hóa đơn"
                         >
                           <Trash2 className="size-4" />
@@ -535,8 +503,8 @@ export function InvoicesView() {
                 ))}
               </TableBody>
             </Table>
-          </div>
-        </Card>
+          </Card>
+        </>
       )}
     </div>
   )
