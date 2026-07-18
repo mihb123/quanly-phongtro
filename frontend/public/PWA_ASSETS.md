@@ -39,6 +39,8 @@ và `index.html`.
 
 Trình duyệt cache favicon rất lâu. Khi thay thiết kế favicon, tăng giá trị `v`
 trong URL `/favicon.ico?v=...` ở `index.html` để buộc trình duyệt tải file mới.
+Tương tự, tăng cùng version ở URL manifest, Apple Touch icon và bốn icon trong
+`manifest.webmanifest`; việc này cũng tránh CDN tiếp tục trả asset PWA cũ.
 
 ## Chưa có (bổ sung sau nếu muốn)
 - **Splash screen iOS ("ảnh khi mở app")**: iOS cần nhiều ảnh `apple-touch-startup-image`
