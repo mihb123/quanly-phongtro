@@ -247,13 +247,13 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
       contentClassName="sm:max-w-4xl"
       footer={
         <>
-          <Button variant="outline" onClick={handleClose} className="border-border text-foreground hover:bg-secondary/80 rounded-xl h-11 px-6 font-bold">
+          <Button variant="outline" onClick={handleClose}>
             Hủy
           </Button>
           <Button
             disabled={isLoading || !selectedHouseId || rooms.length === 0}
             onClick={handleSaveAll}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+           
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>
@@ -263,7 +263,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
         <div className="-mx-6 -my-4 bg-muted/10 flex flex-col">
           <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
             <div className="w-full md:flex-1 md:max-w-[200px]">
-              <label className="block text-xs font-bold text-muted-foreground mb-1">Chọn nhà trọ</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Chọn nhà trọ</label>
               <select 
                 className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:opacity-50 bg-background"
                 value={selectedHouseId}
@@ -278,7 +278,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             </div>
             
             <div className="w-full md:flex-1 md:max-w-[200px]">
-              <label className="block text-xs font-bold text-muted-foreground mb-1">Kỳ hóa đơn</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">Kỳ hóa đơn</label>
               <input 
                 type="month"
                 className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
@@ -303,13 +303,13 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           ) : bothFixed ? (
             /* Both electricity and water are FIXED — just show a save button per room */
             <div className="space-y-4">
-              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 text-sm text-primary font-medium">
+              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-sm text-primary font-medium">
                 <p>⚡ Tiền điện tính theo giá mặc định ({selectedHouseData?.electricity_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
                 <p>💧 Tiền nước tính theo giá mặc định ({selectedHouseData?.water_billing_unit === 'PERSON' ? '/ người' : '/ phòng'})</p>
                 <p className="mt-2 text-xs text-primary/70">Bấm "Lưu tất cả" để tạo hóa đơn cho các phòng.</p>
               </div>
               
-              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg mt-4">
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30 rounded-lg mt-4">
                 <div className={roomSpanClass}>Phòng</div>
                 <div className="md:col-span-4">Trạng thái</div>
                 <div className="md:col-span-6 flex items-center gap-2">Số lượng xe (Nhập số xe hiện tại)</div>
@@ -319,8 +319,8 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                 {rooms.map(room => {
                   const data = invoiceData[room.id] || { new_electricity: '', new_water: '', vehicle_count: '', saved: false }
                   return (
-                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center p-4 rounded-xl bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
-                      <div className={`${roomSpanClass} font-bold text-foreground flex items-center gap-2`}>
+                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-4 md:items-center p-4 rounded-lg bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
+                      <div className={`${roomSpanClass} font-medium text-foreground flex items-center gap-2`}>
                         {room.name}
                       </div>
                       <div className="md:col-span-4 flex items-center gap-2">
@@ -331,7 +331,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                         ) : null}
                       </div>
                       <div className="md:col-span-6 flex items-center gap-2">
-                         <span className="md:hidden text-xs font-bold text-muted-foreground w-20">Số xe:</span>
+                         <span className="md:hidden text-xs font-medium text-muted-foreground w-20">Số xe:</span>
                          <Input
                            type="number"
                            placeholder="Số xe"
@@ -352,17 +352,17 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           ) : (
             <div className="space-y-4">
               {/* Header row */}
-              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
+              <div className="hidden md:grid md:grid-cols-12 gap-4 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/30 rounded-lg">
                 <div className={roomSpanClass}>Phòng</div>
                 <div className={vehicleSpanClass}>Số lượng xe</div>
                 {showElecColumn && (
                   <div className={`${utilitySpanClass} flex items-center gap-2`}>
-                    <Zap className="w-3 h-3 text-yellow-500" /> Chỉ số điện (Mới - Cũ)
+                    <Zap className="w-3 h-3 text-warning" /> Chỉ số điện (Mới - Cũ)
                   </div>
                 )}
                 {showWaterColumn && (
                   <div className={`${utilitySpanClass} flex items-center gap-2`}>
-                    <Droplets className="w-3 h-3 text-blue-500" /> Chỉ số nước (Mới - Cũ)
+                    <Droplets className="w-3 h-3 text-info" /> Chỉ số nước (Mới - Cũ)
                   </div>
                 )}
               </div>
@@ -385,8 +385,8 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                   const waterUsed = data.new_water ? Number(data.new_water) - oldWater : 0
                   
                   return (
-                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 md:items-center p-4 rounded-xl bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
-                      <div className={`${roomSpanClass} font-bold text-foreground flex items-center justify-between gap-2 border-b border-border/40 pb-2 md:border-0 md:pb-0`}>
+                    <div key={room.id} className={`flex flex-col md:grid md:grid-cols-12 gap-3 md:gap-4 md:items-center p-4 rounded-lg bg-card border transition-all ${data.saved ? 'border-primary/20 bg-primary/5' : data.error ? 'border-destructive/20 bg-destructive/10' : 'border-border hover:border-primary/40'}`}>
+                      <div className={`${roomSpanClass} font-medium text-foreground flex items-center justify-between gap-2 border-b border-border/40 pb-2 md:border-0 md:pb-0`}>
                         <div className="flex items-center gap-2">
                           <span className="text-lg md:text-base">{room.name}</span>
                           {data.is_paid ? (
@@ -397,7 +397,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                         </div>
                       </div>
                       <div className={`${vehicleSpanClass} flex items-center gap-2`}>
-                         <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0">Số xe:</span>
+                         <span className="md:hidden text-xs font-medium text-muted-foreground w-20 shrink-0">Số xe:</span>
                          <Input
                            type="number"
                            placeholder="Số xe"
@@ -409,7 +409,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                       </div>
                       {showElecColumn && (
                         <div className={`${utilitySpanClass} relative flex items-center gap-2`}>
-                          <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5"/> Điện:</span>
+                          <span className="md:hidden text-xs font-medium text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5"/> Điện:</span>
                           <div className="flex items-center gap-2 flex-1">
                             <Input
                               type="number"
@@ -417,11 +417,11 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                               value={data.new_electricity}
                               onChange={e => handleInputChange(room.id, 'new_electricity', e.target.value)}
                               disabled={data.is_paid}
-                              className={`h-10 flex-1 md:w-28 md:flex-none font-bold bg-background ${elecUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
+                              className={`h-10 flex-1 md:w-28 md:flex-none font-medium bg-background ${elecUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
                             />
                             <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
                               - <span className="text-foreground/70" title="Số cũ">{oldElec}</span> = 
-                              <span className={`ml-1 font-bold ${elecUsed < 0 ? 'text-destructive' : elecUsed > 0 ? 'text-amber-500' : 'text-foreground'}`}>
+                              <span className={`ml-1 font-medium ${elecUsed < 0 ? 'text-destructive' : elecUsed > 0 ? 'text-warning' : 'text-foreground'}`}>
                                 {data.new_electricity ? elecUsed : '?'}
                               </span>
                             </div>
@@ -430,7 +430,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                       )}
                       {showWaterColumn && (
                         <div className={`${utilitySpanClass} relative flex items-center gap-2`}>
-                          <span className="md:hidden text-xs font-bold text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5"/> Nước:</span>
+                          <span className="md:hidden text-xs font-medium text-muted-foreground w-20 shrink-0 flex items-center gap-1.5"><Droplets className="w-3.5 h-3.5"/> Nước:</span>
                           <div className="flex items-center gap-2 flex-1">
                             <Input
                               type="number"
@@ -438,11 +438,11 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
                               value={data.new_water}
                               onChange={e => handleInputChange(room.id, 'new_water', e.target.value)}
                               disabled={data.is_paid}
-                              className={`h-10 flex-1 md:w-28 md:flex-none font-bold bg-background ${waterUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
+                              className={`h-10 flex-1 md:w-28 md:flex-none font-medium bg-background ${waterUsed < 0 ? 'text-destructive border-destructive focus:ring-destructive/20' : 'border-border focus:border-primary focus:ring-primary/20'}`}
                             />
                             <div className="text-sm font-medium text-muted-foreground whitespace-nowrap">
                               - <span className="text-foreground/70" title="Số cũ">{oldWater}</span> = 
-                              <span className={`ml-1 font-bold ${waterUsed < 0 ? 'text-destructive' : waterUsed > 0 ? 'text-blue-500' : 'text-foreground'}`}>
+                              <span className={`ml-1 font-medium ${waterUsed < 0 ? 'text-destructive' : waterUsed > 0 ? 'text-info' : 'text-foreground'}`}>
                                 {data.new_water ? waterUsed : '?'}
                               </span>
                             </div>

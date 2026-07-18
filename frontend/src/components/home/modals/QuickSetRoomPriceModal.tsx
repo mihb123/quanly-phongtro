@@ -158,13 +158,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
       description="Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc."
       footer={
         <>
-          <Button variant="outline" onClick={handleClose} className="rounded-xl h-11 px-6 font-bold">
+          <Button variant="outline" onClick={handleClose}>
             Hủy
           </Button>
           <Button
             disabled={isLoading}
             onClick={handleSaveAll}
-            className="shadow-sm rounded-xl h-11 px-8 font-bold flex items-center gap-2 transition-all active:scale-95"
+           
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>
@@ -172,7 +172,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
       }
     >
           <div className="space-y-4">
-            <div className="grid grid-cols-12 gap-3 px-3 py-2 text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider bg-muted/30 rounded-lg">
+            <div className="grid grid-cols-12 gap-3 px-3 py-2 text-xs sm:text-xs font-medium text-muted-foreground bg-muted/30 rounded-lg">
               <div className="col-span-4">Tên phòng</div>
               <div className="col-span-5 flex items-center gap-1 sm:gap-2">
                 <DollarSign className="w-3 h-3" /> Giá thuê
@@ -184,13 +184,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
 
             <div className="space-y-2">
               {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map(room => (
-                <div key={room.id} className="grid grid-cols-12 gap-3 items-center p-3 rounded-xl hover:bg-muted/30 border border-transparent hover:border-border transition-all relative">
+                <div key={room.id} className="grid grid-cols-12 gap-3 items-center p-3 rounded-lg hover:bg-muted/30 border border-transparent hover:border-border transition-all relative">
                   {showActionsFor === room.id && (
-                    <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-xl flex items-center justify-center gap-2 sm:gap-4 shadow-sm border border-border/80">
-                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDuplicateRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-primary border-primary/20 hover:bg-primary/10 font-bold text-xs sm:text-sm">
+                    <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-lg flex items-center justify-center gap-2 sm:gap-4 shadow-sm border border-border/80">
+                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDuplicateRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-primary border-primary/20 hover:bg-primary/10 font-medium text-xs sm:text-sm">
                         <Copy className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Nhân bản</span>
                       </Button>
-                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-destructive border-destructive/20 hover:bg-destructive/10 font-bold text-xs sm:text-sm">
+                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-destructive border-destructive/20 hover:bg-destructive/10 font-medium text-xs sm:text-sm">
                         <Trash2 className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Xóa</span>
                       </Button>
                       <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setShowActionsFor(null); }} className="absolute right-1 sm:right-2 text-muted-foreground hover:bg-secondary rounded-full">
@@ -199,7 +199,7 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
                   <div 
-                    className="col-span-4 font-bold text-foreground transition-colors touch-target px-0" 
+                    className="col-span-4 font-medium text-foreground transition-colors touch-target px-0" 
                     onMouseDown={() => handlePressStart(room.id)}
                     onMouseUp={handlePressEnd}
                     onMouseLeave={handlePressEnd}

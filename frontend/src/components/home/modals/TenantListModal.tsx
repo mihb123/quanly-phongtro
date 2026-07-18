@@ -89,12 +89,12 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
           <div className="flex w-full justify-between items-center">
             <div className="flex gap-2">
               {tenants.length < room.max_tenants && (
-                <Button onClick={onAdd} variant="default" className="shadow-sm font-bold gap-2 cursor-pointer">
+                <Button onClick={onAdd} variant="default">
                   <Plus className="w-4 h-4" /> Thêm người ở
                 </Button>
               )}
             </div>
-            <Button onClick={onClose} variant="outline" className="font-bold cursor-pointer">Đóng</Button>
+            <Button onClick={onClose} variant="outline">Đóng</Button>
           </div>
         }
       >
@@ -103,13 +103,13 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
         ) : (
           <div className="space-y-4">
             {tenants.map((t, idx) => (
-              <div key={t.id} className="p-4 rounded-xl border border-border/50 bg-muted/30 group">
+              <div key={t.id} className="p-4 rounded-lg border border-border/50 bg-muted/30 group">
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">
                       {idx + 1}
                     </div>
-                    <h4 className="font-bold text-foreground">{t.full_name}</h4>
+                    <h4 className="font-medium text-foreground">{t.full_name}</h4>
                   </div>
                   <div className="flex items-center gap-2">
                     <button onClick={() => onEdit(t)} className="p-1.5 text-muted-foreground hover:text-primary bg-background shadow-sm border border-border/50 rounded-md transition-colors cursor-pointer" title="Sửa">
@@ -122,7 +122,7 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                     }} className="p-1.5 text-muted-foreground hover:text-destructive bg-background shadow-sm border border-border/50 rounded-md transition-colors cursor-pointer disabled:opacity-50" title="Xóa">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-green-100 text-green-700 uppercase tracking-wider ml-1">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-success/10 text-success ml-1">
                       <CheckCircle2 className="w-3 h-3" />
                       Đang ở
                     </span>
@@ -130,19 +130,19 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                 </div>
                 <div className="grid grid-cols-2 gap-y-3 gap-x-4">
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Số điện thoại</span>
+                    <span className="text-xs uppercase font-medium text-muted-foreground">Số điện thoại</span>
                     <span className="text-sm font-semibold text-foreground">{t.phone}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Email</span>
+                    <span className="text-xs uppercase font-medium text-muted-foreground">Email</span>
                     <span className="text-sm font-semibold text-foreground">{t.email || 'N/A'}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">CCCD</span>
+                    <span className="text-xs uppercase font-medium text-muted-foreground">CCCD</span>
                     <span className="text-sm font-semibold text-foreground">{t.identity_card}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Ngày bắt đầu</span>
+                    <span className="text-xs uppercase font-medium text-muted-foreground">Ngày bắt đầu</span>
                     <span className="text-sm font-semibold text-foreground">{new Date(t.start_date).toLocaleDateString('vi-VN')}</span>
                   </div>
 
@@ -155,8 +155,8 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                               <FileIcon className="w-3 h-3" />
                             </div>
                             <div className="flex flex-col overflow-hidden">
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase">Ảnh CCCD {fileIdx > 0 ? fileIdx + 1 : ''}</span>
-                              <span className="text-[10px] font-semibold text-foreground truncate">{getFileName(path)}</span>
+                              <span className="text-xs font-medium text-muted-foreground">Ảnh CCCD {fileIdx > 0 ? fileIdx + 1 : ''}</span>
+                              <span className="text-xs font-semibold text-foreground truncate">{getFileName(path)}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -187,8 +187,8 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                               <FileIcon className="w-3 h-3" />
                             </div>
                             <div className="flex flex-col overflow-hidden">
-                              <span className="text-[9px] font-bold text-muted-foreground uppercase">Hợp đồng {fileIdx > 0 ? fileIdx + 1 : ''}</span>
-                              <span className="text-[10px] font-semibold text-foreground truncate">{getFileName(path)}</span>
+                              <span className="text-xs font-medium text-muted-foreground">Hợp đồng {fileIdx > 0 ? fileIdx + 1 : ''}</span>
+                              <span className="text-xs font-semibold text-foreground truncate">{getFileName(path)}</span>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -239,10 +239,10 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <div className="bg-card text-card-foreground p-8 rounded-2xl flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-card text-card-foreground p-8 rounded-lg flex flex-col items-center gap-4 text-center" onClick={(e) => e.stopPropagation()}>
                 <FileIcon className="w-16 h-16 text-primary" />
                 <div>
-                  <h3 className="font-bold text-foreground text-xl">Định dạng file đặc biệt</h3>
+                  <h3 className="font-medium text-foreground text-xl">Định dạng file đặc biệt</h3>
                   <p className="text-muted-foreground">File này không thể xem trước trực tiếp.</p>
                 </div>
                 <Button onClick={() => window.open(selectedImageUrl, '_blank')} className="shadow-sm">Tải về hoặc Mở tab mới</Button>

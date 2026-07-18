@@ -227,11 +227,11 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
       onClose={onClose}
       title={
         <span className="flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shadow-inner">
+          <span className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shadow-inner">
             <Receipt className="w-5 h-5" />
           </span>
           <span className="flex flex-col">
-            <span className="text-xl font-black text-foreground tracking-tight">Hóa đơn Phòng {invoice.room_name}</span>
+            <span className="text-lg font-semibold text-foreground tracking-tight">Hóa đơn Phòng {invoice.room_name}</span>
             <span className="text-xs font-semibold text-muted-foreground mt-0.5">Kỳ: {invoice.period}</span>
           </span>
         </span>
@@ -246,7 +246,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
               onClick={handlePreviewFrontend}
               disabled={isPreviewing}
               title="Xem trước hóa đơn"
-              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
+              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-lg"
             >
                {isPreviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
             </Button>
@@ -256,7 +256,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
               onClick={handleDownload}
               disabled={isDownloading}
               title="Tải hóa đơn"
-              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-xl"
+              className="h-10 w-10 shrink-0 border-border bg-card text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-lg"
             >
                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             </Button>
@@ -269,7 +269,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                   <Button
                     onClick={onEdit}
                     variant="outline"
-                    className="h-10 border-border bg-card hover:bg-background text-foreground font-bold rounded-xl transition-colors cursor-pointer"
+                    className="h-10 border-border bg-card hover:bg-background text-foreground font-medium rounded-lg transition-colors cursor-pointer"
                   >
                     Sửa
                   </Button>
@@ -277,7 +277,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                 <Button
                   onClick={handlePay}
                   disabled={isPaying}
-                  className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-all shadow-sm shadow-primary/20 cursor-pointer active:scale-95 px-4"
+                  className="h-10 bg-primary hover:bg-primary/90 text-primary-foreground font-medium rounded-lg transition-all shadow-sm shadow-primary/20 cursor-pointer active:scale-95 px-4"
                 >
                   {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Xác nhận Đã thu'}
                 </Button>
@@ -289,7 +289,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                 onClick={handleUnpay}
                 disabled={isPaying}
                 variant="outline"
-                className="h-10 border-destructive/20 hover:bg-destructive/10 text-destructive font-bold rounded-xl transition-colors cursor-pointer px-4"
+                className="h-10 border-destructive/20 hover:bg-destructive/10 text-destructive font-medium rounded-lg transition-colors cursor-pointer px-4"
               >
                 {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Hoàn tác'}
               </Button>
@@ -305,14 +305,14 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
           {/* Table 1: Utility Statement */}
           {showUtilityTable && (
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-primary flex items-center gap-2 uppercase tracking-wider">
-                <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs">1</span>
+              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <span className="size-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-medium">1</span>
                 Bảng kê chỉ số Điện / Nước
               </h3>
               
-              <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+              <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-muted/30 text-muted-foreground font-bold border-b border-border">
+                  <thead className="bg-muted/30 text-muted-foreground font-medium border-b border-border">
                     <tr>
                       <th className="px-4 py-3">Dịch vụ</th>
                       <th className="px-4 py-3 text-center">Chỉ số cũ</th>
@@ -326,27 +326,27 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                     {invoice.electricity_fee > 0 && (
                       <tr className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-semibold text-foreground flex items-center gap-2">
-                          <Zap className="w-4 h-4 text-yellow-500" />
+                          <Zap className="w-4 h-4 text-warning" />
                           Điện
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground font-medium">{elecUsage > 0 ? invoice.old_electricity_index : '-'}</td>
                         <td className="px-4 py-3 text-center text-muted-foreground font-medium">{elecUsage > 0 ? invoice.new_electricity_index : '-'}</td>
-                        <td className="px-4 py-3 text-center font-bold text-foreground">{elecDisplay.usageStr}</td>
+                        <td className="px-4 py-3 text-center font-medium text-foreground">{elecDisplay.usageStr}</td>
                         <td className="px-4 py-3 text-right font-medium text-muted-foreground">{elecDisplay.priceStr}</td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground">{formatCurrency(invoice.electricity_fee)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-foreground">{formatCurrency(invoice.electricity_fee)}</td>
                       </tr>
                     )}
                     {invoice.water_fee > 0 && (
                       <tr className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3 font-semibold text-foreground flex items-center gap-2">
-                          <Droplets className="w-4 h-4 text-blue-500" />
+                          <Droplets className="w-4 h-4 text-info" />
                           Nước
                         </td>
                         <td className="px-4 py-3 text-center text-muted-foreground font-medium">{waterUsage > 0 ? invoice.old_water_index : '-'}</td>
                         <td className="px-4 py-3 text-center text-muted-foreground font-medium">{waterUsage > 0 ? invoice.new_water_index : '-'}</td>
-                        <td className="px-4 py-3 text-center font-bold text-foreground">{waterDisplay.usageStr}</td>
+                        <td className="px-4 py-3 text-center font-medium text-foreground">{waterDisplay.usageStr}</td>
                         <td className="px-4 py-3 text-right font-medium text-muted-foreground">{waterDisplay.priceStr}</td>
-                        <td className="px-4 py-3 text-right font-bold text-foreground">{formatCurrency(invoice.water_fee)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-foreground">{formatCurrency(invoice.water_fee)}</td>
                       </tr>
                     )}
                   </tbody>
@@ -357,14 +357,14 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
 
           {/* Table 2: Services Detail */}
           <div className="space-y-4">
-            <h3 className="text-sm font-bold text-primary flex items-center gap-2 uppercase tracking-wider">
-              <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs">{showUtilityTable ? '2' : '1'}</span>
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <span className="size-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-xs font-medium">{showUtilityTable ? '2' : '1'}</span>
               Chi tiết các chi phí dịch vụ
             </h3>
 
-            <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+            <div className="border border-border rounded-lg overflow-hidden bg-card shadow-sm">
               <table className="w-full text-sm text-left">
-                <thead className="bg-muted/30 text-muted-foreground font-bold border-b border-border">
+                <thead className="bg-muted/30 text-muted-foreground font-medium border-b border-border">
                   <tr>
                     <th className="px-4 py-3">Khoản mục dịch vụ</th>
                     <th className="px-4 py-3 text-right">Thành tiền</th>
@@ -374,9 +374,9 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                   {lines.map((line, i) => (
                     <tr key={i} className="hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-foreground">{line.label}</div>
+                        <div className="font-medium text-foreground">{line.label}</div>
                       </td>
-                      <td className={`px-4 py-3.5 text-right font-bold whitespace-nowrap ${line.isDiscount ? 'text-destructive' : 'text-foreground'}`}>
+                      <td className={`px-4 py-3.5 text-right font-medium whitespace-nowrap ${line.isDiscount ? 'text-destructive' : 'text-foreground'}`}>
                         {line.isDiscount ? '-' : ''}{formatCurrency(line.value)}
                       </td>
                     </tr>
@@ -387,18 +387,18 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
           </div>
 
           {/* Summary / Total Card inside content (bottom) */}
-          <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-6">
+          <div className="bg-primary/5 p-5 rounded-lg border border-primary/20 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-6">
              <div>
-               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tổng tiền cần thanh toán</p>
-               <h3 className="text-3xl font-black text-primary">{formatCurrency(invoice.total_amount)}</h3>
+               <p className="text-xs font-medium text-muted-foreground mb-1">Tổng tiền cần thanh toán</p>
+               <h3 className="text-2xl font-semibold tabular-nums text-foreground sm:text-3xl">{formatCurrency(invoice.total_amount)}</h3>
              </div>
              <div>
-               <span className={`px-3 py-1 rounded-full text-sm font-bold border ${
+               <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
                   invoice.status === 'PAID' 
-                    ? 'bg-green-100 text-green-700 border-green-200'
+                    ? 'bg-success/10 text-success border-success/20'
                     : invoice.status === 'PENDING_VERIFICATION'
-                      ? 'bg-yellow-100 text-yellow-700 border-yellow-200'
-                      : 'bg-red-100 text-red-700 border-red-200'
+                      ? 'bg-warning/10 text-warning border-warning/20'
+                      : 'bg-destructive/10 text-destructive border-destructive/20'
                 }`}>
                   {invoice.status === 'PAID' ? 'Đã thanh toán' : invoice.status === 'PENDING_VERIFICATION' ? 'Chờ xác nhận CK' : 'Chưa thanh toán'}
                 </span>
@@ -406,8 +406,8 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
           </div>
 
           {invoice.transaction_image_path && (
-            <div className="mt-6 border border-border rounded-2xl p-4 bg-muted/10">
-              <h3 className="text-sm font-bold text-foreground mb-4">Ảnh bằng chứng chuyển khoản Zalo</h3>
+            <div className="mt-6 border border-border rounded-lg p-4 bg-muted/10">
+              <h3 className="text-sm font-medium text-foreground mb-4">Ảnh bằng chứng chuyển khoản Zalo</h3>
               <div className="flex justify-center">
                 {transactionImageError ? (
                   <div className="text-sm text-muted-foreground">Không tải được ảnh giao dịch</div>

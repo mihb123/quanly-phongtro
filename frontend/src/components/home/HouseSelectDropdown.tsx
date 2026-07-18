@@ -57,7 +57,7 @@ export function HouseSelectDropdown({
     <div className="relative w-full sm:w-auto">
       <button
         onClick={() => onOpenChange(!isOpen)}
-        className="flex items-center justify-between w-full sm:w-48 bg-background hover:bg-accent hover:text-accent-foreground border border-input text-foreground h-10 px-3 sm:px-4 py-2 rounded-md text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors cursor-pointer overflow-hidden"
+        className="flex items-center justify-between w-full sm:w-48 bg-background hover:bg-accent hover:text-accent-foreground border border-input text-foreground h-9 px-3 rounded-md text-sm font-medium shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors cursor-pointer overflow-hidden"
       >
         <div className="flex items-center gap-2 overflow-hidden min-w-0">
           <Building className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -80,7 +80,7 @@ export function HouseSelectDropdown({
             className="fixed inset-0 z-10" 
             onClick={() => onOpenChange(false)} 
           />
-          <div className="absolute top-full left-0 mt-2 min-w-[16rem] w-max max-w-[90vw] sm:max-w-md bg-card border border-border rounded-xl shadow-lg z-20 py-2 animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+          <div className="absolute top-full left-0 mt-2 min-w-[16rem] w-max max-w-[90vw] sm:max-w-md bg-popover border rounded-md shadow-md z-20 py-2 animate-in fade-in zoom-in-95 duration-200 flex flex-col">
             
             <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between gap-4">
               <Label htmlFor="multi-select-switch" className="text-sm font-medium cursor-pointer">
@@ -96,9 +96,9 @@ export function HouseSelectDropdown({
             {isMultiSelect && houses.length > 1 && (
               <button
                 onClick={onSelectAll}
-                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 transition-colors text-left font-bold text-primary mt-1"
+                className="w-full flex items-center gap-3 px-4 py-2 hover:bg-secondary/50 transition-colors text-left font-medium mt-1"
               >
-                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${selectedHouseIds.length === houses.length ? 'bg-primary border-primary text-primary-foreground' : 'border-primary/50'}`}>
+                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${selectedHouseIds.length === houses.length ? 'bg-primary border-primary text-primary-foreground' : 'border-input'}`}>
                   {selectedHouseIds.length === houses.length && <Check className="w-3 h-3" />}
                 </div>
                 <span className="flex-1 break-words">Tất cả các nhà</span>

@@ -38,7 +38,7 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
       onClose={onClose}
       title="Chọn phòng để thêm khách thuê"
       footer={
-        <Button onClick={onClose} variant="outline" className="font-bold cursor-pointer">Hủy</Button>
+        <Button onClick={onClose} variant="outline">Hủy</Button>
       }
     >
       {loading ? (
@@ -57,13 +57,13 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
                   key={r.id}
                   onClick={() => onSelect(r)}
                   disabled={isFull}
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:border-primary/50 hover:bg-secondary/50 transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <div>
-                    <span className="font-bold text-foreground block">{r.name}</span>
+                    <span className="font-medium text-foreground block">{r.name}</span>
                     <span className="text-xs text-muted-foreground font-semibold">{currentTenants} / {r.max_tenants} người</span>
                   </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isFull ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isFull ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success'}`}>
                     {isFull ? 'Đã đầy' : 'Có thể thêm'}
                   </span>
                 </button>

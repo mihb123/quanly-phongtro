@@ -2,14 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <link rel="icon" type="image/x-icon" sizes="64x64" href="/favicon.ico?v=sky-1" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Phòng trọ</title>
+    <link rel="preload" href="/fonts/SF-Pro-Display-Regular.woff2" as="font" type="font/woff2" crossorigin />
 
     <!-- PWA: cho phép cài đặt lên màn hình chính điện thoại và chạy toàn màn hình (standalone). -->
     <link rel="manifest" href="/manifest.webmanifest" />
-    <meta name="theme-color" content="#84cc16" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1a1a1a" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#0069a8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0069a8" media="(prefers-color-scheme: dark)" />
     <!-- iOS Safari "Thêm vào MH chính": icon + tiêu đề + chế độ standalone. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -27,7 +28,7 @@
             mode === 'dark' ||
             (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
           root.classList.toggle('dark', isDark)
-          root.dataset.theme = localStorage.getItem('color-theme') || 'lime'
+          root.dataset.theme = localStorage.getItem('color-theme') || 'neutral'
         } catch (e) {}
       })()
     </script>

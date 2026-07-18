@@ -76,10 +76,10 @@ export default function VerifyEmailPage() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <div className="flex items-center justify-center size-12 rounded-xl bg-primary/10 border border-primary/20 mb-2">
+          <div className="flex items-center justify-center size-12 rounded-lg bg-primary/10 border border-primary/20 mb-2">
             <Mail className="size-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">Xác thực Email</CardTitle>
+          <CardTitle className="text-2xl font-semibold tracking-tight">Xác thực Email</CardTitle>
           <CardDescription>
             Vui lòng xác thực email <span className="font-medium text-foreground">{user?.email}</span> để tiếp tục
           </CardDescription>
@@ -107,7 +107,7 @@ export default function VerifyEmailPage() {
               <Button
                 onClick={handleSendOTP}
                 disabled={isSendingOTP}
-                className="w-full h-11"
+                className="w-full"
               >
                 {isSendingOTP ? 'Đang gửi...' : 'Gửi mã OTP'}
               </Button>
@@ -123,7 +123,7 @@ export default function VerifyEmailPage() {
                   type="text"
                   maxLength={6}
                   placeholder="Nhập mã OTP..."
-                  className="text-center tracking-[0.5em] text-lg font-mono placeholder:tracking-normal h-12"
+                  className="h-10 text-center font-mono text-lg tracking-[0.5em] placeholder:tracking-normal"
                   {...register('otp')}
                 />
                 {errors.otp && (
@@ -135,7 +135,7 @@ export default function VerifyEmailPage() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-11 font-semibold"
+                  className="w-full"
                 >
                   {isLoading ? 'Đang xác thực...' : 'Xác thực'}
                 </Button>

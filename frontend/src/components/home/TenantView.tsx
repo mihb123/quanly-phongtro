@@ -19,7 +19,7 @@ import { toast } from 'sonner'
 // Badge "Đang ở" cho khách thuê — dùng token success thay cho màu hardcode.
 function StayingBadge() {
   return (
-    <Badge variant="ghost" className="bg-success/10 text-success font-bold uppercase tracking-wider">
+    <Badge variant="ghost" className="bg-success/10 font-medium text-success">
       <CheckCircle2 className="size-3" /> Đang ở
     </Badge>
   )
@@ -88,21 +88,21 @@ function HouseTenantTable({ house }: { house: House }) {
   return (
     <Card className="relative mb-6 gap-4 p-6">
       {isFetchingRoom && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-4xl bg-background/50 backdrop-blur-sm">
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/50 backdrop-blur-sm">
           <div className="text-muted-foreground font-medium">Đang tải thông tin phòng...</div>
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-foreground">
-          <Building className="size-5 text-primary" />
+        <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+          <Building className="size-4 text-muted-foreground" />
           {house.name}
         </h2>
-        <Button onClick={() => setIsSelectRoomModalOpen(true)} className="font-bold shadow-sm">
-          <Plus className="size-4" /> Thêm khách thuê
+        <Button onClick={() => setIsSelectRoomModalOpen(true)}>
+          <Plus data-icon="inline-start" /> Thêm khách thuê
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border/60 bg-card">
+      <div className="overflow-hidden rounded-lg border bg-card">
         {/* Mobile Card View */}
         <div className="block md:hidden divide-y divide-border/40">
           {loading ? (
@@ -116,12 +116,12 @@ function HouseTenantTable({ house }: { house: House }) {
                   <div>
                     <p
                       onClick={() => handleTenantClick(t)}
-                      className="font-bold text-primary text-base cursor-pointer hover:underline"
+                      className="cursor-pointer text-sm font-medium text-foreground underline-offset-4 hover:underline"
                     >
                       {t.full_name}
                     </p>
-                    <p className="text-sm font-bold text-foreground mt-0.5">
-                      Phòng: <span onClick={() => handleRoomClick(t.room_id)} className="cursor-pointer hover:text-primary hover:underline">{t.room_name || 'N/A'}</span>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      Phòng: <span onClick={() => handleRoomClick(t.room_id)} className="cursor-pointer font-medium text-foreground underline-offset-4 hover:underline">{t.room_name || 'N/A'}</span>
                     </p>
                   </div>
                   <StayingBadge />
@@ -132,7 +132,7 @@ function HouseTenantTable({ house }: { house: House }) {
                   </span>
                   <span
                     onClick={() => handlePhoneClick(t.phone)}
-                    className="text-sm font-medium text-muted-foreground cursor-pointer hover:text-primary transition-colors touch-target px-2 py-1 -mr-2"
+                    className="cursor-pointer px-2 py-1 -mr-2 text-sm text-muted-foreground underline-offset-4 hover:underline touch-target"
                   >
                     {t.phone}
                   </span>
@@ -173,7 +173,7 @@ function HouseTenantTable({ house }: { house: House }) {
                     <TableCell className="font-semibold text-foreground">
                       <span
                         onClick={() => handleTenantClick(t)}
-                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        className="cursor-pointer underline-offset-4 hover:underline"
                         title="Sửa người thuê"
                       >
                         {t.full_name}
@@ -182,7 +182,7 @@ function HouseTenantTable({ house }: { house: House }) {
                     <TableCell className="font-medium text-foreground">
                       <span
                         onClick={() => handleRoomClick(t.room_id)}
-                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        className="cursor-pointer underline-offset-4 hover:underline"
                         title="Xem danh sách người thuê phòng"
                       >
                         {t.room_name || 'N/A'}
@@ -191,7 +191,7 @@ function HouseTenantTable({ house }: { house: House }) {
                     <TableCell className="text-muted-foreground">
                       <span
                         onClick={() => handlePhoneClick(t.phone)}
-                        className="cursor-pointer hover:text-primary hover:underline transition-colors"
+                        className="cursor-pointer underline-offset-4 hover:underline"
                         title="Sao chép số điện thoại"
                       >
                         {t.phone}

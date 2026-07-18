@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell } from '@/components/ui/table';
+import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
+import { useRevenueTrend } from '@/hooks/useRevenueTrend';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatCard } from '@/components/shared/StatCard';
 import { SectionCard } from '@/components/shared/SectionCard';
@@ -20,7 +23,19 @@ import { HouseSelectDropdown } from './HouseSelectDropdown';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { EditNoteModal } from './modals/EditNoteModal';
 
-// View doanh thu: lọc theo kỳ + nhà trọ, hiển thị thống kê tổng hợp và bảng chi tiết chi phí vận hành.
+// Cấu hình series cho chart xu hướng — màu lấy từ token chart trong index.css.
+const TREND_CHART_CONFIG = {
+  revenue: { label: 'Doanh thu', color: 'var(--chart-2)' },
+  cost: { label: 'Chi phí', color: 'var(--chart-1)' },
+} satisfies ChartConfig
+
+// Đổi 'yyyy-mm' thành nhãn 'T<m>' gọn cho trục hoành của chart.
+function formatPeriodLabel(period: string): string {
+  const month = Number(period.split('-')[1])
+  return Number.isNaN(month) ? period : `T${month}`
+}
+
+// View doanh thu: lọc theo kỳ + nhà trọ, hiển thị thống kê tổng hợp, xu hướng và bảng chi tiết chi phí vận hành.
 export function RevenueView() {
   const { houses, fetchHouses } = useHouseStore();
   const {
@@ -124,6 +139,8 @@ export function RevenueView() {
     }
   }, [houses, selectedHouseIds, setSelectedHouseIds]);
 
+  const { points: trendPoints, isLoading: isLoadingTrend } = useRevenueTrend(selectedHouseIds, period)
+
   const aggregatedSummary = useMemo(() => {
     let totalRev = 0;
     let totalCost = 0;
@@ -194,12 +211,7 @@ export function RevenueView() {
       {/* Header & Filters */}
       <PageHeader
         className="border-b border-border/40 pb-6"
-        title={
-          <span className="flex items-center gap-3">
-            <Wallet className="size-6 text-primary md:size-7" />
-            Doanh thu
-          </span>
-        }
+        title="Doanh thu"
         description="Theo dõi dòng tiền, chi phí vận hành và lợi nhuận ròng."
       />
 
@@ -225,6 +237,43 @@ export function RevenueView() {
         />
       </div>
 
+      {/* Trend Chart: 6 kỳ gần nhất của các nhà đang chọn */}
+      {selectedHouseIds.length > 0 && (
+        <SectionCard
+          icon={TrendingUp}
+          title="Xu hướng 6 kỳ gần nhất"
+          bodyClassName="p-4 sm:p-6"
+        >
+          {isLoadingTrend && trendPoints.length === 0 ? (
+            <div className="flex h-56 items-center justify-center text-sm text-muted-foreground">Đang tải dữ liệu xu hướng...</div>
+          ) : (
+            <ChartContainer config={TREND_CHART_CONFIG} className="h-56 w-full">
+              <BarChart accessibilityLayer data={trendPoints}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="period"
+                  tickLine={false}
+                  tickMargin={8}
+                  axisLine={false}
+                  tickFormatter={formatPeriodLabel}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent formatter={(value, name) => (
+                    <div className="flex w-full items-center justify-between gap-4">
+                      <span className="text-muted-foreground">{TREND_CHART_CONFIG[name as keyof typeof TREND_CHART_CONFIG]?.label ?? name}</span>
+                      <span className="font-medium tabular-nums">{formatCurrency(Number(value))}</span>
+                    </div>
+                  )} />}
+                />
+                <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+                <Bar dataKey="cost" fill="var(--color-cost)" radius={4} />
+              </BarChart>
+            </ChartContainer>
+          )}
+        </SectionCard>
+      )}
+
       {/* Detail Costs Section */}
       <SectionCard
         title={
@@ -245,7 +294,7 @@ export function RevenueView() {
                 onSelectChange={handleHouseSelectChangeRequest}
               />
             </div>
-            <div className="flex h-10 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 py-2 text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-within:ring-1 focus-within:ring-ring sm:flex-none md:px-4">
+            <div className="flex h-9 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 text-foreground shadow-xs transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 sm:flex-none md:px-3">
               <Calendar className="hidden size-4 shrink-0 text-muted-foreground sm:block" />
               <Input
                 type="month"
@@ -258,7 +307,7 @@ export function RevenueView() {
               <Button
                 onClick={() => handleSaveCost(selectedHouseIds[0])}
                 disabled={isSaving[selectedHouseIds[0]]}
-                className="gap-2 font-bold"
+                
               >
                 {isSaving[selectedHouseIds[0]] ? 'Đang lưu...' : <><Save className="size-4" /> Lưu thay đổi</>}
               </Button>
@@ -273,24 +322,24 @@ export function RevenueView() {
           ) : !costs[selectedHouseIds[0]] ? (
             <EmptyState
               icon={AlertCircle}
-              className="rounded-2xl border-2 border-dashed border-border/60 bg-secondary/20 py-16"
+              className="rounded-lg border border-dashed py-16"
               title={`Chưa có chi phí cho kỳ ${period}`}
               description="Tạo bản ghi chi phí vận hành cho tháng này. Hệ thống sẽ tự động sao chép các chi phí cố định từ tháng trước nếu có."
               action={
-                <Button onClick={() => handleCreateMonthCost(selectedHouseIds[0])} className="font-bold">
-                  <Plus className="mr-2 size-4" /> Tạo chi phí tháng mới
+                <Button onClick={() => handleCreateMonthCost(selectedHouseIds[0])}>
+                  <Plus data-icon="inline-start" /> Tạo chi phí tháng mới
                 </Button>
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/50">
+            <div className="overflow-hidden rounded-lg border">
               <Table>
-                <TableHeader className="bg-secondary/50">
+                <TableHeader className="bg-muted/50">
                   <TableRow>
-                    <TableHead className="w-[25%] min-w-[100px] font-bold uppercase text-muted-foreground">Loại chi phí</TableHead>
-                    <TableHead className="w-[15%] min-w-[100px] font-bold uppercase text-muted-foreground">Phân loại</TableHead>
-                    <TableHead className="w-[20%] min-w-[120px] font-bold uppercase text-muted-foreground">Số tiền (VND)</TableHead>
-                    <TableHead className="w-[25%] min-w-[200px] font-bold uppercase text-muted-foreground">Ghi chú</TableHead>
+                    <TableHead className="w-[25%] min-w-[100px] text-muted-foreground">Loại chi phí</TableHead>
+                    <TableHead className="w-[15%] min-w-[100px] text-muted-foreground">Phân loại</TableHead>
+                    <TableHead className="w-[20%] min-w-[120px] text-muted-foreground">Số tiền (VND)</TableHead>
+                    <TableHead className="w-[25%] min-w-[200px] text-muted-foreground">Ghi chú</TableHead>
                     <TableHead className="w-[5%] min-w-[60px] text-right"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -314,7 +363,7 @@ export function RevenueView() {
                         <CurrencyInput
                           value={getActiveCostValue(selectedHouseIds[0], item.key as keyof HouseCost) as number}
                           onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key as keyof HouseCost, val)}
-                          className="h-9 w-40 rounded-lg font-semibold focus-visible:ring-primary"
+                          className="h-8 w-40 tabular-nums"
                         />
                       </TableCell>
                       <TableCell></TableCell>
@@ -330,7 +379,7 @@ export function RevenueView() {
                           value={extra.name}
                           onChange={(e) => handleExtraCostChange(selectedHouseIds[0], index, 'name', e.target.value)}
                           placeholder="Tên chi phí..."
-                          className="h-9 w-full min-w-[150px] rounded-lg font-semibold focus-visible:ring-primary"
+                          className="h-8 w-full min-w-[150px]"
                         />
                       </TableCell>
                       <TableCell>
@@ -340,13 +389,13 @@ export function RevenueView() {
                         <CurrencyInput
                           value={extra.amount}
                           onChange={(val) => handleExtraCostChange(selectedHouseIds[0], index, 'amount', val)}
-                          className="h-9 w-40 rounded-lg font-semibold focus-visible:ring-primary"
+                          className="h-8 w-40 tabular-nums"
                         />
                       </TableCell>
                       <TableCell>
                         <div
                           onClick={() => setEditingNoteFor({ houseId: selectedHouseIds[0], index })}
-                          className={`min-h-[36px] w-full min-w-[250px] cursor-pointer whitespace-pre-wrap rounded-lg p-2.5 text-sm font-medium leading-relaxed transition-colors hover:bg-secondary/50 ${extra.note ? 'text-foreground' : 'italic text-muted-foreground'}`}
+                          className={`min-h-8 w-full min-w-[250px] cursor-pointer whitespace-pre-wrap rounded-md p-2 text-sm leading-relaxed transition-colors hover:bg-secondary/50 ${extra.note ? 'text-foreground' : 'italic text-muted-foreground'}`}
                         >
                           {extra.note || 'Bấm để thêm ghi chú...'}
                         </div>
@@ -356,7 +405,7 @@ export function RevenueView() {
                           variant="ghost"
                           size="icon"
                           onClick={() => handleRemoveExtraCost(selectedHouseIds[0], index)}
-                          className="size-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="size-4" />
                         </Button>
@@ -368,17 +417,17 @@ export function RevenueView() {
                       <Button
                         variant="ghost"
                         onClick={() => handleAddExtraCost(selectedHouseIds[0])}
-                        className="-ml-2 font-bold text-primary hover:bg-primary/10 hover:text-primary/80"
+                        className="-ml-2 text-muted-foreground"
                       >
-                        <Plus className="mr-2 size-4" /> Thêm chi phí khác
+                        <Plus data-icon="inline-start" /> Thêm chi phí khác
                       </Button>
                     </TableCell>
                   </TableRow>
                 </TableBody>
-                <TableFooter className="border-t-2 border-primary/20 bg-primary/5">
+                <TableFooter className="bg-muted/50">
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={2} className="py-5 text-right font-extrabold uppercase tracking-wider text-foreground">Tổng cộng chi phí:</TableCell>
-                    <TableCell colSpan={3} className="py-5 text-xl font-extrabold text-warning">
+                    <TableCell colSpan={2} className="py-4 text-right font-medium text-muted-foreground">Tổng cộng chi phí:</TableCell>
+                    <TableCell colSpan={3} className="py-4 text-lg font-semibold tabular-nums text-foreground">
                       {formatCurrency(
                         (getActiveCostValue(selectedHouseIds[0], 'rent') as number) +
                         (getActiveCostValue(selectedHouseIds[0], 'electricity') as number) +
@@ -396,13 +445,13 @@ export function RevenueView() {
         ) : selectedHouseIds.length > 1 ? (
           <EmptyState
             icon={Wallet}
-            className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+            className="rounded-lg border border-dashed py-8"
             title="Đang xem tổng hợp nhiều nhà"
             description="Bảng chi tiết chỉ hiển thị khi bạn chọn 1 nhà duy nhất. Hãy bỏ chọn các nhà khác để xem và chỉnh sửa chi tiết."
           />
         ) : houses.length > 0 ? (
           <EmptyState
-            className="rounded-2xl border border-border/50 bg-secondary/30 py-8"
+            className="rounded-lg border border-dashed py-8"
             title="Vui lòng chọn nhà trọ"
             description="Bạn cần chọn ít nhất 1 nhà trọ để xem thống kê doanh thu."
           />

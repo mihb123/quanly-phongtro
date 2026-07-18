@@ -5,9 +5,50 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Font chính của app: SF Pro Display (subset Latin + tiếng Việt, self-host ở public/fonts).
+   Chỉ có weight 400/700 — font-medium/semibold sẽ được browser map về weight gần nhất. */
+@font-face {
+    font-family: 'SF Pro Display';
+    src: url('/fonts/SF-Pro-Display-Regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'SF Pro Display';
+    src: url('/fonts/SF-Pro-Display-RegularItalic.woff2') format('woff2');
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'SF Pro Display';
+    src: url('/fonts/SF-Pro-Display-Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'SF Pro Display';
+    src: url('/fonts/SF-Pro-Display-BoldItalic.woff2') format('woff2');
+    font-weight: 700;
+    font-style: italic;
+    font-display: swap;
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'SF Pro Display', 'Geist Variable', sans-serif;
+
+    /* SF Pro Display render nhỏ hơn Geist ở cùng size — nâng toàn thang chữ lên 1px
+       (chỉ typography, không ảnh hưởng spacing/layout vốn tính theo rem riêng). */
+    --text-xs: 0.8125rem;    /* 12 -> 13px */
+    --text-sm: 0.9375rem;    /* 14 -> 15px */
+    --text-base: 1.0625rem;  /* 16 -> 17px */
+    --text-lg: 1.1875rem;    /* 18 -> 19px */
+    --text-xl: 1.3125rem;    /* 20 -> 21px */
+    --text-2xl: 1.5625rem;   /* 24 -> 25px */
+    --text-3xl: 1.9375rem;   /* 30 -> 31px */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -56,7 +97,8 @@
 
 /* =========================================
    PALETTES / DESIGN TOKENS
-   Default theme: Lime (green) — Sky variant scoped below.
+   Default theme: Neutral (premium, gần đen/trắng kiểu shadcn gốc).
+   Lime / Sky là variant scoped qua [data-theme="..."] bên dưới.
 ========================================= */
 
 :root {
@@ -72,8 +114,8 @@
     --popover-foreground: oklch(0.145 0 0);
 
     /* --- Brand Accents --- */
-    --primary: oklch(0.841 0.238 128.85); /* Lime */
-    --primary-foreground: oklch(0.405 0.101 131.063);
+    --primary: oklch(0.205 0 0); /* Neutral: gần đen */
+    --primary-foreground: oklch(0.985 0 0);
 
     --secondary: oklch(0.967 0.001 286.375);
     --secondary-foreground: oklch(0.21 0.006 285.885);
@@ -112,8 +154,8 @@
     /* --- Sidebar --- */
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.648 0.2 131.684);
-    --sidebar-primary-foreground: oklch(0.986 0.031 120.757);
+    --sidebar-primary: oklch(0.205 0 0);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
     --sidebar-accent: oklch(0.97 0 0);
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
@@ -128,8 +170,8 @@
     --card-foreground: oklch(0.985 0 0);
     --popover: oklch(0.205 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.768 0.233 130.85); /* Lime (dark mode) */
-    --primary-foreground: oklch(0.405 0.101 131.063);
+    --primary: oklch(0.922 0 0); /* Neutral: gần trắng (dark mode) */
+    --primary-foreground: oklch(0.205 0 0);
     --secondary: oklch(0.274 0.006 286.033);
     --secondary-foreground: oklch(0.985 0 0);
     --muted: oklch(0.269 0 0);
@@ -153,8 +195,8 @@
     --chart-5: oklch(0.269 0 0);
     --sidebar: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.768 0.233 130.85);
-    --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
+    --sidebar-primary: oklch(0.922 0 0);
+    --sidebar-primary-foreground: oklch(0.205 0 0);
     --sidebar-accent: oklch(0.269 0 0);
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
@@ -162,23 +204,32 @@
 }
 
 /* =========================================
-   THEME: Sky (blue brand hue)
+   THEME VARIANTS: Lime / Sky (brand hue)
    Layered on top of the base palette and selected via
-   <html data-theme="sky">. The default theme (Lime) lives
-   in :root / .dark above; data-theme="lime" needs no block.
+   <html data-theme="...">. The default theme (Neutral) lives
+   in :root / .dark above; data-theme="neutral" needs no block.
+   Chart tokens dùng chung thang neutral ở base — không override per theme.
 ========================================= */
+
+[data-theme="lime"] {
+    --primary: oklch(0.841 0.238 128.85);
+    --primary-foreground: oklch(0.405 0.101 131.063);
+
+    --sidebar-primary: oklch(0.648 0.2 131.684);
+    --sidebar-primary-foreground: oklch(0.986 0.031 120.757);
+}
+
+.dark[data-theme="lime"] {
+    --primary: oklch(0.768 0.233 130.85);
+    --primary-foreground: oklch(0.405 0.101 131.063);
+
+    --sidebar-primary: oklch(0.768 0.233 130.85);
+    --sidebar-primary-foreground: oklch(0.274 0.072 132.109);
+}
 
 [data-theme="sky"] {
     --primary: oklch(0.5 0.134 242.749);
     --primary-foreground: oklch(0.977 0.013 236.62);
-
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-
-    --radius: 0.625rem;
 
     --sidebar-primary: oklch(0.588 0.158 241.966);
     --sidebar-primary-foreground: oklch(0.977 0.013 236.62);
@@ -187,12 +238,6 @@
 .dark[data-theme="sky"] {
     --primary: oklch(0.443 0.11 240.79);
     --primary-foreground: oklch(0.977 0.013 236.62);
-
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
 
     --sidebar-primary: oklch(0.685 0.169 237.323);
     --sidebar-primary-foreground: oklch(0.293 0.066 243.157);
@@ -206,6 +251,15 @@
   }
   body {
     @apply overscroll-none bg-background text-foreground;
+  }
+  /* Mọi phần tử clickable phải có cursor pointer (Tailwind v4 bỏ mặc định này trên button) */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  label[for],
+  select:not(:disabled),
+  summary {
+    cursor: pointer;
   }
   html {
     @apply font-sans;
@@ -239,7 +293,7 @@
 
   /* Reusable card for list items on mobile */
   .mobile-card {
-    @apply bg-card border border-border/50 rounded-xl p-4 shadow-sm flex flex-col gap-2;
+    @apply bg-card border border-border rounded-lg p-4 shadow-xs flex flex-col gap-2;
   }
 
   /* Safe area padding for bottom nav */

@@ -117,7 +117,7 @@ export function PayOSSettingsCard() {
             Đang tải trạng thái...
           </div>
         ) : (
-          <div className={`p-4 rounded-xl flex items-start gap-3 border ${status?.has_config ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
+          <div className={`p-4 rounded-lg flex items-start gap-3 border ${status?.has_config ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
             {status?.has_config ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
             <div className="min-w-0">
               <p className="font-semibold">{status?.has_config ? 'Đã cấu hình PayOS' : 'Chưa cấu hình PayOS'}</p>

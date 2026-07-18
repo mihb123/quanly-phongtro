@@ -89,7 +89,7 @@ export function ZaloBotSettingsCard() {
             Đang tải trạng thái...
           </div>
         ) : (
-          <div className={`p-4 rounded-xl flex items-start gap-3 border ${hasConfig ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
+          <div className={`p-4 rounded-lg flex items-start gap-3 border ${hasConfig ? 'bg-success/10 border-success/30 text-success' : 'bg-warning/10 border-warning/30 text-warning'}`}>
             {hasConfig ? <CheckCircle2 className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
             <div>
               <p className="font-semibold">{hasConfig ? 'Đã kết nối Zalo Bot' : 'Chưa cấu hình Zalo Bot'}</p>
@@ -105,7 +105,7 @@ export function ZaloBotSettingsCard() {
         )}
 
         {!initialLoading && hasConfig && !isLinked && botId && (
-          <div className="p-4 rounded-xl flex items-start gap-3 border bg-info/10 border-info/30 text-info">
+          <div className="p-4 rounded-lg flex items-start gap-3 border bg-info/10 border-info/30 text-info">
             <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0 text-info" />
             <div>
               <p className="font-semibold text-info mb-3">Yêu cầu hoàn tất liên kết tài khoản</p>

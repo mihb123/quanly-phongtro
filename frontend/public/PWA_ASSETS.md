@@ -1,10 +1,19 @@
 # PWA Assets
 
-Các file icon dưới đây là **branding thật** của "Quản lý phòng trọ": biểu tượng
-ngôi nhà trắng (glyph `Home09` hugeicons, đúng logo ở `MobileHeader`) trên nền lime
-`#84cc16` (màu `primary` / `theme_color`). Sinh bằng script SVG → PNG (`@resvg/resvg-js`).
-Muốn đổi màu/hình: chỉnh SVG rồi xuất lại, **giữ nguyên tên file và kích thước** để
-không phải sửa `manifest.webmanifest` và `index.html`.
+Bộ icon dùng biểu tượng ngôi nhà trắng tối giản (`Home09` của Hugeicons, đồng bộ
+với logo trong `MobileHeader`) trên nền sky. Hình nhà đơn giản giúp icon dễ nhận
+ra khi hiển thị nhỏ trên màn hình chính, favicon và thanh trạng thái.
+
+## Nhận diện
+
+- Sky `#0069a8`: màu thương hiệu chính, lấy từ palette sky của ứng dụng; tạo cảm
+  giác tin cậy, sạch và hiện đại.
+- Off-white `#f8fafc`: nét ngôi nhà có độ tương phản cao.
+- `pwa-logo.svg`: bản vector master do script xuất để xem/đối chiếu. Không sửa
+  riêng file này hoặc các file PNG vì lần xuất tiếp theo sẽ ghi đè chúng.
+
+Logo `any` có khung bo tròn và khoảng thở; logo `maskable` dùng nền tràn viền và
+thu nhỏ mark để toàn bộ chi tiết quan trọng nằm trong safe zone của Android.
 
 | File                     | Kích thước | Dùng để làm gì |
 |--------------------------|------------|----------------|
@@ -12,8 +21,24 @@ không phải sửa `manifest.webmanifest` và `index.html`.
 | `pwa-icon-512.png`       | 512×512    | Icon app độ phân giải cao + dùng dựng splash screen trên Android. |
 | `pwa-maskable-192.png`   | 192×192    | Icon adaptive/maskable Android — cần chừa "safe zone" ~20% quanh mép để không bị cắt khi bo tròn. |
 | `pwa-maskable-512.png`   | 512×512    | Icon maskable độ phân giải cao (Android). |
-| `apple-touch-icon.png`   | 180×180*   | Icon khi "Thêm vào Màn hình chính" trên iOS/Safari. (*hiện là 192×192, iOS tự co lại; nên xuất đúng 180×180.) |
-| `favicon.ico`            | —          | Favicon tab trình duyệt (đã có sẵn, không phải placeholder). |
+| `apple-touch-icon.png`   | 180×180    | Icon khi "Thêm vào Màn hình chính" trên iOS/Safari. |
+| `favicon.ico`            | 64×64      | Favicon tab trình duyệt, ICO chứa PNG để giữ alpha và cạnh sắc. |
+
+## Xuất lại asset
+
+Chạy từ thư mục `frontend/`:
+
+```bash
+pnpm assets:pwa
+```
+
+Script `scripts/generate-pwa-assets.js` xuất toàn bộ kích thước từ cùng một cấu
+trúc SVG bằng Chromium/Puppeteer. Khi đổi màu hoặc hình, cập nhật template trong
+script rồi chạy lại; giữ nguyên tên file để không phải sửa `manifest.webmanifest`
+và `index.html`.
+
+Trình duyệt cache favicon rất lâu. Khi thay thiết kế favicon, tăng giá trị `v`
+trong URL `/favicon.ico?v=...` ở `index.html` để buộc trình duyệt tải file mới.
 
 ## Chưa có (bổ sung sau nếu muốn)
 - **Splash screen iOS ("ảnh khi mở app")**: iOS cần nhiều ảnh `apple-touch-startup-image`

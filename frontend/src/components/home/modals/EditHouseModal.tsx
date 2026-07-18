@@ -158,34 +158,34 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
               <Label>Tên nhà trọ</Label>
-              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-slate-200 dark:border-slate-700" />
-              {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
+              {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Mã nhà (House Code)</Label>
-              <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-slate-200 dark:border-slate-700" />
-              {errors.house_code && <span className="text-red-500 text-xs">{errors.house_code.message}</span>}
+              <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-input" />
+              {errors.house_code && <span className="text-destructive text-xs">{errors.house_code.message}</span>}
             </div>
             <div className="space-y-2 col-span-2">
               <Label>Địa chỉ</Label>
-              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-slate-200 dark:border-slate-700" />
-              {errors.address && <span className="text-red-500 text-xs">{errors.address.message}</span>}
+              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
+              {errors.address && <span className="text-destructive text-xs">{errors.address.message}</span>}
             </div>
             
             {/* Điện */}
-            <div className="space-y-2 col-span-2 bg-yellow-50/50 dark:bg-yellow-500/10 rounded-xl p-3 border border-yellow-100 dark:border-yellow-500/20">
+            <div className="space-y-2 col-span-2 bg-warning/5 rounded-lg p-3 border border-warning/20">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-yellow-700 dark:text-yellow-500">Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-yellow-200 dark:border-yellow-500/20 text-sm font-semibold mt-1 bg-white dark:bg-slate-900 cursor-pointer">
+                  <Label className="text-xs font-medium text-warning">Cách tính tiền điện</Label>
+                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-warning/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-yellow-700 dark:text-yellow-500">Đơn vị tính</Label>
-                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-yellow-200 dark:border-yellow-500/20 text-sm font-semibold mt-1 bg-white dark:bg-slate-900 cursor-pointer">
+                    <Label className="text-xs font-medium text-warning">Đơn vị tính</Label>
+                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-warning/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
@@ -198,26 +198,26 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                   name="electricity"
                   control={control}
                   render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8" />
+                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
                   )}
                 />
               </div>
             </div>
 
             {/* Nước */}
-            <div className="space-y-2 col-span-2 bg-blue-50/50 dark:bg-blue-500/10 rounded-xl p-3 border border-blue-100 dark:border-blue-500/20">
+            <div className="space-y-2 col-span-2 bg-info/5 rounded-lg p-3 border border-info/20">
               <div className="flex items-center gap-4 mb-2">
                 <div className="flex-1">
-                  <Label className="text-xs font-bold text-blue-700 dark:text-blue-400">Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-blue-200 dark:border-blue-500/20 text-sm font-semibold mt-1 bg-white dark:bg-slate-900 cursor-pointer">
+                  <Label className="text-xs font-medium text-info">Cách tính tiền nước</Label>
+                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-info/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
                   <div className="flex-1">
-                    <Label className="text-xs font-bold text-blue-700 dark:text-blue-400">Đơn vị tính</Label>
-                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-blue-200 dark:border-blue-500/20 text-sm font-semibold mt-1 bg-white dark:bg-slate-900 cursor-pointer">
+                    <Label className="text-xs font-medium text-info">Đơn vị tính</Label>
+                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-info/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
@@ -230,7 +230,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                   name="water"
                   control={control}
                   render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8" />
+                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
                   )}
                 />
               </div>
@@ -243,7 +243,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 name="wifi"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
                 )}
               />
             </div>
@@ -253,7 +253,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 name="parking"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
                 )}
               />
             </div>
@@ -263,24 +263,24 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 name="service"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8" />
+                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
                 )}
               />
             </div>
 
             {/* Phụ thu */}
-            <div className="space-y-2 col-span-2 bg-slate-50/50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200 dark:border-slate-700 mt-2">
-              <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Quy định phụ thu (nếu có)</Label>
+            <div className="space-y-2 col-span-2 bg-muted/50 rounded-lg p-3 border border-input mt-2">
+              <Label className="text-xs font-medium text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs">Phụ thu nếu quá X người</Label>
                   <div className="flex gap-2">
-                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-slate-200 dark:border-slate-700 h-8 w-16" title="Số người miễn phí" />
+                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-input h-8 w-16" title="Số người miễn phí" />
                     <Controller
                       name="extra_person_fee"
                       control={control}
                       render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8 flex-1" placeholder="Giá/người (VNĐ)" />
+                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8 flex-1" placeholder="Giá/người (VNĐ)" />
                       )}
                     />
                   </div>
@@ -288,23 +288,23 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 <div className="space-y-1">
                   <Label className="text-xs">Phụ thu nếu quá X xe</Label>
                   <div className="flex gap-2">
-                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-slate-200 dark:border-slate-700 h-8 w-16" title="Số xe miễn phí" />
+                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-input h-8 w-16" title="Số xe miễn phí" />
                     <Controller
                       name="extra_vehicle_fee"
                       control={control}
                       render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-slate-200 dark:border-slate-700 h-8 flex-1" placeholder="Giá/xe (VNĐ)" />
+                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8 flex-1" placeholder="Giá/xe (VNĐ)" />
                       )}
                     />
                   </div>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
+              <p className="text-xs text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
             </div>
           </div>
           
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose} className="border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">Hủy</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
             <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
               {isLoading ? 'Đang cập nhật...' : 'Cập nhật'}
             </Button>
