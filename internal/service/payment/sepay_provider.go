@@ -12,11 +12,14 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
 type SePayProvider struct{}
+
+const sePayWebhookMaxClockSkew = 5 * time.Minute
 
 // NewSePayProvider initializes a new SePay provider adapter.
 func NewSePayProvider() *SePayProvider {
@@ -108,6 +111,13 @@ func (p *SePayProvider) VerifyWebhook(_ context.Context, input PaymentWebhookInp
 	if webhook.Code == "" {
 		return nil, ErrPaymentWebhookIgnored
 	}
+	expectedAccount := input.Credentials["account_number"]
+	if expectedAccount == "" {
+		return nil, fmt.Errorf("%w: sepay account number not configured", ErrPaymentCredentialsNotFound)
+	}
+	if webhook.AccountNumber != expectedAccount {
+		return nil, fmt.Errorf("%w: sepay webhook account mismatch", ErrPaymentWebhookInvalid)
+	}
 
 	// SePay's transaction id is stable across retries/replays, so it is the dedup key.
 	transactionReference := strconv.FormatInt(webhook.ID, 10)
@@ -166,6 +176,14 @@ func verifySePayHMAC(input PaymentWebhookInput) error {
 	signature := input.Headers.Get("X-SePay-Signature")
 	if timestamp == "" || signature == "" {
 		return fmt.Errorf("%w: missing sepay signature headers", ErrPaymentWebhookInvalid)
+	}
+	timestampUnix, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return fmt.Errorf("%w: invalid sepay timestamp", ErrPaymentWebhookInvalid)
+	}
+	clockSkew := time.Since(time.Unix(timestampUnix, 0))
+	if clockSkew > sePayWebhookMaxClockSkew || clockSkew < -sePayWebhookMaxClockSkew {
+		return fmt.Errorf("%w: sepay webhook timestamp expired", ErrPaymentWebhookInvalid)
 	}
 	providedHex := strings.TrimPrefix(signature, "sha256=")
 

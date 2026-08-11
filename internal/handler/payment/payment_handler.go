@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -27,13 +28,19 @@ type sePayReconciler interface {
 	ReconcileManager(ctx context.Context, managerID, dateFrom, dateTo string) (paymentsvc.SePayReconcileResult, error)
 }
 
+// sePayBankAccountLister reads accounts already linked to the authenticated SePay company.
+type sePayBankAccountLister interface {
+	ListBankAccounts(ctx context.Context, apiToken string, params paymentsvc.SePayListBankAccountsParams) (*paymentsvc.SePayBankAccountsResponse, error)
+}
+
 type PaymentHandler struct {
-	paymentService    paymentsvc.PaymentService
-	credentialService paymentsvc.PaymentCredentialService
-	reconciler        sePayReconciler
-	privateKey        *rsa.PrivateKey
-	publicKey         *rsa.PublicKey
-	appURL            string
+	paymentService     paymentsvc.PaymentService
+	credentialService  paymentsvc.PaymentCredentialService
+	reconciler         sePayReconciler
+	sePayAccountLister sePayBankAccountLister
+	privateKey         *rsa.PrivateKey
+	publicKey          *rsa.PublicKey
+	appURL             string
 }
 
 type sePayReconcileRequest struct {
@@ -48,6 +55,7 @@ type payOSConfigRequest struct {
 }
 
 type sePayConfigRequest struct {
+	Environment       string `json:"environment"`
 	BankShortName     string `json:"bank_short_name"`
 	AccountNumber     string `json:"account_number"`
 	AccountName       string `json:"account_name"`
@@ -66,11 +74,12 @@ func NewPaymentHandler(paymentService paymentsvc.PaymentService, credentialServi
 	}
 
 	return &PaymentHandler{
-		paymentService:    paymentService,
-		credentialService: credentialService,
-		privateKey:        privateKey,
-		publicKey:         &privateKey.PublicKey,
-		appURL:            strings.TrimRight(appURL, "/"),
+		paymentService:     paymentService,
+		credentialService:  credentialService,
+		sePayAccountLister: paymentsvc.NewSePayClient(),
+		privateKey:         privateKey,
+		publicKey:          &privateKey.PublicKey,
+		appURL:             strings.TrimRight(appURL, "/"),
 	}
 }
 
@@ -183,6 +192,13 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "missing SePay credentials", http.StatusBadRequest)
 		return
 	}
+	if req.Environment == "" {
+		req.Environment = paymentsvc.SePayEnvironmentProduction
+	}
+	if req.Environment != paymentsvc.SePayEnvironmentProduction && req.Environment != paymentsvc.SePayEnvironmentSandbox {
+		http.Error(w, "invalid SePay environment", http.StatusBadRequest)
+		return
+	}
 
 	if req.WebhookAuthMethod == "apikey" && req.WebhookAPIKey == "" {
 		http.Error(w, "missing webhook api key for apikey auth", http.StatusBadRequest)
@@ -198,13 +214,28 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	verifiedAccount, err := h.verifySePayBankAccount(r.Context(), credentials)
+	if err != nil {
+		log.Printf("VerifySePayBankAccount error: %v", err)
+		writeJSONError(w, http.StatusBadRequest, "Không thể xác thực tài khoản trong danh sách đã liên kết với SePay")
+		return
+	}
+	if verifiedAccount != nil {
+		credentials.BankShortName = verifiedAccount.BankShortName
+		credentials.AccountNumber = verifiedAccount.AccountNumber
+		credentials.AccountName = verifiedAccount.AccountHolderName
+	}
 
 	if err := h.credentialService.SaveSePayConfig(r.Context(), managerID, credentials); err != nil {
 		log.Printf("SaveSePayConfig error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeConfigSuccess(w)
+	response := map[string]any{"success": true, "bank_account_verified": verifiedAccount != nil}
+	if verifiedAccount != nil {
+		response["account_holder_name"] = verifiedAccount.AccountHolderName
+	}
+	writeJSONOK(w, response)
 }
 
 // DeleteSePayConfig deactivates manager-specific SePay credentials.
@@ -372,6 +403,7 @@ func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.
 	}
 
 	return paymentsvc.SePayCredentials{
+		Environment:       req.Environment,
 		BankShortName:     req.BankShortName,
 		AccountNumber:     req.AccountNumber,
 		AccountName:       req.AccountName,
@@ -381,6 +413,29 @@ func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.
 		WebhookSecret:     webhookSecret,
 		APIToken:          apiToken,
 	}, nil
+}
+
+// verifySePayBankAccount confirms an entered account belongs to the token's company and returns its canonical holder name.
+func (h *PaymentHandler) verifySePayBankAccount(ctx context.Context, credentials paymentsvc.SePayCredentials) (*paymentsvc.SePayBankAccount, error) {
+	if credentials.APIToken == "" {
+		return nil, nil
+	}
+
+	response, err := h.sePayAccountLister.ListBankAccounts(ctx, credentials.APIToken, paymentsvc.SePayListBankAccountsParams{
+		Environment:   credentials.Environment,
+		BankShortName: credentials.BankShortName,
+		AccountNumber: credentials.AccountNumber,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list linked sepay bank accounts: %w", err)
+	}
+	for index := range response.Data {
+		account := &response.Data[index]
+		if strings.EqualFold(account.BankShortName, credentials.BankShortName) && account.AccountNumber == credentials.AccountNumber {
+			return account, nil
+		}
+	}
+	return nil, errors.New("bank account is not linked to the authenticated SePay company")
 }
 
 // decryptSecret decodes a base64 RSA-OAEP encrypted request field.
@@ -407,8 +462,18 @@ func decodeConfigRequest(w http.ResponseWriter, r *http.Request, dst any) bool {
 
 // writeJSONOK writes v as a 200 JSON response, matching the config handlers' success shape.
 func writeJSONOK(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeJSONError returns a structured error that frontend forms can display directly.
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(map[string]string{"message": message}); err != nil {
+		log.Printf("Failed to write JSON error response: %v", err)
+	}
 }
 
 // writeConfigSuccess writes the {"success": true} acknowledgement used by config save/delete handlers.

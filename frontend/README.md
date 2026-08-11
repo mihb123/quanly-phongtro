@@ -39,6 +39,10 @@ pnpm dev
 
 Mặc định ứng dụng sẽ chạy tại địa chỉ [http://localhost:5173](http://localhost:5173).
 
+## 🧪 Testing
+
+Xem [TESTING.md](./TESTING.md) để chạy ESLint, TypeScript và bài E2E SePay Test Mode bằng Puppeteer.
+
 ## 📁 Project Structure
 
 - `src/api`: Chứa các hàm gọi API (Auth, User, etc.)

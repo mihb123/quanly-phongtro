@@ -80,6 +80,7 @@ func validPayOSCreds() PayOSCredentials {
 
 func validSePayCreds() SePayCredentials {
 	return SePayCredentials{
+		Environment:       SePayEnvironmentSandbox,
 		BankShortName:     "MBBank",
 		AccountNumber:     "0123456789",
 		AccountName:       "NGUYEN VAN A",
@@ -182,7 +183,7 @@ func TestGetCredentialsPayOS(t *testing.T) {
 // TestGetCredentialsSePay covers the SePay branches of GetCredentials.
 func TestGetCredentialsSePay(t *testing.T) {
 	key := testEncryptionKey()
-	enc := encryptJSON(t, key, `{"bank_short_name":"MBBank","account_number":"0123456789","account_name":"NGUYEN VAN A","code_prefix":"PT","webhook_auth_method":"apikey","webhook_api_key":"key","webhook_secret":"secret","api_token":"token"}`)
+	enc := encryptJSON(t, key, `{"environment":"sandbox","bank_short_name":"MBBank","account_number":"0123456789","account_name":"NGUYEN VAN A","code_prefix":"PT","webhook_auth_method":"apikey","webhook_api_key":"key","webhook_secret":"secret","api_token":"token"}`)
 
 	t.Run("manager credential found", func(t *testing.T) {
 		repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{
@@ -195,6 +196,9 @@ func TestGetCredentialsSePay(t *testing.T) {
 		}
 		if creds["account_number"] != "0123456789" {
 			t.Errorf("account_number = %q", creds["account_number"])
+		}
+		if creds["environment"] != SePayEnvironmentSandbox {
+			t.Errorf("environment = %q", creds["environment"])
 		}
 	})
 	t.Run("manager empty returns not found", func(t *testing.T) {
@@ -447,6 +451,9 @@ func TestGetSePayConfig(t *testing.T) {
 		}
 		if status.MaskedAccountNumber != "****6789" || status.BankShortName != "MBBank" || status.CodePrefix != "PT" || status.WebhookAuthMethod != "hmac" {
 			t.Errorf("unexpected sepay status: %+v", status)
+		}
+		if status.Environment != SePayEnvironmentProduction {
+			t.Errorf("environment = %q, want production default", status.Environment)
 		}
 	})
 	t.Run("repo error", func(t *testing.T) {

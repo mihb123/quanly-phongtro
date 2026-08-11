@@ -13,6 +13,7 @@
 !*.ts
 !*.tsx
 !*.js
+!*.mjs
 !*.jsx
 !*.html
 !*.css
@@ -22,6 +23,7 @@
 # PWA assets tĩnh (icon + manifest) — chỉ mở đúng thư mục public, tránh kéo theo
 # ảnh upload của người dùng trong uploads/.
 !frontend/public/*.png
+!frontend/e2e/artifacts/*.png
 !frontend/public/*.webmanifest
 !Makefile
 !Dockerfile
@@ -41,4 +43,3 @@ internal/web/dist/*
 !internal/web/dist/.gitkeep
 SECURITY_REPORT.md
 SECURITY_REVIEW.md
-

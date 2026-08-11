@@ -75,10 +75,11 @@ func (s *SePayReconciliationService) ReconcileManager(ctx context.Context, manag
 
 	for page := 1; page <= sePayMaxReconcilePages; page++ {
 		response, err := s.client.ListTransactions(ctx, apiToken, SePayListParams{
-			DateFrom: dateFrom,
-			DateTo:   dateTo,
-			Page:     page,
-			PerPage:  sePayListMaxPerPage,
+			Environment: credentials["environment"],
+			DateFrom:    dateFrom,
+			DateTo:      dateTo,
+			Page:        page,
+			PerPage:     sePayListMaxPerPage,
 		})
 		if err != nil {
 			return result, err

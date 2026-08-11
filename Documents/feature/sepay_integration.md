@@ -9,6 +9,8 @@ SePay được triển khai như một payment provider trong kiến trúc provi
 ## Phạm vi hiện tại
 
 - Manager cấu hình SePay trong màn Settings.
+- Form chỉ cho chọn các ngân hàng có `supported=true` trong danh sách VietQR được tài liệu SePay tham chiếu.
+- Khi có API Token, backend xác thực tài khoản đã liên kết và lấy tên chủ tài khoản chuẩn từ SePay API v2 trước khi lưu.
 - Backend lưu credential SePay theo từng manager, mã hóa trong DB.
 - Khi gửi hóa đơn, hệ thống ưu tiên provider active theo thứ tự: SePay trước, PayOS sau.
 - SePay tạo QR bằng URL `https://qr.sepay.vn/img`.
@@ -36,6 +38,9 @@ Frontend:
 - `frontend/src/api/payment.tsx`: API client cho SePay config và reconcile.
 - `frontend/src/components/home/settings/SePaySettingsCard.tsx`: card cấu hình SePay trong Settings.
 - `frontend/src/components/home/SettingsView.tsx`: mount card SePay.
+- `frontend/src/lib/sepay-banks.ts`: snapshot typed của danh sách ngân hàng VietQR được SePay hỗ trợ.
+- `frontend/e2e/sepay.e2e.mjs`: Puppeteer E2E trên SePay Test Mode và ứng dụng local.
+- `frontend/TESTING.md`: hướng dẫn chạy kiểm tra tĩnh và E2E frontend.
 
 ## Kiến trúc
 
@@ -63,6 +68,7 @@ Credential SePay được lưu trong `payment_provider_credentials.encrypted_cre
 
 ```go
 type SePayCredentials struct {
+    Environment       string `json:"environment"`
     BankShortName     string `json:"bank_short_name"`
     AccountNumber     string `json:"account_number"`
     AccountName       string `json:"account_name"`
@@ -76,14 +82,15 @@ type SePayCredentials struct {
 
 Ý nghĩa field:
 
-- `bank_short_name`: mã/tên ngắn ngân hàng truyền vào QR SePay, ví dụ `MBBank`.
+- `environment`: `production` hoặc `sandbox`; credential cũ không có field này mặc định dùng production.
+- `bank_short_name`: tên ngắn ngân hàng truyền vào QR SePay, được chọn từ danh sách `supported=true`, ví dụ `MBBank`.
 - `account_number`: số tài khoản nhận tiền.
 - `account_name`: tên chủ tài khoản, dùng cho cấu hình/quản trị.
 - `code_prefix`: tiền tố mã thanh toán, phải khớp prefix đã cấu hình trên SePay dashboard để webhook trả về `code`.
 - `webhook_auth_method`: `apikey`, `hmac` hoặc `none`.
 - `webhook_api_key`: secret dùng với `Authorization: Apikey <key>`.
 - `webhook_secret`: secret dùng để verify HMAC.
-- `api_token`: Bearer token cho SePay User API v2, chỉ bắt buộc khi chạy đối soát.
+- `api_token`: Bearer token cho SePay User API v2, gửi bằng `Authorization: Bearer <token>` và chỉ bắt buộc khi chạy đối soát.
 
 Khi lưu hoặc xóa cấu hình SePay, repository đánh dấu các payment link SePay đang `ACTIVE` của manager thành `STALE`. Việc này buộc hệ thống tạo QR mới theo credential mới, tránh tiếp tục dùng QR cũ.
 
@@ -108,6 +115,7 @@ Webhook public:
   "has_config": true,
   "is_active": true,
   "provider": "sepay",
+  "environment": "sandbox",
   "masked_account_number": "****1234",
   "bank_short_name": "MBBank",
   "code_prefix": "PT",
@@ -117,6 +125,18 @@ Webhook public:
 ```
 
 `POST /config` nhận field thường cho thông tin ngân hàng và field secret đã RSA-encrypt base64 cho `webhook_api_key`, `webhook_secret`, `api_token`. Backend decrypt bằng private key runtime trong `PaymentHandler`, rồi mã hóa lại bằng app secret trước khi lưu DB.
+
+Nếu request có `api_token`, handler gọi `GET /v2/bank-accounts` trên đúng environment, lọc và khớp chính xác `bank_short_name + account_number`. Tài khoản không thuộc công ty của token sẽ bị từ chối; tài khoản hợp lệ được lưu với `account_holder_name` chuẩn do SePay trả về. Response thành công cho biết kết quả xác thực:
+
+```json
+{
+  "success": true,
+  "bank_account_verified": true,
+  "account_holder_name": "CONG TY TNHH DEMO"
+}
+```
+
+Không có API Token thì cấu hình vẫn được lưu với `bank_account_verified=false`. SePay không công bố API tra cứu tên cho một tài khoản bất kỳ; endpoint này chỉ đọc tài khoản đã liên kết với công ty sở hữu token.
 
 `POST /reconcile` nhận body tùy chọn:
 
@@ -140,6 +160,8 @@ Nếu không truyền window, backend mặc định đối soát 7 ngày gần n
 ```
 
 Frontend hiện hiển thị `scanned`, `processed` và cảnh báo `truncated`.
+
+Client chọn base URL theo `environment`: production dùng `https://userapi.sepay.vn/v2`, Test Mode dùng `https://userapi-sandbox.sepay.vn/v2`. Host được chọn từ enum cố định, không nhận URL tùy ý từ người dùng.
 
 ## Luồng Tạo QR
 
@@ -165,7 +187,7 @@ Mã thanh toán được build từ `code_prefix + invoice_id`, uppercase, bỏ 
 2. `PaymentHandler.handleWebhook` đọc raw body tối đa 1 MB và truyền cả header sang `PaymentService.HandleWebhook`.
 3. `PaymentService` load credential SePay theo manager.
 4. `SePayProvider.VerifyWebhook` xác thực request theo `webhook_auth_method`.
-5. Adapter parse payload SePay và bỏ qua giao dịch không phải tiền vào hoặc không có `code`.
+5. Adapter parse payload SePay, bỏ qua giao dịch không phải tiền vào hoặc không có `code`, và từ chối giao dịch gửi cho tài khoản khác cấu hình.
 6. Adapter map payload sang `VerifiedPaymentEvent`.
 7. `PaymentService.ProcessVerifiedTransaction` xử lý idempotency, ghi event, match payment link và settle invoice nếu đủ điều kiện.
 8. Handler trả HTTP 200 body `{"success": true}` khi xử lý thành công hoặc webhook bị ignore hợp lệ.
@@ -178,6 +200,8 @@ Payload SePay webhook đang được map:
 - `transferAmount`: amount nhận được.
 - `accountNumber`: lưu vào `counter_account`.
 - Raw body được lưu vào `payment_events.raw_payload`.
+
+Với HMAC, server ký/kiểm tra chuỗi `{timestamp}.{raw_body}` và từ chối timestamp lệch quá 5 phút để hạn chế replay.
 
 Auth webhook:
 

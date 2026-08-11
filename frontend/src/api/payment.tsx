@@ -35,6 +35,7 @@ export const deletePayOSConfig = async () => {
 }
 
 export interface SePayConfigPayload {
+  environment: 'production' | 'sandbox'
   bank_short_name: string
   account_number: string
   account_name: string
@@ -49,6 +50,7 @@ export interface SePayConfigStatus {
   has_config: boolean
   is_active: boolean
   provider: string
+  environment: 'production' | 'sandbox'
   masked_account_number: string
   bank_short_name: string
   code_prefix: string
@@ -61,7 +63,13 @@ export const getSePayConfig = async (): Promise<SePayConfigStatus> => {
   return response.data
 }
 
-export const saveSePayConfig = async (payload: SePayConfigPayload) => {
+export interface SePayConfigSaveResult {
+  success: boolean
+  bank_account_verified: boolean
+  account_holder_name?: string
+}
+
+export const saveSePayConfig = async (payload: SePayConfigPayload): Promise<SePayConfigSaveResult> => {
   const response = await apiClient.post('/payments/providers/sepay/config', payload)
   return response.data
 }
