@@ -69,7 +69,7 @@ func TestSePayReconcileProcessesIncomingWithCodeAcrossPages(t *testing.T) {
 		),
 	}}
 	processor := &fakeReconcileProcessor{}
-	creds := fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok"}}
+	creds := fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok", "environment": SePayEnvironmentSandbox}}
 
 	svc := NewSePayReconciliationService(lister, creds, processor)
 	svc.throttle = 0 // keep the test fast
@@ -102,6 +102,9 @@ func TestSePayReconcileProcessesIncomingWithCodeAcrossPages(t *testing.T) {
 	// Page size must request the documented maximum.
 	if lister.calls[0].PerPage != sePayListMaxPerPage {
 		t.Errorf("per_page = %d, want %d", lister.calls[0].PerPage, sePayListMaxPerPage)
+	}
+	if lister.calls[0].Environment != SePayEnvironmentSandbox {
+		t.Errorf("environment = %q, want sandbox", lister.calls[0].Environment)
 	}
 }
 

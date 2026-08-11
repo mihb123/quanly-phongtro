@@ -35,6 +35,7 @@ type PayOSConfigStatus struct {
 }
 
 type SePayCredentials struct {
+	Environment       string `json:"environment"`
 	BankShortName     string `json:"bank_short_name"`
 	AccountNumber     string `json:"account_number"`
 	AccountName       string `json:"account_name"`
@@ -49,6 +50,7 @@ type SePayConfigStatus struct {
 	HasConfig           bool   `json:"has_config"`
 	IsActive            bool   `json:"is_active"`
 	Provider            string `json:"provider"`
+	Environment         string `json:"environment"`
 	MaskedAccountNumber string `json:"masked_account_number"`
 	BankShortName       string `json:"bank_short_name"`
 	CodePrefix          string `json:"code_prefix"`
@@ -194,6 +196,7 @@ func (s *paymentCredentialService) GetSePayConfig(ctx context.Context, managerID
 	}
 	status.HasConfig = true
 	status.IsActive = credential.IsActive
+	status.Environment = normalizeSePayEnvironment(credentials.Environment)
 	status.MaskedAccountNumber = maskSecret(credentials.AccountNumber)
 	status.BankShortName = credentials.BankShortName
 	status.CodePrefix = credentials.CodePrefix
@@ -290,6 +293,7 @@ func (s *paymentCredentialService) decryptSePayCredentials(encryptedCredentials 
 // sePayCredentialsMap converts typed SePay credentials to the provider adapter format.
 func sePayCredentialsMap(credentials SePayCredentials) map[string]string {
 	return map[string]string{
+		"environment":         normalizeSePayEnvironment(credentials.Environment),
 		"bank_short_name":     credentials.BankShortName,
 		"account_number":      credentials.AccountNumber,
 		"account_name":        credentials.AccountName,

@@ -8,8 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -18,6 +20,7 @@ import (
 func sePayTestCredentials(authMethod string) map[string]string {
 	return map[string]string{
 		"bank_short_name":     "MBBank",
+		"environment":         SePayEnvironmentSandbox,
 		"account_number":      "123456789",
 		"account_name":        "NGUYEN VAN A",
 		"code_prefix":         "PT",
@@ -210,7 +213,7 @@ func TestSePayVerifyWebhookAPIKey(t *testing.T) {
 func TestSePayVerifyWebhookHMAC(t *testing.T) {
 	provider := NewSePayProvider()
 	body := []byte(sePayIncomingBody)
-	const timestamp = "1719893313"
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 
 	validHeaders := http.Header{}
 	validHeaders.Set("X-SePay-Timestamp", timestamp)
@@ -232,6 +235,33 @@ func TestSePayVerifyWebhookHMAC(t *testing.T) {
 		Credentials: sePayTestCredentials("hmac"),
 	}); !errors.Is(err, ErrPaymentWebhookInvalid) {
 		t.Errorf("tampered hmac error = %v, want ErrPaymentWebhookInvalid", err)
+	}
+}
+
+// TestSePayVerifyWebhookRejectsExpiredHMAC blocks replayed signed requests.
+func TestSePayVerifyWebhookRejectsExpiredHMAC(t *testing.T) {
+	body := []byte(sePayIncomingBody)
+	timestamp := strconv.FormatInt(time.Now().Add(-sePayWebhookMaxClockSkew-time.Second).Unix(), 10)
+	headers := http.Header{}
+	headers.Set("X-SePay-Timestamp", timestamp)
+	headers.Set("X-SePay-Signature", signSePayBody("secret-hmac", timestamp, body))
+
+	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
+		Body: body, Headers: headers, Credentials: sePayTestCredentials("hmac"),
+	})
+	if !errors.Is(err, ErrPaymentWebhookInvalid) {
+		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
+	}
+}
+
+// TestSePayVerifyWebhookRejectsWrongAccount prevents a valid webhook for another account settling an invoice.
+func TestSePayVerifyWebhookRejectsWrongAccount(t *testing.T) {
+	body := []byte(`{"id":92705,"transferType":"in","transferAmount":500000,"code":"PTABC123","accountNumber":"987654321"}`)
+	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
+		Body: body, Credentials: sePayTestCredentials("none"),
+	})
+	if !errors.Is(err, ErrPaymentWebhookInvalid) {
+		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
 	}
 }
 

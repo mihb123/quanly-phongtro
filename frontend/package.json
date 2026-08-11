@@ -8,7 +8,10 @@
     "assets:pwa": "node scripts/generate-pwa-assets.js",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit --ignoreDeprecations 5.0 && tsc -p tsconfig.node.json --noEmit --ignoreDeprecations 5.0",
+    "test:frontend": "pnpm lint && pnpm typecheck",
+    "test:e2e:sepay": "node --test e2e/sepay.e2e.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
