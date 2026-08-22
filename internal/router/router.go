@@ -58,6 +58,7 @@ func New(
 		r.Get("/{id}", houseHandler.GetHouseByID)
 		r.Get("/", houseHandler.ListHouseByManagerID)
 		r.Post("/{id}", houseHandler.UpdateHouse)
+		r.Patch("/{id}/documents", houseHandler.UpdateHouseDocuments)
 		r.Delete("/{id}", houseHandler.DeleteHouse)
 	})
 	r.Route("/api/v1/room", func(r chi.Router) {

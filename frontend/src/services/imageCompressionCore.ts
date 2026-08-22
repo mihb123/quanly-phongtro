@@ -1,5 +1,6 @@
-// Thuật toán nén ảnh dùng chung cho Web Worker và main thread.
-// Mục tiêu: giảm số byte phải upload cho ảnh CCCD/hợp đồng mà vẫn đọc rõ chữ.
+// Thuật toán nén ảnh dùng chung cho Web Worker và main thread (luồng upload
+// CCCD/hợp đồng và trang /optimize-img).
+// Mục tiêu: giảm số byte của ảnh mà vẫn đọc rõ chữ.
 
 export interface CompressOptions {
   /** Cạnh dài nhất sau khi resize (px). */
@@ -17,6 +18,12 @@ export interface CompressOptions {
   maxBytesPerPixel: number
   /** Trên mức này thì luôn nén, không cần xét byte/pixel. */
   alwaysCompressOverBytes: number
+  /**
+   * Ảnh còn vùng trong suốt thì xuất PNG thay vì JPEG. Luồng upload để false
+   * (CCCD/hợp đồng luôn cần ảnh nhẹ); trang tối ưu ảnh bật lên để không làm
+   * mất nền trong suốt của ảnh người dùng.
+   */
+  preserveTransparency?: boolean
 }
 
 export const DEFAULT_COMPRESS_OPTIONS: CompressOptions = {
@@ -29,6 +36,7 @@ export const DEFAULT_COMPRESS_OPTIONS: CompressOptions = {
 }
 
 export const OUTPUT_MIME = 'image/jpeg'
+export const PNG_MIME = 'image/png'
 
 type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
 
@@ -42,17 +50,28 @@ function createCanvas(width: number, height: number): AnyCanvas {
   return canvas
 }
 
-async function encode(canvas: AnyCanvas, quality: number): Promise<Blob> {
+async function encode(canvas: AnyCanvas, quality: number, type = OUTPUT_MIME): Promise<Blob> {
   if ('convertToBlob' in canvas) {
-    return canvas.convertToBlob({ type: OUTPUT_MIME, quality })
+    return canvas.convertToBlob({ type, quality })
   }
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
       blob => (blob ? resolve(blob) : reject(new Error('canvas.toBlob trả về null'))),
-      OUTPUT_MIME,
+      type,
       quality,
     )
   })
+}
+
+type AnyCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
+
+// Quét kênh alpha tìm pixel chưa đục hoàn toàn. Chỉ gọi khi cần biết có nên giữ PNG.
+function hasTransparency(ctx: AnyCanvasContext, width: number, height: number): boolean {
+  const { data } = ctx.getImageData(0, 0, width, height)
+  for (let i = 3; i < data.length; i += 4) {
+    if (data[i] !== 255) return true
+  }
+  return false
 }
 
 // imageOrientation: 'from-image' để ảnh chụp từ điện thoại không bị xoay sau khi vẽ lại.
@@ -77,7 +96,8 @@ async function resize(source: ImageBitmap, width: number, height: number): Promi
 
 /**
  * Resize + re-encode ảnh về JPEG, hạ dần chất lượng cho tới khi đạt targetBytes
- * nhưng không bao giờ xuống dưới minQuality.
+ * nhưng không bao giờ xuống dưới minQuality. Ảnh còn vùng trong suốt ra PNG khi
+ * bật preserveTransparency.
  *
  * Trả về null khi ảnh đã gọn so với kích thước thật của nó (không quá
  * maxDimension và byte/pixel thấp) — lúc đó nén lại chỉ mất CPU mà không lợi.
@@ -110,13 +130,21 @@ export async function compressImageBlob(blob: Blob, options: CompressOptions): P
     throw new Error('không lấy được canvas 2d context')
   }
 
-  // JPEG không có alpha: tô trắng trước để ảnh PNG trong suốt không ra nền đen.
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, width, height)
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(drawable, 0, 0, width, height)
   drawable.close()
+
+  if (options.preserveTransparency === true && hasTransparency(ctx, width, height)) {
+    // PNG giữ được alpha và không có tham số chất lượng nên chỉ encode một lần.
+    return encode(canvas, 1, PNG_MIME)
+  }
+
+  // JPEG không có alpha: chèn nền trắng xuống dưới để vùng trong suốt không ra nền đen.
+  ctx.globalCompositeOperation = 'destination-over'
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, width, height)
+  ctx.globalCompositeOperation = 'source-over'
 
   let quality = options.startQuality
   let output = await encode(canvas, quality)

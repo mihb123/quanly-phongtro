@@ -30,6 +30,7 @@ type TenantServiceImpl struct {
 	users   model.UserRepository
 	tenants model.TenantRepository
 	rooms   model.RoomRepository
+	houses  model.HouseRepository
 }
 
 type RegisterTenantInput struct {
@@ -56,11 +57,12 @@ type UpdateTenantInput struct {
 	KeptCCCDPaths *string
 }
 
-func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantRepository, rooms model.RoomRepository, hasher auth.PasswordHasher) *TenantServiceImpl {
+func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantRepository, rooms model.RoomRepository, houses model.HouseRepository, hasher auth.PasswordHasher) *TenantServiceImpl {
 	return &TenantServiceImpl{
 		rooms:   rooms,
 		users:   user,
 		tenants: tenant,
+		houses:  houses,
 		hasher:  hasher,
 	}
 }
@@ -331,7 +333,8 @@ func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID
 	return filePath, nil
 }
 
-// authorizeFileAccess cho phép truy cập nếu file thuộc CCCD của khách thuê hoặc hợp đồng của phòng do manager quản lý.
+// authorizeFileAccess cho phép truy cập nếu file thuộc CCCD của khách thuê, hợp đồng của phòng,
+// hoặc CCCD chủ nhà / hợp đồng thuê nguyên căn của nhà do manager quản lý.
 func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, storedPath, fileName string) error {
 	for _, candidate := range []string{storedPath, fileName} {
 		_, err := s.tenants.GetTenantByFilePath(ctx, managerID, candidate)
@@ -348,6 +351,16 @@ func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, 
 		}
 		if owned {
 			return nil
+		}
+
+		if s.houses != nil {
+			ownedHouse, houseErr := s.houses.HasHouseWithFilePath(ctx, managerID, candidate)
+			if houseErr != nil {
+				return houseErr
+			}
+			if ownedHouse {
+				return nil
+			}
 		}
 	}
 	return model.ErrTenantNotFound

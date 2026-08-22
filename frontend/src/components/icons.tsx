@@ -30,6 +30,7 @@ import {
   Doc01Icon,
   FilterRemoveIcon,
   Home09Icon,
+  Image02Icon,
   Key01Icon,
   DashboardSquare01Icon,
   Loading03Icon,
@@ -98,6 +99,7 @@ export const FileIcon = makeIcon(File02Icon)
 export const FileText = makeIcon(Doc01Icon)
 export const FilterX = makeIcon(FilterRemoveIcon)
 export const Home = makeIcon(Home09Icon)
+export const ImageIcon = makeIcon(Image02Icon)
 export const Key = makeIcon(Key01Icon)
 export const LayoutDashboard = makeIcon(DashboardSquare01Icon)
 export const Loader2 = makeIcon(Loading03Icon)

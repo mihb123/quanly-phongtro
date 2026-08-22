@@ -103,7 +103,7 @@ function compressViaWorker(blob: Blob, options: CompressOptions): Promise<Blob |
   })
 }
 
-function isCompressibleImage(file: File): boolean {
+export function isCompressibleImage(file: File): boolean {
   if (COMPRESSIBLE_MIME.test(file.type)) return true
   return !file.type && COMPRESSIBLE_EXT.test(file.name)
 }
@@ -156,6 +156,48 @@ export async function compressImageForUpload(
     console.warn('Không nén được ảnh, upload bản gốc:', file.name, error)
     return untouched
   }
+}
+
+export interface OptimizedImage {
+  /** Ảnh sau khi nén, hoặc chính file gốc khi nén ra không nhỏ hơn. */
+  blob: Blob
+  originalSize: number
+  optimizedSize: number
+  optimized: boolean
+}
+
+/**
+ * Nén một ảnh theo yêu cầu trực tiếp của người dùng (trang tối ưu ảnh).
+ *
+ * Khác `compressImageForUpload`: không bỏ qua ảnh nhỏ và không đoán "ảnh đã gọn"
+ * — người dùng đã chủ động chọn nén nên luôn thử encode lại, chỉ trả về bản gốc
+ * khi kết quả không nhỏ hơn thật.
+ */
+export async function optimizeImage(
+  file: File,
+  overrides: Partial<CompressOptions> = {},
+): Promise<OptimizedImage> {
+  const isPng = /^image\/png$/i.test(file.type)
+  const options: CompressOptions = {
+    ...DEFAULT_COMPRESS_OPTIONS,
+    ...(isPng ? { startQuality: PNG_START_QUALITY } : {}),
+    // Hai ngưỡng này là bộ lọc "có đáng nén không" của luồng upload; ở đây bỏ qua.
+    maxBytesPerPixel: 0,
+    alwaysCompressOverBytes: 0,
+    // Ảnh của người dùng có thể cần nền trong suốt, không được tô trắng thành JPEG.
+    preserveTransparency: true,
+    ...overrides,
+  }
+
+  const blob = workerSupported()
+    ? await compressViaWorker(file, options)
+    : await compressImageBlob(file, options)
+
+  if (!blob || blob.size >= file.size) {
+    return { blob: file, originalSize: file.size, optimizedSize: file.size, optimized: false }
+  }
+
+  return { blob, originalSize: file.size, optimizedSize: blob.size, optimized: true }
 }
 
 /** Nén danh sách file với giới hạn song song. */

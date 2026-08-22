@@ -2,6 +2,7 @@ package house
 
 import (
 	"context"
+	"mime/multipart"
 	"strings"
 	"time"
 
@@ -15,6 +16,8 @@ type HouseService interface {
 	GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error)
 	ListHouseByManagerID(ctx context.Context, managerID string, page, limit int, search string) ([]model.House, error)
 	UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error)
+	// UpdateHouseDocuments lưu CCCD chủ nhà và hợp đồng thuê nguyên căn gắn với nhà.
+	UpdateHouseDocuments(ctx context.Context, id, managerID string, input UpdateHouseDocumentsInput) (*model.House, error)
 	DeleteHouse(ctx context.Context, id, managerID string) error
 	// IsHouseCodeAvailable báo house_code còn dùng được không trong toàn hệ thống, bỏ qua excludeHouseID.
 	IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error)
@@ -49,6 +52,21 @@ type UpdateHouseInput struct {
 	ExtraPersonFee          float64
 	ExtraVehicleThreshold   int
 	ExtraVehicleFee         float64
+	OwnerName               string
+	OwnerPhone              string
+	OwnerRentPrice          float64
+	OwnerDeposit            float64
+	RentStartDate           *time.Time
+	RentEndDate             *time.Time
+}
+
+// UpdateHouseDocumentsInput mang file CCCD chủ nhà và hợp đồng thuê nguyên căn.
+// Kept*Paths là các file đã lưu mà manager muốn giữ lại ("" = xóa hết, nil = giữ nguyên).
+type UpdateHouseDocumentsInput struct {
+	CCCDFiles         []*multipart.FileHeader
+	KeptCCCDPaths     *string
+	ContractFiles     []*multipart.FileHeader
+	KeptContractPaths *string
 }
 
 // IsHouseCodeAvailable báo house_code còn dùng được không (chưa bị nhà nào trong toàn hệ thống chiếm); bỏ qua nhà excludeHouseID khi cập nhật.
@@ -147,12 +165,66 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 		ExtraPersonFee:          input.ExtraPersonFee,
 		ExtraVehicleThreshold:   input.ExtraVehicleThreshold,
 		ExtraVehicleFee:         input.ExtraVehicleFee,
+		OwnerName:               input.OwnerName,
+		OwnerPhone:              input.OwnerPhone,
+		OwnerRentPrice:          input.OwnerRentPrice,
+		OwnerDeposit:            input.OwnerDeposit,
+		RentStartDate:           input.RentStartDate,
+		RentEndDate:             input.RentEndDate,
 	}
 	house, err := h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
 	if err != nil {
 		return nil, err
 	}
 	return house, nil
+}
+
+// UpdateHouseDocuments giữ lại các file cũ được chọn rồi nối thêm file mới, giống cách hợp đồng phòng hoạt động.
+func (h *HouseServiceImpl) UpdateHouseDocuments(ctx context.Context, id, managerID string, input UpdateHouseDocumentsInput) (*model.House, error) {
+	houseID := strings.TrimSpace(id)
+	if houseID == "" {
+		return nil, shared.ErrInvalidHouseID
+	}
+	ownerID := strings.TrimSpace(managerID)
+	if ownerID == "" {
+		return nil, shared.ErrInvalidManagerID
+	}
+
+	existing, err := h.houseRepo.GetByID(ctx, houseID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	cccdPath, err := mergeUploadPaths(existing.OwnerCCCDPath, input.KeptCCCDPaths, input.CCCDFiles)
+	if err != nil {
+		return nil, err
+	}
+	contractPath, err := mergeUploadPaths(existing.OwnerContractPath, input.KeptContractPaths, input.ContractFiles)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.houseRepo.UpdateHouseDocuments(ctx, houseID, ownerID, cccdPath, contractPath)
+}
+
+// mergeUploadPaths trả về danh sách đường dẫn sau khi giữ lại file cũ được chọn và lưu thêm file mới.
+func mergeUploadPaths(current string, kept *string, files []*multipart.FileHeader) (string, error) {
+	paths := current
+	if kept != nil {
+		paths = *kept
+	}
+	if len(files) == 0 {
+		return paths, nil
+	}
+
+	newPaths, err := shared.SaveUploadedFiles(files)
+	if err != nil {
+		return "", err
+	}
+	if paths == "" {
+		return newPaths, nil
+	}
+	return paths + "," + newPaths, nil
 }
 
 func (h *HouseServiceImpl) DeleteHouse(ctx context.Context, id, managerID string) error {

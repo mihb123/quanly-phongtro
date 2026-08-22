@@ -39,6 +39,7 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -228,6 +229,7 @@ export function AppSidebar() {
                                     <Edit />
                                     Sửa thông tin
                                   </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     variant="destructive"
                                     onClick={() => setHouseToDelete(house)}

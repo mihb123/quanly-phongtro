@@ -63,13 +63,17 @@ function ImageLightboxContent({
   // Map of item key -> resolved object/blob/static URL
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({})
   const resolvedUrlsRef = useRef<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(true)
+  const inFlightPromisesRef = useRef<Map<string, Promise<string>>>(new Map())
+
+  const [isLoading, setIsLoading] = useState(() => {
+    const initialItem = items[Math.max(0, Math.min(initialIndex, items.length - 1))]
+    return Boolean(initialItem && !initialItem.url && (initialItem.path || initialItem.file))
+  })
   const [hasError, setHasError] = useState(false)
   const [brokenKeys, setBrokenKeys] = useState<Record<string, boolean>>({})
 
   // Track created blob URLs to revoke on unmount
   const createdBlobUrlsRef = useRef<Set<string>>(new Set())
-  const inFlightKeysRef = useRef<Set<string>>(new Set())
   const isUnmountedRef = useRef(false)
 
   useEffect(() => () => {
@@ -104,20 +108,25 @@ function ImageLightboxContent({
 
     const resolveItem = async (index: number, isCurrent: boolean) => {
       const item = items[index]
-      const key = getItemKey(item, index)
-
-      if (resolvedUrlsRef.current[key]) {
-        if (isCurrent && !isCancelled) {
-          setIsLoading(false)
-          setHasError(false)
-        }
-        return
-      }
-
       if (!item) {
         if (isCurrent && !isCancelled) {
           setIsLoading(false)
           setHasError(true)
+        }
+        return
+      }
+
+      const key = getItemKey(item, index)
+
+      if (resolvedUrlsRef.current[key] || item.url) {
+        const directUrl = resolvedUrlsRef.current[key] || item.url || ''
+        if (directUrl && !resolvedUrlsRef.current[key]) {
+          resolvedUrlsRef.current[key] = directUrl
+          setResolvedUrls((prev) => (prev[key] ? prev : { ...prev, [key]: directUrl }))
+        }
+        if (isCurrent && !isCancelled) {
+          setIsLoading(false)
+          setHasError(false)
         }
         return
       }
@@ -127,16 +136,24 @@ function ImageLightboxContent({
         setHasError(false)
       }
 
-      if (inFlightKeysRef.current.has(key)) return
-      inFlightKeysRef.current.add(key)
+      let promise = inFlightPromisesRef.current.get(key)
+      if (!promise) {
+        promise = fetchUrlForItem(item)
+          .then((url) => {
+            if (url) {
+              resolvedUrlsRef.current[key] = url
+              setResolvedUrls((prev) => (prev[key] ? prev : { ...prev, [key]: url }))
+            }
+            return url
+          })
+          .finally(() => {
+            inFlightPromisesRef.current.delete(key)
+          })
+        inFlightPromisesRef.current.set(key, promise)
+      }
 
       try {
-        const url = await fetchUrlForItem(item)
-        // Ghi cache dù effect đã bị hủy: blob tải xong rồi, bỏ đi là lần chuyển ảnh tiếp theo phải tải lại
-        if (url) {
-          resolvedUrlsRef.current[key] = url
-          setResolvedUrls((prev) => (prev[key] ? prev : { ...prev, [key]: url }))
-        }
+        const url = await promise
         if (isCurrent && !isCancelled) {
           setHasError(!url)
           setIsLoading(false)
@@ -147,8 +164,6 @@ function ImageLightboxContent({
           setHasError(true)
           setIsLoading(false)
         }
-      } finally {
-        inFlightKeysRef.current.delete(key)
       }
     }
 
@@ -447,12 +462,12 @@ function ImageLightboxContent({
         className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-hidden relative"
         onClick={onClose}
       >
-        {isLoading ? (
+        {isLoading && !activeUrl ? (
           <div className="flex flex-col items-center gap-3 text-white">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
             <span className="text-sm font-medium">Đang tải ảnh...</span>
           </div>
-        ) : hasError ? (
+        ) : hasError && !activeUrl ? (
           <div className="flex flex-col items-center gap-3 text-white/80 max-w-sm text-center">
             <div className="w-12 h-12 rounded-full bg-destructive/20 text-destructive flex items-center justify-center">
               <FileIcon className="w-6 h-6" />

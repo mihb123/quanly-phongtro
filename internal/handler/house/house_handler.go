@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 
@@ -41,6 +42,12 @@ type createHouseRequest struct {
 	ExtraPersonFee          float64 `json:"extra_person_fee" validate:"gte=0"`
 	ExtraVehicleThreshold   int     `json:"extra_vehicle_threshold" validate:"gte=0"`
 	ExtraVehicleFee         float64 `json:"extra_vehicle_fee" validate:"gte=0"`
+	OwnerName               string  `json:"owner_name" validate:"omitempty,max=100"`
+	OwnerPhone              string  `json:"owner_phone" validate:"omitempty,max=20"`
+	OwnerRentPrice          float64 `json:"owner_rent_price" validate:"gte=0"`
+	OwnerDeposit            float64 `json:"owner_deposit" validate:"gte=0"`
+	RentStartDate           string  `json:"rent_start_date" validate:"omitempty,datetime=2006-01-02"`
+	RentEndDate             string  `json:"rent_end_date" validate:"omitempty,datetime=2006-01-02"`
 }
 
 type updateHouseRequest struct {
@@ -60,6 +67,12 @@ type updateHouseRequest struct {
 	ExtraPersonFee          float64 `json:"extra_person_fee" validate:"gte=0"`
 	ExtraVehicleThreshold   int     `json:"extra_vehicle_threshold" validate:"gte=0"`
 	ExtraVehicleFee         float64 `json:"extra_vehicle_fee" validate:"gte=0"`
+	OwnerName               string  `json:"owner_name" validate:"omitempty,max=100"`
+	OwnerPhone              string  `json:"owner_phone" validate:"omitempty,max=20"`
+	OwnerRentPrice          float64 `json:"owner_rent_price" validate:"gte=0"`
+	OwnerDeposit            float64 `json:"owner_deposit" validate:"gte=0"`
+	RentStartDate           string  `json:"rent_start_date" validate:"omitempty,datetime=2006-01-02"`
+	RentEndDate             string  `json:"rent_end_date" validate:"omitempty,datetime=2006-01-02"`
 }
 
 func NewHouseHandler(service housesvc.HouseService, invoiceService invoicesvc.InvoiceService) *HouseHandler {
@@ -93,6 +106,19 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rentStart, err := parseOptionalDate(req.RentStartDate)
+	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid rent_start_date", err)
+		httpx.WriteError(w, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD")
+		return
+	}
+	rentEnd, err := parseOptionalDate(req.RentEndDate)
+	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid rent_end_date", err)
+		httpx.WriteError(w, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD")
+		return
+	}
+
 	house := &model.House{
 		Name:                    req.Name,
 		HouseCode:               req.HouseCode,
@@ -111,6 +137,12 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 		ExtraPersonFee:          req.ExtraPersonFee,
 		ExtraVehicleThreshold:   req.ExtraVehicleThreshold,
 		ExtraVehicleFee:         req.ExtraVehicleFee,
+		OwnerName:               req.OwnerName,
+		OwnerPhone:              req.OwnerPhone,
+		OwnerRentPrice:          req.OwnerRentPrice,
+		OwnerDeposit:            req.OwnerDeposit,
+		RentStartDate:           rentStart,
+		RentEndDate:             rentEnd,
 	}
 
 	err = h.houseService.CreateHouse(r.Context(), house)
@@ -249,6 +281,19 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	rentStart, err := parseOptionalDate(req.RentStartDate)
+	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid rent_start_date", err)
+		httpx.WriteError(w, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD")
+		return
+	}
+	rentEnd, err := parseOptionalDate(req.RentEndDate)
+	if err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid rent_end_date", err)
+		httpx.WriteError(w, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD")
+		return
+	}
+
 	updateHouseInput := housesvc.UpdateHouseInput{
 		Name:                    req.Name,
 		HouseCode:               req.HouseCode,
@@ -266,6 +311,12 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 		ExtraPersonFee:          req.ExtraPersonFee,
 		ExtraVehicleThreshold:   req.ExtraVehicleThreshold,
 		ExtraVehicleFee:         req.ExtraVehicleFee,
+		OwnerName:               req.OwnerName,
+		OwnerPhone:              req.OwnerPhone,
+		OwnerRentPrice:          req.OwnerRentPrice,
+		OwnerDeposit:            req.OwnerDeposit,
+		RentStartDate:           rentStart,
+		RentEndDate:             rentEnd,
 	}
 
 	house, err := h.houseService.UpdateHouse(r.Context(), id, userID, updateHouseInput)
@@ -289,6 +340,77 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, house, "")
+}
+
+// parseOptionalDate đổi chuỗi YYYY-MM-DD của form sang *time.Time; chuỗi rỗng nghĩa là không có ngày.
+func parseOptionalDate(value string) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
+}
+
+// UpdateHouseDocuments nhận multipart form để lưu CCCD chủ nhà và hợp đồng thuê nguyên căn của nhà.
+// PATCH /api/v1/house/{id}/documents
+func (h *HouseHandler) UpdateHouseDocuments(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
+		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+
+	in := housesvc.UpdateHouseDocumentsInput{
+		KeptCCCDPaths:     keptPathsFromForm(r, "kept_owner_cccd_paths"),
+		KeptContractPaths: keptPathsFromForm(r, "kept_owner_contract_paths"),
+		CCCDFiles:         r.MultipartForm.File["owner_cccd_file"],
+		ContractFiles:     r.MultipartForm.File["owner_contract_file"],
+	}
+	if len(in.CCCDFiles) > 10 || len(in.ContractFiles) > 10 {
+		httpx.WriteError(w, http.StatusBadRequest, "maximum 10 files allowed")
+		return
+	}
+
+	house, err := h.houseService.UpdateHouseDocuments(r.Context(), id, managerID, in)
+	if err != nil {
+		switch {
+		case errors.Is(err, sharedsvc.ErrInvalidHouseID), errors.Is(err, sharedsvc.ErrInvalidManagerID):
+			logger.Warn(r, http.StatusBadRequest, "invalid house or manager ID", err)
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, model.ErrHouseNotFound):
+			logger.Warn(r, http.StatusNotFound, "house not found", err)
+			httpx.WriteError(w, http.StatusNotFound, "house not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to update house documents", err)
+			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, house, "")
+}
+
+// keptPathsFromForm đọc danh sách file cũ cần giữ; nil = giữ nguyên, "" = xóa hết (cần cờ <field>_empty vì form rỗng không phân biệt được).
+func keptPathsFromForm(r *http.Request, field string) *string {
+	if v := r.FormValue(field); v != "" {
+		return &v
+	}
+	if r.FormValue(field+"_empty") == "true" {
+		empty := ""
+		return &empty
+	}
+	return nil
 }
 
 func (h *HouseHandler) DeleteHouse(w http.ResponseWriter, r *http.Request) {

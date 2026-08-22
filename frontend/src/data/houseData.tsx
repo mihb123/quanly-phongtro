@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getHouses, deleteHouse, updateHouse as apiUpdateHouse, createHouse as apiCreateHouse, type House } from '@/api/house'
+import { getHouses, deleteHouse, updateHouse as apiUpdateHouse, createHouse as apiCreateHouse, updateHouseDocuments as apiUpdateHouseDocuments, type House } from '@/api/house'
 import { useInvoiceStore } from './invoiceData'
 
 interface HouseDataState {
@@ -7,6 +7,7 @@ interface HouseDataState {
   fetchHouses: () => Promise<void>
   deleteHouse: (houseId: string) => Promise<{success: boolean, error?: string}>
   updateHouse: (id: string, payload: Partial<House>) => Promise<{success: boolean, house?: House, error?: string}>
+  updateHouseDocuments: (id: string, payload: FormData) => Promise<{success: boolean, house?: House, error?: string}>
   createHouse: (payload: Partial<House>) => Promise<{success: boolean, house?: House, error?: string}>
 }
 
@@ -58,6 +59,17 @@ export const useHouseStore = create<HouseDataState>((set) => ({
         set(state => ({ houses: state.houses.map(h => h.id === id ? previousHouse! : h) }))
       }
       return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi sửa nhà!" }
+    }
+  },
+  updateHouseDocuments: async (id: string, payload: FormData) => {
+    try {
+      const house = await apiUpdateHouseDocuments(id, payload)
+      set(state => ({ houses: state.houses.map(h => h.id === id ? house : h) }))
+      return { success: true, house }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
+      console.error("Failed to update house documents", err)
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi lưu hồ sơ thuê nhà!" }
     }
   },
   createHouse: async (payload: Partial<House>) => {
