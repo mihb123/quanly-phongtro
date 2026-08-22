@@ -17,7 +17,8 @@ func recoverMiddleware(next http.Handler) http.Handler {
 				}
 
 				logger.Error(r, http.StatusInternalServerError, "panic recovered", err)
-				writeError(w, http.StatusInternalServerError, err.Error())
+				// Chi tiết panic chỉ ghi log, client nhận thông điệp chung.
+				writeError(w, http.StatusInternalServerError, "internal server error")
 			}
 		}()
 

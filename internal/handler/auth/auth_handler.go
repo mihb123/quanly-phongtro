@@ -3,7 +3,6 @@ package auth
 import (
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -429,59 +428,5 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP returns the client IP, trusting X-Forwarded-For only from configured proxies.
 func (h *AuthHandler) getClientIP(r *http.Request) string {
-	remoteIP := remoteAddrIP(r.RemoteAddr)
-	if remoteIP != "" && h.isTrustedProxy(remoteIP) {
-		if xff := firstForwardedIP(r.Header.Get("X-Forwarded-For")); xff != "" {
-			return xff
-		}
-	}
-
-	if remoteIP != "" {
-		return remoteIP
-	}
-	return r.RemoteAddr
-}
-
-// isTrustedProxy reports whether an address belongs to a trusted proxy CIDR.
-func (h *AuthHandler) isTrustedProxy(ip string) bool {
-	addr, err := netip.ParseAddr(ip)
-	if err != nil {
-		return false
-	}
-
-	for _, prefix := range h.trustedProxyCIDRs {
-		if prefix.Contains(addr) {
-			return true
-		}
-	}
-	return false
-}
-
-// remoteAddrIP extracts and validates the IP portion of a request RemoteAddr.
-func remoteAddrIP(remoteAddr string) string {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		if _, parseErr := netip.ParseAddr(remoteAddr); parseErr == nil {
-			return remoteAddr
-		}
-		return ""
-	}
-
-	if _, err := netip.ParseAddr(host); err != nil {
-		return ""
-	}
-
-	return host
-}
-
-// firstForwardedIP extracts the first syntactically valid X-Forwarded-For IP.
-func firstForwardedIP(header string) string {
-	first := strings.TrimSpace(strings.Split(header, ",")[0])
-	if first == "" {
-		return ""
-	}
-	if _, err := netip.ParseAddr(first); err != nil {
-		return ""
-	}
-	return first
+	return security.ClientIP(r, h.trustedProxyCIDRs)
 }

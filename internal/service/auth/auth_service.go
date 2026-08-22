@@ -399,7 +399,7 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp, jkt strin
 		}
 		return "", false, err
 	}
-	if time.Since(emailVeri.Expires) > s.OTPExpiresIn || emailVeri.IsUsed {
+	if time.Now().After(emailVeri.Expires) || emailVeri.IsUsed {
 		return "", false, nil
 	}
 
