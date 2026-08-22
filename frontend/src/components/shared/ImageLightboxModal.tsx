@@ -59,6 +59,18 @@ function ImageLightboxContent({
   const [currentIndex, setCurrentIndex] = useState(() => Math.max(0, Math.min(initialIndex, items.length - 1)))
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [position, setPosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+
+  const mainContainerRef = useRef<HTMLElement>(null)
+  const isMouseDownRef = useRef(false)
+  const dragStartRef = useRef<{ startX: number; startY: number; posX: number; posY: number }>({
+    startX: 0,
+    startY: 0,
+    posX: 0,
+    posY: 0,
+  })
+  const hasDraggedRef = useRef(false)
 
   // Map of item key -> resolved object/blob/static URL
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({})
@@ -206,6 +218,7 @@ function ImageLightboxContent({
   const handlePrev = useCallback(() => {
     if (items.length <= 1) return
     setZoom(1)
+    setPosition({ x: 0, y: 0 })
     setRotation(0)
     setCurrentIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
   }, [items.length])
@@ -213,6 +226,7 @@ function ImageLightboxContent({
   const handleNext = useCallback(() => {
     if (items.length <= 1) return
     setZoom(1)
+    setPosition({ x: 0, y: 0 })
     setRotation(0)
     setCurrentIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))
   }, [items.length])
@@ -234,13 +248,18 @@ function ImageLightboxContent({
         handleNext()
       } else if (e.key === '+' || e.key === '=') {
         e.preventDefault()
-        setZoom((prev) => Math.min(prev + 0.25, 3))
+        setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 6))
       } else if (e.key === '-') {
         e.preventDefault()
-        setZoom((prev) => Math.max(prev - 0.25, 0.5))
+        setZoom((prev) => {
+          const next = Math.max(Number((prev - 0.25).toFixed(2)), 0.5)
+          if (next <= 1) setPosition({ x: 0, y: 0 })
+          return next
+        })
       } else if (e.key === '0') {
         e.preventDefault()
         setZoom(1)
+        setPosition({ x: 0, y: 0 })
         setRotation(0)
       } else if (e.key.toLowerCase() === 'r') {
         e.preventDefault()
@@ -252,33 +271,178 @@ function ImageLightboxContent({
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [onClose, handlePrev, handleNext])
 
-  // Touch swipe support for mobile
-  const touchStartXRef = useRef<number | null>(null)
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX
-  }
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartXRef.current === null) return
-    const touchEndX = e.changedTouches[0].clientX
-    const diff = touchEndX - touchStartXRef.current
-    if (diff > 50) {
-      handlePrev()
-    } else if (diff < -50) {
-      handleNext()
+  // Mouse wheel zoom (scroll to zoom in/out)
+  useEffect(() => {
+    const container = mainContainerRef.current
+    if (!container) return
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+
+      const delta = e.deltaY < 0 ? 0.25 : -0.25
+      setZoom((prev) => {
+        const next = Math.min(Math.max(Number((prev + delta).toFixed(2)), 0.5), 6)
+        if (next <= 1) {
+          setPosition({ x: 0, y: 0 })
+        }
+        return next
+      })
     }
-    touchStartXRef.current = null
+
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [])
+
+  // Mouse drag / pan handlers
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    isMouseDownRef.current = true
+    hasDraggedRef.current = false
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      posX: position.x,
+      posY: position.y,
+    }
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isMouseDownRef.current) return
+      const dx = e.clientX - dragStartRef.current.startX
+      const dy = e.clientY - dragStartRef.current.startY
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasDraggedRef.current = true
+        setIsDragging(true)
+      }
+
+      setPosition({
+        x: dragStartRef.current.posX + dx,
+        y: dragStartRef.current.posY + dy,
+      })
+    }
+
+    const handleMouseUp = () => {
+      isMouseDownRef.current = false
+      setIsDragging(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
+
+  // Touch swipe and touch pan / pinch zoom
+  const touchStartRef = useRef<{
+    touches: { x: number; y: number }[]
+    initialDistance: number
+    initialZoom: number
+    initialPos: { x: number; y: number }
+  }>({
+    touches: [],
+    initialDistance: 0,
+    initialZoom: 1,
+    initialPos: { x: 0, y: 0 },
+  })
+  const isTouchDraggingRef = useRef(false)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      touchStartRef.current = {
+        touches: [
+          { x: e.touches[0].clientX, y: e.touches[0].clientY },
+          { x: e.touches[1].clientX, y: e.touches[1].clientY },
+        ],
+        initialDistance: dist,
+        initialZoom: zoom,
+        initialPos: { ...position },
+      }
+    } else if (e.touches.length === 1) {
+      touchStartRef.current = {
+        touches: [{ x: e.touches[0].clientX, y: e.touches[0].clientY }],
+        initialDistance: 0,
+        initialZoom: zoom,
+        initialPos: { ...position },
+      }
+      isTouchDraggingRef.current = false
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartRef.current.initialDistance > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      )
+      const scale = dist / touchStartRef.current.initialDistance
+      const nextZoom = Math.min(Math.max(Number((touchStartRef.current.initialZoom * scale).toFixed(2)), 0.5), 6)
+      setZoom(nextZoom)
+    } else if (e.touches.length === 1 && zoom > 1) {
+      const dx = e.touches[0].clientX - touchStartRef.current.touches[0].x
+      const dy = e.touches[0].clientY - touchStartRef.current.touches[0].y
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        isTouchDraggingRef.current = true
+        setIsDragging(true)
+      }
+      setPosition({
+        x: touchStartRef.current.initialPos.x + dx,
+        y: touchStartRef.current.initialPos.y + dy,
+      })
+    }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsDragging(false)
+    if (e.changedTouches.length === 1 && zoom <= 1 && !isTouchDraggingRef.current) {
+      const touchEndX = e.changedTouches[0].clientX
+      const startX = touchStartRef.current.touches[0]?.x
+      if (startX !== undefined) {
+        const diff = touchEndX - startX
+        if (diff > 60) {
+          handlePrev()
+        } else if (diff < -60) {
+          handleNext()
+        }
+      }
+    }
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (zoom !== 1 || position.x !== 0 || position.y !== 0) {
+      setZoom(1)
+      setPosition({ x: 0, y: 0 })
+    } else {
+      setZoom(2.5)
+    }
   }
 
   const handleZoomIn = useCallback(() => {
-    setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 3))
+    setZoom((prev) => Math.min(Number((prev + 0.25).toFixed(2)), 6))
   }, [])
 
   const handleZoomOut = useCallback(() => {
-    setZoom((prev) => Math.max(Number((prev - 0.25).toFixed(2)), 0.5))
+    setZoom((prev) => {
+      const next = Math.max(Number((prev - 0.25).toFixed(2)), 0.5)
+      if (next <= 1) setPosition({ x: 0, y: 0 })
+      return next
+    })
   }, [])
 
   const handleResetZoom = useCallback(() => {
     setZoom(1)
+    setPosition({ x: 0, y: 0 })
     setRotation(0)
   }, [])
 
@@ -309,14 +473,23 @@ function ImageLightboxContent({
 
   const isImg = isImageItem(currentItem) && !brokenKeys[currentKey]
 
+  const handleBackdropClick = () => {
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false
+      return
+    }
+    onClose()
+  }
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={activeTitle || 'Xem ảnh'}
       className="fixed inset-0 z-[9999] flex flex-col justify-between bg-black/90 backdrop-blur-md safe-fade-in select-none"
-      onClick={onClose}
+      onClick={handleBackdropClick}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       {/* Top Header Bar */}
@@ -333,7 +506,7 @@ function ImageLightboxContent({
           <span className="text-sm sm:text-base font-medium truncate max-w-[180px] sm:max-w-md md:max-w-lg" title={activeTitle}>
             {activeTitle}
           </span>
-          {zoom !== 1 && (
+          {(zoom !== 1 || position.x !== 0 || position.y !== 0) && (
             <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-white/10 text-white/80 shrink-0">
               {Math.round(zoom * 100)}%
             </span>
@@ -349,7 +522,7 @@ function ImageLightboxContent({
                 onClick={handleZoomOut}
                 disabled={zoom <= 0.5}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
-                title="Thu nhỏ (-)"
+                title="Thu nhỏ (- / Cuộn chuột xuống)"
                 aria-label="Thu nhỏ"
               >
                 <span className="text-lg leading-none font-bold px-0.5">−</span>
@@ -358,20 +531,20 @@ function ImageLightboxContent({
               <button
                 type="button"
                 onClick={handleZoomIn}
-                disabled={zoom >= 3}
+                disabled={zoom >= 6}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
-                title="Phóng to (+)"
+                title="Phóng to (+ / Cuộn chuột lên)"
                 aria-label="Phóng to"
               >
                 <ZoomIn className="w-4 h-4" />
               </button>
 
-              {(zoom !== 1 || rotation !== 0) && (
+              {(zoom !== 1 || position.x !== 0 || position.y !== 0 || rotation !== 0) && (
                 <button
                   type="button"
                   onClick={handleResetZoom}
                   className="px-2.5 py-1 text-xs text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer font-medium"
-                  title="Đặt lại kích thước (0)"
+                  title="Đặt lại kích thước và vị trí (0)"
                 >
                   100%
                 </button>
@@ -459,16 +632,17 @@ function ImageLightboxContent({
 
       {/* Main Content Area */}
       <main
-        className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-hidden relative"
-        onClick={onClose}
+        ref={mainContainerRef}
+        className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-hidden relative touch-none cursor-grab active:cursor-grabbing"
+        onMouseDown={handleMouseDown}
       >
         {isLoading && !activeUrl ? (
-          <div className="flex flex-col items-center gap-3 text-white">
+          <div className="flex flex-col items-center gap-3 text-white pointer-events-none">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
             <span className="text-sm font-medium">Đang tải ảnh...</span>
           </div>
         ) : hasError && !activeUrl ? (
-          <div className="flex flex-col items-center gap-3 text-white/80 max-w-sm text-center">
+          <div className="flex flex-col items-center gap-3 text-white/80 max-w-sm text-center pointer-events-none">
             <div className="w-12 h-12 rounded-full bg-destructive/20 text-destructive flex items-center justify-center">
               <FileIcon className="w-6 h-6" />
             </div>
@@ -476,24 +650,26 @@ function ImageLightboxContent({
           </div>
         ) : isImg && activeUrl ? (
           <div
-            className="max-w-full max-h-full flex items-center justify-center transition-transform duration-150 ease-out"
+            className="max-w-full max-h-full flex items-center justify-center will-change-transform"
             style={{
-              transform: `scale(${zoom}) rotate(${rotation}deg)`,
+              transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${zoom}) rotate(${rotation}deg)`,
+              transition: isDragging ? 'none' : 'transform 120ms ease-out',
+              cursor: isDragging ? 'grabbing' : zoom > 1 ? 'grab' : 'grab',
             }}
-            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={handleDoubleClick}
           >
             <img
               key={activeUrl}
               src={activeUrl}
               alt={activeTitle || 'Ảnh xem trước'}
-              className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg shadow-2xl border border-white/10 pointer-events-auto cursor-default safe-fade-in"
+              className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg shadow-2xl border border-white/10 pointer-events-auto safe-fade-in"
               draggable={false}
               onError={() => setBrokenKeys((prev) => ({ ...prev, [currentKey]: true }))}
             />
           </div>
         ) : (
           <div
-            className="bg-card text-card-foreground p-8 rounded-xl shadow-2xl border border-border flex flex-col items-center gap-4 text-center max-w-md mx-auto"
+            className="bg-card text-card-foreground p-8 rounded-xl shadow-2xl border border-border flex flex-col items-center gap-4 text-center max-w-md mx-auto pointer-events-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center">
@@ -520,25 +696,27 @@ function ImageLightboxContent({
         className="flex items-center justify-center py-2 px-4 bg-gradient-to-t from-black/60 to-transparent z-10 text-white/60 text-xs gap-3 sm:gap-4 select-none"
         onClick={(e) => e.stopPropagation()}
       >
+        {isImg && (
+          <span className="flex items-center gap-1.5 text-white/80">
+            <span>🖱️ Cuộn chuột để thu phóng</span>
+            <span>•</span>
+            <span>🖐️ Kéo chuột để di chuyển</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Nhấp đúp để đổi kích thước</span>
+          </span>
+        )}
         {items.length > 1 && (
           <>
-            <span className="flex items-center gap-1">
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:flex items-center gap-1">
               <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">←</kbd>
               <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px]">→</kbd>
               <span>chuyển ảnh ({currentIndex + 1}/{items.length})</span>
             </span>
-            <span className="hidden sm:inline">•</span>
           </>
         )}
+        <span className="hidden sm:inline">•</span>
         <span className="hidden sm:inline">Nhấn <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-mono text-[10px]">Esc</kbd> để đóng</span>
-        {isImg && (
-          <>
-            <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline"><kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-mono text-[10px]">+</kbd> / <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-mono text-[10px]">−</kbd> để thu phóng</span>
-            <span className="hidden sm:inline">•</span>
-            <span className="hidden sm:inline"><kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/80 font-mono text-[10px]">R</kbd> để xoay</span>
-          </>
-        )}
       </footer>
     </div>
   )

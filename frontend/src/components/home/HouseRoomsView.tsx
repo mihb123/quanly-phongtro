@@ -86,7 +86,8 @@ export function HouseRoomsView() {
       {houseToDelete && (
         <ConfirmModal
           title={`Xóa nhà: ${houseToDelete.name}`}
-          message="Bạn có chắc chắn muốn xóa nhà trọ này không? Tất cả phòng trọ và dữ liệu liên quan sẽ bị xóa vĩnh viễn và không thể khôi phục."
+          message="Toàn bộ phòng, khách thuê, hóa đơn, thanh toán và chi phí của nhà này sẽ bị xóa vĩnh viễn. Không có cách khôi phục."
+          confirmPhrase={houseToDelete.name}
           confirmText="Xóa ngay"
           cancelText="Bỏ qua"
           isLoading={isDeletingHouse}

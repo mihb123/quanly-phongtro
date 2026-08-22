@@ -80,9 +80,9 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
             <Label>Số khách thuê tối đa</Label>
             <Input type="number" min="1" {...register('maxTenants')} className="border-border" />
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit" disabled={isLoading}>
+          <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border/40">
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+            <Button type="submit" disabled={isLoading} className="flex-1 sm:flex-none">
               {isLoading ? 'Đang tạo...' : 'Tạo mới'}
             </Button>
           </div>

@@ -1,4 +1,12 @@
-import { Upload, X, FileIcon, ZoomIn, Loader2 } from '@/components/icons'
+import { useRef, type ChangeEvent } from 'react'
+import { Upload, X, FileIcon, ImageIcon, ZoomIn, Loader2 } from '@/components/icons'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { getFileName, isImagePath } from '@/utils/file'
 import { ProtectedFileImage } from './ProtectedFileImage'
 import type { LightboxImageItem } from '@/components/shared/ImageLightboxModal'
@@ -24,11 +32,22 @@ export function DocumentUploadGrid({
   onRequestDelete,
   onPreview,
 }: DocumentUploadGridProps) {
+  // Hai input tách riêng để trên mobile mở đúng trình chọn: accept="image/*" mở thư viện ảnh,
+  // input còn lại mở trình duyệt tệp (PDF đã scan). Giữ luôn trong DOM để click từ menu vẫn tính là thao tác của user.
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const gallery: LightboxImageItem[] = paths.map((path, idx) => ({
     path,
     title: `${itemLabel} ${idx + 1}`,
     filename: getFileName(path),
   }))
+
+  // Reset value để chọn lại đúng file vừa xóa vẫn kích hoạt onChange.
+  const handlePicked = (e: ChangeEvent<HTMLInputElement>) => {
+    onAddFiles(e.target.files)
+    e.target.value = ''
+  }
 
   return (
     <div className="flex flex-wrap gap-2.5 items-center">
@@ -85,28 +104,56 @@ export function DocumentUploadGrid({
         </div>
       )}
 
-      <label
-        className={`flex flex-col items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-border/80 hover:border-primary hover:bg-primary/5 cursor-pointer text-muted-foreground hover:text-primary transition-all shrink-0 ${
-          isBusy ? 'opacity-50 pointer-events-none' : ''
-        }`}
-        title={`Tải lên thêm file ${itemLabel.toLowerCase()}`}
-      >
-        <Upload className="w-5 h-5 mb-1" />
-        <span className="text-[11px] font-medium text-center px-1 leading-tight">
-          {paths.length === 0 ? emptyActionLabel : 'Thêm file'}
-        </span>
-        <input
-          type="file"
-          accept=".pdf,image/*"
-          multiple
-          disabled={isBusy}
-          className="hidden"
-          onChange={e => {
-            onAddFiles(e.target.files)
-            e.target.value = ''
-          }}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              disabled={isBusy}
+              className={`flex flex-col items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-border/80 hover:border-primary hover:bg-primary/5 cursor-pointer text-muted-foreground hover:text-primary transition-all shrink-0 ${
+                isBusy ? 'opacity-50 pointer-events-none' : ''
+              }`}
+              title={`Tải lên thêm file ${itemLabel.toLowerCase()}`}
+            >
+              <Upload className="w-5 h-5 mb-1" />
+              <span className="text-[11px] font-medium text-center px-1 leading-tight">
+                {paths.length === 0 ? emptyActionLabel : 'Thêm file'}
+              </span>
+            </button>
+          }
         />
-      </label>
+        <DropdownMenuContent side="bottom" align="start">
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+              <ImageIcon />
+              Chọn ảnh từ thư viện
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+              <FileIcon />
+              Chọn tệp (PDF, ảnh)
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        disabled={isBusy}
+        className="hidden"
+        onChange={handlePicked}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,image/*"
+        multiple
+        disabled={isBusy}
+        className="hidden"
+        onChange={handlePicked}
+      />
     </div>
   )
 }

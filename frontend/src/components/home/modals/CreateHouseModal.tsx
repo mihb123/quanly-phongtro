@@ -6,12 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
-import { formatNumber, parseNumber } from '@/utils/format'
-import { useForm, Controller } from 'react-hook-form'
+import { parseNumber } from '@/utils/format'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { checkHouseCode } from '@/api/house'
 import { HOUSE_CODE_PATTERN, generateHouseCode, isHouseCodeTaken } from '@/utils/houseCode'
+import { FormSection, FormSubGroup } from './FormSection'
+import { FieldError, MoneyInput, selectFieldClass } from './FormFields'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
@@ -33,6 +35,8 @@ const houseSchema = z.object({
 })
 
 type HouseFormValues = z.infer<typeof houseSchema>
+
+const FORM_ID = 'create-house-form'
 
 // Modal tạo nhà trọ mới kèm cấu hình tầng/số phòng tự sinh. Vỏ dùng AppModal, giữ nguyên RHF/Zod + auto sinh house_code.
 export function CreateHouseModal({ onClose }: { onClose: () => void }) {
@@ -195,200 +199,174 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
         </span>
       }
       contentClassName="sm:max-w-2xl"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+          <Button type="submit" form={FORM_ID} disabled={isLoading} className="flex-1 sm:flex-none">
+            {isLoading ? 'Đang khởi tạo...' : 'Xác nhận tạo'}
+          </Button>
+        </>
+      }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label>Tên nhà trọ</Label>
-              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-border" />
-              {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
+      <form id={FORM_ID} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <FormSection title="Thông tin chung">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>
+                Tên nhà trọ <span className="text-destructive">*</span>
+              </Label>
+              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
+              <FieldError message={errors.name?.message} />
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label>Mã nhà (House Code)</Label>
+            <div className="space-y-1.5">
+              <Label>
+                Mã nhà (House Code) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 {...register('house_code', { onChange: () => setIsHouseCodeTouched(true), onBlur: handleHouseCodeBlur })}
                 placeholder="vd: ntcg"
                 maxLength={12}
-                className="border-border"
+                className="border-input"
               />
-              {errors.house_code && <span className="text-destructive text-xs">{errors.house_code.message}</span>}
+              <FieldError message={errors.house_code?.message} />
             </div>
-            <div className="space-y-2 col-span-2">
-              <Label>Địa chỉ</Label>
-              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-border" />
-              {errors.address && <span className="text-destructive text-xs">{errors.address.message}</span>}
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>
+                Địa chỉ <span className="text-destructive">*</span>
+              </Label>
+              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
+              <FieldError message={errors.address?.message} />
             </div>
-            
-            {/* Điện */}
-            <div className="space-y-2 col-span-2 bg-muted/30 rounded-lg p-4 border border-border/50">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-1">
-                  <Label className="text-xs font-medium text-foreground">Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
+          </div>
+        </FormSection>
+
+        <FormSection title="Cấu hình chi phí" hint="Đơn giá mặc định áp dụng cho mọi phòng của nhà này.">
+          <FormSubGroup label="Điện & nước">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Cách tính tiền điện</Label>
+                  <select {...register('electricity_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
-                  <div className="flex-1">
-                    <Label className="text-xs font-medium text-foreground">Đơn vị tính</Label>
-                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
+                  <div className="space-y-1.5">
+                    <Label>Đơn vị tính điện</Label>
+                    <select {...register('electricity_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
+                <div className="space-y-1.5">
+                  <Label>{getElectricityPriceLabel()}</Label>
+                  <MoneyInput control={control} name="electricity" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">{getElectricityPriceLabel()}</Label>
-                <Controller
-                  name="electricity"
-                  control={control}
-                  render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
-                  )}
-                />
-              </div>
-            </div>
 
-            {/* Nước */}
-            <div className="space-y-2 col-span-2 bg-muted/30 rounded-lg p-4 border border-border/50">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-1">
-                  <Label className="text-xs font-medium text-foreground">Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Cách tính tiền nước</Label>
+                  <select {...register('water_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
-                  <div className="flex-1">
-                    <Label className="text-xs font-medium text-foreground">Đơn vị tính</Label>
-                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-border text-sm font-semibold mt-1 bg-background cursor-pointer">
+                  <div className="space-y-1.5">
+                    <Label>Đơn vị tính nước</Label>
+                    <select {...register('water_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">{getWaterPriceLabel()}</Label>
-                <Controller
-                  name="water"
-                  control={control}
-                  render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Phí khác */}
-            <div className="space-y-2">
-              <Label className="text-xs">Giá Wifi / phòng (VNĐ)</Label>
-              <Controller
-                name="wifi"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
-                )}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Giá gửi xe / xe (VNĐ)</Label>
-              <Controller
-                name="parking"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
-                )}
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label className="text-xs">Giá dịch vụ chung / người (VNĐ)</Label>
-              <Controller
-                name="service"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 bg-background" />
-                )}
-              />
-            </div>
-
-            {/* Phụ thu */}
-            <div className="space-y-2 col-span-2 bg-secondary/30 rounded-lg p-4 border border-border/50 mt-2">
-              <Label className="text-xs font-medium text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Phụ thu nếu quá X người</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-border h-8 w-16 bg-background" title="Số người miễn phí" />
-                    <Controller
-                      name="extra_person_fee"
-                      control={control}
-                      render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 flex-1 bg-background" placeholder="Giá/người (VNĐ)" />
-                      )}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Phụ thu nếu quá X xe</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-border h-8 w-16 bg-background" title="Số xe miễn phí" />
-                    <Controller
-                      name="extra_vehicle_fee"
-                      control={control}
-                      render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border h-8 flex-1 bg-background" placeholder="Giá/xe (VNĐ)" />
-                      )}
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>{getWaterPriceLabel()}</Label>
+                  <MoneyInput control={control} name="water" />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
             </div>
+          </FormSubGroup>
+
+          <FormSubGroup label="Dịch vụ khác">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Wifi / phòng (VNĐ)</Label>
+                <MoneyInput control={control} name="wifi" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Gửi xe / xe (VNĐ)</Label>
+                <MoneyInput control={control} name="parking" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Dịch vụ chung / người (VNĐ)</Label>
+                <MoneyInput control={control} name="service" />
+              </div>
+            </div>
+          </FormSubGroup>
+
+          <FormSubGroup label="Phụ thu (để 0 nếu không áp dụng)">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Phụ thu nếu quá X người</Label>
+                <div className="flex gap-2">
+                  <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
+                  <MoneyInput control={control} name="extra_person_fee" className="flex-1" placeholder="Giá/người (VNĐ)" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phụ thu nếu quá X xe</Label>
+                <div className="flex gap-2">
+                  <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
+                  <MoneyInput control={control} name="extra_vehicle_fee" className="flex-1" placeholder="Giá/xe (VNĐ)" />
+                </div>
+              </div>
+            </div>
+          </FormSubGroup>
+        </FormSection>
+
+        <FormSection
+          title="Cấu trúc phòng theo tầng"
+          hint="Hệ thống tự khởi tạo danh sách phòng theo số lượng bên dưới. Nhập 0 nếu chưa muốn tạo phòng."
+        >
+          <div className="space-y-1.5">
+            <Label>Số tầng của toà nhà (gồm cả trệt/thượng)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="20"
+              value={floorCountStr}
+              onChange={e => handleFloorCountChange(e.target.value)}
+              className="max-w-[200px] border-input"
+            />
           </div>
-          
-          <hr className="my-4 border-border/50" />
-          <div className="space-y-4 bg-secondary/20 rounded-lg p-4 border border-border/50">
-            <h3 className="font-medium text-foreground text-sm flex items-center gap-2">
-              <Building className="w-4 h-4 text-primary"/>
-              Cấu trúc số phòng theo tầng
-            </h3>
-            <p className="text-xs text-muted-foreground">Hệ thống sẽ tự động khởi tạo danh sách phòng dựa vào số lượng bạn cấu hình bên dưới. Nhập 0 nếu không muốn auto-generate.</p>
-            <div className="space-y-2">
-              <Label>Số tầng của toà nhà (bao gồm cả trệt/thượng)</Label>
-              <Input type="number" min="0" max="20" value={floorCountStr} onChange={e => handleFloorCountChange(e.target.value)} className="border-border max-w-[200px] bg-background" />
-            </div>
-            
-            {(parseInt(floorCountStr) || 0) > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 bg-background p-3 rounded-lg border border-border max-h-48 overflow-y-auto">
+
+          {(parseInt(floorCountStr) || 0) > 0 && (
+            <FormSubGroup label="Số phòng mỗi tầng">
+              <div className="grid max-h-48 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-4">
                 {Array.from({ length: parseInt(floorCountStr) || 0 }).map((_, i) => {
-                   const floorNo = i + 1;
-                   return (
-                     <div key={floorNo} className="space-y-1">
-                       <Label className="text-xs text-muted-foreground">Số phòng Tầng {floorNo}</Label>
-                       <Input 
-                         type="number" min="0" 
-                         value={roomsPerFloor[floorNo] ?? 1} 
-                         onChange={e => setRoomsPerFloor(prev => ({...prev, [floorNo]: parseInt(e.target.value) || 0}))} 
-                         className="h-8 text-sm border-border bg-background" 
-                       />
-                     </div>
-                   )
+                  const floorNo = i + 1
+                  return (
+                    <div key={floorNo} className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Tầng {floorNo}</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={roomsPerFloor[floorNo] ?? 1}
+                        onChange={e => setRoomsPerFloor(prev => ({ ...prev, [floorNo]: parseInt(e.target.value) || 0 }))}
+                        className="border-input"
+                      />
+                    </div>
+                  )
                 })}
               </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Đang khởi tạo...' : 'Xác nhận tạo'}
-            </Button>
-          </div>
-        </form>
+            </FormSubGroup>
+          )}
+        </FormSection>
+      </form>
     </AppModal>
   )
 }

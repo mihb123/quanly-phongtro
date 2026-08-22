@@ -158,13 +158,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
       description="Điều chỉnh giá thuê và sức chứa cho nhiều phòng cùng lúc."
       footer={
         <>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">
             Hủy
           </Button>
           <Button
             disabled={isLoading}
             onClick={handleSaveAll}
-           
+            className="flex-1 sm:flex-none"
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>
