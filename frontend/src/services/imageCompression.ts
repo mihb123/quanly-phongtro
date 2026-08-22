@@ -4,8 +4,17 @@ import {
   type CompressOptions,
 } from './imageCompressionCore'
 
-/** Dưới ngưỡng này ảnh được upload nguyên bản, không cần nén. */
-export const COMPRESS_THRESHOLD_BYTES = 1024 * 1024
+/**
+ * Dưới ngưỡng này ảnh được upload nguyên bản: nén thêm không đáng so với
+ * thời gian giải mã. Ngưỡng thấp vì đường lên của điện thoại chỉ ~50-350 KB/s.
+ */
+export const COMPRESS_THRESHOLD_BYTES = 150 * 1024
+
+/** Chỉ nhận bản nén khi nhỏ hơn bản gốc ít nhất 10%. */
+const MIN_SAVING_RATIO = 0.9
+
+/** PNG (ảnh chụp màn hình, scan) hay có chữ nhỏ nên encode ở chất lượng cao hơn. */
+const PNG_START_QUALITY = 0.9
 
 /** Số ảnh được nén song song, giữ thấp để không ngốn RAM trên điện thoại. */
 const MAX_PARALLEL = 2
@@ -28,7 +37,7 @@ export interface CompressedFile {
 }
 
 interface PendingJob {
-  resolve: (blob: Blob) => void
+  resolve: (blob: Blob | null) => void
   reject: (error: Error) => void
 }
 
@@ -65,13 +74,13 @@ function scheduleWorkerShutdown() {
 function getWorker(): Worker {
   if (worker) return worker
   worker = new Worker(new URL('./imageCompression.worker.ts', import.meta.url), { type: 'module' })
-  worker.onmessage = (event: MessageEvent<{ id: number; ok: boolean; blob?: Blob; error?: string }>) => {
+  worker.onmessage = (event: MessageEvent<{ id: number; ok: boolean; blob?: Blob | null; error?: string }>) => {
     const { id, ok, blob, error } = event.data
     const job = pendingJobs.get(id)
     if (!job) return
     pendingJobs.delete(id)
-    if (ok && blob) {
-      job.resolve(blob)
+    if (ok) {
+      job.resolve(blob ?? null)
     } else {
       job.reject(new Error(error || 'nén ảnh thất bại'))
     }
@@ -85,8 +94,8 @@ function getWorker(): Worker {
   return worker
 }
 
-function compressViaWorker(blob: Blob, options: CompressOptions): Promise<Blob> {
-  return new Promise<Blob>((resolve, reject) => {
+function compressViaWorker(blob: Blob, options: CompressOptions): Promise<Blob | null> {
+  return new Promise<Blob | null>((resolve, reject) => {
     const id = ++jobSeq
     pendingJobs.set(id, { resolve, reject })
     if (idleTimer) clearTimeout(idleTimer)
@@ -119,13 +128,20 @@ export async function compressImageForUpload(
     return untouched
   }
 
-  const options: CompressOptions = { ...DEFAULT_COMPRESS_OPTIONS, ...optionOverrides }
+  const isPng = /^image\/png$/i.test(file.type)
+  const options: CompressOptions = {
+    ...DEFAULT_COMPRESS_OPTIONS,
+    ...(isPng ? { startQuality: PNG_START_QUALITY } : {}),
+    ...optionOverrides,
+  }
+
   try {
     const blob = workerSupported()
       ? await compressViaWorker(file, options)
       : await compressImageBlob(file, options)
 
-    if (blob.size >= file.size) return untouched
+    // null = ảnh đã gọn; nén ra không tiết kiệm đủ thì giữ bản gốc.
+    if (!blob || blob.size > file.size * MIN_SAVING_RATIO) return untouched
 
     return {
       file: new File([blob], toJpegName(file.name), {
