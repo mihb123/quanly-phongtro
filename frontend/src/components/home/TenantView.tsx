@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Building, Plus, Users } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -22,8 +22,17 @@ function HouseTenantTable({ house }: { house: House }) {
   const { tenantsByHouse, loadingByHouse, fetchTenants } = useTenantStore()
   const getRoomsByHouse = useRoomStore(state => state.getRoomsByHouse)
 
-  const tenants = tenantsByHouse[house.id] || []
   const loading = loadingByHouse[house.id] ?? true
+
+  // Sắp xếp danh sách khách thuê theo phòng (A-Z), nếu cùng phòng sắp xếp theo họ tên
+  const tenants = useMemo(() => {
+    const rawTenants = tenantsByHouse[house.id] || []
+    return [...rawTenants].sort((a, b) => {
+      const roomComparison = (a.room_name || '').localeCompare(b.room_name || '', 'vi', { numeric: true, sensitivity: 'base' })
+      if (roomComparison !== 0) return roomComparison
+      return (a.full_name || '').localeCompare(b.full_name || '', 'vi', { sensitivity: 'base' })
+    })
+  }, [tenantsByHouse, house.id])
 
   const [isSelectRoomModalOpen, setIsSelectRoomModalOpen] = useState(false)
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)

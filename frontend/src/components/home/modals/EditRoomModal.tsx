@@ -3,7 +3,7 @@ import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, CheckCircle2, X, FileIcon, ZoomIn, Eye, Loader2 } from '@/components/icons'
+import { Upload, X, FileIcon, ZoomIn, Loader2 } from '@/components/icons'
 import type { Room } from '@/api/room'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
@@ -12,6 +12,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { getFileName, isImagePath } from '@/utils/file'
 import { ProtectedFileImage } from './ProtectedFileImage'
+import { clearProtectedFileCache } from '@/api/files'
 import { ImageLightboxModal, type LightboxImageItem } from '@/components/shared/ImageLightboxModal'
 import { formatNumber, parseNumber } from '@/utils/format'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
@@ -50,7 +51,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
   const [gallery, setGallery] = useState<{ items: LightboxImageItem[]; initialIndex: number } | null>(null)
 
   const [isUploadingContract, setIsUploadingContract] = useState(false)
-  const [contractToDelete, setContractToDelete] = useState<{ path: string; index: number } | null>(null)
+  const [contractToDelete, setContractToDelete] = useState<string | null>(null)
   const [isDeletingContract, setIsDeletingContract] = useState(false)
 
   const contractGallery: LightboxImageItem[] = existingContractPaths.map((path, idx) => ({
@@ -133,7 +134,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
 
     setIsDeletingContract(true)
     try {
-      const newPaths = existingContractPaths.filter((_, i) => i !== contractToDelete.index)
+      const newPaths = existingContractPaths.filter(p => p !== contractToDelete)
       const formData = new FormData()
       formData.append('house_id', house.id)
       formData.append('kept_contract_paths', newPaths.join(','))
@@ -142,6 +143,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
       const res = await updateRoomContractStore(room.id, formData)
       if (res.success) {
         setExistingContractPaths(newPaths)
+        clearProtectedFileCache(contractToDelete)
         toast.success('Đã xóa file hợp đồng thành công!')
         setContractToDelete(null)
       } else {
@@ -241,7 +243,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Wifi (VNĐ/phòng hoặc ng)</Label>
+                  <Label className="text-xs text-muted-foreground">Wifi</Label>
                   <Controller
                     name="wifi"
                     control={control}
@@ -261,7 +263,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Dịch vụ (VNĐ/phòng hoặc ng)</Label>
+                  <Label className="text-xs text-muted-foreground">Dịch vụ</Label>
                   <Controller
                     name="service"
                     control={control}
@@ -309,26 +311,87 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
 
 
           <div className="p-4 rounded-lg border border-border/50 bg-card">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-2.5">
               <div>
                 <h3 className="font-medium text-foreground text-sm">Hợp đồng thuê</h3>
                 <p className="text-xs text-muted-foreground">Hợp đồng tự động lưu ngay khi tải lên hoặc xóa.</p>
               </div>
-              {isUploadingContract && (
-                <span className="flex items-center gap-1.5 text-xs text-primary font-medium">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang tải & lưu hợp đồng...
-                </span>
-              )}
             </div>
 
-            {existingContractPaths.length === 0 && !isUploadingContract ? (
-              <label className="flex flex-col gap-2 items-center justify-center h-24 mt-2 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
-                <Upload className="w-5 h-5 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên hợp đồng</span>
+            <div className="flex flex-wrap gap-2.5 items-center">
+              {existingContractPaths.map((path, idx) => {
+                const isImg = isImagePath(path)
+                const fileName = getFileName(path)
+                return (
+                  <div
+                    key={`exist-contract-${idx}`}
+                    className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
+                    onClick={() => handleOpenGallery(contractGallery, idx)}
+                    title={`Hợp đồng ${idx + 1}: ${fileName}`}
+                  >
+                    {isImg ? (
+                      <ProtectedFileImage
+                        path={path}
+                        alt={fileName}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-2 text-center text-muted-foreground">
+                        <FileIcon className="w-6 h-6 mb-1 text-primary/70" />
+                        <span className="text-[10px] font-medium leading-tight line-clamp-2 break-all">{fileName}</span>
+                      </div>
+                    )}
+
+                    {/* Hover Zoom Overlay */}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
+                      <ZoomIn className="w-5 h-5" />
+                    </div>
+
+                    {/* Delete Button */}
+                    <button
+                      type="button"
+                      disabled={isUploadingContract || isDeletingContract}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setContractToDelete(path)
+                      }}
+                      className="absolute top-1 right-1 size-5 rounded-full bg-background/80 hover:bg-destructive text-muted-foreground hover:text-white backdrop-blur-xs flex items-center justify-center shadow transition-colors z-10 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background/80 disabled:hover:text-muted-foreground"
+                      title="Xóa file hợp đồng"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+
+                    {/* Index badge */}
+                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9px] font-semibold text-white pointer-events-none">
+                      #{idx + 1}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {isUploadingContract && (
+                <div className="w-[100px] h-[100px] rounded-lg border border-dashed border-primary/50 bg-primary/5 flex flex-col items-center justify-center gap-1 text-primary text-[10px] font-medium shrink-0 animate-pulse">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Đang lưu...</span>
+                </div>
+              )}
+
+              {/* Add Button Tile */}
+              <label
+                className={`flex flex-col items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-border/80 hover:border-primary hover:bg-primary/5 cursor-pointer text-muted-foreground hover:text-primary transition-all shrink-0 ${
+                  isUploadingContract ? 'opacity-50 pointer-events-none' : ''
+                }`}
+                title="Tải lên thêm file hợp đồng"
+              >
+                <Upload className="w-5 h-5 mb-1" />
+                <span className="text-[11px] font-medium text-center px-1 leading-tight">
+                  {existingContractPaths.length === 0 ? 'Tải hợp đồng' : 'Thêm file'}
+                </span>
                 <input
                   type="file"
                   accept=".pdf,image/*"
                   multiple
+                  disabled={isUploadingContract}
                   className="hidden"
                   onChange={e => {
                     void handleUploadContract(e.target.files)
@@ -336,86 +399,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                   }}
                 />
               </label>
-            ) : (
-              <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto pr-1 mt-2">
-                {existingContractPaths.map((path, idx) => {
-                  const isImg = isImagePath(path)
-                  return (
-                    <div key={`exist-contract-${idx}`} className="flex flex-col gap-2">
-                      <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
-                        <div
-                          className="flex items-center gap-2 overflow-hidden truncate cursor-pointer flex-1 min-w-0"
-                          onClick={() => handleOpenGallery(contractGallery, idx)}
-                          title="Nhấn để xem hợp đồng"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
-                          <span className="text-xs font-semibold text-primary truncate">{getFileName(path)}</span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isImg && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenGallery(contractGallery, idx)}
-                              className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer"
-                              title="Xem trước"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setContractToDelete({ path, index: idx })}
-                            className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer"
-                            title="Xóa"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                      {isImg ? (
-                        <div className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group" onClick={() => handleOpenGallery(contractGallery, idx)}>
-                          <ProtectedFileImage path={path} alt={getFileName(path)} className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                            <ZoomIn className="w-5 h-5" />
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="rounded-lg border border-border/50 aspect-video bg-muted/30 flex flex-col items-center justify-center text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => handleOpenGallery(contractGallery, idx)}
-                        >
-                          <FileIcon className="w-8 h-8" />
-                          <span className="text-xs font-medium mt-1">FILE TÀI LIỆU</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-
-                {isUploadingContract && (
-                  <div className="flex items-center justify-center gap-2 p-4 rounded-lg border border-dashed border-primary/40 bg-primary/5 text-primary text-xs font-medium">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Đang tải lên & lưu hợp đồng...
-                  </div>
-                )}
-
-                <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary transition-colors">
-                  <Upload className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-xs font-semibold text-foreground">Tải thêm file hợp đồng</span>
-                  <input
-                    type="file"
-                    accept=".pdf,image/*"
-                    multiple
-                    disabled={isUploadingContract}
-                    className="hidden"
-                    onChange={e => {
-                      void handleUploadContract(e.target.files)
-                      e.target.value = ''
-                    }}
-                  />
-                </label>
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="bg-info/10 p-4 rounded-lg border border-info/30">
@@ -440,7 +424,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
     {contractToDelete && (
       <ConfirmModal
         title="Xác nhận xóa hợp đồng"
-        message={`Bạn có chắc chắn muốn xóa file "${getFileName(contractToDelete.path)}"? Thay đổi sẽ được lưu ngay lập tức.`}
+        message={`Bạn có chắc chắn muốn xóa file "${getFileName(contractToDelete)}"? Thay đổi sẽ được lưu ngay lập tức.`}
         confirmText="Xóa file"
         cancelText="Hủy"
         isLoading={isDeletingContract}

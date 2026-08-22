@@ -3,7 +3,7 @@ import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, CheckCircle2, X, ZoomIn, Eye, ChevronDown, ChevronUp } from '@/components/icons'
+import { Upload, X, ZoomIn, ChevronDown, ChevronUp, Loader2 } from '@/components/icons'
 import type { Room } from '@/api/room'
 import { useTenantStore } from '@/data/tenantData'
 import { useForm } from 'react-hook-form'
@@ -159,55 +159,74 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                   {errors.startDate && <span className="text-destructive text-xs">{errors.startDate.message}</span>}
                 </div>
 
-                <div className="space-y-4 col-span-2 mt-4 p-4 rounded-lg border border-border/50 bg-card">
-                  <h3 className="text-sm font-medium text-foreground mb-2">Tài liệu đính kèm</h3>
-                  <div className="grid grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-2">
-                    {/* CCCD Upload */}
-                    <div className="space-y-2 col-span-2">
-                      <Label>Ảnh CCCD (Tùy chọn)</Label>
-                      {cccd.files.length === 0 ? (
-                        <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
-                          <Upload className="w-5 h-5 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên ảnh CCCD</span>
-                          <input type="file" accept="image/*" multiple className="hidden" onChange={e => { void cccd.addFiles(e.target.files); e.target.value = '' }} />
-                        </label>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          {cccd.files.map((file, idx) => (
-                            <div key={`new-cccd-${idx}`} className="flex flex-col gap-2">
-                              <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
-                                <div className="flex items-center gap-2 overflow-hidden truncate">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-success flex-shrink-0" />
-                                  <span className="text-xs font-semibold text-primary truncate">{file.name}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => handleOpenGallery(cccdGallery, idx)} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                  <button type="button" onClick={() => setFileToDelete({ name: file.name, index: idx })} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                              <div
-                                className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                onClick={() => handleOpenGallery(cccdGallery, idx)}
-                              >
-                                <LocalFileThumbnail file={file} alt={file.name} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                  <ZoomIn className="w-5 h-5" />
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary transition-colors">
-                            <Upload className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-xs font-semibold text-foreground">Tải ảnh khác</span>
-                            <input type="file" accept="image/*" multiple className="hidden" onChange={e => { void cccd.addFiles(e.target.files); e.target.value = '' }} />
-                          </label>
+                <div className="space-y-3 col-span-2 mt-2 p-4 rounded-lg border border-border/50 bg-card">
+                  <h3 className="text-sm font-medium text-foreground">Ảnh CCCD (Tùy chọn)</h3>
+                  <div className="flex flex-wrap gap-2.5 items-center">
+                    {cccd.files.map((file, idx) => (
+                      <div
+                        key={`new-cccd-${idx}`}
+                        className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
+                        onClick={() => handleOpenGallery(cccdGallery, idx)}
+                        title={`Ảnh CCCD ${idx + 1}: ${file.name}`}
+                      >
+                        <LocalFileThumbnail file={file} alt={file.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                        
+                        {/* Hover Zoom Overlay */}
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
+                          <ZoomIn className="w-5 h-5" />
                         </div>
-                      )}
-                    </div>
+
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          disabled={isOptimizing}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setFileToDelete({ name: file.name, index: idx })
+                          }}
+                          className="absolute top-1 right-1 size-5 rounded-full bg-background/80 hover:bg-destructive text-muted-foreground hover:text-white backdrop-blur-xs flex items-center justify-center shadow transition-colors z-10 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background/80 disabled:hover:text-muted-foreground"
+                          title="Xóa ảnh"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+
+                        {/* Index badge */}
+                        <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9px] font-semibold text-white pointer-events-none">
+                          CCCD {idx + 1}
+                        </div>
+                      </div>
+                    ))}
+
+                    {isOptimizing && (
+                      <div className="w-[100px] h-[100px] rounded-lg border border-dashed border-primary/50 bg-primary/5 flex flex-col items-center justify-center gap-1 text-primary text-[10px] font-medium shrink-0 animate-pulse">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Đang tối ưu...</span>
+                      </div>
+                    )}
+
+                    {/* Add Button Tile */}
+                    <label
+                      className={`flex flex-col items-center justify-center w-[100px] h-[100px] rounded-lg border-2 border-dashed border-border/80 hover:border-primary hover:bg-primary/5 cursor-pointer text-muted-foreground hover:text-primary transition-all shrink-0 ${
+                        isOptimizing ? 'opacity-50 pointer-events-none' : ''
+                      }`}
+                      title="Tải lên ảnh CCCD"
+                    >
+                      <Upload className="w-5 h-5 mb-1" />
+                      <span className="text-[11px] font-medium text-center px-1 leading-tight">
+                        {cccd.files.length === 0 ? 'Tải ảnh CCCD' : 'Thêm ảnh'}
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        disabled={isOptimizing}
+                        className="hidden"
+                        onChange={e => {
+                          void cccd.addFiles(e.target.files)
+                          e.target.value = ''
+                        }}
+                      />
+                    </label>
                   </div>
                 </div>
               </div>
