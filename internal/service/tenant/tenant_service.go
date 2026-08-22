@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"mime/multipart"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -17,9 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
-
-// tenantUploadDir là nơi lưu CCCD và hợp đồng của khách thuê.
-const tenantUploadDir = "uploads/tenants"
 
 type TenantService interface {
 	RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error)
@@ -39,30 +33,27 @@ type TenantServiceImpl struct {
 }
 
 type RegisterTenantInput struct {
-	ManagerID     string
-	Email         string
-	Password      string
-	FullName      string
-	Phone         string
-	RoomID        string
-	CCCDFiles     []*multipart.FileHeader
-	ContractFiles []*multipart.FileHeader
-	IdentityCard  string
-	StartDate     time.Time
+	ManagerID    string
+	Email        string
+	Password     string
+	FullName     string
+	Phone        string
+	RoomID       string
+	CCCDFiles    []*multipart.FileHeader
+	IdentityCard string
+	StartDate    time.Time
 }
 
 // UpdateTenantInput carries the optional fields a manager can patch on a tenant.
 // Nil pointer = field not provided = leave unchanged.
 // File fields are optional — leave nil to keep the existing stored path.
 type UpdateTenantInput struct {
-	FullName          *string
-	Phone             *string
-	Email             *string
-	IdentityCard      *string
-	CCCDFiles         []*multipart.FileHeader
-	ContractFiles     []*multipart.FileHeader
-	KeptCCCDPaths     *string
-	KeptContractPaths *string
+	FullName      *string
+	Phone         *string
+	Email         *string
+	IdentityCard  *string
+	CCCDFiles     []*multipart.FileHeader
+	KeptCCCDPaths *string
 }
 
 func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantRepository, rooms model.RoomRepository, hasher auth.PasswordHasher) *TenantServiceImpl {
@@ -72,33 +63,6 @@ func NewTenantServiceImpl(user model.UserRepository, tenant model.TenantReposito
 		tenants: tenant,
 		hasher:  hasher,
 	}
-}
-
-func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
-	var paths []string
-	for _, header := range headers {
-		file, err := header.Open()
-		if err != nil {
-			return "", err
-		}
-
-		ext := strings.ToLower(filepath.Ext(header.Filename))
-		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".pdf": true}
-		if !allowedExts[ext] {
-			file.Close()
-			return "", fmt.Errorf("unsupported file extension: %s", ext)
-		}
-
-		fileName := uuid.Must(uuid.NewV7()).String() + ext
-		filePath := filepath.Join(tenantUploadDir, fileName)
-		if err := saveFile(file, filePath); err != nil {
-			file.Close()
-			return "", err
-		}
-		file.Close()
-		paths = append(paths, "/api/v1/tenant/files/"+fileName)
-	}
-	return strings.Join(paths, ","), nil
 }
 
 func removeAccents(s string) string {
@@ -195,16 +159,8 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		StartDate:    in.StartDate,
 		Status:       model.TenantStatusActive,
 	}
-	if len(in.ContractFiles) > 0 {
-		contractPaths, err := processUploadedFiles(in.ContractFiles)
-		if err != nil {
-			return nil, err
-		}
-		newRoomTenant.ContractPath = contractPaths
-	}
-
 	if len(in.CCCDFiles) > 0 {
-		cccdPaths, err := processUploadedFiles(in.CCCDFiles)
+		cccdPaths, err := shared.SaveUploadedFiles(in.CCCDFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +186,6 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		ManagerID:    in.ManagerID,
 		CCCDPath:     newRoomTenant.CCCDPath,
 		IdentityCard: newRoomTenant.IdentityCard,
-		ContractPath: newRoomTenant.ContractPath,
 		StartDate:    newRoomTenant.StartDate.Format("2006-01-02"),
 		Status:       string(newRoomTenant.Status),
 	}
@@ -293,7 +248,7 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 		tenantInput.CCCDPath = in.KeptCCCDPaths
 	}
 	if len(in.CCCDFiles) > 0 {
-		newPaths, err := processUploadedFiles(in.CCCDFiles)
+		newPaths, err := shared.SaveUploadedFiles(in.CCCDFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -302,22 +257,6 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 			tenantInput.CCCDPath = &combined
 		} else {
 			tenantInput.CCCDPath = &newPaths
-		}
-	}
-
-	if in.KeptContractPaths != nil {
-		tenantInput.ContractPath = in.KeptContractPaths
-	}
-	if len(in.ContractFiles) > 0 {
-		newPaths, err := processUploadedFiles(in.ContractFiles)
-		if err != nil {
-			return nil, err
-		}
-		if tenantInput.ContractPath != nil && *tenantInput.ContractPath != "" {
-			combined := *tenantInput.ContractPath + "," + newPaths
-			tenantInput.ContractPath = &combined
-		} else {
-			tenantInput.ContractPath = &newPaths
 		}
 	}
 
@@ -380,36 +319,36 @@ func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID
 		return "", shared.ErrInvalidInput
 	}
 
-	storedPath := "/api/v1/tenant/files/" + fileName
-	if _, err := s.tenants.GetTenantByFilePath(ctx, managerID, storedPath); err != nil {
-		if !errors.Is(err, model.ErrTenantNotFound) {
-			return "", err
-		}
-		if _, fallbackErr := s.tenants.GetTenantByFilePath(ctx, managerID, fileName); fallbackErr != nil {
-			return "", fallbackErr
-		}
+	storedPath := shared.TenantFileURLPrefix + fileName
+	if err := s.authorizeFileAccess(ctx, managerID, storedPath, fileName); err != nil {
+		return "", err
 	}
 
-	filePath, ok := shared.UploadFilePath(tenantUploadDir, fileName)
+	filePath, ok := shared.UploadFilePath(shared.TenantUploadDir, fileName)
 	if !ok {
 		return "", shared.ErrInvalidInput
 	}
 	return filePath, nil
 }
 
-func saveFile(file io.Reader, path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("cannot create upload dir: %w", err)
+// authorizeFileAccess cho phép truy cập nếu file thuộc CCCD của khách thuê hoặc hợp đồng của phòng do manager quản lý.
+func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, storedPath, fileName string) error {
+	for _, candidate := range []string{storedPath, fileName} {
+		_, err := s.tenants.GetTenantByFilePath(ctx, managerID, candidate)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, model.ErrTenantNotFound) {
+			return err
+		}
+
+		owned, roomErr := s.rooms.HasRoomWithFilePath(ctx, managerID, candidate)
+		if roomErr != nil {
+			return roomErr
+		}
+		if owned {
+			return nil
+		}
 	}
-	// 0600 vì CCCD và hợp đồng là dữ liệu cá nhân nhạy cảm.
-	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-	if err != nil {
-		return fmt.Errorf("cannot create path %v", err)
-	}
-	defer dst.Close()
-	_, err = io.Copy(dst, file)
-	if err != nil {
-		return fmt.Errorf("cannot save file :%v", err)
-	}
-	return nil
+	return model.ErrTenantNotFound
 }

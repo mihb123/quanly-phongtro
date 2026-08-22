@@ -67,6 +67,7 @@ func New(
 		r.Get("/", roomHandler.ListRooms)
 		r.Get("/{id}", roomHandler.GetRoom)
 		r.Patch("/{id}", roomHandler.UpdateRoom)
+		r.Patch("/{id}/contract", roomHandler.UpdateRoomContract)
 		r.Delete("/{id}", roomHandler.DeleteRoom)
 	})
 

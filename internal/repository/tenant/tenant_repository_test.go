@@ -278,7 +278,7 @@ func TestTenantRepository_GetTenantByID(t *testing.T) {
 	cols := []string{
 		"tenant_id", "user_id", "room_id", "manager_id",
 		"full_name", "email", "phone",
-		"cccd_path", "identity_card", "contract_path",
+		"cccd_path", "identity_card",
 		"start_date", "end_date", "status", "zalo_user_id",
 	}
 	tests := []struct {
@@ -291,7 +291,7 @@ func TestTenantRepository_GetTenantByID(t *testing.T) {
 			name: "happy path",
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM tenants`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "manager-1", "Name", "e", "p", "", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "manager-1", "Name", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
 			},
 			wantErr: false,
 		},
@@ -307,7 +307,7 @@ func TestTenantRepository_GetTenantByID(t *testing.T) {
 			name: "unauthorized",
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM tenants`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "manager-2", "Name", "e", "p", "", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "manager-2", "Name", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
 			},
 			wantErr: true,
 			err:     model.ErrUnauthorized,
@@ -349,7 +349,7 @@ func TestTenantRepository_UpdateTenant(t *testing.T) {
 	now := time.Now()
 	cols := []string{
 		"id", "user_id", "room_id", "manager_id",
-		"identity_card", "cccd_path", "contract_path",
+		"identity_card", "cccd_path",
 		"start_date", "end_date", "status",
 		"created_at", "updated_at",
 	}
@@ -365,7 +365,7 @@ func TestTenantRepository_UpdateTenant(t *testing.T) {
 			input: model.UpdateTenantInput{IdentityCard: &ic},
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`UPDATE "tenants"`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "123", "", "", now, now, "ACTIVE", now, now))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "123", "", now, now, "ACTIVE", now, now))
 			},
 			wantErr: false,
 		},
@@ -392,7 +392,7 @@ func TestTenantRepository_UpdateTenant(t *testing.T) {
 			input: model.UpdateTenantInput{},
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM "tenants"`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "123", "", "", now, now, "ACTIVE", now, now))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "123", "", now, now, "ACTIVE", now, now))
 			},
 			wantErr: false,
 		},
@@ -433,7 +433,7 @@ func TestTenantRepository_GetFirstTenantByUserID(t *testing.T) {
 	cols := []string{
 		"tenant_id", "user_id", "room_id", "manager_id",
 		"full_name", "email", "phone",
-		"cccd_path", "identity_card", "contract_path",
+		"cccd_path", "identity_card",
 		"start_date", "end_date", "status", "zalo_user_id", "room_name",
 	}
 	tests := []struct {
@@ -446,7 +446,7 @@ func TestTenantRepository_GetFirstTenantByUserID(t *testing.T) {
 			name: "happy path",
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM tenants`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", "", "Room 1"))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", "", "Room 1"))
 			},
 			wantErr: false,
 		},
@@ -648,7 +648,7 @@ func TestTenantRepository_ListTenantByRoomID(t *testing.T) {
 	cols := []string{
 		"tenant_id", "user_id", "room_id", "manager_id",
 		"full_name", "email", "phone",
-		"cccd_path", "identity_card", "contract_path",
+		"cccd_path", "identity_card",
 		"start_date", "end_date", "status", "zalo_user_id",
 	}
 	tests := []struct {
@@ -661,7 +661,7 @@ func TestTenantRepository_ListTenantByRoomID(t *testing.T) {
 			name: "happy path",
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM tenants`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", ""))
 			},
 			wantLen: 1,
 			wantErr: false,
@@ -701,7 +701,7 @@ func TestTenantRepository_ListTenantByHouseID(t *testing.T) {
 	cols := []string{
 		"tenant_id", "user_id", "room_id", "manager_id",
 		"full_name", "email", "phone",
-		"cccd_path", "identity_card", "contract_path",
+		"cccd_path", "identity_card",
 		"start_date", "end_date", "status", "zalo_user_id", "room_name",
 	}
 	tests := []struct {
@@ -714,7 +714,7 @@ func TestTenantRepository_ListTenantByHouseID(t *testing.T) {
 			name: "happy path",
 			mockFn: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT .* FROM tenants`).WillReturnRows(
-					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", "", "Room 1"))
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "Name", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", "", "Room 1"))
 			},
 			wantLen: 1,
 			wantErr: false,

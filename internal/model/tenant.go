@@ -27,7 +27,6 @@ type Tenant struct {
 	ManagerID    string       `json:"manager_id"`
 	IdentityCard string       `json:"identity_card"`
 	CCCDPath     string       `json:"cccd_path"`
-	ContractPath string       `json:"contract_path"`
 	StartDate    time.Time    `json:"start_date"`
 	EndDate      *time.Time   `json:"end_date"`
 	Status       TenantStatus `json:"status"`
@@ -46,7 +45,6 @@ type FullInfoTenant struct {
 	ManagerID    string `json:"manager_id"`
 	CCCDPath     string `json:"cccd_path"`
 	IdentityCard string `json:"identity_card"`
-	ContractPath string `json:"contract_path"`
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date,omitempty"`
 	Status       string `json:"status"`
@@ -58,7 +56,6 @@ type FullInfoTenant struct {
 type UpdateTenantInput struct {
 	IdentityCard *string
 	CCCDPath     *string
-	ContractPath *string
 }
 
 type TenantRepository interface {

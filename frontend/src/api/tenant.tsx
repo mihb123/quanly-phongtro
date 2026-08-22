@@ -8,7 +8,6 @@ export interface TenantPayload {
   identity_card: string
   start_date: string
   cccd_file?: File
-  contract_file?: File
 }
 
 export interface Tenant {
@@ -22,7 +21,6 @@ export interface Tenant {
   status: string
   room_name?: string
   cccd_path?: string
-  contract_path?: string
 }
 
 // Normalize a tenant response: backend returns `tenant_id`, frontend uses `id`.

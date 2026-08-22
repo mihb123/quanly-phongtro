@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { getRoomsByHouseId, deleteRoom, createRoom as apiCreateRoom, updateRoom as apiUpdateRoom, type Room } from '@/api/room'
+import { getRoomsByHouseId, deleteRoom, createRoom as apiCreateRoom, updateRoom as apiUpdateRoom, updateRoomContract as apiUpdateRoomContract, type Room } from '@/api/room'
 import { useSelectedStore } from './selectedData'
 import { useInvoiceStore } from './invoiceData'
 
@@ -14,6 +14,7 @@ interface RoomDataState {
   deleteRoom: (roomId: string, houseId: string) => Promise<{success: boolean, error?: string}>
   createRoom: (payload: Partial<Room>) => Promise<{success: boolean, error?: string}>
   updateRoom: (roomId: string, payload: Partial<Room>) => Promise<{success: boolean, error?: string}>
+  updateRoomContract: (roomId: string, payload: FormData) => Promise<{success: boolean, data?: Room, error?: string}>
   getRoomsByHouse: (houseId: string) => Promise<Room[]>
 }
 
@@ -119,6 +120,19 @@ export const useRoomStore = create<RoomDataState>((set, get) => ({
         }))
       }
       return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi sửa phòng!" }
+    }
+  },
+  updateRoomContract: async (roomId: string, payload: FormData) => {
+    try {
+      const updatedRoom = await apiUpdateRoomContract(roomId, payload)
+      set(state => ({
+        rooms: state.rooms.map(r => r.id === roomId ? updatedRoom : r)
+      }))
+      return { success: true, data: updatedRoom }
+    } catch (error) {
+      const err = error as Error & { response?: { data?: { message?: string } } };
+      console.error("Failed to update room contract", err)
+      return { success: false, error: err?.response?.data?.message || err?.message || "Lỗi khi lưu hợp đồng!" }
     }
   },
   getRoomsByHouse: async (houseId: string) => {

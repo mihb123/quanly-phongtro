@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,8 @@ interface AppModalProps {
   contentClassName?: string
   /** Cho phép đóng khi đang submit (mặc định cho phép). */
   dismissible?: boolean
+  /** Quản lý phần tử được focus khi mở modal (truyền false để không tự động focus vào input đầu tiên). */
+  initialFocus?: ComponentProps<typeof DialogContent>['initialFocus']
 }
 
 // Vỏ modal form dùng chung cho 20 modal: chuẩn hóa header + body cuộn + footer dính,
@@ -33,6 +35,7 @@ export function AppModal({
   footer,
   contentClassName,
   dismissible = true,
+  initialFocus,
 }: AppModalProps) {
   return (
     <Dialog
@@ -41,7 +44,10 @@ export function AppModal({
         if (!next && dismissible) onClose()
       }}
     >
-      <DialogContent className={cn('flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0', contentClassName)}>
+      <DialogContent
+        initialFocus={initialFocus}
+        className={cn('flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0', contentClassName)}
+      >
         <DialogHeader className="border-b border-border/60 px-6 pb-4 pt-6">
           <DialogTitle className="text-lg">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}

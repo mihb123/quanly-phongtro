@@ -144,18 +144,6 @@ func TestTenantHandler_RegisterTenant(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name: "Validation error - too many contract files",
-			reqBuilder: func() *http.Request {
-				req, _ := buildMultipartRequest(http.MethodPost, "/tenant", map[string]string{
-					"room_id":   "room-1",
-					"full_name": "Nguyen Van A",
-				}, map[string]int{"contract_file": 11})
-				return withClaims(req, "user-1")
-			},
-			mockBehavior:   func(s *mock_service.MockTenantService) {},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
 			name: "Service error - room full",
 			reqBuilder: func() *http.Request {
 				req, _ := buildMultipartRequest(http.MethodPost, "/tenant", map[string]string{
@@ -377,8 +365,7 @@ func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 			name: "Happy path - with kept paths",
 			reqBuilder: func() *http.Request {
 				req, _ := buildMultipartRequest(http.MethodPut, "/tenant/tenant-1", map[string]string{
-					"kept_cccd_paths":           "path1,path2",
-					"kept_contract_paths_empty": "true",
+					"kept_cccd_paths": "path1,path2",
 				}, nil)
 				req = withChiURLParam(req, "id", "tenant-1")
 				return withClaims(req, "user-1")
@@ -388,9 +375,6 @@ func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 					func(ctx context.Context, managerID, tenantID string, in tenantsvc.UpdateTenantInput) (*model.FullInfoTenant, error) {
 						if in.KeptCCCDPaths == nil || *in.KeptCCCDPaths != "path1,path2" {
 							t.Errorf("expected kept_cccd_paths to be 'path1,path2', got %v", in.KeptCCCDPaths)
-						}
-						if in.KeptContractPaths == nil || *in.KeptContractPaths != "" {
-							t.Errorf("expected kept_contract_paths to be '', got %v", in.KeptContractPaths)
 						}
 						return &model.FullInfoTenant{}, nil
 					})
@@ -406,7 +390,6 @@ func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 					"email":                 "  USER@EXAMPLE.COM  ",
 					"identity_card":         "  123456789  ",
 					"kept_cccd_paths_empty": "true",
-					"kept_contract_paths":   "contract1,contract2",
 				}, nil)
 				req = withChiURLParam(req, "id", "tenant-1")
 				return withClaims(req, "user-1")
@@ -428,9 +411,6 @@ func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 						}
 						if in.KeptCCCDPaths == nil || *in.KeptCCCDPaths != "" {
 							t.Errorf("expected empty kept_cccd_paths, got %v", in.KeptCCCDPaths)
-						}
-						if in.KeptContractPaths == nil || *in.KeptContractPaths != "contract1,contract2" {
-							t.Errorf("expected kept_contract_paths, got %v", in.KeptContractPaths)
 						}
 						return &model.FullInfoTenant{}, nil
 					})
@@ -474,16 +454,6 @@ func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 			name: "Validation error - too many cccd files",
 			reqBuilder: func() *http.Request {
 				req, _ := buildMultipartRequest(http.MethodPut, "/tenant/tenant-1", map[string]string{}, map[string]int{"cccd_file": 11})
-				req = withChiURLParam(req, "id", "tenant-1")
-				return withClaims(req, "user-1")
-			},
-			mockBehavior:   func(s *mock_service.MockTenantService) {},
-			expectedStatus: http.StatusBadRequest,
-		},
-		{
-			name: "Validation error - too many contract files",
-			reqBuilder: func() *http.Request {
-				req, _ := buildMultipartRequest(http.MethodPut, "/tenant/tenant-1", map[string]string{}, map[string]int{"contract_file": 11})
 				req = withChiURLParam(req, "id", "tenant-1")
 				return withClaims(req, "user-1")
 			},

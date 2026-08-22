@@ -251,3 +251,47 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, nil, "room deleted successfully")
 }
+
+// UpdateRoomContract nhận multipart form để lưu hợp đồng thuê gắn với phòng.
+func (h *RoomHandler) UpdateRoomContract(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
+		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		return
+	}
+
+	houseID := r.FormValue("house_id")
+	if houseID == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "house_id is required")
+		return
+	}
+
+	var in roomsvc.UpdateRoomContractInput
+	if v := r.FormValue("kept_contract_paths"); v != "" {
+		in.KeptContractPaths = &v
+	} else if r.FormValue("kept_contract_paths_empty") == "true" {
+		empty := ""
+		in.KeptContractPaths = &empty
+	}
+
+	in.ContractFiles = r.MultipartForm.File["contract_file"]
+	if len(in.ContractFiles) > 10 {
+		httpx.WriteError(w, http.StatusBadRequest, "maximum 10 contract files allowed")
+		return
+	}
+
+	room, err := h.roomService.UpdateRoomContract(r.Context(), id, houseID, managerID, in)
+	if err != nil {
+		handleRoomError(w, r, err)
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, room, "")
+}

@@ -65,16 +65,15 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 		{
 			name: "Success with all fields",
 			input: tenantsvc.RegisterTenantInput{
-				ManagerID:     "m1",
-				Email:         "test@example.com",
-				Password:      "pass",
-				FullName:      "Test Tenant",
-				Phone:         "0123456789",
-				RoomID:        "r1",
-				IdentityCard:  "ID123",
-				StartDate:     time.Now(),
-				CCCDFiles:     []*multipart.FileHeader{createMultipartFileHeader("cccd.png", []byte("img"))},
-				ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
+				ManagerID:    "m1",
+				Email:        "test@example.com",
+				Password:     "pass",
+				FullName:     "Test Tenant",
+				Phone:        "0123456789",
+				RoomID:       "r1",
+				IdentityCard: "ID123",
+				StartDate:    time.Now(),
+				CCCDFiles:    []*multipart.FileHeader{createMultipartFileHeader("cccd.png", []byte("img"))},
 			},
 			setup: func() {
 				userRepo.EXPECT().GetByPhone(ctx, "0123456789").Return(nil, errors.New("not found"))
@@ -219,19 +218,6 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 		_, err := svc.RegisterTenant(ctx, tenantsvc.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
 		if err == nil || err.Error() != "db error" {
 			t.Errorf("expected db error, got %v", err)
-		}
-	})
-
-	t.Run("Unsupported contract file extension", func(t *testing.T) {
-		expectTenantRoomOwnership()
-		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
-		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
-		_, err := svc.RegisterTenant(ctx, tenantsvc.RegisterTenantInput{
-			Email: "test@example.com", RoomID: "r1",
-			ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.txt", []byte("txt"))},
-		})
-		if err == nil {
-			t.Errorf("expected error, got nil")
 		}
 	})
 
@@ -446,32 +432,6 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 		}
 	})
 
-	t.Run("New contract files with kept paths", func(t *testing.T) {
-		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1"}, nil)
-		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
-		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
-		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
-		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", tenantsvc.UpdateTenantInput{
-			ContractFiles:     []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
-			KeptContractPaths: ptr("old_contract.pdf"),
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("New contract files without kept paths", func(t *testing.T) {
-		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{UserID: "u1", ContractPath: "old_c1.pdf,old_c2.pdf"}, nil)
-		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
-		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
-		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(&model.FullInfoTenant{}, nil)
-		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", tenantsvc.UpdateTenantInput{
-			ContractFiles: []*multipart.FileHeader{createMultipartFileHeader("contract.pdf", []byte("pdf"))},
-		})
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
 }
 
 func TestTenantService_DeleteTenant(t *testing.T) {
@@ -596,6 +556,47 @@ func TestTenantServiceResolveTenantFilePath(t *testing.T) {
 
 	if _, err := tenantService.ResolveTenantFilePath(ctx, "m1", "../secret.png"); !errors.Is(err, sharedsvc.ErrInvalidInput) {
 		t.Fatalf("traversal err = %v, want shared.ErrInvalidInput", err)
+	}
+}
+
+// Hợp đồng nay gắn theo phòng nên file của nó không còn thuộc tenant nào — vẫn phải phục vụ được cho manager sở hữu phòng.
+func TestTenantServiceResolveTenantFilePathFallsBackToRoomContract(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
+	roomRepository := mock_model.NewMockRoomRepository(ctrl)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil)
+
+	storedPath := "/api/v1/tenant/files/contract.pdf"
+	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", storedPath).Return(nil, model.ErrTenantNotFound)
+	roomRepository.EXPECT().HasRoomWithFilePath(ctx, "m1", storedPath).Return(true, nil)
+
+	filePath, err := tenantService.ResolveTenantFilePath(ctx, "m1", "contract.pdf")
+	if err != nil {
+		t.Fatalf("ResolveTenantFilePath error = %v", err)
+	}
+	if filePath != "uploads/tenants/contract.pdf" {
+		t.Fatalf("filePath = %q, want uploads/tenants/contract.pdf", filePath)
+	}
+}
+
+// File không thuộc khách thuê lẫn phòng nào của manager thì phải bị từ chối.
+func TestTenantServiceResolveTenantFilePathRejectsForeignFile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
+	roomRepository := mock_model.NewMockRoomRepository(ctrl)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil)
+
+	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", gomock.Any()).Return(nil, model.ErrTenantNotFound).Times(2)
+	roomRepository.EXPECT().HasRoomWithFilePath(ctx, "m1", gomock.Any()).Return(false, nil).Times(2)
+
+	if _, err := tenantService.ResolveTenantFilePath(ctx, "m1", "other.pdf"); !errors.Is(err, model.ErrTenantNotFound) {
+		t.Fatalf("err = %v, want ErrTenantNotFound", err)
 	}
 }
 

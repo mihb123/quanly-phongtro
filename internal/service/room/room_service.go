@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"mime/multipart"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -13,6 +14,7 @@ type RoomService interface {
 	GetRoom(ctx context.Context, id, houseID, managerID string) (*model.Room, error)
 	ListRoomsByHouseID(ctx context.Context, houseID, managerID string, page, limit int) ([]model.Room, error)
 	UpdateRoom(ctx context.Context, id, houseID, managerID string, input UpdateRoomInput) (*model.Room, error)
+	UpdateRoomContract(ctx context.Context, id, houseID, managerID string, input UpdateRoomContractInput) (*model.Room, error)
 	DeleteRoom(ctx context.Context, id, houseID, managerID string) error
 }
 
@@ -31,6 +33,13 @@ type UpdateRoomInput struct {
 	ExtraVehicleThreshold *int
 	ExtraVehicleFee       *float64
 	GroupChatID           *string
+}
+
+// UpdateRoomContractInput carries the contract files of a room.
+// KeptContractPaths holds the already-stored paths the manager wants to keep ("" = remove all).
+type UpdateRoomContractInput struct {
+	ContractFiles     []*multipart.FileHeader
+	KeptContractPaths *string
 }
 
 type RoomServiceImpl struct {
@@ -129,6 +138,45 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 	}
 
 	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)
+}
+
+// UpdateRoomContract lưu hợp đồng thuê của phòng: giữ lại các file cũ được chọn và nối thêm file mới.
+func (s *RoomServiceImpl) UpdateRoomContract(ctx context.Context, id, houseID, managerID string, input UpdateRoomContractInput) (*model.Room, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, shared.ErrInvalidRoomID
+	}
+	if strings.TrimSpace(houseID) == "" {
+		return nil, shared.ErrInvalidHouseID
+	}
+	if strings.TrimSpace(managerID) == "" {
+		return nil, shared.ErrInvalidManagerID
+	}
+	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
+		return nil, err
+	}
+
+	existing, err := s.roomRepo.GetRoomByID(ctx, id, houseID)
+	if err != nil {
+		return nil, err
+	}
+
+	contractPath := existing.ContractPath
+	if input.KeptContractPaths != nil {
+		contractPath = *input.KeptContractPaths
+	}
+	if len(input.ContractFiles) > 0 {
+		newPaths, err := shared.SaveUploadedFiles(input.ContractFiles)
+		if err != nil {
+			return nil, err
+		}
+		if contractPath != "" {
+			contractPath += "," + newPaths
+		} else {
+			contractPath = newPaths
+		}
+	}
+
+	return s.roomRepo.UpdateRoomContract(ctx, id, houseID, contractPath)
 }
 
 func (s *RoomServiceImpl) DeleteRoom(ctx context.Context, id, houseID, managerID string) error {

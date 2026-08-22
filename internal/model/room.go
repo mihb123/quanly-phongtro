@@ -22,6 +22,7 @@ type Room struct {
 	ExtraVehicleThreshold *int      `json:"extra_vehicle_threshold,omitempty"`
 	ExtraVehicleFee       *float64  `json:"extra_vehicle_fee,omitempty"`
 	GroupChatID           *string   `json:"group_chat_id,omitempty"`
+	ContractPath          string    `json:"contract_path"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }
@@ -56,4 +57,7 @@ type RoomRepository interface {
 	GetRoomByIDOnly(ctx context.Context, id string) (*Room, error)
 	GetRoomByIDForManager(ctx context.Context, managerID, roomID string) (*Room, error)
 	GetRoomByGroupChatID(ctx context.Context, groupChatID string) (*Room, error)
+	UpdateRoomContract(ctx context.Context, id, houseID, contractPath string) (*Room, error)
+	// HasRoomWithFilePath reports whether a room owned by the manager references the upload path.
+	HasRoomWithFilePath(ctx context.Context, managerID, filePath string) (bool, error)
 }
