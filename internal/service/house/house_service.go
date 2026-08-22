@@ -217,7 +217,7 @@ func mergeUploadPaths(current string, kept *string, files []*multipart.FileHeade
 		return paths, nil
 	}
 
-	newPaths, err := shared.SaveUploadedFiles(files)
+	newPaths, err := shared.SaveUploadedFiles(shared.OwnerUploadDir, files)
 	if err != nil {
 		return "", err
 	}

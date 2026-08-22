@@ -620,8 +620,41 @@ func TestTenantServiceResolveTenantFilePathFallsBackToHouseDocuments(t *testing.
 	if err != nil {
 		t.Fatalf("ResolveTenantFilePath error = %v", err)
 	}
-	if filePath != "uploads/tenants/owner-cccd.png" {
-		t.Fatalf("filePath = %q, want uploads/tenants/owner-cccd.png", filePath)
+	if filePath != "uploads/owners/owner-cccd.png" {
+		t.Fatalf("filePath = %q, want uploads/owners/owner-cccd.png", filePath)
+	}
+}
+
+// File chủ nhà upload trước khi tách thư mục vẫn nằm ở uploads/tenants nên phải đọc được.
+func TestTenantServiceResolveTenantFilePathFallsBackToLegacyOwnerDir(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll("uploads/tenants", 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile("uploads/tenants/legacy-owner.png", []byte("x"), 0600); err != nil {
+		t.Fatalf("write legacy file: %v", err)
+	}
+
+	ctx := context.Background()
+	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
+	roomRepository := mock_model.NewMockRoomRepository(ctrl)
+	houseRepository := mock_model.NewMockHouseRepository(ctrl)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, houseRepository, nil)
+
+	storedPath := "/api/v1/tenant/files/legacy-owner.png"
+	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", storedPath).Return(nil, model.ErrTenantNotFound)
+	roomRepository.EXPECT().HasRoomWithFilePath(ctx, "m1", storedPath).Return(false, nil)
+	houseRepository.EXPECT().HasHouseWithFilePath(ctx, "m1", storedPath).Return(true, nil)
+
+	filePath, err := tenantService.ResolveTenantFilePath(ctx, "m1", "legacy-owner.png")
+	if err != nil {
+		t.Fatalf("ResolveTenantFilePath error = %v", err)
+	}
+	if filePath != "uploads/tenants/legacy-owner.png" {
+		t.Fatalf("filePath = %q, want uploads/tenants/legacy-owner.png", filePath)
 	}
 }
 

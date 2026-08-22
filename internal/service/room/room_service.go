@@ -165,7 +165,7 @@ func (s *RoomServiceImpl) UpdateRoomContract(ctx context.Context, id, houseID, m
 		contractPath = *input.KeptContractPaths
 	}
 	if len(input.ContractFiles) > 0 {
-		newPaths, err := shared.SaveUploadedFiles(input.ContractFiles)
+		newPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, input.ContractFiles)
 		if err != nil {
 			return nil, err
 		}

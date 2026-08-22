@@ -43,7 +43,7 @@ func TestSaveUploadedFilesCreatesUploadDir(t *testing.T) {
 
 	header := newFileHeader(t, "cccd.jpg", []byte("fake-image"))
 
-	paths, err := SaveUploadedFiles([]*multipart.FileHeader{header})
+	paths, err := SaveUploadedFiles(TenantUploadDir, []*multipart.FileHeader{header})
 	if err != nil {
 		t.Fatalf("processUploadedFiles: %v", err)
 	}

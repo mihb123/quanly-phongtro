@@ -11,16 +11,19 @@ import (
 	"github.com/google/uuid"
 )
 
-// TenantUploadDir là nơi lưu CCCD của khách thuê và hợp đồng của phòng.
+// TenantUploadDir là nơi lưu CCCD của khách thuê và hợp đồng thuê phòng.
 const TenantUploadDir = "uploads/tenants"
+
+// OwnerUploadDir là nơi lưu CCCD chủ nhà và hợp đồng thuê nguyên căn, tách riêng khỏi hồ sơ khách thuê.
+const OwnerUploadDir = "uploads/owners"
 
 // TenantFileURLPrefix là prefix URL các file upload được phục vụ qua endpoint có xác thực.
 const TenantFileURLPrefix = "/api/v1/tenant/files/"
 
 var allowedUploadExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".pdf": true}
 
-// SaveUploadedFiles lưu các file upload xuống đĩa và trả về danh sách URL nội bộ, ngăn cách bởi dấu phẩy.
-func SaveUploadedFiles(headers []*multipart.FileHeader) (string, error) {
+// SaveUploadedFiles lưu các file upload vào dir và trả về danh sách URL nội bộ, ngăn cách bởi dấu phẩy.
+func SaveUploadedFiles(dir string, headers []*multipart.FileHeader) (string, error) {
 	var paths []string
 	for _, header := range headers {
 		file, err := header.Open()
@@ -35,7 +38,7 @@ func SaveUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 		}
 
 		fileName := uuid.Must(uuid.NewV7()).String() + ext
-		filePath := filepath.Join(TenantUploadDir, fileName)
+		filePath := filepath.Join(dir, fileName)
 		if err := saveFile(file, filePath); err != nil {
 			file.Close()
 			return "", err

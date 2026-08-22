@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
+	"os"
 	"strings"
 	"time"
 
@@ -162,7 +163,7 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		Status:       model.TenantStatusActive,
 	}
 	if len(in.CCCDFiles) > 0 {
-		cccdPaths, err := shared.SaveUploadedFiles(in.CCCDFiles)
+		cccdPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, in.CCCDFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +251,7 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 		tenantInput.CCCDPath = in.KeptCCCDPaths
 	}
 	if len(in.CCCDFiles) > 0 {
-		newPaths, err := shared.SaveUploadedFiles(in.CCCDFiles)
+		newPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, in.CCCDFiles)
 		if err != nil {
 			return nil, err
 		}
@@ -322,46 +323,70 @@ func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID
 	}
 
 	storedPath := shared.TenantFileURLPrefix + fileName
-	if err := s.authorizeFileAccess(ctx, managerID, storedPath, fileName); err != nil {
+	uploadDir, err := s.authorizeFileAccess(ctx, managerID, storedPath, fileName)
+	if err != nil {
 		return "", err
 	}
 
-	filePath, ok := shared.UploadFilePath(shared.TenantUploadDir, fileName)
+	filePath, ok := shared.UploadFilePath(uploadDir, fileName)
 	if !ok {
 		return "", shared.ErrInvalidInput
+	}
+	if legacyPath, ok := legacyUploadPath(uploadDir, fileName, filePath); ok {
+		return legacyPath, nil
 	}
 	return filePath, nil
 }
 
+// legacyUploadPath trả về đường dẫn cũ trong uploads/tenants cho file chủ nhà
+// đã upload trước khi tách thư mục.
+func legacyUploadPath(uploadDir, fileName, filePath string) (string, bool) {
+	if uploadDir == shared.TenantUploadDir {
+		return "", false
+	}
+	if _, err := os.Stat(filePath); err == nil || !os.IsNotExist(err) {
+		return "", false
+	}
+	legacyPath, ok := shared.UploadFilePath(shared.TenantUploadDir, fileName)
+	if !ok {
+		return "", false
+	}
+	if _, err := os.Stat(legacyPath); err != nil {
+		return "", false
+	}
+	return legacyPath, true
+}
+
 // authorizeFileAccess cho phép truy cập nếu file thuộc CCCD của khách thuê, hợp đồng của phòng,
 // hoặc CCCD chủ nhà / hợp đồng thuê nguyên căn của nhà do manager quản lý.
-func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, storedPath, fileName string) error {
+// Trả về thư mục lưu trữ tương ứng với loại hồ sơ khớp.
+func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, storedPath, fileName string) (string, error) {
 	for _, candidate := range []string{storedPath, fileName} {
 		_, err := s.tenants.GetTenantByFilePath(ctx, managerID, candidate)
 		if err == nil {
-			return nil
+			return shared.TenantUploadDir, nil
 		}
 		if !errors.Is(err, model.ErrTenantNotFound) {
-			return err
+			return "", err
 		}
 
 		owned, roomErr := s.rooms.HasRoomWithFilePath(ctx, managerID, candidate)
 		if roomErr != nil {
-			return roomErr
+			return "", roomErr
 		}
 		if owned {
-			return nil
+			return shared.TenantUploadDir, nil
 		}
 
 		if s.houses != nil {
 			ownedHouse, houseErr := s.houses.HasHouseWithFilePath(ctx, managerID, candidate)
 			if houseErr != nil {
-				return houseErr
+				return "", houseErr
 			}
 			if ownedHouse {
-				return nil
+				return shared.OwnerUploadDir, nil
 			}
 		}
 	}
-	return model.ErrTenantNotFound
+	return "", model.ErrTenantNotFound
 }
