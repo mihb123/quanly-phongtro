@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import { useTenantStore } from '@/data/tenantData'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { ImageLightboxModal } from '@/components/shared/ImageLightboxModal'
+import { useUploadFiles } from '@/hooks/useUploadFiles'
 
 const tenantSchema = z.object({
   fullName: z.string().min(1, 'Bắt buộc'),
@@ -26,14 +28,22 @@ interface TenantAddModalProps {
   onSuccess: () => void
 }
 
-// Modal thêm người thuê mới. Vỏ dùng AppModal; giữ nguyên form RHF/Zod, upload ảnh CCCD/hợp đồng và lightbox xem trước thủ công.
+function LocalFileThumbnail({ file, alt, className }: { file: File; alt: string; className?: string }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file])
+  useEffect(() => () => URL.revokeObjectURL(url), [url])
+
+  return <img src={url} alt={alt} className={className} />
+}
+
+// Modal thêm người thuê mới. Vỏ dùng AppModal; giữ nguyên form RHF/Zod, upload ảnh CCCD/hợp đồng và ImageLightboxModal xem trước.
 export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps) {
   const createTenant = useTenantStore(state => state.createTenant)
 
-  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
-  const [cccdFiles, setCccdFiles] = useState<File[]>([])
-  const [contractFiles, setContractFiles] = useState<File[]>([])
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; filename: string } | null>(null)
+  const cccd = useUploadFiles()
+  const contract = useUploadFiles()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isOptimizing = cccd.isOptimizing || contract.isOptimizing
   const [showOptionalFields, setShowOptionalFields] = useState(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<TenantFormValues>({
@@ -48,14 +58,31 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
   })
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && selectedImageUrl) {
-        setSelectedImageUrl(null)
+    return () => {
+      if (previewImage?.url.startsWith('blob:')) {
+        URL.revokeObjectURL(previewImage.url)
       }
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedImageUrl])
+  }, [previewImage])
+
+  const handleClosePreview = () => {
+    if (previewImage?.url.startsWith('blob:')) {
+      URL.revokeObjectURL(previewImage.url)
+    }
+    setPreviewImage(null)
+  }
+
+  const handlePreviewLocalFile = (file: File, label: string) => {
+    const url = URL.createObjectURL(file)
+    setPreviewImage((current) => {
+      if (current?.url.startsWith('blob:')) URL.revokeObjectURL(current.url)
+      return {
+        url,
+        title: `${label} - ${file.name}`,
+        filename: file.name,
+      }
+    })
+  }
 
   const onSubmit = async (values: TenantFormValues) => {
     setIsSubmitting(true)
@@ -68,8 +95,8 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
       if (values.identityCard) formData.append('identity_card', values.identityCard)
       if (values.startDate) formData.append('start_date', values.startDate)
 
-      cccdFiles.forEach(f => formData.append('cccd_file', f))
-      contractFiles.forEach(f => formData.append('contract_file', f))
+      cccd.files.forEach(f => formData.append('cccd_file', f))
+      contract.files.forEach(f => formData.append('contract_file', f))
 
       const res = await createTenant(formData)
       if (res.success) {
@@ -137,15 +164,15 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                     {/* CCCD Upload */}
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Ảnh CCCD (Tùy chọn)</Label>
-                      {cccdFiles.length === 0 ? (
+                      {cccd.files.length === 0 ? (
                         <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
                           <Upload className="w-5 h-5 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên ảnh CCCD</span>
-                          <input type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) setCccdFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={e => { void cccd.addFiles(e.target.files); e.target.value = '' }} />
                         </label>
                       ) : (
                         <div className="flex flex-col gap-2">
-                          {cccdFiles.map((file, idx) => (
+                          {cccd.files.map((file, idx) => (
                             <div key={`new-cccd-${idx}`} className="flex flex-col gap-2">
                               <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                                 <div className="flex items-center gap-2 overflow-hidden truncate">
@@ -153,19 +180,19 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                                   <span className="text-xs font-semibold text-primary truncate">{file.name}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
-                                  <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                  <button type="button" onClick={() => handlePreviewLocalFile(file, 'Ảnh CCCD')} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
                                     <Eye className="w-4 h-4" />
                                   </button>
-                                  <button type="button" onClick={() => setCccdFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
+                                  <button type="button" onClick={() => cccd.removeFile(idx)} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
                               </div>
                               <div
                                 className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                onClick={() => setSelectedImageUrl(URL.createObjectURL(file))}
+                                onClick={() => handlePreviewLocalFile(file, 'Ảnh CCCD')}
                               >
-                                <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                <LocalFileThumbnail file={file} alt={file.name} className="w-full h-full object-cover" />
                                 <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                   <ZoomIn className="w-5 h-5" />
                                 </div>
@@ -175,7 +202,7 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                           <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary transition-colors">
                             <Upload className="w-4 h-4 text-muted-foreground" />
                             <span className="text-xs font-semibold text-foreground">Tải ảnh khác</span>
-                            <input type="file" accept="image/*" multiple className="hidden" onChange={e => { if (e.target.files) setCccdFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                            <input type="file" accept="image/*" multiple className="hidden" onChange={e => { void cccd.addFiles(e.target.files); e.target.value = '' }} />
                           </label>
                         </div>
                       )}
@@ -184,15 +211,15 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                     {/* Contract Upload */}
                     <div className="space-y-2 col-span-2 md:col-span-1">
                       <Label>Hợp đồng (Tùy chọn)</Label>
-                      {contractFiles.length === 0 ? (
+                      {contract.files.length === 0 ? (
                         <label className="flex flex-col gap-2 items-center justify-center h-24 rounded-lg border-2 border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary hover:border-primary/50 transition-colors">
                           <Upload className="w-5 h-5 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground font-semibold px-4 text-center">Tải lên hợp đồng</span>
-                          <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { if (e.target.files) setContractFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                          <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { void contract.addFiles(e.target.files); e.target.value = '' }} />
                         </label>
                       ) : (
                         <div className="flex flex-col gap-2">
-                          {contractFiles.map((file, idx) => (
+                          {contract.files.map((file, idx) => (
                             <div key={`new-contract-${idx}`} className="flex flex-col gap-2">
                               <div className="flex items-center justify-between h-10 px-3 rounded-lg border border-primary/20 bg-primary/10">
                                 <div className="flex items-center gap-2 overflow-hidden truncate">
@@ -201,11 +228,11 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                                 </div>
                                 <div className="flex items-center gap-1">
                                   {file.type.startsWith('image/') && (
-                                    <button type="button" onClick={() => setSelectedImageUrl(URL.createObjectURL(file))} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
+                                    <button type="button" onClick={() => handlePreviewLocalFile(file, 'Hợp đồng')} className="p-1 hover:bg-primary/20 rounded-md text-primary cursor-pointer" title="Xem trước">
                                       <Eye className="w-4 h-4" />
                                     </button>
                                   )}
-                                  <button type="button" onClick={() => setContractFiles(prev => prev.filter((_, i) => i !== idx))} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
+                                  <button type="button" onClick={() => contract.removeFile(idx)} className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive cursor-pointer" title="Xóa">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -213,9 +240,9 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                               {file.type.startsWith('image/') ? (
                                 <div
                                   className="relative rounded-lg overflow-hidden border border-border aspect-video bg-muted cursor-pointer group"
-                                  onClick={() => setSelectedImageUrl(URL.createObjectURL(file))}
+                                  onClick={() => handlePreviewLocalFile(file, 'Hợp đồng')}
                                 >
-                                  <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" />
+                                  <LocalFileThumbnail file={file} alt={file.name} className="w-full h-full object-cover" />
                                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                                     <ZoomIn className="w-5 h-5" />
                                   </div>
@@ -231,7 +258,7 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
                           <label className="flex items-center justify-center gap-2 h-9 mt-1 rounded-lg border border-dashed border-border bg-muted/30 cursor-pointer hover:bg-secondary transition-colors">
                             <Upload className="w-4 h-4 text-muted-foreground" />
                             <span className="text-xs font-semibold text-foreground">Tải file khác</span>
-                            <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { if (e.target.files) setContractFiles(prev => [...prev, ...Array.from(e.target.files!)]) }} />
+                            <input type="file" accept=".pdf,.doc,.docx,image/*" multiple className="hidden" onChange={e => { void contract.addFiles(e.target.files); e.target.value = '' }} />
                           </label>
                         </div>
                       )}
@@ -244,32 +271,21 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
 
           <div className="flex justify-end gap-3 pt-6 border-t border-border/40">
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Đang thêm...' : 'Xác nhận'}
+            <Button type="submit" disabled={isSubmitting || isOptimizing}>
+              {isOptimizing ? 'Đang tối ưu ảnh...' : isSubmitting ? 'Đang thêm...' : 'Xác nhận'}
             </Button>
           </div>
         </form>
       </AppModal>
 
-      {/* Lightbox / Gallery Modal */}
-      {selectedImageUrl && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md safe-fade-in p-4"
-          onClick={() => setSelectedImageUrl(null)}
-        >
-          <button className="absolute top-6 right-6 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-[101] cursor-pointer">
-            <X className="w-6 h-6" />
-          </button>
-          <div className="max-w-5xl max-h-[90vh] w-full flex items-center justify-center relative">
-            <img
-              src={selectedImageUrl}
-              alt="Preview"
-              className="max-w-full max-h-[90vh] object-contain shadow-2xl rounded-sm safe-fade-in"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        </div>
-      )}
+      {/* Lightbox / Gallery Modal - Portaled to document.body */}
+      <ImageLightboxModal
+        isOpen={Boolean(previewImage)}
+        imageUrl={previewImage?.url || null}
+        title={previewImage?.title}
+        filename={previewImage?.filename}
+        onClose={handleClosePreview}
+      />
     </>
   )
 }
