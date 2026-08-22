@@ -37,8 +37,12 @@ func TestRecoverMiddleware(t *testing.T) {
 			t.Errorf("expected 500, got %d", rec.Code)
 		}
 
+		// Chi tiết panic không được rò rỉ ra response, chỉ nằm trong log.
 		body := rec.Body.String()
-		if !strings.Contains(body, "panic: something went wrong") {
+		if strings.Contains(body, "something went wrong") {
+			t.Errorf("panic detail leaked to client: %s", body)
+		}
+		if !strings.Contains(body, "internal server error") {
 			t.Errorf("unexpected body: %s", body)
 		}
 	})

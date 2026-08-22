@@ -462,13 +462,14 @@ func TestAuthHandler_AuthRequestEdges(t *testing.T) {
 		}
 	})
 
-	t.Run("Register uses X-Forwarded-For from trusted proxy", func(t *testing.T) {
+	// Proxy nối IP thật vào cuối chuỗi client tự gửi, nên mục cuối mới là IP không giả mạo được.
+	t.Run("Register uses last X-Forwarded-For entry from trusted proxy", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
 		mockSvc := mock_service.NewMockAuthService(ctrl)
 		mockSvc.EXPECT().
-			Register(gomock.Any(), gomock.Any(), "203.0.113.1", gomock.Any(), gomock.Any()).
+			Register(gomock.Any(), gomock.Any(), "198.51.100.2", gomock.Any(), gomock.Any()).
 			Return(&authsvc.LoginOutput{}, nil)
 
 		trustedProxy := netip.MustParsePrefix("192.0.2.0/24")

@@ -466,6 +466,23 @@ func TestAuthService_VerifyEmail(t *testing.T) {
 		}
 	})
 
+	// Hồi quy: trước đây điều kiện dùng time.Since(Expires) > OTPExpiresIn nên OTP
+	// chỉ hết hạn sau gấp đôi thời hạn cấu hình.
+	t.Run("Expired within the old doubled window", func(t *testing.T) {
+		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, v *model.EmailVerification) error {
+			v.Expires = time.Now().Add(-1 * time.Minute)
+			return nil
+		})
+
+		_, ok, err := authSvc.VerifyEmail(ctx, "test@test.com", "123456", "")
+		if err != nil {
+			t.Errorf("unexpected err: %v", err)
+		}
+		if ok {
+			t.Errorf("expected false")
+		}
+	})
+
 	t.Run("GetOTP returns non-ErrNoRows error", func(t *testing.T) {
 		verifyRepo.EXPECT().GetOTP(ctx, gomock.Any()).Return(errors.New("db error"))
 
