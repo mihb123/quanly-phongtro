@@ -3,17 +3,17 @@ import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
 import { useHouseStore } from '@/data/houseData'
 import { useSelectedStore } from '@/data/selectedData'
-import { formatNumber, parseNumber } from '@/utils/format'
-import { useForm, Controller, type Control } from 'react-hook-form'
+import { parseNumber } from '@/utils/format'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { checkHouseCode, type House } from '@/api/house'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 import { HOUSE_CODE_PATTERN, isHouseCodeTaken } from '@/utils/houseCode'
 import { FormSection, FormSubGroup } from './FormSection'
+import { FieldError, MoneyInput, selectFieldClass } from './FormFields'
 import { HouseDocumentsSection } from './HouseDocumentsSection'
 
 const houseSchema = z.object({
@@ -46,46 +46,10 @@ const houseSchema = z.object({
 
 type HouseFormValues = z.infer<typeof houseSchema>
 
-type MoneyFieldName =
-  | 'electricity' | 'water' | 'wifi' | 'parking' | 'service'
-  | 'extra_person_fee' | 'extra_vehicle_fee' | 'owner_rent_price' | 'owner_deposit'
-
 const FORM_ID = 'edit-house-form'
-
-// Select dùng lại style của Input để các ô trên cùng một hàng thẳng nhau.
-const selectClass = 'h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30'
 
 // Backend trả ngày dạng RFC3339 (hoặc null); input[type=date] chỉ nhận YYYY-MM-DD.
 const toDateInputValue = (raw?: string | null) => (raw ? raw.slice(0, 10) : '')
-
-function FieldError({ message }: { message?: string }) {
-  return message ? <span className="text-xs text-destructive">{message}</span> : null
-}
-
-// Ô nhập tiền: hiển thị có dấu phân cách, lưu lại chuỗi số thuần.
-function MoneyInput({ control, name, className, placeholder }: {
-  control: Control<HouseFormValues>
-  name: MoneyFieldName
-  className?: string
-  placeholder?: string
-}) {
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field }) => (
-        <Input
-          {...field}
-          inputMode="numeric"
-          placeholder={placeholder}
-          value={formatNumber(field.value)}
-          onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))}
-          className={cn('border-input', className)}
-        />
-      )}
-    />
-  )
-}
 
 interface EditHouseModalProps {
   house: House
@@ -223,10 +187,11 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
       onClose={handleClose}
       title="Cập nhật thông tin nhà trọ"
       contentClassName="sm:max-w-2xl"
+      initialFocus={false}
       footer={
         <>
-          <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
-          <Button type="submit" form={FORM_ID} disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
+          <Button type="button" variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">Hủy</Button>
+          <Button type="submit" form={FORM_ID} disabled={isLoading} className="flex-1 sm:flex-none bg-purple-600 text-white hover:bg-purple-700 shadow-md">
             {isLoading ? 'Đang cập nhật...' : 'Cập nhật'}
           </Button>
         </>
@@ -236,17 +201,23 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
         <FormSection title="Thông tin chung">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>Tên nhà trọ</Label>
+              <Label>
+                Tên nhà trọ <span className="text-destructive">*</span>
+              </Label>
               <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
               <FieldError message={errors.name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label>Mã nhà (House Code)</Label>
+              <Label>
+                Mã nhà (House Code) <span className="text-destructive">*</span>
+              </Label>
               <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-input" />
               <FieldError message={errors.house_code?.message} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>Địa chỉ</Label>
+              <Label>
+                Địa chỉ <span className="text-destructive">*</span>
+              </Label>
               <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
               <FieldError message={errors.address?.message} />
             </div>
@@ -259,7 +230,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label>Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className={selectClass}>
+                  <select {...register('electricity_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
@@ -267,7 +238,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 {electricityBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
                     <Label>Đơn vị tính điện</Label>
-                    <select {...register('electricity_billing_unit')} className={selectClass}>
+                    <select {...register('electricity_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
@@ -282,7 +253,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label>Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className={selectClass}>
+                  <select {...register('water_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
@@ -290,7 +261,7 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
                 {waterBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
                     <Label>Đơn vị tính nước</Label>
-                    <select {...register('water_billing_unit')} className={selectClass}>
+                    <select {...register('water_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>

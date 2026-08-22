@@ -265,20 +265,21 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-border/40">
+          <div className="flex items-center justify-between gap-2 pt-4 border-t border-border/40">
             <Button
               type="button"
               variant="ghost"
+              size="sm"
               onClick={async () => {
                 await logout()
                 navigate('/login')
               }}
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 px-2 sm:px-3"
             >
-              <LogOut className="w-4 h-4" /> Đăng xuất
+              <LogOut className="w-4 h-4" /> <span className="hidden xs:inline">Đăng xuất</span>
             </Button>
 
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu thay đổi</>}

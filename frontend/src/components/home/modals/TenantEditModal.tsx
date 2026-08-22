@@ -177,12 +177,12 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
         contentClassName="sm:max-w-2xl"
         initialFocus={false}
         footer={
-          <div className="flex justify-end gap-3 w-full">
-            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit" form="tenant-edit-form" disabled={isSubmitting || isUploadingCccd}>
+          <>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+            <Button type="submit" form="tenant-edit-form" disabled={isSubmitting || isUploadingCccd} className="flex-1 sm:flex-none">
               {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
-          </div>
+          </>
         }
       >
         <form id="tenant-edit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">

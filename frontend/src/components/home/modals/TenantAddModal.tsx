@@ -107,12 +107,12 @@ export function TenantAddModal({ room, onClose, onSuccess }: TenantAddModalProps
         description={`Phòng ${room.name}`}
         contentClassName="sm:max-w-2xl"
         footer={
-          <div className="flex justify-end gap-3 w-full">
-            <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-            <Button type="submit" form="tenant-add-form" disabled={isSubmitting || isOptimizing}>
+          <>
+            <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+            <Button type="submit" form="tenant-add-form" disabled={isSubmitting || isOptimizing} className="flex-1 sm:flex-none">
               {isOptimizing ? 'Đang tối ưu ảnh...' : isSubmitting ? 'Đang thêm...' : 'Xác nhận'}
             </Button>
-          </div>
+          </>
         }
       >
         <form id="tenant-add-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">

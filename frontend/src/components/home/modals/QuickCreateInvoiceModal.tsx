@@ -247,13 +247,13 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
       contentClassName="sm:max-w-4xl"
       footer={
         <>
-          <Button variant="outline" onClick={handleClose}>
+          <Button variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">
             Hủy
           </Button>
           <Button
             disabled={isLoading || !selectedHouseId || rooms.length === 0}
             onClick={handleSaveAll}
-           
+            className="flex-1 sm:flex-none"
           >
             {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu tất cả</>}
           </Button>

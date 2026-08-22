@@ -411,9 +411,9 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
              </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
-            <Button type="submit" disabled={isLoading || isUploadingContract}>
+          <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border/40">
+            <Button type="button" variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">Hủy</Button>
+            <Button type="submit" disabled={isLoading || isUploadingContract} className="flex-1 sm:flex-none">
               {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
             </Button>
           </div>
