@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Pencil, FileIcon, CheckCircle2 } from '@/components/icons'
+import { Plus, Trash2, Pencil, FileIcon, CheckCircle2, ZoomIn } from '@/components/icons'
 import type { Tenant } from '@/api/tenant'
 import type { Room } from '@/api/room'
-import { getFileName } from '@/utils/file'
+import { getFileName, isImagePath } from '@/utils/file'
+import { ProtectedFileImage } from './ProtectedFileImage'
 import { ImageLightboxModal, type LightboxImageItem } from '@/components/shared/ImageLightboxModal'
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 
@@ -130,28 +131,44 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                     </div>
 
                     {cccdList.length > 0 && (
-                      <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 max-h-80 overflow-y-auto pr-1">
-                        {cccdList.map((item, fileIdx) => {
-                          const label = `Ảnh CCCD ${fileIdx > 0 ? fileIdx + 1 : ''}`.trim()
-                          return (
-                            <div
-                              key={`cccd-${fileIdx}`}
-                              className="flex items-center justify-between p-2 rounded-lg bg-background border border-border/50 group/file hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer min-w-0"
-                              onClick={() => handleOpenGallery(cccdList, fileIdx)}
-                              title="Nhấn để xem ảnh CCCD"
-                            >
-                              <div className="flex items-center gap-2 overflow-hidden min-w-0 flex-1">
-                                <div className="w-6 h-6 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                                  <FileIcon className="w-3 h-3" />
+                      <div className="col-span-2 mt-2">
+                        <span className="text-xs uppercase font-medium text-muted-foreground block mb-2">Ảnh CCCD</span>
+                        <div className="flex flex-wrap gap-2.5">
+                          {cccdList.map((item, fileIdx) => {
+                            const isImg = isImagePath(item.path || '')
+                            return (
+                              <div
+                                key={`cccd-${fileIdx}`}
+                                className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border/80 bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
+                                onClick={() => handleOpenGallery(cccdList, fileIdx)}
+                                title={`Xem ảnh CCCD ${fileIdx + 1}: ${item.filename}`}
+                              >
+                                {isImg && item.path ? (
+                                  <ProtectedFileImage
+                                    path={item.path}
+                                    alt={item.filename || ''}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  />
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center p-2 text-center text-muted-foreground">
+                                    <FileIcon className="w-6 h-6 mb-1 text-primary/70" />
+                                    <span className="text-[10px] font-medium leading-tight line-clamp-2 break-all">{item.filename}</span>
+                                  </div>
+                                )}
+
+                                {/* Hover overlay with zoom icon */}
+                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white pointer-events-none">
+                                  <ZoomIn className="w-5 h-5" />
                                 </div>
-                                <div className="flex flex-col overflow-hidden min-w-0">
-                                  <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                                  <span className="text-xs font-semibold text-foreground truncate">{item.filename}</span>
+
+                                {/* Index label badge */}
+                                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-[9px] font-semibold text-white pointer-events-none">
+                                  CCCD {fileIdx + 1}
                                 </div>
                               </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>

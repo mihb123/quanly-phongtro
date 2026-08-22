@@ -149,6 +149,7 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 		Where("rm.house_id = ?", houseID).
 		Where("t.manager_id = ?", managerID).
 		Where("t.status = ?", string(model.TenantStatusActive)).
+		OrderExpr("rm.name ASC, u.full_name ASC").
 		Scan(ctx, &tenants)
 
 	if err != nil {

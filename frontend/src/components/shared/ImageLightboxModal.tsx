@@ -29,6 +29,28 @@ interface ImageLightboxContentProps {
   onClose: () => void
 }
 
+// Cache URL đã resolve phải khóa theo chính item, không theo index: caller có thể đổi mảng items
+// mà index vẫn giữ nguyên, khóa theo index sẽ trả về ảnh của item cũ.
+const getItemKey = (item: LightboxImageItem | undefined, index: number) => {
+  if (!item) return `empty:${index}`
+  if (item.path) return `path:${item.path}`
+  if (item.url) return `url:${item.url}`
+  if (item.file) return `file:${item.file.name}:${item.file.size}:${item.file.lastModified}`
+  return `empty:${index}`
+}
+
+const NON_PREVIEWABLE_EXT = /\.(pdf|docx?|xlsx?|pptx?|zip|rar|7z|txt|csv)$/i
+
+// Mọi file protected đều resolve thành blob: URL nên không thể suy ra loại file từ URL —
+// phải dựa vào path/File gốc, nếu không PDF sẽ bị render vào <img>.
+const isImageItem = (item: LightboxImageItem | undefined) => {
+  if (!item) return false
+  if (item.file) return item.file.type.startsWith('image/')
+  if (item.path) return isImagePath(item.path)
+  if (item.url) return item.url.startsWith('data:image') || !NON_PREVIEWABLE_EXT.test(item.url)
+  return false
+}
+
 function ImageLightboxContent({
   items,
   initialIndex,
@@ -38,93 +60,122 @@ function ImageLightboxContent({
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
 
-  // Cache resolved URLs (for paths or files) by index
-  const [resolvedUrls, setResolvedUrls] = useState<Record<number, string>>({})
-  const [loadingIndex, setLoadingIndex] = useState<number | null>(null)
+  // Map of item key -> resolved object/blob/static URL
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({})
+  const resolvedUrlsRef = useRef<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
+  const [brokenKeys, setBrokenKeys] = useState<Record<string, boolean>>({})
 
   // Track created blob URLs to revoke on unmount
   const createdBlobUrlsRef = useRef<Set<string>>(new Set())
+  const inFlightKeysRef = useRef<Set<string>>(new Set())
+  const isUnmountedRef = useRef(false)
 
-  const currentItem = items[currentIndex] || items[0]
+  useEffect(() => () => {
+    isUnmountedRef.current = true
+  }, [])
 
-  // Resolve URL for a given item index
-  const resolveItemUrl = useCallback(async (index: number) => {
-    const item = items[index]
+  // Helper to resolve URL for an item
+  const fetchUrlForItem = useCallback(async (item: LightboxImageItem | undefined): Promise<string> => {
     if (!item) return ''
-
-    if (item.url) {
-      return item.url
-    }
-
+    if (item.url) return item.url
     if (item.file) {
-      const objectUrl = URL.createObjectURL(item.file)
-      createdBlobUrlsRef.current.add(objectUrl)
-      setResolvedUrls((prev) => ({ ...prev, [index]: objectUrl }))
-      return objectUrl
+      const blobUrl = URL.createObjectURL(item.file)
+      createdBlobUrlsRef.current.add(blobUrl)
+      return blobUrl
     }
-
     if (item.path) {
-      try {
-        const objectUrl = await getProtectedFileObjectUrl(item.path)
-        createdBlobUrlsRef.current.add(objectUrl)
-        setResolvedUrls((prev) => ({ ...prev, [index]: objectUrl }))
-        return objectUrl
-      } catch (err) {
-        console.error('Lỗi khi tải ảnh lightbox:', err)
+      const blobUrl = await getProtectedFileObjectUrl(item.path)
+      // Resolve sau khi modal đã đóng thì cleanup không còn chạy nữa, revoke ngay tại đây
+      if (isUnmountedRef.current) {
+        URL.revokeObjectURL(blobUrl)
         return ''
       }
+      createdBlobUrlsRef.current.add(blobUrl)
+      return blobUrl
     }
-
     return ''
-  }, [items])
+  }, [])
 
-  // Load current image URL and prefetch neighbors
+  // Load URL for currentIndex + prefetch 2 item lân cận
   useEffect(() => {
     let isCancelled = false
 
-    const loadCurrentAndNeighbors = async () => {
-      const currentUrl = resolvedUrls[currentIndex]
-      if (!currentUrl) {
-        setLoadingIndex(currentIndex)
-        const url = await resolveItemUrl(currentIndex)
-        if (!isCancelled && url) {
-          setResolvedUrls((prev) => ({ ...prev, [currentIndex]: url }))
+    const resolveItem = async (index: number, isCurrent: boolean) => {
+      const item = items[index]
+      const key = getItemKey(item, index)
+
+      if (resolvedUrlsRef.current[key]) {
+        if (isCurrent && !isCancelled) {
+          setIsLoading(false)
+          setHasError(false)
         }
-        if (!isCancelled) {
-          setLoadingIndex(null)
-        }
+        return
       }
 
-      // Prefetch next and previous
-      if (items.length > 1) {
-        const nextIdx = (currentIndex + 1) % items.length
-        const prevIdx = (currentIndex - 1 + items.length) % items.length
-        if (!resolvedUrls[nextIdx]) {
-          void resolveItemUrl(nextIdx)
+      if (!item) {
+        if (isCurrent && !isCancelled) {
+          setIsLoading(false)
+          setHasError(true)
         }
-        if (!resolvedUrls[prevIdx]) {
-          void resolveItemUrl(prevIdx)
+        return
+      }
+
+      if (isCurrent) {
+        setIsLoading(true)
+        setHasError(false)
+      }
+
+      if (inFlightKeysRef.current.has(key)) return
+      inFlightKeysRef.current.add(key)
+
+      try {
+        const url = await fetchUrlForItem(item)
+        // Ghi cache dù effect đã bị hủy: blob tải xong rồi, bỏ đi là lần chuyển ảnh tiếp theo phải tải lại
+        if (url) {
+          resolvedUrlsRef.current[key] = url
+          setResolvedUrls((prev) => (prev[key] ? prev : { ...prev, [key]: url }))
         }
+        if (isCurrent && !isCancelled) {
+          setHasError(!url)
+          setIsLoading(false)
+        }
+      } catch (err) {
+        console.error('Lỗi khi tải ảnh lightbox:', err)
+        if (isCurrent && !isCancelled) {
+          setHasError(true)
+          setIsLoading(false)
+        }
+      } finally {
+        inFlightKeysRef.current.delete(key)
       }
     }
 
-    void loadCurrentAndNeighbors()
+    void resolveItem(currentIndex, true)
+
+    if (items.length > 1) {
+      const nextIdx = (currentIndex + 1) % items.length
+      const prevIdx = (currentIndex - 1 + items.length) % items.length
+      void resolveItem(nextIdx, false)
+      if (prevIdx !== nextIdx) void resolveItem(prevIdx, false)
+    }
 
     return () => {
       isCancelled = true
     }
-  }, [currentIndex, items.length, resolveItemUrl, resolvedUrls])
+  }, [currentIndex, fetchUrlForItem, items])
 
   // Cleanup all created blob URLs on unmount
   useEffect(() => {
-    const createdBlobs = createdBlobUrlsRef.current
+    const urls = createdBlobUrlsRef.current
     return () => {
-      createdBlobs.forEach((url) => {
+      urls.forEach((url) => {
         if (url.startsWith('blob:')) {
           URL.revokeObjectURL(url)
         }
       })
-      createdBlobs.clear()
+      urls.clear()
     }
   }, [])
 
@@ -220,7 +271,9 @@ function ImageLightboxContent({
     setRotation((prev) => (prev + 90) % 360)
   }, [])
 
-  const activeUrl = resolvedUrls[currentIndex] || currentItem?.url || ''
+  const currentItem = items[currentIndex] || items[0]
+  const currentKey = getItemKey(currentItem, currentIndex)
+  const activeUrl = resolvedUrls[currentKey] || currentItem?.url || ''
   const activeFilename = currentItem?.filename || (currentItem?.path ? getFileName(currentItem.path) : currentItem?.file?.name) || (activeUrl ? getFileName(activeUrl) : 'image.png')
   const activeTitle = currentItem?.title || activeFilename
 
@@ -239,13 +292,7 @@ function ImageLightboxContent({
     window.open(activeUrl, '_blank')
   }, [activeUrl])
 
-  const isImg =
-    activeUrl.startsWith('blob:') ||
-    activeUrl.startsWith('data:image') ||
-    activeUrl.includes('/files/') ||
-    isImagePath(activeUrl) ||
-    isImagePath(currentItem?.path) ||
-    Boolean(currentItem?.file?.type.startsWith('image/'))
+  const isImg = isImageItem(currentItem) && !brokenKeys[currentKey]
 
   return (
     <div
@@ -400,10 +447,17 @@ function ImageLightboxContent({
         className="flex-1 flex items-center justify-center p-4 sm:p-8 overflow-hidden relative"
         onClick={onClose}
       >
-        {loadingIndex === currentIndex ? (
+        {isLoading ? (
           <div className="flex flex-col items-center gap-3 text-white">
             <Loader2 className="w-10 h-10 animate-spin text-primary" />
             <span className="text-sm font-medium">Đang tải ảnh...</span>
+          </div>
+        ) : hasError ? (
+          <div className="flex flex-col items-center gap-3 text-white/80 max-w-sm text-center">
+            <div className="w-12 h-12 rounded-full bg-destructive/20 text-destructive flex items-center justify-center">
+              <FileIcon className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-medium text-white">Không thể tải ảnh hoặc file không tồn tại</p>
           </div>
         ) : isImg && activeUrl ? (
           <div
@@ -419,6 +473,7 @@ function ImageLightboxContent({
               alt={activeTitle || 'Ảnh xem trước'}
               className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg shadow-2xl border border-white/10 pointer-events-auto cursor-default safe-fade-in"
               draggable={false}
+              onError={() => setBrokenKeys((prev) => ({ ...prev, [currentKey]: true }))}
             />
           </div>
         ) : (
