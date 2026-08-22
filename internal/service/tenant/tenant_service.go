@@ -18,6 +18,9 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
+// tenantUploadDir là nơi lưu CCCD và hợp đồng của khách thuê.
+const tenantUploadDir = "uploads/tenants"
+
 type TenantService interface {
 	RegisterTenant(ctx context.Context, in RegisterTenantInput) (*model.FullInfoTenant, error)
 	CheckCapicityOfRoom(ctx context.Context, roomID string) (bool, error)
@@ -87,7 +90,7 @@ func processUploadedFiles(headers []*multipart.FileHeader) (string, error) {
 		}
 
 		fileName := uuid.Must(uuid.NewV7()).String() + ext
-		filePath := filepath.Join("uploads", "tenants", fileName)
+		filePath := filepath.Join(tenantUploadDir, fileName)
 		if err := saveFile(file, filePath); err != nil {
 			file.Close()
 			return "", err
@@ -387,7 +390,7 @@ func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID
 		}
 	}
 
-	filePath, ok := shared.UploadFilePath("uploads/tenants", fileName)
+	filePath, ok := shared.UploadFilePath(tenantUploadDir, fileName)
 	if !ok {
 		return "", shared.ErrInvalidInput
 	}
@@ -395,7 +398,11 @@ func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID
 }
 
 func saveFile(file io.Reader, path string) error {
-	dst, err := os.Create(path)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("cannot create upload dir: %w", err)
+	}
+	// 0600 vì CCCD và hợp đồng là dữ liệu cá nhân nhạy cảm.
+	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("cannot create path %v", err)
 	}
