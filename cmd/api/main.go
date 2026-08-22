@@ -104,6 +104,10 @@ func main() {
 	houseCostService := housesvc.NewHouseCostService(houseCostRepo, houseRepo, eventBus, revenueSummaryRepo)
 	houseCostHandler := househandler.NewHouseCostHandler(houseCostService)
 
+	// Auto-create each house's cost record on the 1st of every month
+	houseCostCron := housesvc.NewHouseCostCronService(houseCostService)
+	houseCostCron.Start()
+
 	zaloClient := zalosvc.NewZaloClient()
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
@@ -208,4 +212,5 @@ func main() {
 
 	revenueWorker.Stop()
 	zaloCron.Stop()
+	houseCostCron.Stop()
 }

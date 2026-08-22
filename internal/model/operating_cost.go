@@ -74,6 +74,7 @@ type HouseCostRepository interface {
 	GetByHouseAndPeriod(ctx context.Context, houseID, period string) (*HouseCost, error)
 	GetLatestByHouseID(ctx context.Context, houseID string) (*HouseCost, error)
 	ListByHouseIDs(ctx context.Context, houseIDs []string, period string) ([]HouseCost, error)
+	ListByPeriod(ctx context.Context, period string) ([]HouseCost, error)
 	Update(ctx context.Context, cost *HouseCost) error
 	Delete(ctx context.Context, id, houseID string) error
 }

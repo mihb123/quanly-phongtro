@@ -130,3 +130,17 @@ func (r *HouseCostRepository) Delete(ctx context.Context, id, houseID string) er
 	}
 	return nil
 }
+
+// ListByPeriod fetches every house cost record of a given period across all houses.
+func (r *HouseCostRepository) ListByPeriod(ctx context.Context, period string) ([]model.HouseCost, error) {
+	var costs []model.HouseCost
+	err := r.db.NewSelect().
+		Model(&costs).
+		Where("period = ?", period).
+		Scan(ctx)
+
+	if err != nil {
+		return nil, fmt.Errorf("list house costs by period: %w", err)
+	}
+	return costs, nil
+}

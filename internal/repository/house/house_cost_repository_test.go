@@ -214,3 +214,29 @@ func TestHouseCostRepository_Delete(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestHouseCostRepository_ListByPeriod(t *testing.T) {
+	bunDB, mock := repotest.SetupTestDB(t)
+	defer bunDB.Close()
+
+	repo := house.NewHouseCostRepository(bunDB)
+	ctx := context.Background()
+
+	rows := sqlmock.NewRows([]string{"id", "house_id", "period", "rent"}).
+		AddRow("cost-1", "house-1", "2023-10", 2000.0).
+		AddRow("cost-2", "house-2", "2023-10", 1500.0)
+
+	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnRows(rows)
+	costs, err := repo.ListByPeriod(ctx, "2023-10")
+	if err != nil {
+		t.Errorf("error was not expected: %s", err)
+	}
+	if len(costs) != 2 {
+		t.Errorf("expected 2 costs, got %d", len(costs))
+	}
+
+	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(errors.New("db error"))
+	if _, err := repo.ListByPeriod(ctx, "2023-10"); err == nil {
+		t.Errorf("expected db error")
+	}
+}
