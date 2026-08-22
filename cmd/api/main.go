@@ -91,7 +91,7 @@ func main() {
 	roomService := roomsvc.NewRoomService(roomRepo, houseRepo)
 
 	tenantRepo := tenantrepo.NewTenantRepository(sqlDB)
-	tenantService := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	tenantService := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, houseRepo, hasher)
 	tenanHandler := tenanthandler.NewTenantHandler(tenantService)
 
 	imageService := invoicesvc.NewImageService()

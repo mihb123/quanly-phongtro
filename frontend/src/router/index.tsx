@@ -5,6 +5,7 @@ import HomePage from '@/pages/Home'
 import ProtectedRoute from '@/components/ProtectedRoute'
 
 import VerifyEmailPage from '@/pages/VerifyEmail'
+import OptimizeImagePage from '@/pages/OptimizeImage'
 
 const router = createBrowserRouter([
   {
@@ -22,6 +23,11 @@ const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  {
+    // Tiện ích công khai, không cần đăng nhập.
+    path: '/optimize-img',
+    element: <OptimizeImagePage />,
   },
   {
     path: '/verify-email',

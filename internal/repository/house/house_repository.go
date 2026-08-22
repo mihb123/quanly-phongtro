@@ -21,7 +21,7 @@ func NewHouseRepository(db *bun.DB) *HouseRepository {
 func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error {
 	_, err := r.db.NewInsert().
 		Model(h).
-		Column("manager_id", "name", "house_code", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee").
+		Column("manager_id", "name", "house_code", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee", "owner_name", "owner_phone", "owner_rent_price", "owner_deposit", "rent_start_date", "rent_end_date").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
@@ -98,10 +98,11 @@ func (r *HouseRepository) ListHouseByManagerID(ctx context.Context, managerID st
 }
 
 func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string, params model.UpdateHouseParams) (*model.House, error) {
+	var h model.House
 	q := r.db.NewUpdate().
-		Model((*model.House)(nil)).
+		Model(&h).
 		Where("id = ? AND manager_id = ?", id, managerID).
-		Returning("id, manager_id, name, house_code, address, default_electricity_price, default_water_price, default_wifi_price, default_parking_price, default_service_price, electricity_billing_type, water_billing_type, electricity_billing_unit, water_billing_unit, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, created_at, updated_at")
+		Returning("*")
 
 	q.Set("name = ?", params.Name)
 	q.Set("house_code = ?", params.HouseCode)
@@ -119,18 +120,60 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 	q.Set("extra_person_fee = ?", params.ExtraPersonFee)
 	q.Set("extra_vehicle_threshold = ?", params.ExtraVehicleThreshold)
 	q.Set("extra_vehicle_fee = ?", params.ExtraVehicleFee)
+	q.Set("owner_name = ?", params.OwnerName)
+	q.Set("owner_phone = ?", params.OwnerPhone)
+	q.Set("owner_rent_price = ?", params.OwnerRentPrice)
+	q.Set("owner_deposit = ?", params.OwnerDeposit)
+	q.Set("rent_start_date = ?", params.RentStartDate)
+	q.Set("rent_end_date = ?", params.RentEndDate)
 	q.Set("updated_at = NOW()")
 
-	var h model.House
-	err := q.Scan(ctx, &h.ID, &h.ManagerID, &h.Name, &h.HouseCode, &h.Address, &h.DefaultElectricityPrice, &h.DefaultWaterPrice, &h.DefaultWifiPrice, &h.DefaultParkingPrice, &h.DefaultServicePrice, &h.ElectricityBillingType, &h.WaterBillingType, &h.ElectricityBillingUnit, &h.WaterBillingUnit, &h.ExtraPersonThreshold, &h.ExtraPersonFee, &h.ExtraVehicleThreshold, &h.ExtraVehicleFee, &h.CreatedAt, &h.UpdatedAt)
-
-	if err != nil {
+	if err := q.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrHouseNotFound
 		}
 		return nil, fmt.Errorf("update house: %w", err)
 	}
 	return &h, nil
+}
+
+// UpdateHouseDocuments replaces the landlord CCCD and head-lease contract paths of a house.
+// Ownership is enforced by the manager_id filter.
+func (r *HouseRepository) UpdateHouseDocuments(ctx context.Context, id, managerID, cccdPath, contractPath string) (*model.House, error) {
+	var h model.House
+	err := r.db.NewUpdate().
+		Model(&h).
+		Set("owner_cccd_path = ?", cccdPath).
+		Set("owner_contract_path = ?", contractPath).
+		Set("updated_at = NOW()").
+		Where("id = ? AND manager_id = ?", id, managerID).
+		Returning("*").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrHouseNotFound
+		}
+		return nil, fmt.Errorf("update house documents: %w", err)
+	}
+	return &h, nil
+}
+
+// HasHouseWithFilePath reports whether any house of the manager references the given upload path
+// in its landlord CCCD or head-lease contract.
+func (r *HouseRepository) HasHouseWithFilePath(ctx context.Context, managerID, filePath string) (bool, error) {
+	exists, err := r.db.NewSelect().
+		Model((*model.House)(nil)).
+		ModelTableExpr("houses AS house").
+		Where("house.manager_id = ?", managerID).
+		Where(`EXISTS (
+			SELECT 1 FROM unnest(string_to_array(COALESCE(house.owner_cccd_path, '') || ',' || COALESCE(house.owner_contract_path, ''), ',')) AS path
+			WHERE trim(path) <> '' AND trim(path) = ?
+		)`, filePath).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("has house with file path: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *HouseRepository) DeleteHouse(ctx context.Context, id, managerID string) error {

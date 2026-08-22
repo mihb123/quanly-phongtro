@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
@@ -17,6 +19,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_service"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
 	"go.uber.org/mock/gomock"
 )
 
@@ -463,6 +466,132 @@ func TestHouseHandler_DeleteHouse(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+		})
+	}
+}
+
+// manyFileNames sinh n tên file hợp lệ cho test vượt hạn mức upload.
+func manyFileNames(n int) []string {
+	names := make([]string, n)
+	for i := range names {
+		names[i] = "file-" + strconv.Itoa(i) + ".png"
+	}
+	return names
+}
+
+// TestHouseHandler_UpdateHouseDocuments kiểm tra cách handler đọc multipart: file mới, danh sách file cũ giữ lại và cờ xóa hết.
+func TestHouseHandler_UpdateHouseDocuments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	houseSvc := mock_service.NewMockHouseService(ctrl)
+	h := house.NewHouseHandler(houseSvc, mock_service.NewMockInvoiceService(ctrl))
+
+	// buildForm dựng multipart body từ các field text và file (fieldName -> danh sách tên file).
+	buildForm := func(fields map[string]string, files map[string][]string) (*bytes.Buffer, string) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		for k, v := range fields {
+			_ = writer.WriteField(k, v)
+		}
+		for field, names := range files {
+			for _, name := range names {
+				part, _ := writer.CreateFormFile(field, name)
+				_, _ = part.Write([]byte("data"))
+			}
+		}
+		writer.Close()
+		return body, writer.FormDataContentType()
+	}
+
+	tests := []struct {
+		name           string
+		setupAuth      func(*http.Request) *http.Request
+		fields         map[string]string
+		files          map[string][]string
+		mockBehavior   func(svc *mock_service.MockHouseService)
+		expectedStatus int
+	}{
+		{
+			name:      "Uploads new files and keeps selected ones",
+			setupAuth: withValidClaims,
+			fields:    map[string]string{"kept_owner_cccd_paths": "old-cccd.png"},
+			files:     map[string][]string{"owner_cccd_file": {"new.png"}, "owner_contract_file": {"hd.pdf", "phuluc.pdf"}},
+			mockBehavior: func(svc *mock_service.MockHouseService) {
+				svc.EXPECT().UpdateHouseDocuments(gomock.Any(), "house-1", "user-1", gomock.Any()).
+					DoAndReturn(func(_ context.Context, _, _ string, in housesvc.UpdateHouseDocumentsInput) (*model.House, error) {
+						if in.KeptCCCDPaths == nil || *in.KeptCCCDPaths != "old-cccd.png" {
+							t.Errorf("KeptCCCDPaths = %v, want old-cccd.png", in.KeptCCCDPaths)
+						}
+						if in.KeptContractPaths != nil {
+							t.Errorf("KeptContractPaths = %v, want nil (giữ nguyên)", *in.KeptContractPaths)
+						}
+						if len(in.CCCDFiles) != 1 || len(in.ContractFiles) != 2 {
+							t.Errorf("files = %d cccd / %d contract, want 1/2", len(in.CCCDFiles), len(in.ContractFiles))
+						}
+						return &model.House{ID: "house-1"}, nil
+					})
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:      "Empty flag clears a group",
+			setupAuth: withValidClaims,
+			fields:    map[string]string{"kept_owner_contract_paths_empty": "true"},
+			mockBehavior: func(svc *mock_service.MockHouseService) {
+				svc.EXPECT().UpdateHouseDocuments(gomock.Any(), "house-1", "user-1", gomock.Any()).
+					DoAndReturn(func(_ context.Context, _, _ string, in housesvc.UpdateHouseDocumentsInput) (*model.House, error) {
+						if in.KeptContractPaths == nil || *in.KeptContractPaths != "" {
+							t.Errorf("KeptContractPaths = %v, want empty string", in.KeptContractPaths)
+						}
+						return &model.House{ID: "house-1"}, nil
+					})
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Too many files",
+			setupAuth:      withValidClaims,
+			files:          map[string][]string{"owner_cccd_file": manyFileNames(11)},
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Unauthorized",
+			setupAuth:      func(req *http.Request) *http.Request { return req },
+			mockBehavior:   func(svc *mock_service.MockHouseService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:      "House not found",
+			setupAuth: withValidClaims,
+			mockBehavior: func(svc *mock_service.MockHouseService) {
+				svc.EXPECT().UpdateHouseDocuments(gomock.Any(), "house-1", "user-1", gomock.Any()).
+					Return(nil, model.ErrHouseNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior(houseSvc)
+
+			body, contentType := buildForm(tt.fields, tt.files)
+			req := httptest.NewRequest(http.MethodPatch, "/api/v1/house/house-1/documents", body)
+			req.Header.Set("Content-Type", contentType)
+			req = tt.setupAuth(req)
+
+			rctx := chi.NewRouteContext()
+			rctx.URLParams.Add("id", "house-1")
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			rr := httptest.NewRecorder()
+			h.UpdateHouseDocuments(rr, req)
+
+			if rr.Code != tt.expectedStatus {
+				t.Errorf("status = %d, want %d (body: %s)", rr.Code, tt.expectedStatus, rr.Body.String())
 			}
 		})
 	}

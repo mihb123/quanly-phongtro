@@ -3,15 +3,18 @@ import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 import { useHouseStore } from '@/data/houseData'
 import { useSelectedStore } from '@/data/selectedData'
 import { formatNumber, parseNumber } from '@/utils/format'
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, Controller, type Control } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { checkHouseCode, type House } from '@/api/house'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 import { HOUSE_CODE_PATTERN, isHouseCodeTaken } from '@/utils/houseCode'
+import { FormSection, FormSubGroup } from './FormSection'
+import { HouseDocumentsSection } from './HouseDocumentsSection'
 
 const houseSchema = z.object({
   name: z.string().min(1, 'Bắt buộc'),
@@ -30,9 +33,59 @@ const houseSchema = z.object({
   extra_person_fee: z.string(),
   extra_vehicle_threshold: z.string(),
   extra_vehicle_fee: z.string(),
-})
+  owner_name: z.string().max(100, 'Tối đa 100 ký tự'),
+  owner_phone: z.string().max(20, 'Tối đa 20 ký tự'),
+  owner_rent_price: z.string(),
+  owner_deposit: z.string(),
+  rent_start_date: z.string(),
+  rent_end_date: z.string(),
+}).refine(
+  v => !v.rent_start_date || !v.rent_end_date || v.rent_start_date <= v.rent_end_date,
+  { path: ['rent_end_date'], message: 'Ngày kết thúc phải sau ngày bắt đầu' },
+)
 
 type HouseFormValues = z.infer<typeof houseSchema>
+
+type MoneyFieldName =
+  | 'electricity' | 'water' | 'wifi' | 'parking' | 'service'
+  | 'extra_person_fee' | 'extra_vehicle_fee' | 'owner_rent_price' | 'owner_deposit'
+
+const FORM_ID = 'edit-house-form'
+
+// Select dùng lại style của Input để các ô trên cùng một hàng thẳng nhau.
+const selectClass = 'h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30'
+
+// Backend trả ngày dạng RFC3339 (hoặc null); input[type=date] chỉ nhận YYYY-MM-DD.
+const toDateInputValue = (raw?: string | null) => (raw ? raw.slice(0, 10) : '')
+
+function FieldError({ message }: { message?: string }) {
+  return message ? <span className="text-xs text-destructive">{message}</span> : null
+}
+
+// Ô nhập tiền: hiển thị có dấu phân cách, lưu lại chuỗi số thuần.
+function MoneyInput({ control, name, className, placeholder }: {
+  control: Control<HouseFormValues>
+  name: MoneyFieldName
+  className?: string
+  placeholder?: string
+}) {
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field }) => (
+        <Input
+          {...field}
+          inputMode="numeric"
+          placeholder={placeholder}
+          value={formatNumber(field.value)}
+          onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))}
+          className={cn('border-input', className)}
+        />
+      )}
+    />
+  )
+}
 
 interface EditHouseModalProps {
   house: House
@@ -63,6 +116,12 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
       extra_person_fee: house.extra_person_fee?.toString() || '0',
       extra_vehicle_threshold: house.extra_vehicle_threshold?.toString() || '0',
       extra_vehicle_fee: house.extra_vehicle_fee?.toString() || '0',
+      owner_name: house.owner_name || '',
+      owner_phone: house.owner_phone || '',
+      owner_rent_price: house.owner_rent_price?.toString() || '0',
+      owner_deposit: house.owner_deposit?.toString() || '0',
+      rent_start_date: toDateInputValue(house.rent_start_date),
+      rent_end_date: toDateInputValue(house.rent_end_date),
     }
   })
 
@@ -118,6 +177,12 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
          extra_person_fee: parseNumber(values.extra_person_fee),
          extra_vehicle_threshold: parseInt(values.extra_vehicle_threshold) || 0,
          extra_vehicle_fee: parseNumber(values.extra_vehicle_fee),
+         owner_name: values.owner_name.trim(),
+         owner_phone: values.owner_phone.trim(),
+         owner_rent_price: parseNumber(values.owner_rent_price),
+         owner_deposit: parseNumber(values.owner_deposit),
+         rent_start_date: values.rent_start_date,
+         rent_end_date: values.rent_end_date,
       })
 
       if (res.success && res.house) {
@@ -153,163 +218,167 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
 
   return (
     <>
-    <AppModal open onClose={handleClose} title="Cập nhật thông tin nhà trọ" contentClassName="sm:max-w-2xl">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
+    <AppModal
+      open
+      onClose={handleClose}
+      title="Cập nhật thông tin nhà trọ"
+      contentClassName="sm:max-w-2xl"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
+          <Button type="submit" form={FORM_ID} disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
+            {isLoading ? 'Đang cập nhật...' : 'Cập nhật'}
+          </Button>
+        </>
+      }
+    >
+      <form id={FORM_ID} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <FormSection title="Thông tin chung">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
               <Label>Tên nhà trọ</Label>
               <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
-              {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
+              <FieldError message={errors.name?.message} />
             </div>
-            <div className="space-y-2 col-span-2">
+            <div className="space-y-1.5">
               <Label>Mã nhà (House Code)</Label>
               <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-input" />
-              {errors.house_code && <span className="text-destructive text-xs">{errors.house_code.message}</span>}
+              <FieldError message={errors.house_code?.message} />
             </div>
-            <div className="space-y-2 col-span-2">
+            <div className="space-y-1.5 sm:col-span-2">
               <Label>Địa chỉ</Label>
               <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
-              {errors.address && <span className="text-destructive text-xs">{errors.address.message}</span>}
+              <FieldError message={errors.address?.message} />
             </div>
-            
-            {/* Điện */}
-            <div className="space-y-2 col-span-2 bg-warning/5 rounded-lg p-3 border border-warning/20">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-1">
-                  <Label className="text-xs font-medium text-warning">Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className="w-full h-8 px-2 rounded-lg border border-warning/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
+          </div>
+        </FormSection>
+
+        <FormSection title="Cấu hình chi phí" hint="Đơn giá mặc định áp dụng cho mọi phòng của nhà này.">
+          <FormSubGroup label="Điện & nước">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Cách tính tiền điện</Label>
+                  <select {...register('electricity_billing_type')} className={selectClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
-                  <div className="flex-1">
-                    <Label className="text-xs font-medium text-warning">Đơn vị tính</Label>
-                    <select {...register('electricity_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-warning/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
+                  <div className="space-y-1.5">
+                    <Label>Đơn vị tính điện</Label>
+                    <select {...register('electricity_billing_unit')} className={selectClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
+                <div className="space-y-1.5">
+                  <Label>{getElectricityPriceLabel()}</Label>
+                  <MoneyInput control={control} name="electricity" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">{getElectricityPriceLabel()}</Label>
-                <Controller
-                  name="electricity"
-                  control={control}
-                  render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
-                  )}
-                />
-              </div>
-            </div>
 
-            {/* Nước */}
-            <div className="space-y-2 col-span-2 bg-info/5 rounded-lg p-3 border border-info/20">
-              <div className="flex items-center gap-4 mb-2">
-                <div className="flex-1">
-                  <Label className="text-xs font-medium text-info">Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className="w-full h-8 px-2 rounded-lg border border-info/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Cách tính tiền nước</Label>
+                  <select {...register('water_billing_type')} className={selectClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
-                  <div className="flex-1">
-                    <Label className="text-xs font-medium text-info">Đơn vị tính</Label>
-                    <select {...register('water_billing_unit')} className="w-full h-8 px-2 rounded-lg border border-info/20 text-sm font-semibold mt-1 bg-background cursor-pointer">
+                  <div className="space-y-1.5">
+                    <Label>Đơn vị tính nước</Label>
+                    <select {...register('water_billing_unit')} className={selectClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">{getWaterPriceLabel()}</Label>
-                <Controller
-                  name="water"
-                  control={control}
-                  render={({ field }) => (
-                    <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
-                  )}
-                />
-              </div>
-            </div>
-
-            {/* Phí khác */}
-            <div className="space-y-2">
-              <Label className="text-xs">Giá Wifi / phòng (VNĐ)</Label>
-              <Controller
-                name="wifi"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
-                )}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Giá gửi xe / xe (VNĐ)</Label>
-              <Controller
-                name="parking"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
-                )}
-              />
-            </div>
-            <div className="space-y-2 col-span-2">
-              <Label className="text-xs">Giá dịch vụ chung / người (VNĐ)</Label>
-              <Controller
-                name="service"
-                control={control}
-                render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8" />
-                )}
-              />
-            </div>
-
-            {/* Phụ thu */}
-            <div className="space-y-2 col-span-2 bg-muted/50 rounded-lg p-3 border border-input mt-2">
-              <Label className="text-xs font-medium text-foreground block mb-2">Quy định phụ thu (nếu có)</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-xs">Phụ thu nếu quá X người</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="border-input h-8 w-16" title="Số người miễn phí" />
-                    <Controller
-                      name="extra_person_fee"
-                      control={control}
-                      render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8 flex-1" placeholder="Giá/người (VNĐ)" />
-                      )}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Phụ thu nếu quá X xe</Label>
-                  <div className="flex gap-2">
-                    <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="border-input h-8 w-16" title="Số xe miễn phí" />
-                    <Controller
-                      name="extra_vehicle_fee"
-                      control={control}
-                      render={({ field }) => (
-                        <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-input h-8 flex-1" placeholder="Giá/xe (VNĐ)" />
-                      )}
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <Label>{getWaterPriceLabel()}</Label>
+                  <MoneyInput control={control} name="water" />
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2 italic">* Để 0 nếu không áp dụng phụ thu.</p>
             </div>
-          </div>
-          
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="bg-purple-600 text-white hover:bg-purple-700 shadow-md">
-              {isLoading ? 'Đang cập nhật...' : 'Cập nhật'}
-            </Button>
-          </div>
-        </form>
+          </FormSubGroup>
+
+          <FormSubGroup label="Dịch vụ khác">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-1.5">
+                <Label>Wifi / phòng (VNĐ)</Label>
+                <MoneyInput control={control} name="wifi" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Gửi xe / xe (VNĐ)</Label>
+                <MoneyInput control={control} name="parking" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Dịch vụ chung / người (VNĐ)</Label>
+                <MoneyInput control={control} name="service" />
+              </div>
+            </div>
+          </FormSubGroup>
+
+          <FormSubGroup label="Phụ thu (để 0 nếu không áp dụng)">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Phụ thu nếu quá X người</Label>
+                <div className="flex gap-2">
+                  <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
+                  <MoneyInput control={control} name="extra_person_fee" className="flex-1" placeholder="Giá/người (VNĐ)" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phụ thu nếu quá X xe</Label>
+                <div className="flex gap-2">
+                  <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
+                  <MoneyInput control={control} name="extra_vehicle_fee" className="flex-1" placeholder="Giá/xe (VNĐ)" />
+                </div>
+              </div>
+            </div>
+          </FormSubGroup>
+        </FormSection>
+
+        <FormSection title="Thông tin thuê nhà" hint="Dùng cho mô hình thuê nguyên căn rồi cho thuê lại từng phòng.">
+          <FormSubGroup label="Chủ nhà & điều khoản hợp đồng">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Tên chủ nhà</Label>
+                <Input {...register('owner_name')} placeholder="vd: Nguyễn Văn A" className="border-input" />
+                <FieldError message={errors.owner_name?.message} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Số điện thoại</Label>
+                <Input {...register('owner_phone')} placeholder="vd: 0912345678" className="border-input" />
+                <FieldError message={errors.owner_phone?.message} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tiền thuê / tháng (VNĐ)</Label>
+                <MoneyInput control={control} name="owner_rent_price" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tiền cọc (VNĐ)</Label>
+                <MoneyInput control={control} name="owner_deposit" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ngày bắt đầu thuê</Label>
+                <Input type="date" {...register('rent_start_date')} className="border-input" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ngày kết thúc thuê</Label>
+                <Input type="date" {...register('rent_end_date')} className="border-input" />
+                <FieldError message={errors.rent_end_date?.message} />
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground italic">* Tiền thuê ở đây là điều khoản hợp đồng; số thực chi mỗi tháng khai ở mục Chi phí vận hành.</p>
+          </FormSubGroup>
+
+          <HouseDocumentsSection house={house} />
+          <p className="text-xs text-muted-foreground italic">* CCCD chủ nhà và hợp đồng thuê nhà được lưu ngay khi tải lên hoặc xóa.</p>
+        </FormSection>
+      </form>
     </AppModal>
     {confirmModal}
     </>

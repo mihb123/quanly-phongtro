@@ -50,7 +50,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 	roomRepo := mock_model.NewMockRoomRepository(ctrl)
 	hasher := &mockPasswordHasher{}
 
-	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasher)
 	ctx := context.Background()
 	expectTenantRoomOwnership := func() {
 		roomRepo.EXPECT().GetRoomByIDForManager(ctx, gomock.Any(), "r1").Return(&model.Room{ID: "r1"}, nil)
@@ -199,7 +199,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 
 	t.Run("Hash password fails", func(t *testing.T) {
 		hasherErr := &mockPasswordHasher{hashErr: errors.New("hash err")}
-		svcWithErr := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasherErr)
+		svcWithErr := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasherErr)
 		expectTenantRoomOwnership()
 		roomRepo.EXPECT().GetMaxTenants(ctx, "r1").Return(int64(4), nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1), nil)
@@ -239,7 +239,7 @@ func TestTenantService_CheckCapicityOfRoom(t *testing.T) {
 	roomRepo := mock_model.NewMockRoomRepository(ctrl)
 	hasher := &mockPasswordHasher{}
 
-	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasher)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -308,7 +308,7 @@ func TestTenantService_ListTenant(t *testing.T) {
 	roomRepo := mock_model.NewMockRoomRepository(ctrl)
 	hasher := &mockPasswordHasher{}
 
-	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasher)
 	ctx := context.Background()
 
 	t.Run("ByRoomID", func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 	roomRepo := mock_model.NewMockRoomRepository(ctrl)
 	hasher := &mockPasswordHasher{}
 
-	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasher)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -443,7 +443,7 @@ func TestTenantService_DeleteTenant(t *testing.T) {
 	roomRepo := mock_model.NewMockRoomRepository(ctrl)
 	hasher := &mockPasswordHasher{}
 
-	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, hasher)
+	svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasher)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -540,7 +540,7 @@ func TestTenantServiceResolveTenantFilePath(t *testing.T) {
 
 	ctx := context.Background()
 	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
-	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, nil, nil)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, nil, nil, nil)
 
 	tenantRepository.EXPECT().
 		GetTenantByFilePath(ctx, "m1", "/api/v1/tenant/files/cccd.png").
@@ -567,7 +567,7 @@ func TestTenantServiceResolveTenantFilePathFallsBackToRoomContract(t *testing.T)
 	ctx := context.Background()
 	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
 	roomRepository := mock_model.NewMockRoomRepository(ctrl)
-	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil, nil)
 
 	storedPath := "/api/v1/tenant/files/contract.pdf"
 	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", storedPath).Return(nil, model.ErrTenantNotFound)
@@ -590,13 +590,38 @@ func TestTenantServiceResolveTenantFilePathRejectsForeignFile(t *testing.T) {
 	ctx := context.Background()
 	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
 	roomRepository := mock_model.NewMockRoomRepository(ctrl)
-	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, nil, nil)
 
 	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", gomock.Any()).Return(nil, model.ErrTenantNotFound).Times(2)
 	roomRepository.EXPECT().HasRoomWithFilePath(ctx, "m1", gomock.Any()).Return(false, nil).Times(2)
 
 	if _, err := tenantService.ResolveTenantFilePath(ctx, "m1", "other.pdf"); !errors.Is(err, model.ErrTenantNotFound) {
 		t.Fatalf("err = %v, want ErrTenantNotFound", err)
+	}
+}
+
+// CCCD chủ nhà và hợp đồng thuê nguyên căn gắn theo nhà nên cũng phải phục vụ được cho manager sở hữu nhà.
+func TestTenantServiceResolveTenantFilePathFallsBackToHouseDocuments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	tenantRepository := mock_model.NewMockTenantRepository(ctrl)
+	roomRepository := mock_model.NewMockRoomRepository(ctrl)
+	houseRepository := mock_model.NewMockHouseRepository(ctrl)
+	tenantService := tenantsvc.NewTenantServiceImpl(nil, tenantRepository, roomRepository, houseRepository, nil)
+
+	storedPath := "/api/v1/tenant/files/owner-cccd.png"
+	tenantRepository.EXPECT().GetTenantByFilePath(ctx, "m1", storedPath).Return(nil, model.ErrTenantNotFound)
+	roomRepository.EXPECT().HasRoomWithFilePath(ctx, "m1", storedPath).Return(false, nil)
+	houseRepository.EXPECT().HasHouseWithFilePath(ctx, "m1", storedPath).Return(true, nil)
+
+	filePath, err := tenantService.ResolveTenantFilePath(ctx, "m1", "owner-cccd.png")
+	if err != nil {
+		t.Fatalf("ResolveTenantFilePath error = %v", err)
+	}
+	if filePath != "uploads/tenants/owner-cccd.png" {
+		t.Fatalf("filePath = %q, want uploads/tenants/owner-cccd.png", filePath)
 	}
 }
 

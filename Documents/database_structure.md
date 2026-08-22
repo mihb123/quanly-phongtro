@@ -33,6 +33,17 @@ Mỗi user (MANAGER) có thể quản lý nhiều nhà trọ.
 - `extra_person_fee`: Decimal (Phí thu thêm cho mỗi người vượt mức).
 - `extra_vehicle_threshold`: Integer (Số xe mặc định không tính phụ phí).
 - `extra_vehicle_fee`: Decimal (Phí thu thêm cho mỗi xe vượt mức).
+
+Thông tin thuê nguyên căn từ chủ nhà (manager thuê cả nhà rồi cho thuê lại từng phòng):
+- `owner_name`: Varchar (Tên chủ nhà).
+- `owner_phone`: Varchar (SĐT chủ nhà).
+- `owner_rent_price`: Decimal (Tiền thuê nguyên căn / tháng theo hợp đồng; số thực chi mỗi tháng nằm ở `house_costs.rent`).
+- `owner_deposit`: Decimal (Tiền cọc đã đặt cho chủ nhà).
+- `rent_start_date`: Date, Nullable (Ngày bắt đầu thuê nhà).
+- `rent_end_date`: Date, Nullable (Ngày kết thúc hợp đồng thuê nhà).
+- `owner_cccd_path`: Text (Đường dẫn ảnh CCCD chủ nhà, nhiều file ngăn cách bởi dấu phẩy).
+- `owner_contract_path`: Text (Đường dẫn hợp đồng thuê nguyên căn, nhiều file ngăn cách bởi dấu phẩy).
+
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
@@ -53,6 +64,7 @@ Mỗi nhà trọ có thể chia thành nhiều phòng.
 - `extra_person_fee`: Decimal, Nullable (Phí thu thêm cho mỗi người vượt mức, NULL = dùng mặc định nhà).
 - `extra_vehicle_threshold`: Integer, Nullable (Số xe miễn phí trước khi tính phụ thu, NULL = dùng mặc định nhà).
 - `extra_vehicle_fee`: Decimal, Nullable (Phí thu thêm cho mỗi xe vượt mức, NULL = dùng mặc định nhà).
+- `contract_path`: Text (Đường dẫn hợp đồng thuê phòng, nhiều file ngăn cách bởi dấu phẩy).
 - `created_at`: Timestamp.
 - `updated_at`: Timestamp.
 
@@ -64,7 +76,6 @@ Lưu thông tin chi tiết về quá trình người thuê ở tại 1 phòng. M
 - `manager_id`: UUID, Foreign Key (`users.id`). Người quản lý tạo/quản lý hồ sơ thuê.
 - `identity_card`: Varchar (CCCD).
 - `cccd_path`: Text (đường dẫn ảnh CCCD).
-- `contract_path`: Text (đường dẫn hợp đồng).
 - `start_date`: Date (Ngày bắt đầu thuê).
 - `end_date`: Date (Ngày kết thúc thuê - Null nếu đang ở).
 - `status`: Enum ('ACTIVE', 'INACTIVE').

@@ -125,6 +125,52 @@ func TestHouseRepository_UpdateHouse(t *testing.T) {
 	}
 }
 
+func TestHouseRepository_UpdateHouseDocuments(t *testing.T) {
+	bunDB, mock := repotest.SetupTestDB(t)
+	defer bunDB.Close()
+
+	repo := house.NewHouseRepository(bunDB)
+	ctx := context.Background()
+
+	rows := sqlmock.NewRows([]string{"id", "manager_id", "owner_cccd_path", "owner_contract_path"}).
+		AddRow("house-1", "manager-1", "cccd.png", "contract.pdf")
+
+	mock.ExpectQuery(`UPDATE "houses"`).WillReturnRows(rows)
+
+	h, err := repo.UpdateHouseDocuments(ctx, "house-1", "manager-1", "cccd.png", "contract.pdf")
+	if err != nil {
+		t.Errorf("error was not expected: %s", err)
+	}
+	if h.OwnerCCCDPath != "cccd.png" || h.OwnerContractPath != "contract.pdf" {
+		t.Errorf("unexpected document paths: %+v", h)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
+func TestHouseRepository_HasHouseWithFilePath(t *testing.T) {
+	bunDB, mock := repotest.SetupTestDB(t)
+	defer bunDB.Close()
+
+	repo := house.NewHouseRepository(bunDB)
+	ctx := context.Background()
+
+	mock.ExpectQuery(`SELECT EXISTS`).
+		WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+
+	exists, err := repo.HasHouseWithFilePath(ctx, "manager-1", "cccd.png")
+	if err != nil {
+		t.Errorf("error was not expected: %s", err)
+	}
+	if !exists {
+		t.Error("expected file to be owned by the manager")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expectations: %s", err)
+	}
+}
+
 func TestHouseRepository_DeleteHouse(t *testing.T) {
 	bunDB, mock := repotest.SetupTestDB(t)
 	defer bunDB.Close()

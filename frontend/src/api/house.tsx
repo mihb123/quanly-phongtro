@@ -19,6 +19,16 @@ export interface House {
   extra_person_fee?: number
   extra_vehicle_threshold?: number
   extra_vehicle_fee?: number
+  // Thông tin thuê nguyên căn từ chủ nhà
+  owner_name?: string
+  owner_phone?: string
+  owner_rent_price?: number
+  owner_deposit?: number
+  rent_start_date?: string | null
+  rent_end_date?: string | null
+  // Nhiều file, ngăn cách bởi dấu phẩy
+  owner_cccd_path?: string
+  owner_contract_path?: string
   created_at?: string
 }
 
@@ -34,6 +44,14 @@ export const createHouse = async (payload: Partial<House>) => {
 
 export const updateHouse = async (id: string, payload: Partial<House>) => {
   const { data } = await apiClient.post(`/house/${id}`, payload)
+  return data.data as House
+}
+
+// CCCD chủ nhà + hợp đồng thuê nguyên căn đi qua endpoint multipart riêng.
+export const updateHouseDocuments = async (id: string, payload: FormData) => {
+  const { data } = await apiClient.patch(`/house/${id}/documents`, payload, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return data.data as House
 }
 

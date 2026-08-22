@@ -91,14 +91,14 @@ func TestHouseService_GetHouseByID(t *testing.T) {
 	t.Run("Empty ID", func(t *testing.T) {
 		_, err := houseService.GetHouseByID(ctx, "", "manager-1")
 		if err != sharedsvc.ErrInvalidHouseID {
-			t.Errorf("expected shared.ErrInvalidHouseID, got %v", err)
+			t.Errorf("expected sharedsvc.ErrInvalidHouseID, got %v", err)
 		}
 	})
 
 	t.Run("Empty Manager ID", func(t *testing.T) {
 		_, err := houseService.GetHouseByID(ctx, "house-1", "  ")
 		if err != sharedsvc.ErrInvalidManagerID {
-			t.Errorf("expected shared.ErrInvalidManagerID, got %v", err)
+			t.Errorf("expected sharedsvc.ErrInvalidManagerID, got %v", err)
 		}
 	})
 
@@ -217,6 +217,58 @@ func TestHouseService_UpdateHouse(t *testing.T) {
 	})
 }
 
+// UpdateHouseDocuments phải giữ lại đúng các file cũ được chọn khi không có file mới tải lên.
+func TestHouseService_UpdateHouseDocuments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock_model.NewMockHouseRepository(ctrl)
+	houseService := housesvc.NewHouseServiceImpt(mockRepo, nil)
+	ctx := context.Background()
+
+	existing := &model.House{
+		ID:                "house-1",
+		OwnerCCCDPath:     "a.png,b.png",
+		OwnerContractPath: "c.pdf",
+	}
+
+	t.Run("Keeps current paths when nothing is sent", func(t *testing.T) {
+		mockRepo.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(existing, nil)
+		mockRepo.EXPECT().UpdateHouseDocuments(ctx, "house-1", "manager-1", "a.png,b.png", "c.pdf").Return(existing, nil)
+
+		if _, err := houseService.UpdateHouseDocuments(ctx, "house-1", "manager-1", housesvc.UpdateHouseDocumentsInput{}); err != nil {
+			t.Errorf("error was not expected: %s", err)
+		}
+	})
+
+	t.Run("Drops removed files and clears a group", func(t *testing.T) {
+		keptCCCD := "b.png"
+		emptyContract := ""
+		mockRepo.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(existing, nil)
+		mockRepo.EXPECT().UpdateHouseDocuments(ctx, "house-1", "manager-1", "b.png", "").Return(existing, nil)
+
+		_, err := houseService.UpdateHouseDocuments(ctx, "house-1", "manager-1", housesvc.UpdateHouseDocumentsInput{
+			KeptCCCDPaths:     &keptCCCD,
+			KeptContractPaths: &emptyContract,
+		})
+		if err != nil {
+			t.Errorf("error was not expected: %s", err)
+		}
+	})
+
+	t.Run("Invalid house ID", func(t *testing.T) {
+		if _, err := houseService.UpdateHouseDocuments(ctx, "  ", "manager-1", housesvc.UpdateHouseDocumentsInput{}); !errors.Is(err, sharedsvc.ErrInvalidHouseID) {
+			t.Errorf("expected ErrInvalidHouseID, got %v", err)
+		}
+	})
+
+	t.Run("Invalid manager ID", func(t *testing.T) {
+		if _, err := houseService.UpdateHouseDocuments(ctx, "house-1", "", housesvc.UpdateHouseDocumentsInput{}); !errors.Is(err, sharedsvc.ErrInvalidManagerID) {
+			t.Errorf("expected ErrInvalidManagerID, got %v", err)
+		}
+	})
+}
+
 func TestHouseService_DeleteHouse(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -237,14 +289,14 @@ func TestHouseService_DeleteHouse(t *testing.T) {
 	t.Run("Empty ID", func(t *testing.T) {
 		err := houseService.DeleteHouse(ctx, "", "manager-1")
 		if err != sharedsvc.ErrInvalidHouseID {
-			t.Errorf("expected shared.ErrInvalidHouseID, got %v", err)
+			t.Errorf("expected sharedsvc.ErrInvalidHouseID, got %v", err)
 		}
 	})
 
 	t.Run("Empty Manager ID", func(t *testing.T) {
 		err := houseService.DeleteHouse(ctx, "house-1", "")
 		if err != sharedsvc.ErrInvalidManagerID {
-			t.Errorf("expected shared.ErrInvalidManagerID, got %v", err)
+			t.Errorf("expected sharedsvc.ErrInvalidManagerID, got %v", err)
 		}
 	})
 
