@@ -387,3 +387,78 @@ func TestHouseCostService_GetRevenueSummaries(t *testing.T) {
 		t.Errorf("expected db error, got %v", err)
 	}
 }
+
+func TestHouseCostService_GenerateMonthlyCostsFromPrevious(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
+	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
+	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
+
+	costService := housesvc.NewHouseCostService(mockCostRepo, mockHouseRepo, nil, mockSummaryRepo)
+	ctx := context.Background()
+
+	mockCostRepo.EXPECT().
+		ListByPeriod(gomock.Any(), "2023-09").
+		Return([]model.HouseCost{
+			{HouseID: "house-1", Period: "2023-09", Rent: 2000, Wifi: 100, Cleaning: 50, Electricity: 300, Water: 80},
+			{HouseID: "house-2", Period: "2023-09", Electricity: 300, Water: 80}, // no fixed costs -> skipped
+			{HouseID: "house-3", Period: "2023-09", Rent: 1500},                  // already has 2023-10 -> skipped
+		}, nil)
+
+	mockCostRepo.EXPECT().
+		GetByHouseAndPeriod(gomock.Any(), "house-1", "2023-10").
+		Return(nil, errors.New("house cost not found"))
+
+	mockCostRepo.EXPECT().
+		Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, cost *model.HouseCost) error {
+			// Fixed costs carried over, variable costs reset, total recalculated
+			if cost.HouseID != "house-1" || cost.Period != "2023-10" {
+				t.Errorf("unexpected target: %+v", cost)
+			}
+			if cost.Rent != 2000 || cost.Wifi != 100 || cost.Cleaning != 50 {
+				t.Errorf("fixed costs not copied: %+v", cost)
+			}
+			if cost.Electricity != 0 || cost.Water != 0 {
+				t.Errorf("variable costs should reset: %+v", cost)
+			}
+			if cost.TotalCost != 2150 {
+				t.Errorf("expected total 2150, got %v", cost.TotalCost)
+			}
+			return nil
+		})
+
+	mockCostRepo.EXPECT().
+		GetByHouseAndPeriod(gomock.Any(), "house-3", "2023-10").
+		Return(&model.HouseCost{HouseID: "house-3", Period: "2023-10"}, nil)
+
+	result, err := costService.GenerateMonthlyCostsFromPrevious(ctx, "2023-09", "2023-10")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Created != 1 || result.Skipped != 2 || result.Failed != 0 {
+		t.Errorf("unexpected result: %+v", result)
+	}
+}
+
+func TestHouseCostService_GenerateMonthlyCostsFromPrevious_NoPreviousRecords(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
+	costService := housesvc.NewHouseCostService(mockCostRepo, mock_model.NewMockHouseRepository(ctrl), nil, mock_model.NewMockRevenueSummaryRepository(ctrl))
+
+	mockCostRepo.EXPECT().
+		ListByPeriod(gomock.Any(), "2023-09").
+		Return([]model.HouseCost{}, nil)
+
+	result, err := costService.GenerateMonthlyCostsFromPrevious(context.Background(), "2023-09", "2023-10")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Created != 0 || result.Skipped != 0 {
+		t.Errorf("expected nothing created, got %+v", result)
+	}
+}

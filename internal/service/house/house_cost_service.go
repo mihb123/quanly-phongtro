@@ -3,6 +3,7 @@ package house
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
@@ -16,6 +17,7 @@ type HouseCostService interface {
 	GetMonthlyCost(ctx context.Context, managerID, houseID, period string) (*model.HouseCost, error)
 	UpdateMonthlyCost(ctx context.Context, managerID string, input UpdateCostInput) error
 	GetRevenueSummaries(ctx context.Context, managerID string, houseIDs []string, period string) ([]model.HouseRevenueSummary, error)
+	GenerateMonthlyCostsFromPrevious(ctx context.Context, previousPeriod, period string) (GenerateMonthlyCostsResult, error)
 }
 
 type UpdateCostInput struct {
@@ -66,6 +68,34 @@ func (s *houseCostServiceImpl) calculateTotalCost(cost *model.HouseCost) float64
 	return total
 }
 
+// hasFixedCosts reports whether a cost record carries any fixed-cost information worth carrying forward.
+func hasFixedCosts(cost *model.HouseCost) bool {
+	return cost != nil && (cost.Rent > 0 || cost.Wifi > 0 || cost.Cleaning > 0)
+}
+
+// buildNextCost creates the record for a new period, carrying over the fixed costs
+// (rent, wifi, cleaning) from source while leaving variable costs at 0.
+func (s *houseCostServiceImpl) buildNextCost(houseID, period string, source *model.HouseCost) *model.HouseCost {
+	now := time.Now()
+	newCost := &model.HouseCost{
+		ID:         uuid.Must(uuid.NewV7()).String(),
+		HouseID:    houseID,
+		Period:     period,
+		ExtraCosts: []model.ExtraCost{},
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+
+	if source != nil {
+		newCost.Rent = source.Rent
+		newCost.Wifi = source.Wifi
+		newCost.Cleaning = source.Cleaning
+	}
+
+	newCost.TotalCost = s.calculateTotalCost(newCost)
+	return newCost
+}
+
 func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID, houseID, period string) (*model.HouseCost, error) {
 	if err := s.verifyHouseOwnership(ctx, managerID, houseID); err != nil {
 		return nil, err
@@ -79,28 +109,11 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 
 	// Get latest to copy defaults
 	latest, err := s.costRepo.GetLatestByHouseID(ctx, houseID)
-
-	newCost := &model.HouseCost{
-		ID:         uuid.Must(uuid.NewV7()).String(),
-		HouseID:    houseID,
-		Period:     period,
-		ExtraCosts: []model.ExtraCost{},
+	if err != nil {
+		latest = nil
 	}
 
-	if err == nil && latest != nil {
-		// Copy fixed costs
-		newCost.Rent = latest.Rent
-		newCost.Wifi = latest.Wifi
-		newCost.Cleaning = latest.Cleaning
-		// Variable costs default to 0
-		newCost.Electricity = 0
-		newCost.Water = 0
-		// Optional: could copy extra_costs template with 0 amounts if desired, but starting empty is safer
-	}
-
-	newCost.TotalCost = s.calculateTotalCost(newCost)
-	newCost.CreatedAt = time.Now()
-	newCost.UpdatedAt = time.Now()
+	newCost := s.buildNextCost(houseID, period, latest)
 
 	if err := s.costRepo.Create(ctx, newCost); err != nil {
 		return nil, err
@@ -196,4 +209,60 @@ func (s *houseCostServiceImpl) GetRevenueSummaries(ctx context.Context, managerI
 		return nil, err
 	}
 	return summaries, nil
+}
+
+// GenerateMonthlyCostsResult summarises one batch run of GenerateMonthlyCostsFromPrevious.
+type GenerateMonthlyCostsResult struct {
+	Created int
+	Skipped int
+	Failed  int
+}
+
+// GenerateMonthlyCostsFromPrevious creates the cost record of `period` for every house that
+// already has fixed-cost information in `previousPeriod`. Houses whose previous record carries
+// no fixed cost, and houses that already have a record for `period`, are skipped.
+// Intended for the monthly cron job, so it performs no per-manager ownership check.
+func (s *houseCostServiceImpl) GenerateMonthlyCostsFromPrevious(ctx context.Context, previousPeriod, period string) (GenerateMonthlyCostsResult, error) {
+	var result GenerateMonthlyCostsResult
+
+	previousCosts, err := s.costRepo.ListByPeriod(ctx, previousPeriod)
+	if err != nil {
+		return result, fmt.Errorf("list previous period costs: %w", err)
+	}
+
+	for i := range previousCosts {
+		previous := &previousCosts[i]
+
+		if !hasFixedCosts(previous) {
+			result.Skipped++
+			continue
+		}
+
+		if existing, err := s.costRepo.GetByHouseAndPeriod(ctx, previous.HouseID, period); err == nil && existing != nil {
+			result.Skipped++
+			continue
+		}
+
+		newCost := s.buildNextCost(previous.HouseID, period, previous)
+		if err := s.costRepo.Create(ctx, newCost); err != nil {
+			if model.IsHouseCostAlreadyExists(err) {
+				result.Skipped++
+				continue
+			}
+			result.Failed++
+			log.Printf("[HouseCostCron] failed to create cost for house %s period %s: %v", previous.HouseID, period, err)
+			continue
+		}
+
+		result.Created++
+
+		if s.eventBus != nil {
+			s.eventBus.Publish(revenue.EventHouseCostChanged, revenue.RevenueSummaryPayload{
+				HouseID: previous.HouseID,
+				Period:  period,
+			})
+		}
+	}
+
+	return result, nil
 }
