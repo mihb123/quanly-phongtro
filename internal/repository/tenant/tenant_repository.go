@@ -41,7 +41,7 @@ func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *mo
 
 	_, err = tx.NewInsert().
 		Model(tenant).
-		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
+		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "start_date", "status").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 
@@ -76,7 +76,7 @@ func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *mo
 func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant) error {
 	_, err := r.db.NewInsert().
 		Model(tenant).
-		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "contract_path", "start_date", "status").
+		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "start_date", "status").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 
@@ -109,7 +109,6 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
-		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
 		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.room_id = ?", roomID).
@@ -143,7 +142,6 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
-		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
 		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		ColumnExpr("rm.name AS room_name").
 		Join("JOIN users AS u ON u.id = t.user_id").
@@ -178,7 +176,6 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
-		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
 		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.id = ?", tenantID).
@@ -210,7 +207,7 @@ func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, in
 		Model((*model.Tenant)(nil)).
 		Where("id = ?", tenantID).
 		Returning("id, user_id, room_id, manager_id").
-		Returning("identity_card, cccd_path, contract_path").
+		Returning("identity_card, cccd_path").
 		Returning("start_date, end_date, status").
 		Returning("created_at, updated_at")
 
@@ -221,10 +218,6 @@ func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, in
 	}
 	if input.CCCDPath != nil {
 		q.Set("cccd_path = ?", *input.CCCDPath)
-		updated = true
-	}
-	if input.ContractPath != nil {
-		q.Set("contract_path = ?", *input.ContractPath)
 		updated = true
 	}
 	if !updated {
@@ -334,7 +327,6 @@ func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
-		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
 		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		ColumnExpr("rm.name AS room_name").
 		Join("JOIN users AS u ON u.id = t.user_id").
@@ -371,21 +363,14 @@ func (r *TenantRepository) GetTenantByFilePath(ctx context.Context, managerID, f
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
 		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
-		ColumnExpr("COALESCE(t.contract_path, '') AS contract_path").
 		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Where("t.manager_id = ?", managerID).
 		Where("t.status = ?", string(model.TenantStatusActive)).
-		Where(`(
-			EXISTS (
-				SELECT 1 FROM unnest(string_to_array(COALESCE(t.cccd_path, ''), ',')) AS path
-				WHERE trim(path) = ?
-			)
-			OR EXISTS (
-				SELECT 1 FROM unnest(string_to_array(COALESCE(t.contract_path, ''), ',')) AS path
-				WHERE trim(path) = ?
-			)
-		)`, filePath, filePath).
+		Where(`EXISTS (
+			SELECT 1 FROM unnest(string_to_array(COALESCE(t.cccd_path, ''), ',')) AS path
+			WHERE trim(path) = ?
+		)`, filePath).
 		Limit(1).
 		Scan(ctx, &ft)
 

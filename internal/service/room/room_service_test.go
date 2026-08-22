@@ -501,3 +501,82 @@ func TestRoomService_DeleteRoom(t *testing.T) {
 		})
 	}
 }
+
+func TestRoomService_UpdateRoomContract(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	ptr := func(s string) *string { return &s }
+
+	tests := []struct {
+		name         string
+		input        roomsvc.UpdateRoomContractInput
+		mock         func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository)
+		wantErr      error
+		wantContract string
+	}{
+		{
+			name:  "Giữ nguyên hợp đồng khi không gửi gì",
+			input: roomsvc.UpdateRoomContractInput{},
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(true, nil)
+				mockRoomRepo.EXPECT().GetRoomByID(ctx, "room-1", "house-1").Return(&model.Room{ID: "room-1", ContractPath: "old.pdf"}, nil)
+				mockRoomRepo.EXPECT().UpdateRoomContract(ctx, "room-1", "house-1", "old.pdf").Return(&model.Room{ID: "room-1", ContractPath: "old.pdf"}, nil)
+			},
+			wantContract: "old.pdf",
+		},
+		{
+			name:  "Xóa hết hợp đồng khi kept rỗng",
+			input: roomsvc.UpdateRoomContractInput{KeptContractPaths: ptr("")},
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(true, nil)
+				mockRoomRepo.EXPECT().GetRoomByID(ctx, "room-1", "house-1").Return(&model.Room{ID: "room-1", ContractPath: "old.pdf"}, nil)
+				mockRoomRepo.EXPECT().UpdateRoomContract(ctx, "room-1", "house-1", "").Return(&model.Room{ID: "room-1"}, nil)
+			},
+			wantContract: "",
+		},
+		{
+			name:  "Không sở hữu nhà trọ",
+			input: roomsvc.UpdateRoomContractInput{},
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(false, nil)
+			},
+			wantErr: model.ErrHouseNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
+			mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
+			tt.mock(mockRoomRepo, mockHouseRepo)
+
+			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
+			got, err := s.UpdateRoomContract(ctx, "room-1", "house-1", "manager-1", tt.input)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("expected error %v, got %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ContractPath != tt.wantContract {
+				t.Errorf("expected contract %q, got %q", tt.wantContract, got.ContractPath)
+			}
+		})
+	}
+}
+
+func TestRoomService_UpdateRoomContract_InvalidRoomID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	s := roomsvc.NewRoomService(mock_model.NewMockRoomRepository(ctrl), mock_model.NewMockHouseRepository(ctrl))
+	if _, err := s.UpdateRoomContract(context.Background(), "", "house-1", "manager-1", roomsvc.UpdateRoomContractInput{}); !errors.Is(err, sharedsvc.ErrInvalidRoomID) {
+		t.Errorf("expected ErrInvalidRoomID, got %v", err)
+	}
+}

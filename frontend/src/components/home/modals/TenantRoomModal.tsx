@@ -70,6 +70,7 @@ export function TenantRoomModal({ room, initialView, initialEditingTenant, onClo
           if (initialView === 'edit') handleClose(true)
           else setView('list')
         }}
+        onDataChange={() => setHasChanged(true)}
       />
     )
   }

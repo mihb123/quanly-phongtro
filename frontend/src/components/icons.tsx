@@ -7,6 +7,7 @@ import {
   AlertCircleIcon,
   Alert02Icon,
   ArrowRight01Icon,
+  ArrowLeft01Icon,
   Building03Icon,
   Building06Icon,
   Calendar03Icon,
@@ -80,6 +81,7 @@ export const Calendar = makeIcon(Calendar03Icon)
 export const Check = makeIcon(Tick02Icon)
 export const CheckCircle2 = makeIcon(CheckmarkCircle02Icon)
 export const ChevronDown = makeIcon(ArrowDown01Icon)
+export const ChevronLeft = makeIcon(ArrowLeft01Icon)
 export const ChevronRight = makeIcon(ArrowRight01Icon)
 export const ChevronUp = makeIcon(ArrowUp01Icon)
 export const Clock = makeIcon(Clock01Icon)

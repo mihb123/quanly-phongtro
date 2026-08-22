@@ -89,7 +89,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	q := r.db.NewUpdate().
 		Model((*model.Room)(nil)).
 		Where("id = ? AND house_id = ?", id, houseID).
-		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, group_chat_id, created_at, updated_at")
+		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, group_chat_id, contract_path, created_at, updated_at")
 
 	q.Set("name = ?", params.Name)
 	q.Set("price = ?", params.Price)
@@ -108,7 +108,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	q.Set("updated_at = NOW()")
 
 	var room model.Room
-	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.ExtraPersonThreshold, &room.ExtraPersonFee, &room.ExtraVehicleThreshold, &room.ExtraVehicleFee, &room.GroupChatID, &room.CreatedAt, &room.UpdatedAt)
+	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.ExtraPersonThreshold, &room.ExtraPersonFee, &room.ExtraVehicleThreshold, &room.ExtraVehicleFee, &room.GroupChatID, &room.ContractPath, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRoomNotFound
@@ -220,4 +220,42 @@ func (r *RoomRepository) GetRoomByGroupChatID(ctx context.Context, groupChatID s
 		return nil, fmt.Errorf("get room by group chat id: %w", err)
 	}
 	return &room, nil
+}
+
+// UpdateRoomContract replaces the contract file paths stored on a room.
+// Ownership must be verified by the caller before this.
+func (r *RoomRepository) UpdateRoomContract(ctx context.Context, id, houseID, contractPath string) (*model.Room, error) {
+	var room model.Room
+	err := r.db.NewUpdate().
+		Model(&room).
+		Set("contract_path = ?", contractPath).
+		Set("updated_at = NOW()").
+		Where("id = ? AND house_id = ?", id, houseID).
+		Returning("*").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, model.ErrRoomNotFound
+		}
+		return nil, fmt.Errorf("update room contract: %w", err)
+	}
+	return &room, nil
+}
+
+// HasRoomWithFilePath reports whether any room of the manager references the given upload path.
+func (r *RoomRepository) HasRoomWithFilePath(ctx context.Context, managerID, filePath string) (bool, error) {
+	exists, err := r.db.NewSelect().
+		Model((*model.Room)(nil)).
+		ModelTableExpr("rooms AS room").
+		Join("JOIN houses AS h ON h.id = room.house_id").
+		Where("h.manager_id = ?", managerID).
+		Where(`EXISTS (
+			SELECT 1 FROM unnest(string_to_array(COALESCE(room.contract_path, ''), ',')) AS path
+			WHERE trim(path) = ?
+		)`, filePath).
+		Exists(ctx)
+	if err != nil {
+		return false, fmt.Errorf("has room with file path: %w", err)
+	}
+	return exists, nil
 }

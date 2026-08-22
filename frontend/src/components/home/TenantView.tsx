@@ -9,6 +9,7 @@ import { useHouseStore } from '@/data/houseData'
 import { useTenantStore } from '@/data/tenantData'
 import { TenantRoomModal } from '@/components/home/modals/TenantRoomModal'
 import { SelectRoomModal } from '@/components/home/modals/SelectRoomModal'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { type House } from '@/api/house'
 import { type Room } from '@/api/room'
 import { type Tenant } from '@/api/tenant'
@@ -147,13 +148,16 @@ function HouseTenantTable({ house }: { house: House }) {
                 tenants.map(t => (
                   <TableRow key={t.id}>
                     <TableCell className="font-semibold text-foreground">
-                      <span
-                        onClick={() => handleTenantClick(t)}
-                        className="cursor-pointer underline-offset-4 hover:underline"
-                        title="Sửa người thuê"
-                      >
-                        {t.full_name}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          onClick={() => handleTenantClick(t)}
+                          className="cursor-pointer underline-offset-4 hover:underline"
+                          title="Sửa người thuê"
+                        >
+                          {t.full_name}
+                        </span>
+                        {t.cccd_path && <VerifiedBadge title="Đã tải ảnh CCCD" />}
+                      </div>
                     </TableCell>
                     <TableCell className="font-medium text-foreground">
                       <span

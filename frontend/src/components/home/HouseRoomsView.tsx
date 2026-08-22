@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
+import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
@@ -167,7 +168,10 @@ export function HouseRoomsView() {
                       <DoorOpen className="size-4" />
                     </div>
                     <div className="space-y-1">
-                      <h3 className="text-base font-semibold text-foreground">{room.name}</h3>
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-base font-semibold text-foreground">{room.name}</h3>
+                        {room.contract_path && <VerifiedBadge title="Đã tải hợp đồng thuê" />}
+                      </div>
                       <StatusBadge status={room.status} />
                     </div>
                   </div>

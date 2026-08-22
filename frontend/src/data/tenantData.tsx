@@ -7,7 +7,7 @@ interface TenantDataState {
   loadingByHouse: Record<string, boolean>
   fetchTenants: (houseId: string) => Promise<void>
   createTenant: (payload: FormData) => Promise<{success: boolean, error?: string}>
-  updateTenant: (id: string, payload: FormData) => Promise<{success: boolean, error?: string}>
+  updateTenant: (id: string, payload: FormData) => Promise<{success: boolean, data?: Tenant, error?: string}>
   deleteTenant: (id: string) => Promise<boolean>
   getTenantsByRoom: (roomId: string) => Promise<Tenant[]>
 }
@@ -109,10 +109,11 @@ export const useTenantStore = create<TenantDataState>((set) => ({
 
     try {
       const res = await apiUpdateTenant(id, payload)
+      let updatedTenant: Tenant = res.data;
       if (foundHouseId) {
         const hId = foundHouseId;
         // Update response không kèm room_name (query không JOIN rooms); phòng không đổi khi sửa nên giữ lại từ tenant cũ.
-        const updatedTenant: Tenant = { ...res.data, room_name: res.data.room_name || previousTenant?.room_name };
+        updatedTenant = { ...res.data, room_name: res.data.room_name || previousTenant?.room_name };
         set(state => ({
           tenantsByHouse: {
             ...state.tenantsByHouse,
@@ -120,7 +121,7 @@ export const useTenantStore = create<TenantDataState>((set) => ({
           }
         }))
       }
-      return { success: true }
+      return { success: true, data: updatedTenant }
     } catch (error) {
       const err = error as Error & { response?: { data?: { message?: string } } };
       console.error("Failed to update tenant", err)

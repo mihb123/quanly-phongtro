@@ -54,7 +54,6 @@ type tenantResponse struct {
 	Phone        string `json:"phone"`
 	CCCDPath     string `json:"cccd_path"`
 	IdentityCard string `json:"identity_card"`
-	ContractPath string `json:"contract_path"`
 	StartDate    string `json:"start_date"`
 	EndDate      string `json:"end_date,omitempty"`
 	Status       string `json:"status"`
@@ -73,7 +72,6 @@ func newTenantResponse(tenant model.FullInfoTenant) tenantResponse {
 		Phone:        tenant.Phone,
 		CCCDPath:     tenant.CCCDPath,
 		IdentityCard: tenant.IdentityCard,
-		ContractPath: tenant.ContractPath,
 		StartDate:    tenant.StartDate,
 		EndDate:      tenant.EndDate,
 		Status:       tenant.Status,
@@ -154,23 +152,16 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contractFiles := r.MultipartForm.File["contract_file"]
-	if len(contractFiles) > 10 {
-		httpx.WriteError(w, http.StatusBadRequest, "maximum 10 contract files allowed")
-		return
-	}
-
 	registerTenantInput := tenantsvc.RegisterTenantInput{
-		ManagerID:     userID,
-		RoomID:        roomID,
-		FullName:      fullName,
-		Password:      password,
-		Phone:         phone,
-		Email:         email,
-		IdentityCard:  identityCard,
-		StartDate:     startDate,
-		CCCDFiles:     cccdFiles,
-		ContractFiles: contractFiles,
+		ManagerID:    userID,
+		RoomID:       roomID,
+		FullName:     fullName,
+		Password:     password,
+		Phone:        phone,
+		Email:        email,
+		IdentityCard: identityCard,
+		StartDate:    startDate,
+		CCCDFiles:    cccdFiles,
 	}
 
 	tenant, err := h.tenantService.RegisterTenant(r.Context(), registerTenantInput)
@@ -305,22 +296,9 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 		in.KeptCCCDPaths = &empty
 	}
 
-	if v := r.FormValue("kept_contract_paths"); v != "" {
-		in.KeptContractPaths = &v
-	} else if r.FormValue("kept_contract_paths_empty") == "true" {
-		empty := ""
-		in.KeptContractPaths = &empty
-	}
-
 	in.CCCDFiles = r.MultipartForm.File["cccd_file"]
 	if len(in.CCCDFiles) > 10 {
 		httpx.WriteError(w, http.StatusBadRequest, "maximum 10 CCCD files allowed")
-		return
-	}
-
-	in.ContractFiles = r.MultipartForm.File["contract_file"]
-	if len(in.ContractFiles) > 10 {
-		httpx.WriteError(w, http.StatusBadRequest, "maximum 10 contract files allowed")
 		return
 	}
 

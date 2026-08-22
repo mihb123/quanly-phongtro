@@ -244,12 +244,12 @@ func TestRoomRepository_UpdateRoom(t *testing.T) {
 					"id", "house_id", "name", "price", "max_tenants", "status",
 					"electricity_price", "water_price", "wifi_price", "parking_price", "service_price",
 					"extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee",
-					"group_chat_id", "created_at", "updated_at",
+					"group_chat_id", "contract_path", "created_at", "updated_at",
 				}).AddRow(
 					"room-1", "house-1", "Updated Room", int64(0), 0, "",
 					0.0, 0.0, 0.0, 0.0, 0.0,
 					0, 0.0, 0, 0.0,
-					"", time.Now(), time.Now(),
+					"", "", time.Now(), time.Now(),
 				)
 				mock.ExpectQuery(`UPDATE "rooms"`).WillReturnRows(rows)
 			},
@@ -614,6 +614,112 @@ func TestRoomRepository_GetRoomByGroupChatID(t *testing.T) {
 
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("there were unfulfilled expectations: %s", err)
+			}
+		})
+	}
+}
+
+func TestRoomRepository_UpdateRoomContract(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		mock    func(mock sqlmock.Sqlmock)
+		wantErr error
+	}{
+		{
+			name: "Success",
+			mock: func(mock sqlmock.Sqlmock) {
+				rows := sqlmock.NewRows([]string{"id", "house_id", "contract_path"}).
+					AddRow("room-1", "house-1", "/api/v1/tenant/files/a.pdf")
+				mock.ExpectQuery(`UPDATE "rooms"`).WillReturnRows(rows)
+			},
+		},
+		{
+			name: "Not Found",
+			mock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`UPDATE "rooms"`).WillReturnError(sql.ErrNoRows)
+			},
+			wantErr: model.ErrRoomNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bunDB, mock := repotest.SetupTestDB(t)
+			repo := roomrepo.NewRoomRepository(bunDB)
+			tt.mock(mock)
+
+			room, err := repo.UpdateRoomContract(ctx, "room-1", "house-1", "/api/v1/tenant/files/a.pdf")
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("expected error %v, got %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if room.ContractPath != "/api/v1/tenant/files/a.pdf" {
+				t.Errorf("expected contract path stored, got %q", room.ContractPath)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("there were unfulfilled expectations: %s", err)
+			}
+		})
+	}
+}
+
+func TestRoomRepository_HasRoomWithFilePath(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		mock    func(mock sqlmock.Sqlmock)
+		want    bool
+		wantErr bool
+	}{
+		{
+			name: "Owned",
+			mock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(true))
+			},
+			want: true,
+		},
+		{
+			name: "Not owned",
+			mock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT EXISTS`).WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(false))
+			},
+			want: false,
+		},
+		{
+			name: "DB Error",
+			mock: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT EXISTS`).WillReturnError(sql.ErrConnDone)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bunDB, mock := repotest.SetupTestDB(t)
+			repo := roomrepo.NewRoomRepository(bunDB)
+			tt.mock(mock)
+
+			got, err := repo.HasRoomWithFilePath(ctx, "manager-1", "/api/v1/tenant/files/a.pdf")
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("expected %v, got %v", tt.want, got)
 			}
 		})
 	}
