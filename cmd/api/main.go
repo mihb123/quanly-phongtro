@@ -149,7 +149,7 @@ func main() {
 		log.Fatalf("decode zalo encryption key: %v", err)
 	}
 	pendingInvoiceUpdateRepo := invoicerepo.NewPendingInvoiceUpdateRepository(sqlDB)
-	zaloInvoiceCommandService := zalosvc.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
+	zaloInvoiceCommandService := zalosvc.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, tenantService, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
 	if configurableZaloService, ok := zaloService.(interface {
 		SetInvoiceCommandService(zalosvc.ZaloInvoiceCommandService)
 	}); ok {

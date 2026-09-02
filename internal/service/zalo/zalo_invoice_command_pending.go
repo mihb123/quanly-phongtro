@@ -83,6 +83,14 @@ func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Co
 	if parsed.Type == CommandUnknown {
 		return false, nil
 	}
+	// A command that names its own room overrides the reminder: it may target another room, and
+	// period resolution finds the open invoice on its own.
+	if parsed.Type == CommandUtilityRoom {
+		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
+			return true, err
+		}
+		return false, nil
+	}
 	if parsed.Type != CommandUtilitySingle || parsed.UtilityType != expectedUtility {
 		return true, s.sendTextMessage(ctx, managerID, chatID, awaitUtilityPromptMessage(expectedUtility, period))
 	}

@@ -2,6 +2,7 @@ package zalo
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -19,6 +20,12 @@ const (
 	CommandConfirm
 	CommandCancel
 	CommandPeriodSelect
+	// CommandUtilityRoom is a one-line reading that names its room, e.g. "#dien 679qt P201 661".
+	CommandUtilityRoom
+	CommandHelp
+	// CommandUpdateTenantPhone and CommandUpdateRoomGroup are manager-only edits sent from chat.
+	CommandUpdateTenantPhone
+	CommandUpdateRoomGroup
 )
 
 type ParsedCommand struct {
@@ -27,6 +34,9 @@ type ParsedCommand struct {
 	HouseCode   string
 	Entries     []RoomUtilityEntry
 	PeriodMonth int
+	// RoomName and Value carry the target and the new value of a manager update command.
+	RoomName string
+	Value    string
 }
 
 type RoomUtilityEntry struct {
@@ -36,6 +46,11 @@ type RoomUtilityEntry struct {
 }
 
 var ErrAmbiguousRoomName = errors.New("ambiguous room name")
+
+var (
+	vietnamesePhonePattern = regexp.MustCompile(`^(?:\+84|84|0)[0-9]{9}$`)
+	zaloGroupChatIDPattern = regexp.MustCompile(`^[0-9]{6,32}$`)
+)
 
 // ParseCommand parses a raw chat message into a structured invoice command.
 func ParseCommand(text string) *ParsedCommand {
@@ -53,6 +68,8 @@ func ParseCommand(text string) *ParsedCommand {
 			return &ParsedCommand{Type: CommandConfirm}
 		case "huy":
 			return &ParsedCommand{Type: CommandCancel}
+		case "help", "trogiup":
+			return &ParsedCommand{Type: CommandHelp}
 		}
 
 		if month, err := strconv.Atoi(replyToken); err == nil && month >= 1 && month <= 12 {
@@ -69,6 +86,10 @@ func ParseCommand(text string) *ParsedCommand {
 	fields := strings.Fields(firstLine)
 	if len(fields) == 0 {
 		return &ParsedCommand{Type: CommandUnknown}
+	}
+
+	if command := parseManagerUpdateCommand(fields); command != nil {
+		return command
 	}
 
 	utilityType := utilityTypeFromToken(fields[0])
@@ -89,21 +110,137 @@ func ParseCommand(text string) *ParsedCommand {
 		}
 	}
 
-	entry := RoomUtilityEntry{HasNewIndex: false}
-	if len(fields) > 1 {
-		newIndex, err := strconv.Atoi(fields[1])
-		if err != nil {
-			return &ParsedCommand{Type: CommandUtilityBatch, UtilityType: utilityType, HouseCode: fields[1]}
+	return parseSingleLineCommand(utilityType, fields[1:])
+}
+
+// parseSingleLineCommand reads the arguments of a one-line utility command. The reading is always
+// the last token, so anything before it names the target: "<room>" alone when the sender manages a
+// single house, or "<house code> <room>" when the house must be spelled out. Without a trailing
+// reading the message is the header of a multi-room batch ("#dien 679qt").
+func parseSingleLineCommand(utilityType string, args []string) *ParsedCommand {
+	if len(args) == 0 {
+		return &ParsedCommand{
+			Type:        CommandUtilitySingle,
+			UtilityType: utilityType,
+			Entries:     []RoomUtilityEntry{{}},
 		}
-		entry.NewIndex = newIndex
-		entry.HasNewIndex = true
+	}
+
+	newIndex, err := strconv.Atoi(args[len(args)-1])
+	if err != nil {
+		return &ParsedCommand{Type: CommandUtilityBatch, UtilityType: utilityType, HouseCode: args[0]}
+	}
+
+	entry := RoomUtilityEntry{NewIndex: newIndex, HasNewIndex: true}
+	target := args[:len(args)-1]
+	houseCode := ""
+	switch len(target) {
+	case 0:
+		return &ParsedCommand{
+			Type:        CommandUtilitySingle,
+			UtilityType: utilityType,
+			Entries:     []RoomUtilityEntry{entry},
+		}
+	case 1:
+		entry.RoomName = target[0]
+	default:
+		houseCode = target[0]
+		entry.RoomName = strings.Join(target[1:], " ")
 	}
 
 	return &ParsedCommand{
-		Type:        CommandUtilitySingle,
+		Type:        CommandUtilityRoom,
 		UtilityType: utilityType,
+		HouseCode:   houseCode,
 		Entries:     []RoomUtilityEntry{entry},
 	}
+}
+
+// parseManagerUpdateCommand parses the manager edit commands, or returns nil for anything else.
+// Both take an optional room target followed by the new value: "#update-tenant 679qt P201 0912345678".
+func parseManagerUpdateCommand(fields []string) *ParsedCommand {
+	commandType := managerUpdateTypeFromToken(fields[0])
+	if commandType == CommandUnknown {
+		return nil
+	}
+
+	value, target := splitManagerUpdateValue(commandType, fields[1:])
+	command := &ParsedCommand{Type: commandType, Value: value}
+	switch len(target) {
+	case 0:
+	case 1:
+		command.RoomName = target[0]
+	default:
+		command.HouseCode = target[0]
+		command.RoomName = strings.Join(target[1:], " ")
+	}
+	return command
+}
+
+// managerUpdateTypeFromToken maps a command token to its manager update command type.
+func managerUpdateTypeFromToken(token string) CommandType {
+	switch strings.TrimSpace(token) {
+	case "#update-tenant", "#update_tenant", "#updatetenant":
+		return CommandUpdateTenantPhone
+	case "#update-room", "#update_room", "#updateroom":
+		return CommandUpdateRoomGroup
+	default:
+		return CommandUnknown
+	}
+}
+
+// splitManagerUpdateValue separates the new value from the room target. A phone number typed with
+// spaces is joined back together; a missing group chat ID is left empty so the handler can fall back
+// to the current group chat.
+func splitManagerUpdateValue(commandType CommandType, args []string) (string, []string) {
+	if len(args) == 0 {
+		return "", nil
+	}
+	last := args[len(args)-1]
+
+	if commandType == CommandUpdateTenantPhone {
+		if phone, ok := NormalizePhone(last); ok {
+			return phone, args[:len(args)-1]
+		}
+		if phone, ok := NormalizePhone(strings.Join(args, "")); ok {
+			return phone, nil
+		}
+		// Without a readable phone the command cannot run, so the target is left out as well.
+		return "", nil
+	}
+
+	if IsZaloGroupChatID(last) {
+		return last, args[:len(args)-1]
+	}
+	return "", args
+}
+
+// NormalizePhone returns the local 0-prefixed form of a Vietnamese mobile number, or false when the
+// text is not one.
+func NormalizePhone(text string) (string, bool) {
+	compact := strings.Map(func(r rune) rune {
+		if r == ' ' || r == '.' || r == '-' {
+			return -1
+		}
+		return r
+	}, text)
+	if !vietnamesePhonePattern.MatchString(compact) {
+		return "", false
+	}
+	switch {
+	case strings.HasPrefix(compact, "+84"):
+		return "0" + compact[3:], true
+	case strings.HasPrefix(compact, "84"):
+		return "0" + compact[2:], true
+	default:
+		return compact, true
+	}
+}
+
+// IsZaloGroupChatID reports whether a token is a Zalo group chat ID as the bot prints it. Group IDs
+// are long digit strings, which keeps them apart from the short room names in the same position.
+func IsZaloGroupChatID(value string) bool {
+	return zaloGroupChatIDPattern.MatchString(value)
 }
 
 // stripMentionPrefix removes any leading text before the first '#' command marker. In group

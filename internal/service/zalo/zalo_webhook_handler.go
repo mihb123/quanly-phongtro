@@ -55,6 +55,13 @@ func (s *zaloServiceImpl) HandleWebhook(ctx context.Context, managerID string, b
 		return nil
 	}
 
+	// Help is answered before account linking and invoice handling so that a user who is not
+	// connected yet still learns how to connect instead of getting a password or linking prompt.
+	if isHelpCommandText(webhookCtx.text) {
+		s.handleHelpCommand(ctx, managerID, user, webhookCtx)
+		return nil
+	}
+
 	if user.ZaloUserID == nil || *user.ZaloUserID == "" {
 		s.activateManagerByPassword(ctx, managerID, user, webhookCtx)
 		return nil
@@ -319,24 +326,7 @@ func (s *zaloServiceImpl) autoLinkRoom(ctx context.Context, managerID, groupChat
 			for _, room := range rooms {
 				expectedPrefix := strings.ToLower(room.Name + " ")
 				if strings.HasPrefix(strings.ToLower(groupName), expectedPrefix) {
-					// Match found
-					params := model.UpdateRoomParams{
-						Name:                  room.Name,
-						Price:                 room.Price,
-						MaxTenants:            room.MaxTenants,
-						Status:                room.Status,
-						ElectricityPrice:      room.ElectricityPrice,
-						WaterPrice:            room.WaterPrice,
-						WifiPrice:             room.WifiPrice,
-						ParkingPrice:          room.ParkingPrice,
-						ServicePrice:          room.ServicePrice,
-						ExtraPersonThreshold:  room.ExtraPersonThreshold,
-						ExtraPersonFee:        room.ExtraPersonFee,
-						ExtraVehicleThreshold: room.ExtraVehicleThreshold,
-						ExtraVehicleFee:       room.ExtraVehicleFee,
-						GroupChatID:           &groupChatID,
-					}
-					if _, err := s.roomRepo.UpdateRoom(ctx, room.ID, house.ID, params); err != nil {
+					if err := linkRoomToGroupChat(ctx, s.roomRepo, room, house.ID, groupChatID); err != nil {
 						return false, err
 					}
 					return true, nil
@@ -388,7 +378,12 @@ func (s *zaloServiceImpl) handleGroupLinking(ctx context.Context, managerID stri
 	}
 
 	// Case 2: group is not linked -> reply with the group ID so the manager can connect it on the web.
-	msg := fmt.Sprintf("⚠️ Nhóm này chưa được kết nối với phòng nào.\n\nMã nhóm (Group ID):\n%s\n\nVui lòng sao chép mã trên, vào phần chỉnh sửa phòng trên web và dán vào ô \"Group Chat ID\" để hoàn tất kết nối.", webhookCtx.chatID)
+	// Help and the manager update commands answer with the same instructions plus the group ID, so
+	// let their own replies stand instead of doubling up.
+	if groupLinkingReplySuppressed(webhookCtx.text) {
+		return
+	}
+	msg := fmt.Sprintf("⚠️ Nhóm này chưa được kết nối với phòng nào.\n\nQuản lý nhắn ngay trong nhóm này để kết nối:\n#update-room <mã nhà> <phòng>\nVD: #update-room 679qt P201\n\nHoặc kết nối trên web bằng mã nhóm (Group ID):\n%s", webhookCtx.chatID)
 	s.sendGroupMessage(ctx, managerID, webhookCtx.chatID, msg)
 }
 
