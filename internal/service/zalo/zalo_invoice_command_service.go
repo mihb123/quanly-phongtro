@@ -7,6 +7,7 @@ import (
 
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
+	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -17,6 +18,7 @@ type zaloInvoiceCommandServiceImpl struct {
 	roomRepo       model.RoomRepository
 	houseRepo      model.HouseRepository
 	tenantRepo     model.TenantRepository
+	tenantService  tenantsvc.TenantService
 	userRepo       model.UserRepository
 	pendingRepo    model.PendingInvoiceUpdateRepository
 	zaloClient     ZaloClient
@@ -27,13 +29,14 @@ type zaloInvoiceCommandServiceImpl struct {
 }
 
 // NewZaloInvoiceCommandService creates the business handler for invoice chat commands.
-func NewZaloInvoiceCommandService(invoiceService invoicesvc.InvoiceService, invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, userRepo model.UserRepository, pendingRepo model.PendingInvoiceUpdateRepository, zaloClient ZaloClient, imageService invoicesvc.ImageService, paymentService paymentsvc.PaymentService, encryptionKey []byte, publicBaseURL string) ZaloInvoiceCommandService {
+func NewZaloInvoiceCommandService(invoiceService invoicesvc.InvoiceService, invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, tenantService tenantsvc.TenantService, userRepo model.UserRepository, pendingRepo model.PendingInvoiceUpdateRepository, zaloClient ZaloClient, imageService invoicesvc.ImageService, paymentService paymentsvc.PaymentService, encryptionKey []byte, publicBaseURL string) ZaloInvoiceCommandService {
 	return &zaloInvoiceCommandServiceImpl{
 		invoiceService: invoiceService,
 		invoiceRepo:    invoiceRepo,
 		roomRepo:       roomRepo,
 		houseRepo:      houseRepo,
 		tenantRepo:     tenantRepo,
+		tenantService:  tenantService,
 		userRepo:       userRepo,
 		pendingRepo:    pendingRepo,
 		zaloClient:     zaloClient,
@@ -52,6 +55,14 @@ func (s *zaloInvoiceCommandServiceImpl) HandleInvoiceCommand(ctx context.Context
 		return nil
 	}
 
+	// Manager edits are unrelated to invoices, so they run without touching pending command state.
+	switch parsed.Type {
+	case CommandUpdateTenantPhone:
+		return s.handleUpdateTenantPhoneCommand(ctx, managerID, webhookCtx, parsed)
+	case CommandUpdateRoomGroup:
+		return s.handleUpdateRoomGroupCommand(ctx, managerID, webhookCtx, parsed)
+	}
+
 	pending, err := s.pendingRepo.GetByChatID(ctx, managerID, chatID)
 	if err != nil && !errors.Is(err, model.ErrPendingInvoiceUpdateNotFound) {
 		return err
@@ -66,6 +77,8 @@ func (s *zaloInvoiceCommandServiceImpl) HandleInvoiceCommand(ctx context.Context
 	switch parsed.Type {
 	case CommandUtilitySingle:
 		return s.handleSingleCommand(ctx, managerID, webhookCtx, parsed, "", false)
+	case CommandUtilityRoom:
+		return s.handleRoomTargetCommand(ctx, managerID, webhookCtx, parsed, "", false)
 	case CommandUtilityBatch:
 		return s.handleBatchCommand(ctx, managerID, webhookCtx, parsed, "", false)
 	case CommandConfirm, CommandCancel, CommandPeriodSelect:

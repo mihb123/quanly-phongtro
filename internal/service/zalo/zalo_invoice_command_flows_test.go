@@ -58,7 +58,7 @@ func (f *fakePaymentService) CreatePreferredPaymentLinkForInvoice(ctx context.Co
 
 // TestNewZaloInvoiceCommandService verifies the constructor wires the concrete implementation.
 func TestNewZaloInvoiceCommandService(t *testing.T) {
-	service := NewZaloInvoiceCommandService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, []byte("key"), "https://example.com/")
+	service := NewZaloInvoiceCommandService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, []byte("key"), "https://example.com/")
 	impl, ok := service.(*zaloInvoiceCommandServiceImpl)
 	require.True(t, ok)
 	assert.Equal(t, "https://example.com", impl.publicBaseURL)

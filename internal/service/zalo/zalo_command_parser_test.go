@@ -56,6 +56,83 @@ func TestParseCommand(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "room target with house code",
+			text: "#dien 679qt P201 661",
+			want: ParsedCommand{
+				Type:        CommandUtilityRoom,
+				UtilityType: "dien",
+				HouseCode:   "679qt",
+				Entries:     []RoomUtilityEntry{{RoomName: "p201", NewIndex: 661, HasNewIndex: true}},
+			},
+		},
+		{
+			name: "room target without house code",
+			text: "#dien P201 661",
+			want: ParsedCommand{
+				Type:        CommandUtilityRoom,
+				UtilityType: "dien",
+				Entries:     []RoomUtilityEntry{{RoomName: "p201", NewIndex: 661, HasNewIndex: true}},
+			},
+		},
+		{
+			name: "room target with multi word room name",
+			text: "#nuoc 679qt Phòng 201 123",
+			want: ParsedCommand{
+				Type:        CommandUtilityRoom,
+				UtilityType: "nuoc",
+				HouseCode:   "679qt",
+				Entries:     []RoomUtilityEntry{{RoomName: "phong 201", NewIndex: 123, HasNewIndex: true}},
+			},
+		},
+		{
+			name: "batch header without readings",
+			text: "#dien 679qt",
+			want: ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "679qt"},
+		},
+		{
+			name: "update tenant with house and room",
+			text: "#update-tenant 679qt P201 0912345678",
+			want: ParsedCommand{Type: CommandUpdateTenantPhone, HouseCode: "679qt", RoomName: "p201", Value: "0912345678"},
+		},
+		{
+			name: "update tenant without house code",
+			text: "#update-tenant P201 0912345678",
+			want: ParsedCommand{Type: CommandUpdateTenantPhone, RoomName: "p201", Value: "0912345678"},
+		},
+		{
+			name: "update tenant in room chat with spaced phone",
+			text: "#update-tenant 0912 345 678",
+			want: ParsedCommand{Type: CommandUpdateTenantPhone, Value: "0912345678"},
+		},
+		{
+			name: "update tenant normalizes international phone",
+			text: "#update_tenant P201 +84912345678",
+			want: ParsedCommand{Type: CommandUpdateTenantPhone, RoomName: "p201", Value: "0912345678"},
+		},
+		{
+			name: "update tenant with invalid phone keeps value empty",
+			text: "#update-tenant P201 12345",
+			want: ParsedCommand{Type: CommandUpdateTenantPhone},
+		},
+		{
+			name: "update room with explicit group id",
+			text: "#update-room 679qt P201 1234567890",
+			want: ParsedCommand{Type: CommandUpdateRoomGroup, HouseCode: "679qt", RoomName: "p201", Value: "1234567890"},
+		},
+		{
+			name: "update room without group id targets current group",
+			text: "#update-room 679qt P201",
+			want: ParsedCommand{Type: CommandUpdateRoomGroup, HouseCode: "679qt", RoomName: "p201"},
+		},
+		{
+			name: "update room with only room name",
+			text: "#updateroom P201",
+			want: ParsedCommand{Type: CommandUpdateRoomGroup, RoomName: "p201"},
+		},
+		{name: "help", text: "#help", want: ParsedCommand{Type: CommandHelp}},
+		{name: "help vietnamese", text: "#Trợ giúp", want: ParsedCommand{Type: CommandHelp}},
+		{name: "help with mention prefix", text: "@Bot #help", want: ParsedCommand{Type: CommandHelp}},
 		{name: "confirm with mention prefix", text: "@Bot #ok", want: ParsedCommand{Type: CommandConfirm}},
 		{name: "confirm", text: "#ok", want: ParsedCommand{Type: CommandConfirm}},
 		{name: "cancel", text: "#huy", want: ParsedCommand{Type: CommandCancel}},
@@ -72,6 +149,8 @@ func TestParseCommand(t *testing.T) {
 			assert.Equal(t, tt.want.UtilityType, got.UtilityType)
 			assert.Equal(t, tt.want.HouseCode, got.HouseCode)
 			assert.Equal(t, tt.want.PeriodMonth, got.PeriodMonth)
+			assert.Equal(t, tt.want.RoomName, got.RoomName)
+			assert.Equal(t, tt.want.Value, got.Value)
 			assert.Equal(t, tt.want.Entries, got.Entries)
 		})
 	}

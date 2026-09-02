@@ -15,6 +15,13 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
+const (
+	invoicePeriodLayout = "2006-01"
+	// regularInvoiceHistoryMonths is how many consecutive prior months of invoices prove that a room
+	// is billed every month, so a new reading belongs to the current month with no question asked.
+	regularInvoiceHistoryMonths = 3
+)
+
 type utilityUpdateRequest struct {
 	UtilityType    string
 	Room           model.Room
@@ -58,7 +65,7 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 		return utilityUpdateResult{}, false, fmt.Errorf("vui lòng nhập chỉ số %s mới", utilityLabel(req.UtilityType))
 	}
 
-	resolution, err := s.resolvePeriod(ctx, req.Room.ID, req.ForcedPeriod)
+	resolution, err := s.resolvePeriod(ctx, req.Room.ID, req.UtilityType, house, req.ForcedPeriod)
 	if err != nil {
 		return utilityUpdateResult{}, false, err
 	}
@@ -124,35 +131,107 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 	return result, false, nil
 }
 
-// resolvePeriod returns the forced, current active, next, or user-selected invoice period.
-func (s *zaloInvoiceCommandServiceImpl) resolvePeriod(ctx context.Context, roomID, forcedPeriod string) (periodResolution, error) {
+// resolvePeriod decides which month a reading belongs to without asking the user whenever the
+// answer is unambiguous: an invoice that is still waiting for this very reading, or the current
+// month when the room has been invoiced every month so far. Only a room with an irregular history
+// falls back to letting the user pick a month.
+func (s *zaloInvoiceCommandServiceImpl) resolvePeriod(ctx context.Context, roomID, utilityType string, house *model.House, forcedPeriod string) (periodResolution, error) {
 	if forcedPeriod != "" {
 		return periodResolution{Period: forcedPeriod}, nil
 	}
 
 	now := time.Now()
-	prev := now.AddDate(0, -1, 0)
-	next := now.AddDate(0, 1, 0)
+	lookup := s.invoiceLookup(ctx, roomID)
 
-	candidates := []time.Time{prev, now, next}
-	options := make(map[string]string)
-
-	for _, t := range candidates {
-		period := t.Format("2006-01")
-		existing, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, roomID, period)
-		if err != nil && !errors.Is(err, model.ErrInvoiceNotFound) {
+	// --- 1. COMPLETE AN OPEN INVOICE ---
+	// A reading sent days after its counterpart must land on the same invoice, not open a new month.
+	for _, offset := range []int{0, -1} {
+		month := shiftMonth(now, offset)
+		invoice, err := lookup(month.Format(invoicePeriodLayout))
+		if err != nil {
 			return periodResolution{}, err
 		}
-		if existing == nil {
-			options[strconv.Itoa(int(t.Month()))] = period
+		if invoice != nil && invoice.Status != model.InvoiceStatusPaid && invoiceMissesUtility(invoice, utilityType, house) {
+			return periodResolution{Period: invoice.Period}, nil
+		}
+	}
+
+	// --- 2. FOLLOW A KNOWN MONTHLY CADENCE ---
+	regular, err := hasRegularInvoiceHistory(lookup, now)
+	if err != nil {
+		return periodResolution{}, err
+	}
+	if regular {
+		return periodResolution{Period: shiftMonth(now, 0).Format(invoicePeriodLayout)}, nil
+	}
+
+	// --- 3. ASK WHICH MONTH TO BILL ---
+	options := make(map[string]string)
+	for _, offset := range []int{-1, 0, 1} {
+		month := shiftMonth(now, offset)
+		invoice, err := lookup(month.Format(invoicePeriodLayout))
+		if err != nil {
+			return periodResolution{}, err
+		}
+		if invoice == nil {
+			options[strconv.Itoa(int(month.Month()))] = month.Format(invoicePeriodLayout)
 		}
 	}
 
 	if len(options) == 0 {
-		return periodResolution{Period: now.Format("2006-01")}, nil
+		return periodResolution{Period: shiftMonth(now, 0).Format(invoicePeriodLayout)}, nil
 	}
 
 	return periodResolution{NeedsSelection: true, Options: options}, nil
+}
+
+// invoiceLookup returns a per-command memoized invoice reader so resolving one period never
+// queries the same month twice, and reports a missing invoice as a nil invoice instead of an error.
+func (s *zaloInvoiceCommandServiceImpl) invoiceLookup(ctx context.Context, roomID string) func(period string) (*model.Invoice, error) {
+	cache := make(map[string]*model.Invoice)
+	return func(period string) (*model.Invoice, error) {
+		if invoice, ok := cache[period]; ok {
+			return invoice, nil
+		}
+		invoice, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, roomID, period)
+		if err != nil {
+			if !errors.Is(err, model.ErrInvoiceNotFound) {
+				return nil, err
+			}
+			invoice = nil
+		}
+		cache[period] = invoice
+		return invoice, nil
+	}
+}
+
+// hasRegularInvoiceHistory reports whether every month right before now already has an invoice,
+// which makes the current month the only sensible target for a new reading.
+func hasRegularInvoiceHistory(lookup func(string) (*model.Invoice, error), now time.Time) (bool, error) {
+	for offset := 1; offset <= regularInvoiceHistoryMonths; offset++ {
+		invoice, err := lookup(shiftMonth(now, -offset).Format(invoicePeriodLayout))
+		if err != nil {
+			return false, err
+		}
+		if invoice == nil {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// shiftMonth moves t by whole months from the first day of its month, so month lengths never make
+// the result skip a month (time.AddDate on the 31st would turn "one month back" into the same month).
+func shiftMonth(t time.Time, offset int) time.Time {
+	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location()).AddDate(0, offset, 0)
+}
+
+// invoiceMissesUtility reports whether a usage-billed utility still has no reading on an invoice.
+func invoiceMissesUtility(invoice *model.Invoice, utilityType string, house *model.House) bool {
+	if !utilityNeedsReading(utilityType, house) {
+		return false
+	}
+	return existingUtilityValue(invoice, utilityType) == existingOldUtilityValue(invoice, utilityType)
 }
 
 // buildInvoiceInput preserves existing or previous invoice values around one changed utility.
@@ -219,11 +298,16 @@ func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, r
 	return input, oldWaterIndex, nil
 }
 
-// respondAfterSingleUpdate sends the user-facing result for one room command.
-func (s *zaloInvoiceCommandServiceImpl) respondAfterSingleUpdate(ctx context.Context, managerID, chatID string, result utilityUpdateResult) error {
+// respondAfterSingleUpdate sends the user-facing result for one room command. followUpTarget is the
+// room part the user must repeat to complete the invoice, empty when the chat already implies it.
+func (s *zaloInvoiceCommandServiceImpl) respondAfterSingleUpdate(ctx context.Context, managerID, chatID string, result utilityUpdateResult, followUpTarget string) error {
 	if !result.Complete {
 		period := displayPeriod(result.Period)
-		message := fmt.Sprintf("Đã ghi nhận số %s mới: %d cho %s (tháng %s).\nVui lòng bổ sung số %s tháng %s bằng cú pháp: #%s <số mới> hoặc #huy để hủy.", utilityLabelFromMissing(result), result.NewIndex, result.RoomName, period, utilityLabel(result.MissingUtility), period, result.MissingUtility)
+		followUpCommand := "#" + result.MissingUtility
+		if followUpTarget != "" {
+			followUpCommand += " " + followUpTarget
+		}
+		message := fmt.Sprintf("Đã ghi nhận số %s mới: %d cho %s (tháng %s).\nVui lòng bổ sung số %s tháng %s bằng cú pháp: %s <số mới> hoặc #huy để hủy.", utilityLabelFromMissing(result), result.NewIndex, result.RoomName, period, utilityLabel(result.MissingUtility), period, followUpCommand)
 		return s.sendTextMessage(ctx, managerID, chatID, message)
 	}
 
@@ -308,10 +392,11 @@ func commandChatID(webhookCtx webhookMessageContext) string {
 	return webhookCtx.senderID
 }
 
-// isInvoiceCommandText reports whether a message starts an invoice command flow.
+// isInvoiceCommandText reports whether a message starts an invoice command flow. Help is excluded
+// because the webhook answers it before any invoice state is touched.
 func isInvoiceCommandText(text string) bool {
 	command := ParseCommand(text)
-	return command.Type != CommandUnknown
+	return command.Type != CommandUnknown && command.Type != CommandHelp
 }
 
 // utilityNeedsReading reports whether a utility command must include a meter index.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
@@ -39,7 +40,126 @@ func (s *zaloInvoiceCommandServiceImpl) processSingleRoom(ctx context.Context, m
 	if err != nil {
 		return s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
 	}
-	return s.respondAfterSingleUpdate(ctx, managerID, commandChatID(webhookCtx), result)
+	return s.respondAfterSingleUpdate(ctx, managerID, commandChatID(webhookCtx), result, followUpRoomTarget(parsed))
+}
+
+// followUpRoomTarget returns the "<mã nhà> <phòng>" part a follow-up command must repeat. It is
+// empty for chats that already identify the room, where the bare "#nuoc <số>" form is enough.
+func followUpRoomTarget(parsed *ParsedCommand) string {
+	if parsed.Type != CommandUtilityRoom || len(parsed.Entries) == 0 {
+		return ""
+	}
+	if parsed.HouseCode == "" {
+		return parsed.Entries[0].RoomName
+	}
+	return parsed.HouseCode + " " + parsed.Entries[0].RoomName
+}
+
+// handleRoomTargetCommand applies a reading to the room named inside the command text, e.g.
+// "#dien 679qt P201 661" or the short "#dien P201 661" when the sender manages a single house.
+func (s *zaloInvoiceCommandServiceImpl) handleRoomTargetCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
+	room, err := s.resolveRoomTargetRoom(ctx, managerID, webhookCtx, parsed)
+	if err != nil {
+		_ = s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
+		return nil
+	}
+	return s.processSingleRoom(ctx, managerID, webhookCtx, parsed, *room, forcedPeriod, allowOverwrite)
+}
+
+// resolveRoomTargetRoom finds the room a named command addresses. Managers may address any room in
+// their houses; a tenant may only name their own room, so the name acts as a confirmation there.
+func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand) (*model.Room, error) {
+	roomName := ""
+	if len(parsed.Entries) > 0 {
+		roomName = parsed.Entries[0].RoomName
+	}
+	if roomName == "" {
+		return nil, errors.New("Vui lòng nhập tên phòng. Ví dụ: #dien 679qt P201 661")
+	}
+
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	if err != nil {
+		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
+	}
+
+	if linkedUser.Role != model.RoleManager {
+		return s.tenantOwnRoom(ctx, managerID, linkedUser.ID, roomName)
+	}
+	if linkedUser.ID != managerID {
+		return nil, errors.New("Chỉ quản lý của bot này mới được cập nhật theo tên phòng.")
+	}
+
+	house, roomName, err := s.resolveCommandHouse(ctx, managerID, parsed.HouseCode, roomName)
+	if err != nil {
+		return nil, err
+	}
+	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, house.ID)
+	if err != nil {
+		return nil, err
+	}
+	room, err := MatchRoom(roomName, rooms)
+	if err != nil {
+		if errors.Is(err, ErrAmbiguousRoomName) {
+			return nil, fmt.Errorf("Nhà %s có nhiều phòng trùng tên %s. Vui lòng nhập tên phòng đầy đủ.", house.Name, roomName)
+		}
+		return nil, fmt.Errorf("Không tìm thấy phòng %s trong nhà %s.", roomName, house.Name)
+	}
+	return room, nil
+}
+
+// tenantOwnRoom returns the tenant's room only when the named room is the one they rent.
+func (s *zaloInvoiceCommandServiceImpl) tenantOwnRoom(ctx context.Context, managerID, userID, roomName string) (*model.Room, error) {
+	tenant, err := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, userID)
+	if err != nil {
+		return nil, errors.New("Không tìm thấy phòng đang thuê cho tài khoản này.")
+	}
+	room, err := s.roomRepo.GetRoomByIDOnly(ctx, tenant.RoomID)
+	if err != nil {
+		return nil, err
+	}
+	if NormalizeRoomName(room.Name) != NormalizeRoomName(roomName) {
+		return nil, fmt.Errorf("Bạn chỉ có thể cập nhật cho phòng %s của mình. Chỉ cần nhắn: #dien <số mới>", room.Name)
+	}
+	return room, nil
+}
+
+// resolveCommandHouse picks the house of a named room command. The house code may be omitted when
+// the manager has exactly one house, and a code that matches no house is retried as the first word
+// of a multi-word room name ("#dien Phòng 201 661").
+func (s *zaloInvoiceCommandServiceImpl) resolveCommandHouse(ctx context.Context, managerID, houseCode, roomName string) (*model.House, string, error) {
+	singleHouse, err := s.singleManagedHouse(ctx, managerID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if houseCode == "" {
+		if singleHouse == nil {
+			return nil, "", errors.New("Bạn đang quản lý nhiều nhà. Vui lòng nhập mã nhà. Ví dụ: #dien 679qt P201 661")
+		}
+		return singleHouse, roomName, nil
+	}
+
+	house, err := s.houseRepo.GetHouseByCode(ctx, managerID, houseCode)
+	if err == nil {
+		return house, roomName, nil
+	}
+	if singleHouse == nil {
+		return nil, "", fmt.Errorf("Không tìm thấy nhà với mã: %s", houseCode)
+	}
+	return singleHouse, strings.TrimSpace(houseCode + " " + roomName), nil
+}
+
+// singleManagedHouse returns the manager's only house, or nil when they manage several.
+func (s *zaloInvoiceCommandServiceImpl) singleManagedHouse(ctx context.Context, managerID string) (*model.House, error) {
+	houses, err := s.houseRepo.ListHouseByManagerID(ctx, managerID, 2, 0, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(houses) != 1 {
+		return nil, nil
+	}
+	house := houses[0]
+	return &house, nil
 }
 
 // processAwaitUtilitySingleCommand applies a missing utility without losing the saved period on retryable errors.
@@ -67,7 +187,7 @@ func (s *zaloInvoiceCommandServiceImpl) processAwaitUtilitySingleCommand(ctx con
 			return err
 		}
 	}
-	return s.respondAfterSingleUpdate(ctx, managerID, commandChatID(webhookCtx), result)
+	return s.respondAfterSingleUpdate(ctx, managerID, commandChatID(webhookCtx), result, "")
 }
 
 // handleBatchCommand processes manager private commands for many rooms in one house.
@@ -107,7 +227,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 	}
 
 	for _, matchedEntry := range matchedEntries {
-		resolution, err := s.resolvePeriod(ctx, matchedEntry.Room.ID, forcedPeriod)
+		resolution, err := s.resolvePeriod(ctx, matchedEntry.Room.ID, parsed.UtilityType, house, forcedPeriod)
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("- %s: %v", matchedEntry.Room.Name, err))
 			continue
@@ -184,7 +304,7 @@ func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Con
 		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
 	}
 	if linkedUser.Role == model.RoleManager {
-		return nil, errors.New("Quản lý vui lòng dùng cú pháp nhiều phòng: #dien <mã nhà>")
+		return nil, errors.New("Quản lý vui lòng nhập kèm phòng: #dien <mã nhà> <phòng> <số mới>. Nhắn #help để xem tất cả cú pháp.")
 	}
 
 	tenant, err := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, linkedUser.ID)
@@ -194,14 +314,14 @@ func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Con
 	return s.roomRepo.GetRoomByIDOnly(ctx, tenant.RoomID)
 }
 
-// ensureManagerSender verifies that a private batch command came from the linked manager.
+// ensureManagerSender verifies that a manager-only command came from the linked manager.
 func (s *zaloInvoiceCommandServiceImpl) ensureManagerSender(ctx context.Context, managerID, senderID string) error {
 	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, senderID)
 	if err != nil {
 		return errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
 	}
 	if linkedUser.ID != managerID || linkedUser.Role != model.RoleManager {
-		return errors.New("Chỉ quản lý mới được cập nhật nhiều phòng qua chat riêng.")
+		return errors.New("Chỉ quản lý mới được dùng lệnh này.")
 	}
 	return nil
 }
