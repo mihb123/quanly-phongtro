@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mihb123/quanly-phongtro/internal/handler/auth"
 	"github.com/mihb123/quanly-phongtro/internal/handler/house"
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
@@ -32,7 +31,8 @@ func New(
 	cfg := newOptions(options...)
 	r := chi.NewRouter()
 	r.Use(recoverMiddleware)
-	r.Use(middleware.Logger)
+	r.Use(requestLogger(cfg.trustedProxies))
+	r.Use(slowAPILogger(cfg.slowAPILogger))
 
 	r.Get("/health", healthCheck)
 

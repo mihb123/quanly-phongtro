@@ -32,6 +32,7 @@ import (
 	geosvc "github.com/mihb123/quanly-phongtro/internal/service/geo"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
 	revenuesvc "github.com/mihb123/quanly-phongtro/internal/service/revenue"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
@@ -167,6 +168,16 @@ func main() {
 	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(paymentsvc.NewSePayClient(), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
+	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
+		Threshold: cfg.SlowAPIThreshold,
+		FilePath:  cfg.SlowAPILogFile,
+		MaxDays:   cfg.SlowAPILogMaxDays,
+	})
+	if err != nil {
+		log.Fatalf("init slow api logger: %v", err)
+	}
+	defer slowAPILogger.Close()
+
 	frontendFS, err := web.DistFS()
 	if err != nil {
 		log.Fatalf("load embedded frontend: %v", err)
@@ -185,6 +196,7 @@ func main() {
 		httpRouter.WithTrustedProxies(cfg.TrustedProxyCIDRs),
 		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
 		httpRouter.WithStaticFS(frontendFS),
+		httpRouter.WithSlowAPILogger(slowAPILogger),
 	)
 	server := &http.Server{
 		Addr:              ":" + cfg.AppPort,

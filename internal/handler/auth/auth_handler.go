@@ -428,5 +428,5 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP returns the client IP, trusting X-Forwarded-For only from configured proxies.
 func (h *AuthHandler) getClientIP(r *http.Request) string {
-	return security.ClientIP(r, h.trustedProxyCIDRs)
+	return security.ResolvedClientIP(r, h.trustedProxyCIDRs)
 }

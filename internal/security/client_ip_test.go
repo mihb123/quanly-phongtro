@@ -46,6 +46,65 @@ func TestClientIP(t *testing.T) {
 			want:       "198.51.100.7",
 		},
 		{
+			name:       "trusted peer uses X-Real-IP from nginx",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"X-Real-IP": "198.51.100.8"},
+			proxies:    trusted,
+			want:       "198.51.100.8",
+		},
+		{
+			name:       "trusted peer uses True-Client-IP",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"True-Client-IP": "198.51.100.9"},
+			proxies:    trusted,
+			want:       "198.51.100.9",
+		},
+		{
+			name:       "trusted peer uses RFC 7239 Forwarded header",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"Forwarded": `for="198.51.100.10:4321";proto=https`},
+			proxies:    trusted,
+			want:       "198.51.100.10",
+		},
+		{
+			name:       "untrusted peer ignores X-Real-IP",
+			remoteAddr: "203.0.113.9:1234",
+			headers:    map[string]string{"X-Real-IP": "198.51.100.8"},
+			proxies:    trusted,
+			want:       "203.0.113.9",
+		},
+		{
+			name:       "trusted peer prefers X-Forwarded-For over X-Real-IP",
+			remoteAddr: "127.0.0.1:1234",
+			headers: map[string]string{
+				"X-Real-IP":       "198.51.100.8",
+				"X-Forwarded-For": "203.0.113.5, 198.51.100.11",
+			},
+			proxies: trusted,
+			want:    "198.51.100.11",
+		},
+		{
+			name:       "trusted peer reads IPv6 node in Forwarded header",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"Forwarded": `for="[2001:db8::1]:8080";proto=https`},
+			proxies:    trusted,
+			want:       "2001:db8::1",
+		},
+		{
+			name:       "trusted peer ignores comma inside a quoted Forwarded node",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"Forwarded": `for=192.0.2.60;host="a,b", for=198.51.100.12`},
+			proxies:    trusted,
+			want:       "198.51.100.12",
+		},
+		{
+			name:       "trusted peer skips obfuscated Forwarded node",
+			remoteAddr: "127.0.0.1:1234",
+			headers:    map[string]string{"Forwarded": `for=198.51.100.13, for=_hidden`},
+			proxies:    trusted,
+			want:       "198.51.100.13",
+		},
+		{
 			name:       "trusted peer falls back to remote addr on garbage header",
 			remoteAddr: "127.0.0.1:1234",
 			headers:    map[string]string{"X-Forwarded-For": "not-an-ip"},
@@ -72,4 +131,34 @@ func TestClientIP(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ClientIP ignores context and honors the trust list it is given", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req = req.WithContext(WithClientIP(req.Context(), "113.161.50.20"))
+
+		if got := ClientIP(req, nil); got != "127.0.0.1" {
+			t.Errorf("ClientIP() = %q, want 127.0.0.1", got)
+		}
+	})
+
+	t.Run("ResolvedClientIP reuses the IP cached in context", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req = req.WithContext(WithClientIP(req.Context(), "113.161.50.20"))
+
+		if got := ResolvedClientIP(req, nil); got != "113.161.50.20" {
+			t.Errorf("ResolvedClientIP() = %q, want 113.161.50.20", got)
+		}
+	})
+
+	t.Run("ResolvedClientIP falls back to ClientIP without context", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.RemoteAddr = "127.0.0.1:1234"
+		req.Header.Set("CF-Connecting-IP", "113.161.50.20")
+
+		if got := ResolvedClientIP(req, trusted); got != "113.161.50.20" {
+			t.Errorf("ResolvedClientIP() = %q, want 113.161.50.20", got)
+		}
+	})
 }

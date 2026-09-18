@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
@@ -74,7 +75,20 @@ func TestLoggerLevelsWithRequest(t *testing.T) {
 	out = captureLog(func() {
 		logger.Error(request, 400, "bad", errors.New("invalid"))
 	})
-	if !strings.Contains(out, "remote=127.0.0.1:1234") || !strings.Contains(out, "err=invalid") {
+	if !strings.Contains(out, "remote=127.0.0.1") || !strings.Contains(out, "err=invalid") {
 		t.Errorf("expected request details and error in output: %q", out)
 	}
+
+	t.Run("uses client IP from context when present", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/test", nil)
+		req.RemoteAddr = "127.0.0.1:5678"
+		req = req.WithContext(security.WithClientIP(req.Context(), "113.161.50.20"))
+
+		out := captureLog(func() {
+			logger.Info(req, 200, "ok", nil)
+		})
+		if !strings.Contains(out, "remote=113.161.50.20") {
+			t.Errorf("expected client IP in log, got: %q", out)
+		}
+	})
 }
