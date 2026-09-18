@@ -13,4 +13,5 @@ Dưới đây là danh sách các tài liệu hiện có trong thư mục `Docum
 4. **[backend_requirements.md](./backend_requirements.md)**: Các yêu cầu nghiệp vụ, tính năng dành cho phía Backend (Golang).
 5. **[frontend_index.md](./frontend/index.md)**: Thông tin về frontend
 6. **[deployment_guide.md](./deployment_guide.md)**: Hướng dẫn cấu hình, cài đặt và triển khai dự án cho môi trường Dev và Production.
-7. **[Task/Overview.md](./Task/Overview.md)**: Danh sách và trình tự các công việc phát triển.
+7. **[feature/slow_api_logging.md](./feature/slow_api_logging.md)**: Cơ chế ghi log các API chậm ra file riêng để theo dõi và tối ưu hiệu năng.
+8. **[Task/Overview.md](./Task/Overview.md)**: Danh sách và trình tự các công việc phát triển.

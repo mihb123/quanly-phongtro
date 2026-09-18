@@ -18,7 +18,7 @@ func BuildDPoPHTU(r *http.Request, trustedProxies []netip.Prefix) string {
 		path = "/"
 	}
 
-	trusted := fromTrustedProxy(r, trustedProxies)
+	trusted := FromTrustedProxy(r, trustedProxies)
 	return requestScheme(r, trusted) + "://" + requestHost(r, trusted) + path
 }
 
@@ -45,8 +45,8 @@ func requestHost(r *http.Request, trustedPeer bool) string {
 	return r.Host
 }
 
-// fromTrustedProxy reports whether the immediate peer belongs to a trusted proxy CIDR.
-func fromTrustedProxy(r *http.Request, trustedProxies []netip.Prefix) bool {
+// FromTrustedProxy reports whether the immediate peer belongs to a trusted proxy CIDR.
+func FromTrustedProxy(r *http.Request, trustedProxies []netip.Prefix) bool {
 	if len(trustedProxies) == 0 {
 		return false
 	}

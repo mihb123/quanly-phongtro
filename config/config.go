@@ -12,6 +12,13 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Giá trị mặc định khi .env không khai báo (hoặc để trống) cấu hình log request chậm.
+const (
+	defaultSlowAPIThresholdMs = 1000
+	defaultSlowAPILogFile     = "logs/slow_api.log"
+	defaultSlowAPILogMaxDays  = 7
+)
+
 type Config struct {
 	AppPort                string
 	AppEnv                 string
@@ -38,6 +45,9 @@ type Config struct {
 	CookieSecure           bool
 	TrustedProxyCIDRs      []netip.Prefix
 	UploadURLSigningKey    string
+	SlowAPIThreshold       time.Duration
+	SlowAPILogFile         string
+	SlowAPILogMaxDays      int
 }
 
 func Load() (*Config, error) {
@@ -54,9 +64,15 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	trustedProxyCIDRs, err := parseTrustedProxyCIDRs(os.Getenv("TRUSTED_PROXIES"))
-	if err != nil {
-		return nil, err
+	// Mặc định tin localhost vì Cloudflare Tunnel/Nginx thường chạy cùng máy.
+	// Đặt "none"/"off" để không tin proxy nào (bỏ qua mọi header chuyển tiếp).
+	trustedProxyVal := strings.ToLower(strings.TrimSpace(getOrDefault("TRUSTED_PROXIES", defaultTrustedProxies)))
+	var trustedProxyCIDRs []netip.Prefix
+	if trustedProxyVal != "none" && trustedProxyVal != "off" {
+		trustedProxyCIDRs, err = parseTrustedProxyCIDRs(trustedProxyVal)
+		if err != nil {
+			return nil, err
+		}
 	}
 	postgresDSN := os.Getenv("POSTGRES_DSN")
 	accessTokenJWTSecret := os.Getenv("ACCESS_TOKEN_JWT_SECRET")
@@ -115,6 +131,11 @@ func Load() (*Config, error) {
 	payosChecksumKey := os.Getenv("PAYOS_CHECKSUM_KEY")
 	uploadURLSigningKey := getOrDefault("UPLOAD_URL_SIGNING_KEY", accessTokenJWTSecret)
 
+	slowAPI, err := getSlowAPISettings()
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		AppPort:                appPort,
 		AppEnv:                 appEnv,
@@ -141,6 +162,9 @@ func Load() (*Config, error) {
 		CookieSecure:           cookieSecure,
 		TrustedProxyCIDRs:      trustedProxyCIDRs,
 		UploadURLSigningKey:    uploadURLSigningKey,
+		SlowAPIThreshold:       slowAPI.threshold,
+		SlowAPILogFile:         slowAPI.logFile,
+		SlowAPILogMaxDays:      slowAPI.logMaxDays,
 	}, nil
 }
 
@@ -157,6 +181,52 @@ func getCookieSecure(appEnv string) (bool, error) {
 	}
 	return secure, nil
 }
+
+type slowAPISettings struct {
+	threshold  time.Duration
+	logFile    string
+	logMaxDays int
+}
+
+// getSlowAPISettings đọc cấu hình log request chậm. Cả ba biến đều tùy chọn:
+// không khai báo (hoặc để trống) thì dùng mặc định 1000ms / logs/slow_api.log / 7 ngày.
+// Riêng SLOW_API_THRESHOLD=0 là chủ ý tắt hẳn tính năng.
+func getSlowAPISettings() (slowAPISettings, error) {
+	thresholdMs, err := getIntOrDefault("SLOW_API_THRESHOLD", defaultSlowAPIThresholdMs)
+	if err != nil || thresholdMs < 0 {
+		return slowAPISettings{}, errors.New("SLOW_API_THRESHOLD must be a non-negative integer (milliseconds)")
+	}
+
+	logMaxDays, err := getIntOrDefault("SLOW_API_LOG_MAX_DAYS", defaultSlowAPILogMaxDays)
+	if err != nil || logMaxDays <= 0 {
+		return slowAPISettings{}, errors.New("SLOW_API_LOG_MAX_DAYS must be a positive integer")
+	}
+
+	logFile := strings.TrimSpace(os.Getenv("SLOW_API_LOG_FILE"))
+	if logFile == "" {
+		logFile = defaultSlowAPILogFile
+	}
+
+	return slowAPISettings{
+		threshold:  time.Duration(thresholdMs) * time.Millisecond,
+		logFile:    logFile,
+		logMaxDays: logMaxDays,
+	}, nil
+}
+
+// getIntOrDefault đọc biến môi trường dạng số; biến trống hoặc chỉ có khoảng trắng
+// được coi như chưa khai báo và trả về fallback.
+func getIntOrDefault(key string, fallback int) (int, error) {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback, nil
+	}
+
+	return strconv.Atoi(value)
+}
+
+// defaultTrustedProxies là dải proxy tin cậy mặc định khi TRUSTED_PROXIES không được đặt.
+const defaultTrustedProxies = "127.0.0.1/32,::1/128"
 
 // parseTrustedProxyCIDRs parses comma-separated proxy CIDRs or single IPs.
 func parseTrustedProxyCIDRs(value string) ([]netip.Prefix, error) {

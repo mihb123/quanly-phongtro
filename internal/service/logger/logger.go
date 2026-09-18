@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/fatih/color"
+	"github.com/mihb123/quanly-phongtro/internal/security"
 )
 
 // Pre-built colored label printers for each level.
@@ -14,6 +15,12 @@ var (
 	warnLabel  = color.New(color.FgYellow, color.Bold).SprintFunc()
 	errorLabel = color.New(color.FgRed, color.Bold).SprintFunc()
 )
+
+// remoteAddr trả về Client IP đã resolve trong context nếu có. Không kèm port vì
+// port trong RemoteAddr là của kết nối proxy, không phải của client.
+func remoteAddr(r *http.Request) string {
+	return security.ResolvedClientIP(r, nil)
+}
 
 // logf is the shared internal writer.
 func logf(label string, r *http.Request, status int, message string, err error) {
@@ -26,17 +33,19 @@ func logf(label string, r *http.Request, status int, message string, err error) 
 		return
 	}
 
+	remote := remoteAddr(r)
+
 	if err != nil {
 		log.Printf(
 			"%s status=%d method=%s path=%s remote=%s msg=%q err=%v",
-			label, status, r.Method, r.URL.Path, r.RemoteAddr, message, err,
+			label, status, r.Method, r.URL.Path, remote, message, err,
 		)
 		return
 	}
 
 	log.Printf(
 		"%s status=%d method=%s path=%s remote=%s msg=%q",
-		label, status, r.Method, r.URL.Path, r.RemoteAddr, message,
+		label, status, r.Method, r.URL.Path, remote, message,
 	)
 }
 

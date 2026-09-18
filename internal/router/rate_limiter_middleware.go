@@ -109,7 +109,7 @@ func RateLimiter(next http.Handler) http.Handler {
 func ipRateLimiter(store *limiterStore, trustedProxies []netip.Prefix, retryAfter string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !store.allow(security.ClientIP(r, trustedProxies)) {
+			if !store.allow(security.ResolvedClientIP(r, trustedProxies)) {
 				w.Header().Set("Retry-After", retryAfter)
 				writeError(w, http.StatusTooManyRequests, "too many requests, please try again later")
 				return
