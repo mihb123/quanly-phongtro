@@ -10,6 +10,18 @@ import { getInvoices, createInvoice, type Invoice } from '@/api/invoice'
 import { useInvoiceStore } from '@/data/invoiceData'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 import { useRecommendedHouse } from '@/hooks/useRecommendedHouse'
+import { toast } from 'sonner'
+
+const INVOICE_PAGE_LIMIT = 100
+
+async function getAllHouseInvoices(houseId: string) {
+  const all: Invoice[] = []
+  for (let page = 1; ; page++) {
+    const batch = (await getInvoices({ house_id: houseId, page, limit: INVOICE_PAGE_LIMIT })) || []
+    all.push(...batch)
+    if (batch.length < INVOICE_PAGE_LIMIT) return all
+  }
+}
 
 // Modal ghi nhanh chỉ số điện/nước & tạo hóa đơn cho nhiều phòng. Vỏ dùng AppModal; giữ nguyên logic lưu hàng loạt.
 export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
@@ -69,8 +81,8 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
         const occupiedRooms = fetchedRooms.filter(r => r.status === 'OCCUPIED')
         setRooms(occupiedRooms.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })))
         
-        const allInvoices = await getInvoices({ house_id: selectedHouseId, limit: 1000 })
-        const sortedInvoices = [...(allInvoices || [])].sort((a, b) => b.period.localeCompare(a.period))
+        const allInvoices = await getAllHouseInvoices(selectedHouseId)
+        const sortedInvoices = [...allInvoices].sort((a, b) => b.period.localeCompare(a.period))
         
         const latest: Record<string, Invoice> = {}
         const periodInvoices: Record<string, Invoice> = {}
@@ -137,24 +149,23 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
     if (!selectedHouseId || !period) return
     setIsLoading(true)
     let hasError = false
-    let hasSaved = false
+    let savedCount = 0
     
     try {
       const promises = rooms.map(async (room) => {
         const data = invoiceData[room.id]
         if (!data || data.saved) return Promise.resolve()
 
-        // For USAGE type, both indices must be filled
-        if (isElectricityUsage && !data.new_electricity) return Promise.resolve()
-        if (isWaterUsage && !data.new_water) return Promise.resolve()
-        // For FIXED type, skip index validation — no input needed
-        if (!isElectricityUsage && !isWaterUsage && data.saved) return Promise.resolve()
+        const hasElec = isElectricityUsage && data.new_electricity !== ''
+        const hasWater = isWaterUsage && data.new_water !== ''
+        if ((isElectricityUsage || isWaterUsage) && !hasElec && !hasWater) return Promise.resolve()
+
+        const oldElec = latestInvoices[room.id]?.new_electricity_index || 0
+        const oldWater = latestInvoices[room.id]?.new_water_index || 0
+        const newElec = hasElec ? Number(data.new_electricity) : oldElec
+        const newWater = hasWater ? Number(data.new_water) : oldWater
         
-        const newElec = isElectricityUsage ? Number(data.new_electricity) : 0
-        const newWater = isWaterUsage ? Number(data.new_water) : 0
-        
-        if (isElectricityUsage) {
-          const oldElec = latestInvoices[room.id]?.new_electricity_index || 0
+        if (hasElec) {
           if (newElec < oldElec) {
             setInvoiceData(prev => ({
               ...prev,
@@ -165,8 +176,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           }
         }
 
-        if (isWaterUsage) {
-          const oldWater = latestInvoices[room.id]?.new_water_index || 0
+        if (hasWater) {
           if (newWater < oldWater) {
             setInvoiceData(prev => ({
               ...prev,
@@ -192,7 +202,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             ...prev,
             [room.id]: { ...prev[room.id], saved: true, error: undefined }
           }))
-          hasSaved = true
+          savedCount++
         } catch (error: unknown) {
           const err = error as { response?: { data?: { message?: string } } };
           hasError = true
@@ -204,14 +214,14 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
       })
       await Promise.all(promises)
       
-      if (hasSaved) {
+      if (savedCount > 0) {
         await fetchInvoices()
+        toast.success(`Đã lưu hóa đơn cho ${savedCount} phòng`)
       }
-      if (!hasError && hasSaved) {
+      if (!hasError && savedCount > 0) {
         onClose()
-      } else if (!hasSaved && !hasError) {
-        // nothing to save
-        onClose()
+      } else if (savedCount === 0 && !hasError) {
+        toast.info('Chưa nhập chỉ số mới cho phòng nào')
       }
     } catch {
       alert("Lỗi khi tạo hóa đơn, vui lòng kiểm tra lại!")

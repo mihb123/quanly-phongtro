@@ -20,6 +20,7 @@ const (
 	// regularInvoiceHistoryMonths is how many consecutive prior months of invoices prove that a room
 	// is billed every month, so a new reading belongs to the current month with no question asked.
 	regularInvoiceHistoryMonths = 3
+	lateMonthStartDay           = 25
 )
 
 type utilityUpdateRequest struct {
@@ -132,20 +133,20 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 }
 
 // resolvePeriod decides which month a reading belongs to without asking the user whenever the
-// answer is unambiguous: an invoice that is still waiting for this very reading, or the current
-// month when the room has been invoiced every month so far. Only a room with an irregular history
-// falls back to letting the user pick a month.
+// answer is unambiguous: an invoice that is still waiting for this very reading, the month right
+// after the latest invoiced one, or the current month when the room has been invoiced every month
+// so far. Only a room with an irregular history falls back to letting the user pick a month.
 func (s *zaloInvoiceCommandServiceImpl) resolvePeriod(ctx context.Context, roomID, utilityType string, house *model.House, forcedPeriod string) (periodResolution, error) {
 	if forcedPeriod != "" {
 		return periodResolution{Period: forcedPeriod}, nil
 	}
+	return resolvePeriodAt(s.invoiceLookup(ctx, roomID), utilityType, house, time.Now())
+}
 
-	now := time.Now()
-	lookup := s.invoiceLookup(ctx, roomID)
-
+func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType string, house *model.House, now time.Time) (periodResolution, error) {
 	// --- 1. COMPLETE AN OPEN INVOICE ---
 	// A reading sent days after its counterpart must land on the same invoice, not open a new month.
-	for _, offset := range []int{0, -1} {
+	for _, offset := range []int{1, 0, -1} {
 		month := shiftMonth(now, offset)
 		invoice, err := lookup(month.Format(invoicePeriodLayout))
 		if err != nil {
@@ -153,6 +154,23 @@ func (s *zaloInvoiceCommandServiceImpl) resolvePeriod(ctx context.Context, roomI
 		}
 		if invoice != nil && invoice.Status != model.InvoiceStatusPaid && invoiceMissesUtility(invoice, utilityType, house) {
 			return periodResolution{Period: invoice.Period}, nil
+		}
+	}
+
+	current, err := lookup(shiftMonth(now, 0).Format(invoicePeriodLayout))
+	if err != nil {
+		return periodResolution{}, err
+	}
+	if current != nil && now.Day() >= lateMonthStartDay {
+		return periodResolution{Period: shiftMonth(now, 1).Format(invoicePeriodLayout)}, nil
+	}
+	if current == nil {
+		previous, err := lookup(shiftMonth(now, -1).Format(invoicePeriodLayout))
+		if err != nil {
+			return periodResolution{}, err
+		}
+		if previous != nil {
+			return periodResolution{Period: shiftMonth(now, 0).Format(invoicePeriodLayout)}, nil
 		}
 	}
 

@@ -31,11 +31,13 @@ func TestResolvePeriodFollowsRegularHistory(t *testing.T) {
 
 	invoiceRepository := mock_model.NewMockInvoiceRepository(ctrl)
 	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(0)).Return(nil, model.ErrInvoiceNotFound)
+	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(1)).Return(nil, model.ErrInvoiceNotFound).AnyTimes()
 	for offset := 1; offset <= regularInvoiceHistoryMonths; offset++ {
 		period := periodOffset(-offset)
 		invoiceRepository.EXPECT().
 			GetInvoiceByRoomAndPeriod(ctx, "room-1", period).
-			Return(&model.Invoice{ID: "inv-" + period, Period: period, OldElectricityIndex: 100, NewElectricityIndex: 200, OldWaterIndex: 10, NewWaterIndex: 20}, nil)
+			Return(&model.Invoice{ID: "inv-" + period, Period: period, OldElectricityIndex: 100, NewElectricityIndex: 200, OldWaterIndex: 10, NewWaterIndex: 20}, nil).
+			AnyTimes()
 	}
 
 	service := &zaloInvoiceCommandServiceImpl{invoiceRepo: invoiceRepository}
@@ -55,6 +57,7 @@ func TestResolvePeriodCompletesOpenInvoice(t *testing.T) {
 
 	current := periodOffset(0)
 	invoiceRepository := mock_model.NewMockInvoiceRepository(ctrl)
+	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(1)).Return(nil, model.ErrInvoiceNotFound).AnyTimes()
 	invoiceRepository.EXPECT().
 		GetInvoiceByRoomAndPeriod(ctx, "room-1", current).
 		Return(&model.Invoice{
@@ -73,6 +76,65 @@ func TestResolvePeriodCompletesOpenInvoice(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, resolution.NeedsSelection)
 	assert.Equal(t, current, resolution.Period)
+}
+
+func invoiceLookupOf(invoices map[string]*model.Invoice) func(string) (*model.Invoice, error) {
+	return func(period string) (*model.Invoice, error) {
+		return invoices[period], nil
+	}
+}
+
+func completeInvoice(period string) *model.Invoice {
+	return &model.Invoice{ID: "inv-" + period, Period: period, Status: model.InvoiceStatusUnpaid, OldElectricityIndex: 100, NewElectricityIndex: 200, OldWaterIndex: 10, NewWaterIndex: 20}
+}
+
+func TestResolvePeriodBillsMonthAfterPreviousInvoice(t *testing.T) {
+	now := time.Date(2026, time.October, 2, 9, 0, 0, 0, time.Local)
+	lookup := invoiceLookupOf(map[string]*model.Invoice{"2026-09": completeInvoice("2026-09")})
+
+	resolution, err := resolvePeriodAt(lookup, "dien", usageHouse(), now)
+
+	require.NoError(t, err)
+	assert.False(t, resolution.NeedsSelection)
+	assert.Equal(t, "2026-10", resolution.Period)
+}
+
+func TestResolvePeriodLateMonthBillsNextMonth(t *testing.T) {
+	now := time.Date(2026, time.September, 28, 9, 0, 0, 0, time.Local)
+	lookup := invoiceLookupOf(map[string]*model.Invoice{"2026-09": completeInvoice("2026-09")})
+
+	resolution, err := resolvePeriodAt(lookup, "dien", usageHouse(), now)
+
+	require.NoError(t, err)
+	assert.False(t, resolution.NeedsSelection)
+	assert.Equal(t, "2026-10", resolution.Period)
+}
+
+func TestResolvePeriodLateMonthCompletesNextMonthInvoice(t *testing.T) {
+	now := time.Date(2026, time.September, 29, 9, 0, 0, 0, time.Local)
+	october := &model.Invoice{ID: "inv-2026-10", Period: "2026-10", Status: model.InvoiceStatusUnpaid, OldElectricityIndex: 200, NewElectricityIndex: 260, OldWaterIndex: 20, NewWaterIndex: 20}
+	lookup := invoiceLookupOf(map[string]*model.Invoice{"2026-09": completeInvoice("2026-09"), "2026-10": october})
+
+	resolution, err := resolvePeriodAt(lookup, "nuoc", usageHouse(), now)
+
+	require.NoError(t, err)
+	assert.False(t, resolution.NeedsSelection)
+	assert.Equal(t, "2026-10", resolution.Period)
+}
+
+func TestResolvePeriodMidMonthInvoicedKeepsCurrentMonth(t *testing.T) {
+	now := time.Date(2026, time.September, 10, 9, 0, 0, 0, time.Local)
+	lookup := invoiceLookupOf(map[string]*model.Invoice{
+		"2026-06": completeInvoice("2026-06"),
+		"2026-07": completeInvoice("2026-07"),
+		"2026-08": completeInvoice("2026-08"),
+		"2026-09": completeInvoice("2026-09"),
+	})
+
+	resolution, err := resolvePeriodAt(lookup, "dien", usageHouse(), now)
+
+	require.NoError(t, err)
+	assert.Equal(t, "2026-09", resolution.Period)
 }
 
 // TestResolvePeriodAsksOnIrregularHistory verifies a gap in the history still lets the user choose.
@@ -145,6 +207,7 @@ func TestHandleRoomTargetCommand_ManagerSingleHouse(t *testing.T) {
 
 	// Regular monthly history so the current month is billed with no period question.
 	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(0)).Return(nil, model.ErrInvoiceNotFound).AnyTimes()
+	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(1)).Return(nil, model.ErrInvoiceNotFound).AnyTimes()
 	for offset := 1; offset <= regularInvoiceHistoryMonths; offset++ {
 		period := periodOffset(-offset)
 		invoiceRepository.EXPECT().
@@ -357,6 +420,7 @@ func TestHandleInvoiceCommand_SupplementsOpenInvoiceWithoutPending(t *testing.T)
 	houseRepository.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(usageHouse(), nil).AnyTimes()
 	userRepository.EXPECT().GetByUserID(ctx, "manager-1").Return(&model.User{ZaloBotToken: &token}, nil).AnyTimes()
 
+	invoiceRepository.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", periodOffset(1)).Return(nil, model.ErrInvoiceNotFound).AnyTimes()
 	// Electricity was recorded earlier this month; water is still open on the same invoice.
 	invoiceRepository.EXPECT().
 		GetInvoiceByRoomAndPeriod(ctx, "room-1", current).
