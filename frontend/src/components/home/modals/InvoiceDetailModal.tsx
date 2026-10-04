@@ -213,7 +213,11 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   if (invoice.extra_vehicle_fee > 0) {
     lines.push({ label: 'Phụ thu xe thêm', desc: `${invoice.vehicle_count - invoice.extra_vehicle_threshold} xe vượt đ.mức (${formatCurrency(invoice.extra_vehicle_fee_unit)}/xe)`, value: invoice.extra_vehicle_fee, isDiscount: false })
   }
-  if (invoice.other_fee > 0) {
+  if (invoice.other_fees?.length) {
+    invoice.other_fees.forEach(item => {
+      lines.push({ label: item.name, desc: 'Chi phí phát sinh', value: item.amount, isDiscount: false })
+    })
+  } else if (invoice.other_fee > 0) {
     lines.push({ label: 'Chi phí phát sinh', desc: 'Chi phí khác phát sinh', value: invoice.other_fee, isDiscount: false })
   }
   if (invoice.discount > 0) {

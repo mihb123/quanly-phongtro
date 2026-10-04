@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import {
   type Invoice,
+  type InvoiceBreakdown,
   type InvoiceFilter,
   getInvoices,
+  getInvoiceBreakdown,
   createInvoice,
   type CreateInvoicePayload,
   payInvoice,
@@ -13,10 +15,12 @@ import {
 
 interface InvoiceDataState {
   invoices: Invoice[];
+  breakdown: InvoiceBreakdown | null;
   isLoading: boolean;
   invoiceFilter: InvoiceFilter;
   setInvoiceFilter: (filter: Partial<InvoiceFilter>) => void;
   fetchInvoices: () => Promise<void>;
+  fetchBreakdown: () => Promise<void>;
   createNewInvoice: (payload: CreateInvoicePayload) => Promise<{ success: boolean; message?: string }>;
   updateInvoice: (payload: CreateInvoicePayload) => Promise<{ success: boolean; message?: string }>;
   payInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
@@ -28,6 +32,7 @@ const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth()
 
 export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
   invoices: [],
+  breakdown: null,
   isLoading: false,
   invoiceFilter: {
     page: 1,
@@ -45,6 +50,7 @@ export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
 
   fetchInvoices: async () => {
     set({ isLoading: true });
+    get().fetchBreakdown();
     try {
       const data = await getInvoices(get().invoiceFilter);
       set({ invoices: data || [] });
@@ -53,6 +59,17 @@ export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
       console.error(err.response?.data?.message || 'Lỗi khi tải danh sách hóa đơn');
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  fetchBreakdown: async () => {
+    const { house_id, room_id, period, status } = get().invoiceFilter;
+    try {
+      const breakdown = await getInvoiceBreakdown({ house_id, room_id, period, status });
+      set({ breakdown });
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      console.error(err.response?.data?.message || 'Lỗi khi tải tổng hợp hóa đơn');
     }
   },
 
@@ -91,6 +108,7 @@ export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
 
     try {
       await payInvoice(id);
+      get().fetchBreakdown();
       return { success: true, message: 'Thanh toán hóa đơn thành công' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
@@ -113,6 +131,7 @@ export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
 
     try {
       await unpayInvoice(id);
+      get().fetchBreakdown();
       return { success: true, message: 'Đã hoàn tác thanh toán' };
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };

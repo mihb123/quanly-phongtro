@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2, ChevronDown } from '@/components/icons'
@@ -14,6 +14,9 @@ import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
 import { useRecommendedHouse } from '@/hooks/useRecommendedHouse'
 import { useRecommendedRoom } from '@/hooks/useRecommendedRoom'
+import { ExcludeRoomFeeField } from './ExcludeRoomFeeField'
+import { OtherFeesEditor } from './OtherFeesEditor'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 // Schema is dynamic based on billing type, but we validate at the base level
 const schema = z.object({
@@ -26,8 +29,12 @@ const schema = z.object({
   new_water_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số nước không được âm').optional(),
   tenant_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số người không hợp lệ'),
   vehicle_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số lượng xe không hợp lệ'),
-  other_fee: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Phí khác không được âm'),
+  other_fees: z.array(z.object({
+    name: z.string().max(100, 'Tên khoản tối đa 100 ký tự'),
+    amount: z.number().min(0, 'Số tiền không được âm'),
+  })),
   discount: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Giảm giá không được âm'),
+  exclude_room_fee: z.boolean(),
 })
 
 export type InvoiceFormValues = z.infer<typeof schema>
@@ -71,8 +78,9 @@ export function CreateInvoiceModal({ onClose }: Props) {
       new_water_index: 0,
       tenant_count: 0,
       vehicle_count: 0,
-      other_fee: 0,
+      other_fees: [],
       discount: 0,
+      exclude_room_fee: false,
     },
   })
 
@@ -86,6 +94,12 @@ export function CreateInvoiceModal({ onClose }: Props) {
   const selectedHouseData = useMemo(() => {
     return houses.find(h => h.id === watchHouseId) || null
   }, [houses, watchHouseId])
+
+  const isSelectedRoomVacant = rooms.find(r => r.id === watchRoomId)?.status === 'AVAILABLE'
+
+  useEffect(() => {
+    setValue('exclude_room_fee', isSelectedRoomVacant)
+  }, [isSelectedRoomVacant, watchRoomId, setValue])
 
   const isElectricityFixed = selectedHouseData?.electricity_billing_type === 'FIXED'
   const isWaterFixed = selectedHouseData?.water_billing_type === 'FIXED'
@@ -155,8 +169,9 @@ export function CreateInvoiceModal({ onClose }: Props) {
       new_water_index: isWaterFixed ? 0 : (data.new_water_index ?? 0),
       tenant_count: data.tenant_count,
       vehicle_count: data.vehicle_count,
-      other_fee: data.other_fee,
+      other_fees: data.other_fees.filter(item => item.amount > 0),
       discount: data.discount,
+      exclude_room_fee: data.exclude_room_fee,
     }
     
     if (!isElectricityFixed && typeof data.old_electricity_index === 'number') {
@@ -226,6 +241,16 @@ export function CreateInvoiceModal({ onClose }: Props) {
             />
             {errors.period && <p className="text-destructive text-xs font-medium">{errors.period.message}</p>}
           </div>
+
+          {watchRoomId && (
+            <Controller
+              control={control}
+              name="exclude_room_fee"
+              render={({ field }) => (
+                <ExcludeRoomFeeField checked={field.value} onCheckedChange={field.onChange} isVacant={isSelectedRoomVacant} />
+              )}
+            />
+          )}
 
           {/* Chỉ hiển thị input chỉ số khi loại tính phí là USAGE */}
           {(!isElectricityFixed || !isWaterFixed) && (
@@ -330,28 +355,29 @@ export function CreateInvoiceModal({ onClose }: Props) {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Phí khác (VNĐ)</label>
-                    <Input 
-                      type="number" 
-                      {...register('other_fee', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                      placeholder="0"
-                    />
-                    {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
-                  </div>
+                <Controller
+                  control={control}
+                  name="other_fees"
+                  render={({ field }) => <OtherFeesEditor value={field.value} onChange={field.onChange} />}
+                />
+                {errors.other_fees && <p className="text-destructive text-xs font-medium">Vui lòng kiểm tra lại các khoản phát sinh</p>}
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Giảm giá (VNĐ)</label>
-                    <Input 
-                      type="number" 
-                      {...register('discount', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                      placeholder="0"
-                    />
-                    {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Giảm trừ</label>
+                  <Controller
+                    control={control}
+                    name="discount"
+                    render={({ field }) => (
+                      <CurrencyInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="0"
+                        inputMode="numeric"
+                        className="h-11 rounded-lg border-border bg-background tabular-nums"
+                      />
+                    )}
+                  />
+                  {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
                 </div>
               </div>
             )}

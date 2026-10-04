@@ -355,6 +355,79 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 	}
 }
 
+func TestInvoiceHandler_GetInvoiceBreakdown(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
+	imageSvc := mock_service.NewMockImageService(ctrl)
+	h := invoice.NewInvoiceHandler(invoiceSvc, imageSvc)
+
+	t.Run("Happy path aggregates expected and collected", func(t *testing.T) {
+		filter := model.InvoiceBreakdownFilter{
+			HouseIDs: []string{"house-1", "house-2"},
+			RoomID:   "room-1",
+			Period:   "2026-06",
+		}
+		invoiceSvc.EXPECT().
+			SumInvoicesByStatus(gomock.Any(), "user-1", filter).
+			Return([]model.InvoiceStatusTotals{
+				{Status: "PAID", InvoiceCount: 2, RoomFee: 6000000, ElectricityFee: 400000, WaterFee: 100000, Discount: 50000, TotalAmount: 6450000},
+				{Status: "UNPAID", InvoiceCount: 1, RoomFee: 3000000, ElectricityFee: 200000, OtherFee: 10000, TotalAmount: 3210000},
+				{Status: "PENDING_VERIFICATION", InvoiceCount: 1, RoomFee: 2500000, TotalAmount: 2500000},
+			}, nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/invoice/breakdown?house_id=house-1&house_ids=house-2,&room_id=room-1&period=2026-06", nil)
+		rec := httptest.NewRecorder()
+		h.GetInvoiceBreakdown(rec, setClaims(req, "user-1"))
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status 200, got %d", rec.Code)
+		}
+		var body struct {
+			Expected  map[string]float64 `json:"expected"`
+			Collected map[string]float64 `json:"collected"`
+		}
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if body.Expected["invoice_count"] != 4 || body.Expected["room_fee"] != 11500000 || body.Expected["total_amount"] != 12160000 {
+			t.Errorf("unexpected expected totals: %v", body.Expected)
+		}
+		if body.Collected["invoice_count"] != 2 || body.Collected["room_fee"] != 6000000 || body.Collected["discount"] != 50000 || body.Collected["total_amount"] != 6450000 {
+			t.Errorf("unexpected collected totals: %v", body.Collected)
+		}
+	})
+
+	t.Run("Invalid period", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/invoice/breakdown?period=2026-6", nil)
+		rec := httptest.NewRecorder()
+		h.GetInvoiceBreakdown(rec, setClaims(req, "user-1"))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		h.GetInvoiceBreakdown(rec, httptest.NewRequest(http.MethodGet, "/invoice/breakdown", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("expected status 401, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Service error", func(t *testing.T) {
+		invoiceSvc.EXPECT().
+			SumInvoicesByStatus(gomock.Any(), "user-1", gomock.Any()).
+			Return(nil, errors.New("db error"))
+		rec := httptest.NewRecorder()
+		h.GetInvoiceBreakdown(rec, setClaims(httptest.NewRequest(http.MethodGet, "/invoice/breakdown", nil), "user-1"))
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf("expected status 500, got %d", rec.Code)
+		}
+	})
+}
+
 func TestInvoiceHandler_GetInvoice(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

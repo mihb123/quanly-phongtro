@@ -8,6 +8,7 @@ import {
   Trash2,
   Building,
   MoreHorizontal,
+  LogOut,
 } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,7 @@ import { ConfirmModal } from './modals/ConfirmModal'
 import { QuickSetRoomPriceModal } from './modals/QuickSetRoomPriceModal'
 import { CreateHouseModal } from './modals/CreateHouseModal'
 import { EditHouseModal } from './modals/EditHouseModal'
+import { CheckoutRoomDialog } from './modals/CheckoutRoomDialog'
 import type { Room } from '@/api/room'
 import type { House } from '@/api/house'
 
@@ -59,6 +61,13 @@ export function HouseRoomsView() {
 
   const [showQuickSetPrice, setShowQuickSetPrice] = useState(false)
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null)
+  const [roomToCheckout, setRoomToCheckout] = useState<Room | null>(null)
+
+  const refreshRoomsAndTenants = () => {
+    if (!selectedHouse) return
+    fetchRooms(selectedHouse.id, roomPage)
+    fetchTenants(selectedHouse.id)
+  }
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
@@ -199,7 +208,21 @@ export function HouseRoomsView() {
             <TenantRoomModal
               room={tenantRoom}
               initialView={tenantModalView}
-              onClose={() => setTenantRoom(null)}
+              onClose={(changed) => {
+                setTenantRoom(null)
+                if (changed) refreshRoomsAndTenants()
+              }}
+            />
+          )}
+
+          {roomToCheckout && (
+            <CheckoutRoomDialog
+              room={roomToCheckout}
+              onCancel={() => setRoomToCheckout(null)}
+              onDone={() => {
+                setRoomToCheckout(null)
+                refreshRoomsAndTenants()
+              }}
             />
           )}
 
@@ -283,7 +306,9 @@ export function HouseRoomsView() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map((room, index) => (
+                {[...rooms].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })).map((room, index) => {
+                  const tenantCount = tenantsByHouse[selectedHouse.id]?.filter(t => t.room_id === room.id).length || 0
+                  return (
                   <Card key={room.id} onClick={() => setEditRoom(room)} className="group relative cursor-pointer p-5 transition-shadow hover:shadow-md safe-fade-in fill-mode-both" style={{ animationDelay: `${index * 30}ms` }}>
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-3">
@@ -302,6 +327,11 @@ export function HouseRoomsView() {
                         <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('add') }} className="text-muted-foreground" title="Thêm khách thuê">
                           <UserPlus />
                         </Button>
+                        {(tenantCount > 0 || room.status === 'OCCUPIED') && (
+                          <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setRoomToCheckout(room) }} className="text-muted-foreground" title="Trả phòng (xoá hết người thuê)">
+                            <LogOut />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon-sm" onClick={(e) => { e.stopPropagation(); setEditRoom(room) }} className="text-muted-foreground" title="Sửa thông tin phòng">
                           <Pencil />
                         </Button>
@@ -322,12 +352,13 @@ export function HouseRoomsView() {
                           title="Xem danh sách khách thuê"
                           onClick={(e) => { e.stopPropagation(); setTenantRoom(room); setTenantModalView('list') }}
                         >
-                          {tenantsByHouse[selectedHouse.id]?.filter(t => t.room_id === room.id).length || 0} / {room.max_tenants} người
+                          {tenantCount} / {room.max_tenants} người
                         </span>
                       </div>
                     </div>
                   </Card>
-                ))}
+                  )
+                })}
               </div>
 
               {/* Pagination Controls */}

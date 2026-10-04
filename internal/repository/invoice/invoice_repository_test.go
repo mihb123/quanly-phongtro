@@ -205,6 +205,41 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 	}
 }
 
+func TestInvoiceRepository_SumInvoicesByStatus(t *testing.T) {
+	bunDB, mock := setupInvoiceTestDB(t)
+	defer bunDB.Close()
+
+	repo := invoice.NewInvoiceRepository(bunDB)
+	ctx := context.Background()
+	filter := model.InvoiceBreakdownFilter{HouseIDs: []string{"house-1"}, Period: "2026-06"}
+
+	t.Run("Happy Path", func(t *testing.T) {
+		rows := sqlmock.NewRows([]string{"status", "invoice_count", "room_fee", "electricity_fee", "total_amount"}).
+			AddRow("PAID", 2, 6000000.0, 400000.0, 6400000.0).
+			AddRow("UNPAID", 1, 3000000.0, 200000.0, 3200000.0)
+		mock.ExpectQuery(`SELECT invoice.status AS status, COUNT\(\*\) AS invoice_count, .* WHERE \(h.manager_id = 'manager-1'\) AND \(r.house_id IN \('house-1'\)\) AND \(invoice.period = '2026-06'\) GROUP BY invoice.status`).
+			WillReturnRows(rows)
+
+		totals, err := repo.SumInvoicesByStatus(ctx, "manager-1", filter)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(totals) != 2 || totals[0].Status != "PAID" || totals[0].InvoiceCount != 2 || totals[0].RoomFee != 6000000 || totals[1].ElectricityFee != 200000 {
+			t.Errorf("unexpected totals: %+v", totals)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %s", err)
+		}
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
+		if _, err := repo.SumInvoicesByStatus(ctx, "manager-1", filter); err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
 func TestInvoiceRepository_UpdateInvoiceStatus(t *testing.T) {
 	bunDB, mock := setupInvoiceTestDB(t)
 	defer bunDB.Close()

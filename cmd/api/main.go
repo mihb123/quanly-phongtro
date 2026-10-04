@@ -113,9 +113,10 @@ func main() {
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev
-		if cfg.AppPortDev != "" {
-			webhookBaseURL += ":" + cfg.AppPortDev
-		}
+	}
+	listenPort := cfg.AppPort
+	if cfg.AppEnv == "dev" && cfg.AppPortDev != "" {
+		listenPort = cfg.AppPortDev
 	}
 	authHandler := authhandler.NewAuthHandler(
 		authService,
@@ -199,13 +200,13 @@ func main() {
 		httpRouter.WithSlowAPILogger(slowAPILogger),
 	)
 	server := &http.Server{
-		Addr:              ":" + cfg.AppPort,
+		Addr:              ":" + listenPort,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	go func() {
-		log.Printf("api listening on http://localhost:%s", cfg.AppPort)
+		log.Printf("api listening on http://localhost:%s", listenPort)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("start server: %v", err)
 		}

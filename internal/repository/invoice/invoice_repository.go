@@ -106,6 +106,48 @@ func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, 
 	return invoices, nil
 }
 
+func (r *InvoiceRepository) SumInvoicesByStatus(ctx context.Context, managerID string, filter model.InvoiceBreakdownFilter) ([]model.InvoiceStatusTotals, error) {
+	var totals []model.InvoiceStatusTotals
+
+	q := r.db.NewSelect().
+		TableExpr("invoices AS invoice").
+		ColumnExpr("invoice.status AS status").
+		ColumnExpr("COUNT(*) AS invoice_count").
+		ColumnExpr("COALESCE(SUM(invoice.room_fee), 0) AS room_fee").
+		ColumnExpr("COALESCE(SUM(invoice.electricity_fee), 0) AS electricity_fee").
+		ColumnExpr("COALESCE(SUM(invoice.water_fee), 0) AS water_fee").
+		ColumnExpr("COALESCE(SUM(invoice.wifi_fee), 0) AS wifi_fee").
+		ColumnExpr("COALESCE(SUM(invoice.parking_fee), 0) AS parking_fee").
+		ColumnExpr("COALESCE(SUM(invoice.service_fee), 0) AS service_fee").
+		ColumnExpr("COALESCE(SUM(invoice.extra_person_fee), 0) AS extra_person_fee").
+		ColumnExpr("COALESCE(SUM(invoice.extra_vehicle_fee), 0) AS extra_vehicle_fee").
+		ColumnExpr("COALESCE(SUM(invoice.other_fee), 0) AS other_fee").
+		ColumnExpr("COALESCE(SUM(invoice.discount), 0) AS discount").
+		ColumnExpr("COALESCE(SUM(invoice.total_amount), 0) AS total_amount").
+		Join("JOIN rooms AS r ON invoice.room_id = r.id").
+		Join("JOIN houses AS h ON r.house_id = h.id").
+		Where("h.manager_id = ?", managerID)
+
+	if len(filter.HouseIDs) > 0 {
+		q.Where("r.house_id IN (?)", bun.In(filter.HouseIDs))
+	}
+	if filter.RoomID != "" {
+		q.Where("invoice.room_id = ?", filter.RoomID)
+	}
+	if filter.Period != "" {
+		q.Where("invoice.period = ?", filter.Period)
+	}
+	if filter.Status != "" {
+		q.Where("invoice.status = ?", filter.Status)
+	}
+
+	if err := q.GroupExpr("invoice.status").Scan(ctx, &totals); err != nil {
+		return nil, fmt.Errorf("sum invoices by status: %w", err)
+	}
+
+	return totals, nil
+}
+
 // UpdateInvoiceStatusAndMethod updates the status and payment method of an invoice.
 func (r *InvoiceRepository) UpdateInvoiceStatusAndMethod(ctx context.Context, managerID, id, status, method string) (*model.Invoice, error) {
 	var invoice model.Invoice

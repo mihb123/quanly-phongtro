@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
 	"github.com/mihb123/quanly-phongtro/internal/service/shared"
@@ -21,15 +22,18 @@ type CreateInvoiceInput struct {
 	OldWaterIndex       *int
 	NewWaterIndex       int
 	OtherFee            float64
+	OtherFees           []model.InvoiceFeeItem
 	Discount            float64
 	VehicleCount        int
 	TenantCount         *int
+	ExcludeRoomFee      *bool
 }
 
 type InvoiceService interface {
 	CreateInvoice(ctx context.Context, managerID string, input CreateInvoiceInput) (*model.InvoiceWithRoom, error)
 	GetInvoice(ctx context.Context, managerID, invoiceID string) (*model.InvoiceWithRoom, error)
 	ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error)
+	SumInvoicesByStatus(ctx context.Context, managerID string, filter model.InvoiceBreakdownFilter) ([]model.InvoiceStatusTotals, error)
 	PayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error)
 	UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error)
 	RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error
@@ -157,6 +161,13 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 	}
 
 	roomFee := float64(room.Price)
+	excludeRoomFee := room.Status == "AVAILABLE"
+	if input.ExcludeRoomFee != nil {
+		excludeRoomFee = *input.ExcludeRoomFee
+	}
+	if excludeRoomFee {
+		roomFee = 0
+	}
 
 	// tenantCount already fetched above
 
@@ -188,7 +199,9 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		extraVehicleFee = float64(input.VehicleCount-vehicleThreshold) * vehicleFeeUnit
 	}
 
-	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + input.OtherFee - input.Discount
+	otherFees, otherFee := normalizeOtherFees(input.OtherFees, input.OtherFee)
+
+	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + otherFee - input.Discount
 
 	invoice := &model.Invoice{
 		ID:                  uuid.Must(uuid.NewV7()).String(),
@@ -204,7 +217,8 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		WifiFee:             wifiPrice,
 		ParkingFee:          parkingPrice,
 		ServiceFee:          servicePrice,
-		OtherFee:            input.OtherFee,
+		OtherFee:            otherFee,
+		OtherFees:           otherFees,
 		Discount:            input.Discount,
 		TenantCount:         tenantCountInt,
 		VehicleCount:        input.VehicleCount,
@@ -247,12 +261,36 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 	return s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoice.ID)
 }
 
+func normalizeOtherFees(items []model.InvoiceFeeItem, legacyAmount float64) ([]model.InvoiceFeeItem, float64) {
+	if items == nil {
+		return []model.InvoiceFeeItem{}, legacyAmount
+	}
+	normalized := make([]model.InvoiceFeeItem, 0, len(items))
+	total := 0.0
+	for _, item := range items {
+		if item.Amount <= 0 {
+			continue
+		}
+		name := strings.TrimSpace(item.Name)
+		if name == "" {
+			name = "Chi phí phát sinh"
+		}
+		normalized = append(normalized, model.InvoiceFeeItem{Name: name, Amount: item.Amount})
+		total += item.Amount
+	}
+	return normalized, total
+}
+
 func (s *InvoiceServiceImpl) GetInvoice(ctx context.Context, managerID, invoiceID string) (*model.InvoiceWithRoom, error) {
 	return s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 }
 
 func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error) {
 	return s.invoiceRepo.ListInvoices(ctx, managerID, filter)
+}
+
+func (s *InvoiceServiceImpl) SumInvoicesByStatus(ctx context.Context, managerID string, filter model.InvoiceBreakdownFilter) ([]model.InvoiceStatusTotals, error) {
+	return s.invoiceRepo.SumInvoicesByStatus(ctx, managerID, filter)
 }
 
 func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error) {
@@ -356,6 +394,7 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 		oldElec := inv.OldElectricityIndex
 		oldWater := inv.OldWaterIndex
 		tenantCount := inv.TenantCount
+		excludeRoomFee := inv.RoomFee == 0
 		input := CreateInvoiceInput{
 			RoomID:              inv.RoomID,
 			Period:              inv.Period,
@@ -364,9 +403,11 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 			OldWaterIndex:       &oldWater,
 			NewWaterIndex:       inv.NewWaterIndex,
 			OtherFee:            inv.OtherFee,
+			OtherFees:           inv.OtherFees,
 			Discount:            inv.Discount,
 			VehicleCount:        inv.VehicleCount,
 			TenantCount:         &tenantCount,
+			ExcludeRoomFee:      &excludeRoomFee,
 		}
 		// CreateInvoice acts as an upsert for the same room and period
 		_, err := s.CreateInvoice(ctx, managerID, input)

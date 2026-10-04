@@ -1,5 +1,10 @@
 import { apiClient as api } from './client';
 
+export interface InvoiceFeeItem {
+  name: string;
+  amount: number;
+}
+
 export interface Invoice {
   id: string;
   room_id: string;
@@ -17,6 +22,7 @@ export interface Invoice {
   parking_fee: number;
   service_fee: number;
   other_fee: number;
+  other_fees?: InvoiceFeeItem[];
   discount: number;
   tenant_count: number;
   vehicle_count: number;
@@ -40,9 +46,11 @@ export interface CreateInvoicePayload {
   old_water_index?: number;
   new_water_index: number;
   other_fee?: number;
+  other_fees?: InvoiceFeeItem[];
   discount?: number;
   vehicle_count: number;
   tenant_count?: number;
+  exclude_room_fee?: boolean;
 }
 
 export interface InvoiceFilter {
@@ -54,8 +62,41 @@ export interface InvoiceFilter {
   limit?: number;
 }
 
+export interface InvoiceAmounts {
+  invoice_count: number;
+  room_fee: number;
+  electricity_fee: number;
+  water_fee: number;
+  wifi_fee: number;
+  parking_fee: number;
+  service_fee: number;
+  extra_person_fee: number;
+  extra_vehicle_fee: number;
+  other_fee: number;
+  discount: number;
+  total_amount: number;
+}
+
+export interface InvoiceBreakdown {
+  expected: InvoiceAmounts;
+  collected: InvoiceAmounts;
+}
+
+export interface InvoiceBreakdownFilter {
+  house_id?: string;
+  house_ids?: string;
+  room_id?: string;
+  period?: string;
+  status?: string;
+}
+
 export const getInvoices = async (filter?: InvoiceFilter) => {
   const response = await api.get<Invoice[]>('/invoice', { params: filter });
+  return response.data;
+};
+
+export const getInvoiceBreakdown = async (filter?: InvoiceBreakdownFilter) => {
+  const response = await api.get<InvoiceBreakdown>('/invoice/breakdown', { params: filter });
   return response.data;
 };
 

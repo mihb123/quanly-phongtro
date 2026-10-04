@@ -156,7 +156,11 @@ func (s *imageServiceImpl) GenerateInvoiceImage(ctx context.Context, invoice *mo
 			false,
 		})
 	}
-	if invoice.OtherFee > 0 {
+	if len(invoice.OtherFees) > 0 {
+		for _, item := range invoice.OtherFees {
+			lines = append(lines, invoiceLine{item.Name, "Chi phí phát sinh", item.Amount, false})
+		}
+	} else if invoice.OtherFee > 0 {
 		lines = append(lines, invoiceLine{"Chi phí phát sinh", "Chi phí khác phát sinh", invoice.OtherFee, false})
 	}
 	if invoice.Discount > 0 {

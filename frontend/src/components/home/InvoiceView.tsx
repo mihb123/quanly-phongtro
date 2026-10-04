@@ -17,9 +17,26 @@ import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
 import { QuickCreateInvoiceModal } from './modals/QuickCreateInvoiceModal'
 import { EditInvoiceModal } from './modals/EditInvoiceModal'
 import { BackendImagePreviewModal } from './modals/BackendImagePreviewModal'
+import { HouseButtonGroup, HOUSE_BUTTON_LIMIT } from './HouseButtonGroup'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/utils/format'
 import { InvoiceMobileCard } from './invoice/InvoiceMobileCard'
+import { SectionCard } from '@/components/shared/SectionCard'
+import { BreakdownTable, type BreakdownRow } from '@/components/shared/BreakdownTable'
+import type { InvoiceAmounts } from '@/api/invoice'
+
+const INVOICE_BREAKDOWN_ITEMS: { key: keyof InvoiceAmounts; label: string; alwaysShow?: boolean; deduction?: boolean }[] = [
+  { key: 'room_fee', label: 'Tiền phòng', alwaysShow: true },
+  { key: 'electricity_fee', label: 'Tiền điện', alwaysShow: true },
+  { key: 'water_fee', label: 'Tiền nước', alwaysShow: true },
+  { key: 'wifi_fee', label: 'Tiền mạng Wifi' },
+  { key: 'parking_fee', label: 'Tiền gửi xe' },
+  { key: 'service_fee', label: 'Phí dịch vụ chung' },
+  { key: 'extra_person_fee', label: 'Phụ thu người thêm' },
+  { key: 'extra_vehicle_fee', label: 'Phụ thu xe thêm' },
+  { key: 'other_fee', label: 'Chi phí phát sinh' },
+  { key: 'discount', label: 'Giảm trừ', deduction: true },
+]
 
 // View quản lý hóa đơn: lọc, thống kê nhanh, danh sách (card mobile + table desktop) và các modal tạo/sửa/xem.
 export function InvoicesView() {
@@ -28,7 +45,7 @@ export function InvoicesView() {
   const selectedHouse = useSelectedStore(state => state.selectedHouse)
   const selectHouse = useSelectedStore(state => state.selectHouse)
   
-  const { invoices, isLoading, invoiceFilter, setInvoiceFilter, fetchInvoices, deleteInvoice } = useInvoiceStore()
+  const { invoices, breakdown, isLoading, invoiceFilter, setInvoiceFilter, fetchInvoices, deleteInvoice } = useInvoiceStore()
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false)
@@ -55,6 +72,11 @@ export function InvoicesView() {
 
   const [filterRooms, setFilterRooms] = useState<{ id: string; name: string }[]>([])
 
+  const handleHouseFilterChange = (houseId: string) => {
+    setInvoiceFilter({ house_id: houseId, room_id: '' });
+    selectHouse(houses.find(h => h.id === houseId) || null);
+  };
+
   // Fetch rooms when a house is selected in filter
   useEffect(() => {
     if (invoiceFilter.house_id) {
@@ -65,6 +87,15 @@ export function InvoicesView() {
   }, [invoiceFilter.house_id, getRoomsByHouse])
 
   const stats = useMemo(() => {
+    if (breakdown) {
+      return {
+        totalInvoices: breakdown.expected.invoice_count,
+        expectedRevenue: breakdown.expected.total_amount,
+        collectedRevenue: breakdown.collected.total_amount,
+        unpaidRevenue: breakdown.expected.total_amount - breakdown.collected.total_amount,
+      };
+    }
+
     const totalInvoices = invoices.length;
     let expectedRevenue = 0;
     let collectedRevenue = 0;
@@ -80,7 +111,18 @@ export function InvoicesView() {
     });
 
     return { totalInvoices, expectedRevenue, collectedRevenue, unpaidRevenue };
-  }, [invoices]);
+  }, [breakdown, invoices]);
+
+  const breakdownRows = useMemo<BreakdownRow[]>(() => {
+    if (!breakdown) return [];
+    return INVOICE_BREAKDOWN_ITEMS
+      .filter(item => item.alwaysShow || breakdown.expected[item.key] !== 0)
+      .map(item => {
+        const expected = breakdown.expected[item.key];
+        const collected = breakdown.collected[item.key];
+        return { key: item.key, label: item.label, deduction: item.deduction, values: [expected, collected, expected - collected] };
+      });
+  }, [breakdown]);
 
   const handleDownload = async (invoice: Invoice) => {
     try {
@@ -237,23 +279,29 @@ export function InvoicesView() {
       <Card className="gap-0 p-0 flex flex-col">
         {/* Filters */}
         <div className="grid grid-cols-2 items-end gap-3 border-b border-border/40 p-3 sm:gap-4 sm:p-4 lg:flex lg:flex-wrap">
-          <div className="col-span-2 w-full sm:col-span-1 lg:min-w-[200px] lg:flex-1">
+          <div className={houses.length <= HOUSE_BUTTON_LIMIT ? 'col-span-2 w-full lg:w-auto' : 'col-span-2 w-full sm:col-span-1 lg:min-w-[200px] lg:flex-1'}>
             <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</label>
-            <select 
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
-              value={invoiceFilter.house_id || ''}
-              onChange={(e) => {
-                const newHouseId = e.target.value;
-                setInvoiceFilter({ house_id: newHouseId, room_id: '' });
-                const house = houses.find(h => h.id === newHouseId) || null;
-                selectHouse(house);
-              }}
-            >
-              <option value="">Tất cả nhà trọ</option>
-              {houses.map(h => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
+            {houses.length <= HOUSE_BUTTON_LIMIT ? (
+              <HouseButtonGroup
+                houses={houses}
+                isSelected={id => invoiceFilter.house_id === id}
+                onSelect={handleHouseFilterChange}
+                allLabel="Tất cả"
+                isAllSelected={!invoiceFilter.house_id}
+                onSelectAll={() => handleHouseFilterChange('')}
+              />
+            ) : (
+              <select 
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
+                value={invoiceFilter.house_id || ''}
+                onChange={(e) => handleHouseFilterChange(e.target.value)}
+              >
+                <option value="">Tất cả nhà trọ</option>
+                {houses.map(h => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="w-full lg:w-[160px]">
@@ -350,7 +398,25 @@ export function InvoicesView() {
           </div>
         </div>
       </Card>
-      
+
+      {breakdown && breakdown.expected.invoice_count > 0 && (
+        <SectionCard icon={Receipt} title="Bóc tách khoản thu">
+          <BreakdownTable
+            itemLabel="Khoản thu"
+            columns={[
+              { label: 'Phải thu' },
+              { label: 'Đã thu' },
+              { label: 'Chưa thu' },
+            ]}
+            rows={breakdownRows}
+            total={{
+              label: 'Tổng cộng',
+              values: [stats.expectedRevenue, stats.collectedRevenue, stats.unpaidRevenue],
+            }}
+          />
+        </SectionCard>
+      )}
+
       {/* List */}
       {isLoading ? (
         <div className="text-center py-20">

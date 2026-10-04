@@ -72,3 +72,8 @@ export const deleteTenant = async (id: string) => {
   const { data } = await apiClient.delete(`/tenant/${id}`)
   return data
 }
+
+export const checkoutRoom = async (roomId: string) => {
+  const { data } = await apiClient.post(`/tenant/room/${roomId}/checkout`)
+  return data.data as { removed: number }
+}

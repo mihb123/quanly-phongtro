@@ -44,32 +44,38 @@ const (
 	PaymentMethodManual = "MANUAL"
 )
 
+type InvoiceFeeItem struct {
+	Name   string  `json:"name" validate:"max=100"`
+	Amount float64 `json:"amount" validate:"gte=0"`
+}
+
 // Invoice represents the invoices table
 type Invoice struct {
-	ID                   string    `json:"id"`
-	RoomID               string    `json:"room_id"`
-	Period               string    `json:"period"` // format: yyyy-mm
-	RoomFee              float64   `json:"room_fee"`
-	OldElectricityIndex  int       `json:"old_electricity_index"`
-	NewElectricityIndex  int       `json:"new_electricity_index"`
-	ElectricityFee       float64   `json:"electricity_fee"`
-	OldWaterIndex        int       `json:"old_water_index"`
-	NewWaterIndex        int       `json:"new_water_index"`
-	WaterFee             float64   `json:"water_fee"`
-	WifiFee              float64   `json:"wifi_fee"`
-	ParkingFee           float64   `json:"parking_fee"`
-	ServiceFee           float64   `json:"service_fee"`
-	OtherFee             float64   `json:"other_fee"`
-	Discount             float64   `json:"discount"`
-	TenantCount          int       `json:"tenant_count"`
-	VehicleCount         int       `json:"vehicle_count"`
-	ExtraPersonFee       float64   `json:"extra_person_fee"`
-	ExtraVehicleFee      float64   `json:"extra_vehicle_fee"`
-	TotalAmount          float64   `json:"total_amount"`
-	Status               string    `json:"status"`
-	PaymentMethod        *string   `json:"payment_method"`
-	TransactionImagePath *string   `json:"transaction_image_path"`
-	CreatedAt            time.Time `json:"created_at"`
+	ID                   string           `json:"id"`
+	RoomID               string           `json:"room_id"`
+	Period               string           `json:"period"` // format: yyyy-mm
+	RoomFee              float64          `json:"room_fee"`
+	OldElectricityIndex  int              `json:"old_electricity_index"`
+	NewElectricityIndex  int              `json:"new_electricity_index"`
+	ElectricityFee       float64          `json:"electricity_fee"`
+	OldWaterIndex        int              `json:"old_water_index"`
+	NewWaterIndex        int              `json:"new_water_index"`
+	WaterFee             float64          `json:"water_fee"`
+	WifiFee              float64          `json:"wifi_fee"`
+	ParkingFee           float64          `json:"parking_fee"`
+	ServiceFee           float64          `json:"service_fee"`
+	OtherFee             float64          `json:"other_fee"`
+	OtherFees            []InvoiceFeeItem `json:"other_fees" bun:"type:jsonb"`
+	Discount             float64          `json:"discount"`
+	TenantCount          int              `json:"tenant_count"`
+	VehicleCount         int              `json:"vehicle_count"`
+	ExtraPersonFee       float64          `json:"extra_person_fee"`
+	ExtraVehicleFee      float64          `json:"extra_vehicle_fee"`
+	TotalAmount          float64          `json:"total_amount"`
+	Status               string           `json:"status"`
+	PaymentMethod        *string          `json:"payment_method"`
+	TransactionImagePath *string          `json:"transaction_image_path"`
+	CreatedAt            time.Time        `json:"created_at"`
 }
 
 // InvoiceWithRoom includes the room name and house properties from JOIN
@@ -94,6 +100,29 @@ type InvoiceListFilter struct {
 	Limit   int
 }
 
+type InvoiceBreakdownFilter struct {
+	HouseIDs []string
+	RoomID   string
+	Period   string
+	Status   string
+}
+
+type InvoiceStatusTotals struct {
+	Status          string  `json:"status"`
+	InvoiceCount    int     `json:"invoice_count"`
+	RoomFee         float64 `json:"room_fee"`
+	ElectricityFee  float64 `json:"electricity_fee"`
+	WaterFee        float64 `json:"water_fee"`
+	WifiFee         float64 `json:"wifi_fee"`
+	ParkingFee      float64 `json:"parking_fee"`
+	ServiceFee      float64 `json:"service_fee"`
+	ExtraPersonFee  float64 `json:"extra_person_fee"`
+	ExtraVehicleFee float64 `json:"extra_vehicle_fee"`
+	OtherFee        float64 `json:"other_fee"`
+	Discount        float64 `json:"discount"`
+	TotalAmount     float64 `json:"total_amount"`
+}
+
 // InvoiceRepository defines the contract for invoice database operations
 type InvoiceRepository interface {
 	CreateInvoice(ctx context.Context, invoice *Invoice) error
@@ -108,4 +137,5 @@ type InvoiceRepository interface {
 	UpdateInvoice(ctx context.Context, managerID string, invoice *Invoice) error
 	DeleteInvoice(ctx context.Context, managerID, id string) error
 	GetInvoiceByTransactionImagePath(ctx context.Context, managerID, imagePath string) (*InvoiceWithRoom, error)
+	SumInvoicesByStatus(ctx context.Context, managerID string, filter InvoiceBreakdownFilter) ([]InvoiceStatusTotals, error)
 }

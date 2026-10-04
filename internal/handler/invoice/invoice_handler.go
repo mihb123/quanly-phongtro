@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
@@ -28,45 +29,48 @@ func NewInvoiceHandler(invoiceService invoicesvc.InvoiceService, imageService in
 }
 
 type createInvoiceRequest struct {
-	RoomID              string  `json:"room_id" validate:"required"`
-	Period              string  `json:"period" validate:"required,monthperiod"`
-	OldElectricityIndex *int    `json:"old_electricity_index"`
-	NewElectricityIndex int     `json:"new_electricity_index" validate:"gte=0"`
-	OldWaterIndex       *int    `json:"old_water_index"`
-	NewWaterIndex       int     `json:"new_water_index" validate:"gte=0"`
-	OtherFee            float64 `json:"other_fee" validate:"gte=0"`
-	Discount            float64 `json:"discount" validate:"gte=0"`
-	VehicleCount        int     `json:"vehicle_count" validate:"gte=0"`
-	TenantCount         *int    `json:"tenant_count"`
+	RoomID              string                 `json:"room_id" validate:"required"`
+	Period              string                 `json:"period" validate:"required,monthperiod"`
+	OldElectricityIndex *int                   `json:"old_electricity_index"`
+	NewElectricityIndex int                    `json:"new_electricity_index" validate:"gte=0"`
+	OldWaterIndex       *int                   `json:"old_water_index"`
+	NewWaterIndex       int                    `json:"new_water_index" validate:"gte=0"`
+	OtherFee            float64                `json:"other_fee" validate:"gte=0"`
+	OtherFees           []model.InvoiceFeeItem `json:"other_fees" validate:"omitempty,max=20,dive"`
+	Discount            float64                `json:"discount" validate:"gte=0"`
+	VehicleCount        int                    `json:"vehicle_count" validate:"gte=0"`
+	TenantCount         *int                   `json:"tenant_count"`
+	ExcludeRoomFee      *bool                  `json:"exclude_room_fee"`
 }
 
 type invoiceResponse struct {
-	ID                   string    `json:"id"`
-	RoomID               string    `json:"room_id"`
-	HouseID              string    `json:"house_id,omitempty"`
-	RoomName             string    `json:"room_name,omitempty"`
-	Period               string    `json:"period"`
-	RoomFee              float64   `json:"room_fee"`
-	OldElectricityIndex  int       `json:"old_electricity_index"`
-	NewElectricityIndex  int       `json:"new_electricity_index"`
-	ElectricityFee       float64   `json:"electricity_fee"`
-	OldWaterIndex        int       `json:"old_water_index"`
-	NewWaterIndex        int       `json:"new_water_index"`
-	WaterFee             float64   `json:"water_fee"`
-	WifiFee              float64   `json:"wifi_fee"`
-	ParkingFee           float64   `json:"parking_fee"`
-	ServiceFee           float64   `json:"service_fee"`
-	OtherFee             float64   `json:"other_fee"`
-	Discount             float64   `json:"discount"`
-	TenantCount          int       `json:"tenant_count"`
-	VehicleCount         int       `json:"vehicle_count"`
-	ExtraPersonFee       float64   `json:"extra_person_fee"`
-	ExtraVehicleFee      float64   `json:"extra_vehicle_fee"`
-	TotalAmount          float64   `json:"total_amount"`
-	Status               string    `json:"status"`
-	PaymentMethod        *string   `json:"payment_method"`
-	TransactionImagePath *string   `json:"transaction_image_path"`
-	CreatedAt            time.Time `json:"created_at"`
+	ID                   string                 `json:"id"`
+	RoomID               string                 `json:"room_id"`
+	HouseID              string                 `json:"house_id,omitempty"`
+	RoomName             string                 `json:"room_name,omitempty"`
+	Period               string                 `json:"period"`
+	RoomFee              float64                `json:"room_fee"`
+	OldElectricityIndex  int                    `json:"old_electricity_index"`
+	NewElectricityIndex  int                    `json:"new_electricity_index"`
+	ElectricityFee       float64                `json:"electricity_fee"`
+	OldWaterIndex        int                    `json:"old_water_index"`
+	NewWaterIndex        int                    `json:"new_water_index"`
+	WaterFee             float64                `json:"water_fee"`
+	WifiFee              float64                `json:"wifi_fee"`
+	ParkingFee           float64                `json:"parking_fee"`
+	ServiceFee           float64                `json:"service_fee"`
+	OtherFee             float64                `json:"other_fee"`
+	OtherFees            []model.InvoiceFeeItem `json:"other_fees"`
+	Discount             float64                `json:"discount"`
+	TenantCount          int                    `json:"tenant_count"`
+	VehicleCount         int                    `json:"vehicle_count"`
+	ExtraPersonFee       float64                `json:"extra_person_fee"`
+	ExtraVehicleFee      float64                `json:"extra_vehicle_fee"`
+	TotalAmount          float64                `json:"total_amount"`
+	Status               string                 `json:"status"`
+	PaymentMethod        *string                `json:"payment_method"`
+	TransactionImagePath *string                `json:"transaction_image_path"`
+	CreatedAt            time.Time              `json:"created_at"`
 }
 
 // newInvoiceResponse shapes invoice output without exposing persistence ownership fields.
@@ -88,6 +92,7 @@ func newInvoiceResponse(invoice model.InvoiceWithRoom) invoiceResponse {
 		ParkingFee:           invoice.ParkingFee,
 		ServiceFee:           invoice.ServiceFee,
 		OtherFee:             invoice.OtherFee,
+		OtherFees:            otherFeesOrEmpty(invoice.OtherFees),
 		Discount:             invoice.Discount,
 		TenantCount:          invoice.TenantCount,
 		VehicleCount:         invoice.VehicleCount,
@@ -99,6 +104,13 @@ func newInvoiceResponse(invoice model.InvoiceWithRoom) invoiceResponse {
 		TransactionImagePath: invoice.TransactionImagePath,
 		CreatedAt:            invoice.CreatedAt,
 	}
+}
+
+func otherFeesOrEmpty(items []model.InvoiceFeeItem) []model.InvoiceFeeItem {
+	if items == nil {
+		return []model.InvoiceFeeItem{}
+	}
+	return items
 }
 
 // newInvoiceStatusResponse shapes status-update output returned by pay/unpay endpoints.
@@ -118,6 +130,7 @@ func newInvoiceStatusResponse(invoice *model.Invoice) invoiceResponse {
 		ParkingFee:           invoice.ParkingFee,
 		ServiceFee:           invoice.ServiceFee,
 		OtherFee:             invoice.OtherFee,
+		OtherFees:            otherFeesOrEmpty(invoice.OtherFees),
 		Discount:             invoice.Discount,
 		TenantCount:          invoice.TenantCount,
 		VehicleCount:         invoice.VehicleCount,
@@ -208,9 +221,11 @@ func (h *InvoiceHandler) CreateInvoice(w http.ResponseWriter, r *http.Request) {
 		OldWaterIndex:       req.OldWaterIndex,
 		NewWaterIndex:       req.NewWaterIndex,
 		OtherFee:            req.OtherFee,
+		OtherFees:           req.OtherFees,
 		Discount:            req.Discount,
 		VehicleCount:        req.VehicleCount,
 		TenantCount:         req.TenantCount,
+		ExcludeRoomFee:      req.ExcludeRoomFee,
 	}
 
 	invoice, err := h.invoiceService.CreateInvoice(r.Context(), managerID, input)
@@ -262,6 +277,91 @@ func (h *InvoiceHandler) ListInvoices(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeInvoiceListResponse(w, r, newInvoiceResponses(invoices))
+}
+
+type invoiceAmountsResponse struct {
+	InvoiceCount    int     `json:"invoice_count"`
+	RoomFee         float64 `json:"room_fee"`
+	ElectricityFee  float64 `json:"electricity_fee"`
+	WaterFee        float64 `json:"water_fee"`
+	WifiFee         float64 `json:"wifi_fee"`
+	ParkingFee      float64 `json:"parking_fee"`
+	ServiceFee      float64 `json:"service_fee"`
+	ExtraPersonFee  float64 `json:"extra_person_fee"`
+	ExtraVehicleFee float64 `json:"extra_vehicle_fee"`
+	OtherFee        float64 `json:"other_fee"`
+	Discount        float64 `json:"discount"`
+	TotalAmount     float64 `json:"total_amount"`
+}
+
+func (a *invoiceAmountsResponse) add(t model.InvoiceStatusTotals) {
+	a.InvoiceCount += t.InvoiceCount
+	a.RoomFee += t.RoomFee
+	a.ElectricityFee += t.ElectricityFee
+	a.WaterFee += t.WaterFee
+	a.WifiFee += t.WifiFee
+	a.ParkingFee += t.ParkingFee
+	a.ServiceFee += t.ServiceFee
+	a.ExtraPersonFee += t.ExtraPersonFee
+	a.ExtraVehicleFee += t.ExtraVehicleFee
+	a.OtherFee += t.OtherFee
+	a.Discount += t.Discount
+	a.TotalAmount += t.TotalAmount
+}
+
+type invoiceBreakdownResponse struct {
+	Expected  invoiceAmountsResponse `json:"expected"`
+	Collected invoiceAmountsResponse `json:"collected"`
+}
+
+func newInvoiceBreakdownResponse(totals []model.InvoiceStatusTotals) invoiceBreakdownResponse {
+	var resp invoiceBreakdownResponse
+	for _, t := range totals {
+		resp.Expected.add(t)
+		if t.Status == "PAID" {
+			resp.Collected.add(t)
+		}
+	}
+	return resp
+}
+
+func (h *InvoiceHandler) GetInvoiceBreakdown(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	query := r.URL.Query()
+	filter := model.InvoiceBreakdownFilter{
+		RoomID: query.Get("room_id"),
+		Period: query.Get("period"),
+		Status: query.Get("status"),
+	}
+	for _, raw := range []string{query.Get("house_id"), query.Get("house_ids")} {
+		for _, id := range strings.Split(raw, ",") {
+			if id = strings.TrimSpace(id); id != "" {
+				filter.HouseIDs = append(filter.HouseIDs, id)
+			}
+		}
+	}
+	if filter.Period != "" {
+		if err := httpx.ValidateMonthPeriodValue(filter.Period); err != nil {
+			logger.Warn(r, http.StatusBadRequest, "invalid invoice period", err)
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	totals, err := h.invoiceService.SumInvoicesByStatus(r.Context(), managerID, filter)
+	if err != nil {
+		handleInvoiceError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(newInvoiceBreakdownResponse(totals)); err != nil {
+		logger.Error(r, http.StatusInternalServerError, "failed to encode response", err)
+	}
 }
 
 func (h *InvoiceHandler) GetInvoice(w http.ResponseWriter, r *http.Request) {

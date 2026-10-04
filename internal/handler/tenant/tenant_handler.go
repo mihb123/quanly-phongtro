@@ -358,6 +358,37 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, nil, "tenant deleted successfully")
 }
 
+func (h *TenantHandler) CheckoutRoom(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+
+	roomID := chi.URLParam(r, "id")
+	if roomID == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "missing room id")
+		return
+	}
+
+	removed, err := h.tenantService.CheckoutRoom(r.Context(), managerID, roomID)
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrRoomNotFound):
+			logger.Warn(r, http.StatusNotFound, "room not found", err)
+			httpx.WriteError(w, http.StatusNotFound, "room not found")
+		case errors.Is(err, model.ErrTenantNotFound):
+			logger.Warn(r, http.StatusNotFound, "tenant not found", err)
+			httpx.WriteError(w, http.StatusNotFound, "tenant not found")
+		default:
+			logger.Error(r, http.StatusInternalServerError, "failed to checkout room", err)
+			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		}
+		return
+	}
+
+	httpx.WriteJSON(w, http.StatusOK, map[string]int{"removed": removed}, "room checked out successfully")
+}
+
 // DownloadTenantFile serves a tenant upload after manager ownership is verified.
 func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())

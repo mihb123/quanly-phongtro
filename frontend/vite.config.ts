@@ -6,7 +6,7 @@ import path from 'path'
 export default defineConfig(({ mode }) => {
   // Load env file from project root (one level up from frontend)
   const environment = loadEnv(mode, path.resolve(__dirname, '..'), '')
-  const backendPort = environment.APP_PORT || '8080'
+  const backendPort = (environment.APP_ENV === 'dev' && environment.APP_PORT_DEV) || environment.APP_PORT || '8080'
 
   return {
     plugins: [react(), tailwindcss()],

@@ -45,6 +45,10 @@ jobs:
       - name: Backup database and binary
         run: bash "$PROJECT_DIR/scripts/deploy/backup.sh"
 
+      - name: Copy database backup to ocl server
+        continue-on-error: true
+        run: bash "$PROJECT_DIR/scripts/deploy/backup-offsite.sh"
+
       - name: Run database migrations and seed
         run: bash "$PROJECT_DIR/scripts/deploy/database.sh"
 

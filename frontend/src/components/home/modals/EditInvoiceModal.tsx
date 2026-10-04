@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Loader2, Save, ChevronDown } from '@/components/icons'
+import { Loader2, Save } from '@/components/icons'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,9 @@ import { useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import type { Invoice } from '@/api/invoice'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
+import { ExcludeRoomFeeField } from './ExcludeRoomFeeField'
+import { OtherFeesEditor } from './OtherFeesEditor'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 const schema = z.object({
   old_electricity_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số điện không được âm').optional(),
@@ -18,8 +21,12 @@ const schema = z.object({
   new_water_index: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Chỉ số nước không được âm').optional(),
   tenant_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số người không hợp lệ'),
   vehicle_count: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Số lượng xe không hợp lệ'),
-  other_fee: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Phí khác không được âm'),
+  other_fees: z.array(z.object({
+    name: z.string().max(100, 'Tên khoản tối đa 100 ký tự'),
+    amount: z.number().min(0, 'Số tiền không được âm'),
+  })),
   discount: z.number({ invalid_type_error: "Vui lòng nhập số" }).min(0, 'Giảm giá không được âm'),
+  exclude_room_fee: z.boolean(),
 })
 
 type EditInvoiceFormValues = z.infer<typeof schema>
@@ -35,7 +42,6 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   const { updateInvoice } = useInvoiceStore()
   
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isAdditionalOpen, setIsAdditionalOpen] = useState(false)
 
   // Find the house to determine billing type
   const house = useMemo(() => houses.find(h => h.id === invoice.house_id), [houses, invoice.house_id])
@@ -46,6 +52,7 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isDirty },
   } = useForm<EditInvoiceFormValues>({
     resolver: zodResolver(schema),
@@ -56,8 +63,11 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
       new_water_index: invoice.new_water_index,
       tenant_count: invoice.tenant_count,
       vehicle_count: invoice.vehicle_count,
-      other_fee: invoice.other_fee,
+      other_fees: invoice.other_fees?.length
+        ? invoice.other_fees
+        : invoice.other_fee > 0 ? [{ name: 'Chi phí phát sinh', amount: invoice.other_fee }] : [],
       discount: invoice.discount,
+      exclude_room_fee: invoice.room_fee === 0,
     },
   })
 
@@ -75,8 +85,9 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
       new_water_index: isWaterFixed ? 0 : (data.new_water_index ?? 0),
       tenant_count: data.tenant_count,
       vehicle_count: data.vehicle_count,
-      other_fee: data.other_fee,
+      other_fees: data.other_fees.filter(item => item.amount > 0),
       discount: data.discount,
+      exclude_room_fee: data.exclude_room_fee,
     })
     setIsSubmitting(false)
     if (res.success) {
@@ -96,6 +107,14 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
       contentClassName="sm:max-w-lg"
     >
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <Controller
+            control={control}
+            name="exclude_room_fee"
+            render={({ field }) => (
+              <ExcludeRoomFeeField checked={field.value} onCheckedChange={field.onChange} />
+            )}
+          />
+
           {(!isElectricityFixed || !isWaterFixed) && (
             <div className="grid grid-cols-2 gap-4">
               {!isElectricityFixed && (
@@ -161,63 +180,51 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </div>
           )}
 
-          <div className="border border-border/40 rounded-lg overflow-hidden bg-card">
-            <button 
-              type="button" 
-              onClick={() => setIsAdditionalOpen(!isAdditionalOpen)}
-              className="w-full flex justify-between items-center p-4 hover:bg-muted/30 transition-colors focus:outline-none"
-            >
-              <span className="text-sm font-medium text-foreground">Thông tin bổ sung</span>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isAdditionalOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {isAdditionalOpen && (
-              <div className="p-4 pt-0 space-y-4 border-t border-border/40 mt-1">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Số người ở</label>
-                    <Input 
-                      type="number" 
-                      {...register('tenant_count', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                    />
-                    {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
-                  </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Số người ở</label>
+              <Input
+                type="number"
+                {...register('tenant_count', { valueAsNumber: true })}
+                className="h-11 rounded-lg border-border bg-background"
+              />
+              {errors.tenant_count && <p className="text-destructive text-xs font-medium">{errors.tenant_count.message}</p>}
+            </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Số lượng xe</label>
-                    <Input 
-                      type="number" 
-                      {...register('vehicle_count', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                    />
-                    {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
-                  </div>
-                </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Số lượng xe</label>
+              <Input
+                type="number"
+                {...register('vehicle_count', { valueAsNumber: true })}
+                className="h-11 rounded-lg border-border bg-background"
+              />
+              {errors.vehicle_count && <p className="text-destructive text-xs font-medium">{errors.vehicle_count.message}</p>}
+            </div>
+          </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Phí khác (VNĐ)</label>
-                    <Input 
-                      type="number" 
-                      {...register('other_fee', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                    />
-                    {errors.other_fee && <p className="text-destructive text-xs font-medium">{errors.other_fee.message}</p>}
-                  </div>
+          <Controller
+            control={control}
+            name="other_fees"
+            render={({ field }) => <OtherFeesEditor value={field.value} onChange={field.onChange} />}
+          />
+          {errors.other_fees && <p className="text-destructive text-xs font-medium">Vui lòng kiểm tra lại các khoản phát sinh</p>}
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Giảm giá (VNĐ)</label>
-                    <Input 
-                      type="number" 
-                      {...register('discount', { valueAsNumber: true })}
-                      className="h-11 rounded-lg border-border bg-background"
-                    />
-                    {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
-                  </div>
-                </div>
-              </div>
-            )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Giảm trừ</label>
+            <Controller
+              control={control}
+              name="discount"
+              render={({ field }) => (
+                <CurrencyInput
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="0"
+                  inputMode="numeric"
+                  className="h-11 rounded-lg border-border bg-background tabular-nums"
+                />
+              )}
+            />
+            {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-border/40">

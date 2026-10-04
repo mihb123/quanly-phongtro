@@ -20,8 +20,25 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { formatCurrency } from '@/utils/format';
 
 import { HouseSelectDropdown } from './HouseSelectDropdown';
+import { HouseButtonGroup, HOUSE_BUTTON_LIMIT } from './HouseButtonGroup';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { EditNoteModal } from './modals/EditNoteModal';
+import { BreakdownTable, type BreakdownRow } from '@/components/shared/BreakdownTable';
+import { useInvoiceBreakdown } from '@/hooks/useInvoiceBreakdown';
+import type { InvoiceAmounts } from '@/api/invoice';
+
+type CostField = 'rent' | 'electricity' | 'water' | 'wifi' | 'cleaning'
+
+const COMPARISON_ITEMS: { key: string; label: string; revenue: (keyof InvoiceAmounts)[]; cost?: CostField; alwaysShow?: boolean }[] = [
+  { key: 'room', label: 'Tiền phòng / thuê nhà', revenue: ['room_fee'], cost: 'rent', alwaysShow: true },
+  { key: 'electricity', label: 'Tiền điện', revenue: ['electricity_fee'], cost: 'electricity', alwaysShow: true },
+  { key: 'water', label: 'Tiền nước', revenue: ['water_fee'], cost: 'water', alwaysShow: true },
+  { key: 'wifi', label: 'Tiền Internet / Wifi', revenue: ['wifi_fee'], cost: 'wifi' },
+  { key: 'service', label: 'Dịch vụ, vệ sinh, rác', revenue: ['service_fee'], cost: 'cleaning' },
+  { key: 'parking', label: 'Tiền gửi xe', revenue: ['parking_fee'] },
+  { key: 'surcharge', label: 'Phụ thu người, xe', revenue: ['extra_person_fee', 'extra_vehicle_fee'] },
+  { key: 'other', label: 'Phát sinh trên hóa đơn', revenue: ['other_fee'] },
+]
 
 // Cấu hình series cho chart xu hướng — màu lấy từ token chart trong index.css.
 const TREND_CHART_CONFIG = {
@@ -155,6 +172,56 @@ export function RevenueView() {
     };
   }, [summaries]);
 
+  const { breakdown: invoiceBreakdown, isLoading: isLoadingBreakdown } = useInvoiceBreakdown(selectedHouseIds, period, summaries);
+
+  const comparison = useMemo(() => {
+    const houseCosts = selectedHouseIds
+      .map(id => costs[id])
+      .filter((cost): cost is HouseCost => Boolean(cost));
+    if (houseCosts.length === 0 && !invoiceBreakdown?.expected.invoice_count) return null;
+
+    const sumRevenue = (amounts: InvoiceAmounts | undefined, keys: (keyof InvoiceAmounts)[]) =>
+      amounts ? keys.reduce((acc, key) => acc + amounts[key], 0) : 0;
+    const sumCost = (field: CostField) => houseCosts.reduce((acc, cost) => acc + (cost[field] || 0), 0);
+    const makeRow = (key: string, label: string, expected: number, collected: number, cost: number): BreakdownRow =>
+      ({ key, label, values: [expected, collected, cost, expected - cost] });
+
+    const rows: BreakdownRow[] = COMPARISON_ITEMS
+      .map(item => makeRow(
+        item.key,
+        item.label,
+        sumRevenue(invoiceBreakdown?.expected, item.revenue),
+        sumRevenue(invoiceBreakdown?.collected, item.revenue),
+        item.cost ? sumCost(item.cost) : 0,
+      ))
+      .filter((row, i) => COMPARISON_ITEMS[i].alwaysShow || row.values.some(value => value !== 0));
+
+    const extras = new Map<string, { label: string; amount: number }>();
+    houseCosts.forEach(cost => {
+      (cost.extra_costs || []).forEach(extra => {
+        const label = extra.name.trim() || 'Chi phí khác';
+        const key = label.toLowerCase();
+        const entry = extras.get(key) ?? { label, amount: 0 };
+        entry.amount += extra.amount || 0;
+        extras.set(key, entry);
+      });
+    });
+    extras.forEach((entry, key) => {
+      if (entry.amount !== 0) rows.push(makeRow(`extra:${key}`, entry.label, 0, 0, entry.amount));
+    });
+
+    const discount = invoiceBreakdown?.expected.discount ?? 0;
+    if (discount !== 0) {
+      rows.push(makeRow('discount', 'Giảm trừ trên hóa đơn', -discount, -(invoiceBreakdown?.collected.discount ?? 0), 0));
+    }
+
+    const totals = rows.reduce(
+      (acc, row) => acc.map((value, i) => value + row.values[i]),
+      [0, 0, 0, 0],
+    );
+    return { rows, totals };
+  }, [costs, selectedHouseIds, invoiceBreakdown]);
+
   const handleHouseToggleRequest = (houseId: string) => {
     if (hasAnyEdits) {
       setPendingAction(() => () => handleHouseToggle(houseId));
@@ -274,6 +341,22 @@ export function RevenueView() {
         </SectionCard>
       )}
 
+      {comparison && !isLoadingCosts && !isLoadingBreakdown && (
+        <SectionCard icon={Wallet} title={`So sánh thu – chi theo khoản (kỳ ${period})`}>
+          <BreakdownTable
+            itemLabel="Khoản"
+            columns={[
+              { label: 'Thu dự kiến' },
+              { label: 'Đã thu' },
+              { label: 'Chi phí' },
+              { label: 'Chênh lệch' },
+            ]}
+            rows={comparison.rows}
+            total={{ label: 'Tổng cộng', values: comparison.totals }}
+          />
+        </SectionCard>
+      )}
+
       {/* Detail Costs Section */}
       <SectionCard
         title={
@@ -284,15 +367,26 @@ export function RevenueView() {
         action={
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto md:gap-3">
             <div className="min-w-0 flex-1 sm:flex-none">
-              <HouseSelectDropdown
-                houses={houses}
-                selectedHouseIds={selectedHouseIds}
-                isOpen={isHouseSelectOpen}
-                onOpenChange={setIsHouseSelectOpen}
-                onToggleHouse={handleHouseToggleRequest}
-                onSelectAll={handleSelectAllRequest}
-                onSelectChange={handleHouseSelectChangeRequest}
-              />
+              {houses.length <= HOUSE_BUTTON_LIMIT ? (
+                <HouseButtonGroup
+                  houses={houses}
+                  isSelected={id => selectedHouseIds.includes(id)}
+                  onSelect={id => handleHouseSelectChangeRequest([id])}
+                  allLabel="Tất cả"
+                  isAllSelected={houses.length > 0 && selectedHouseIds.length === houses.length}
+                  onSelectAll={() => handleHouseSelectChangeRequest(houses.map(h => h.id))}
+                />
+              ) : (
+                <HouseSelectDropdown
+                  houses={houses}
+                  selectedHouseIds={selectedHouseIds}
+                  isOpen={isHouseSelectOpen}
+                  onOpenChange={setIsHouseSelectOpen}
+                  onToggleHouse={handleHouseToggleRequest}
+                  onSelectAll={handleSelectAllRequest}
+                  onSelectChange={handleHouseSelectChangeRequest}
+                />
+              )}
             </div>
             <div className="flex h-9 min-w-0 flex-1 items-center gap-2 overflow-hidden rounded-md border border-input bg-background px-2 text-foreground shadow-xs transition-colors focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 sm:flex-none md:px-3">
               <Calendar className="hidden size-4 shrink-0 text-muted-foreground sm:block" />

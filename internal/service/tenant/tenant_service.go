@@ -23,6 +23,7 @@ type TenantService interface {
 	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error)
 	UpdateTenantInfo(ctx context.Context, managerID, tenantID string, in UpdateTenantInput) (*model.FullInfoTenant, error)
 	DeleteTenant(ctx context.Context, managerID, tenantID string) error
+	CheckoutRoom(ctx context.Context, managerID, roomID string) (int, error)
 	ResolveTenantFilePath(ctx context.Context, managerID, requestPath string) (string, error)
 }
 
@@ -313,6 +314,29 @@ func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, managerID, tenantI
 	}
 
 	return nil
+}
+
+func (s *TenantServiceImpl) CheckoutRoom(ctx context.Context, managerID, roomID string) (int, error) {
+	if _, err := s.rooms.GetRoomByIDForManager(ctx, managerID, roomID); err != nil {
+		return 0, err
+	}
+
+	tenants, err := s.tenants.ListTenantByRoomID(ctx, managerID, roomID)
+	if err != nil {
+		return 0, err
+	}
+
+	for i, tenant := range tenants {
+		if err := s.DeleteTenant(ctx, managerID, tenant.TenantID); err != nil {
+			return i, err
+		}
+	}
+
+	if err := s.rooms.UpdateRoomStatus(ctx, roomID, "AVAILABLE"); err != nil {
+		return len(tenants), err
+	}
+
+	return len(tenants), nil
 }
 
 // ResolveTenantFilePath verifies manager ownership before returning a local tenant upload path.

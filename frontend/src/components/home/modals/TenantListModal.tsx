@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
-import { Plus, Trash2, Pencil, FileIcon, CheckCircle2, ZoomIn } from '@/components/icons'
+import { Plus, Trash2, Pencil, FileIcon, CheckCircle2, ZoomIn, LogOut } from '@/components/icons'
 import type { Tenant } from '@/api/tenant'
 import type { Room } from '@/api/room'
 import { getFileName, isImagePath } from '@/utils/file'
 import { ProtectedFileImage } from './ProtectedFileImage'
 import { ImageLightboxModal, type LightboxImageItem } from '@/components/shared/ImageLightboxModal'
 import { VerifiedBadge } from '@/components/shared/VerifiedBadge'
+import { CheckoutRoomDialog } from './CheckoutRoomDialog'
 
 import { useTenantList } from '@/hooks/useTenantList'
 
 interface TenantListModalProps {
   room: Room
-  onClose: () => void
+  onClose: (changed?: boolean) => void
   onAdd: () => void
   onEdit: (tenant: Tenant) => void
   onDataChange?: () => void
@@ -37,9 +38,11 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
     await handleDeleteTenant(tenantId, room.id)
     if (onDataChange) onDataChange()
     if (tenants.length <= 1) {
-      onClose()
+      onClose(true)
     }
   }
+
+  const [showCheckout, setShowCheckout] = useState(false)
 
   const [gallery, setGallery] = useState<{ items: LightboxImageItem[]; initialIndex: number } | null>(null)
 
@@ -55,7 +58,7 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
     <>
       <AppModal
         open
-        onClose={onClose}
+        onClose={() => onClose()}
         title="Danh sách người thuê"
         description={`Phòng ${room.name} (${tenants.length}/${room.max_tenants})`}
         contentClassName="sm:max-w-xl"
@@ -67,8 +70,13 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                   <Plus className="w-4 h-4" /> Thêm người ở
                 </Button>
               )}
+              {tenants.length > 0 && (
+                <Button onClick={() => setShowCheckout(true)} variant="outline">
+                  <LogOut className="w-4 h-4" /> Trả phòng
+                </Button>
+              )}
             </div>
-            <Button onClick={onClose} variant="outline">Đóng</Button>
+            <Button onClick={() => onClose()} variant="outline">Đóng</Button>
           </div>
         }
       >
@@ -178,6 +186,18 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
           </div>
         )}
       </AppModal>
+
+      {showCheckout && (
+        <CheckoutRoomDialog
+          room={room}
+          onCancel={() => setShowCheckout(false)}
+          onDone={() => {
+            setShowCheckout(false)
+            onDataChange?.()
+            onClose(true)
+          }}
+        />
+      )}
 
       {/* Lightbox / Gallery Modal - Portaled to document.body */}
       <ImageLightboxModal

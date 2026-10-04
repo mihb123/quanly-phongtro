@@ -677,3 +677,43 @@ func (m *mockPasswordHasher) Compare(hash, password string) error {
 
 // ptr returns a pointer to v, for building optional test inputs.
 func ptr[T any](v T) *T { return &v }
+
+func TestTenantService_CheckoutRoom(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Removes every active tenant and frees the room", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		userRepo := mock_model.NewMockUserRepository(ctrl)
+		tenantRepo := mock_model.NewMockTenantRepository(ctrl)
+		roomRepo := mock_model.NewMockRoomRepository(ctrl)
+		svc := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, &mockPasswordHasher{})
+
+		roomRepo.EXPECT().GetRoomByIDForManager(ctx, "m1", "r1").Return(&model.Room{ID: "r1"}, nil)
+		tenantRepo.EXPECT().ListTenantByRoomID(ctx, "m1", "r1").Return([]model.FullInfoTenant{{TenantID: "t1"}, {TenantID: "t2"}}, nil)
+		for i, id := range []string{"t1", "t2"} {
+			tenantRepo.EXPECT().GetTenantByID(ctx, "m1", id).Return(&model.FullInfoTenant{UserID: "u-" + id}, nil)
+			tenantRepo.EXPECT().DeleteTenant(ctx, id).Return("r1", nil)
+			userRepo.EXPECT().DeactivateUser(ctx, "u-"+id).Return(nil)
+			tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(1-i), nil)
+		}
+		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "AVAILABLE").Return(nil).Times(2)
+
+		removed, err := svc.CheckoutRoom(ctx, "m1", "r1")
+		if err != nil || removed != 2 {
+			t.Fatalf("expected 2 removed without error, got %d, %v", removed, err)
+		}
+	})
+
+	t.Run("Room not owned", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+		roomRepo := mock_model.NewMockRoomRepository(ctrl)
+		svc := tenantsvc.NewTenantServiceImpl(mock_model.NewMockUserRepository(ctrl), mock_model.NewMockTenantRepository(ctrl), roomRepo, nil, &mockPasswordHasher{})
+
+		roomRepo.EXPECT().GetRoomByIDForManager(ctx, "m1", "r1").Return(nil, model.ErrRoomNotFound)
+		if _, err := svc.CheckoutRoom(ctx, "m1", "r1"); !errors.Is(err, model.ErrRoomNotFound) {
+			t.Fatalf("expected ErrRoomNotFound, got %v", err)
+		}
+	})
+}

@@ -38,6 +38,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('')
   const [rooms, setRooms] = useState<Room[]>([])
   const [latestInvoices, setLatestInvoices] = useState<Record<string, Invoice>>({})
+  const [periodInvoices, setPeriodInvoices] = useState<Record<string, Invoice>>({})
 
   useEffect(() => {
     if (recommendedHouseId && !selectedHouseId) {
@@ -96,6 +97,7 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
           }
         })
         setLatestInvoices(latest)
+        setPeriodInvoices(periodInvoices)
         
         const initialData: Record<string, { new_electricity: string, new_water: string, vehicle_count: string, saved: boolean, is_paid?: boolean }> = {}
         occupiedRooms.forEach(r => {
@@ -194,8 +196,10 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             new_electricity_index: newElec,
             new_water_index: newWater,
             vehicle_count: Number(data.vehicle_count || 0),
-            other_fee: 0,
-            discount: 0
+            other_fee: periodInvoices[room.id]?.other_fee ?? 0,
+            other_fees: periodInvoices[room.id]?.other_fees,
+            discount: periodInvoices[room.id]?.discount ?? 0,
+            exclude_room_fee: periodInvoices[room.id] ? periodInvoices[room.id].room_fee === 0 : undefined,
           })
           
           setInvoiceData(prev => ({

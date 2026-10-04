@@ -264,6 +264,7 @@ func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, r
 	newElectricityIndex := 0
 	newWaterIndex := 0
 	otherFee := 0.0
+	var otherFees []model.InvoiceFeeItem
 	discount := 0.0
 	vehicleCount := 0
 	var tenantCount *int
@@ -274,6 +275,7 @@ func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, r
 		newElectricityIndex = previousInvoice.NewElectricityIndex
 		newWaterIndex = previousInvoice.NewWaterIndex
 		otherFee = previousInvoice.OtherFee
+		otherFees = previousInvoice.OtherFees
 		discount = previousInvoice.Discount
 		vehicleCount = previousInvoice.VehicleCount
 	}
@@ -284,6 +286,7 @@ func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, r
 		newElectricityIndex = existingInvoice.NewElectricityIndex
 		newWaterIndex = existingInvoice.NewWaterIndex
 		otherFee = existingInvoice.OtherFee
+		otherFees = existingInvoice.OtherFees
 		discount = existingInvoice.Discount
 		vehicleCount = existingInvoice.VehicleCount
 		count := existingInvoice.TenantCount
@@ -305,6 +308,7 @@ func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, r
 		OldWaterIndex:       &oldWaterIndex,
 		NewWaterIndex:       newWaterIndex,
 		OtherFee:            otherFee,
+		OtherFees:           otherFees,
 		Discount:            discount,
 		VehicleCount:        vehicleCount,
 		TenantCount:         tenantCount,

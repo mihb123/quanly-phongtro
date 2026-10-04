@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
@@ -602,6 +603,69 @@ func TestTenantHandler_DeleteTenant(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+		})
+	}
+}
+
+func TestTenantHandler_CheckoutRoom(t *testing.T) {
+	tests := []struct {
+		name           string
+		withAuth       bool
+		mockBehavior   func(s *mock_service.MockTenantService)
+		expectedStatus int
+	}{
+		{
+			name:     "Happy path",
+			withAuth: true,
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().CheckoutRoom(gomock.Any(), "user-1", "room-1").Return(2, nil)
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Unauthorized",
+			mockBehavior:   func(s *mock_service.MockTenantService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name:     "Room not found",
+			withAuth: true,
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().CheckoutRoom(gomock.Any(), "user-1", "room-1").Return(0, model.ErrRoomNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:     "Service error",
+			withAuth: true,
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().CheckoutRoom(gomock.Any(), "user-1", "room-1").Return(0, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+			s := mock_service.NewMockTenantService(ctrl)
+			tt.mockBehavior(s)
+			h := tenant.NewTenantHandler(s)
+
+			req := withChiURLParam(httptest.NewRequest(http.MethodPost, "/tenant/room/room-1/checkout", nil), "id", "room-1")
+			if tt.withAuth {
+				req = withClaims(req, "user-1")
+			}
+			rec := httptest.NewRecorder()
+			h.CheckoutRoom(rec, req)
+
+			if rec.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if tt.expectedStatus == http.StatusOK && !strings.Contains(rec.Body.String(), `"removed":2`) {
+				t.Errorf("expected removed count in body, got %s", rec.Body.String())
 			}
 		})
 	}
