@@ -17,6 +17,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_service"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	"go.uber.org/mock/gomock"
 )
 
@@ -172,19 +173,43 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 		setupMocks     func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService)
 		buildRequest   func() *http.Request
 		expectedStatus int
+		expectedTotal  string
 	}
 
 	tests := []testCase{
 		{
 			name: "Happy path",
 			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
-				roomSvc.EXPECT().ListRoomsByHouseID(gomock.Any(), "house-1", "user-1", 1, 25).Return([]model.Room{}, nil)
+				roomSvc.EXPECT().ListRoomsByHouseID(gomock.Any(), "user-1", roomsvc.ListRoomsQuery{HouseID: "house-1", Page: 1, Limit: 25}).Return([]model.Room{{ID: "room-1"}}, 31, nil)
 			},
 			buildRequest: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/room?house_id=house-1", nil)
 				return withContextClaims(req, "user-1")
 			},
 			expectedStatus: http.StatusOK,
+			expectedTotal:  "31",
+		},
+		{
+			name: "Search, status and limit clamp",
+			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
+				roomSvc.EXPECT().ListRoomsByHouseID(gomock.Any(), "user-1", roomsvc.ListRoomsQuery{HouseID: "house-1", Search: "A1", Status: "AVAILABLE", Page: 2, Limit: 200}).Return([]model.Room{}, 0, nil)
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room?house_id=house-1&q=A1&status=available&page=2&limit=1000", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusOK,
+			expectedTotal:  "0",
+		},
+		{
+			name: "Validation error - Invalid status",
+			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room?house_id=house-1&status=BROKEN", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "Validation error - Missing house_id",
@@ -208,7 +233,7 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 		{
 			name: "Service error - House not found",
 			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
-				roomSvc.EXPECT().ListRoomsByHouseID(gomock.Any(), "house-1", "user-1", 1, 25).Return(nil, model.ErrHouseNotFound)
+				roomSvc.EXPECT().ListRoomsByHouseID(gomock.Any(), "user-1", gomock.Any()).Return(nil, 0, model.ErrHouseNotFound)
 			},
 			buildRequest: func() *http.Request {
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/room?house_id=house-1", nil)
@@ -235,6 +260,138 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 
 			if rec.Code != tc.expectedStatus {
 				t.Errorf("expected %d, got %d", tc.expectedStatus, rec.Code)
+			}
+			if got := rec.Header().Get("X-Total-Count"); got != tc.expectedTotal {
+				t.Errorf("expected X-Total-Count %q, got %q", tc.expectedTotal, got)
+			}
+		})
+	}
+}
+
+func TestRoomHandler_GetRoomStats(t *testing.T) {
+	type testCase struct {
+		name           string
+		setupMocks     func(roomSvc *mock_service.MockRoomService)
+		buildRequest   func() *http.Request
+		expectedStatus int
+	}
+
+	tests := []testCase{
+		{
+			name: "Happy path",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {
+				roomSvc.EXPECT().GetRoomStats(gomock.Any(), "user-1", "house-1").Return(&model.RoomStats{Total: 4, Occupied: 3}, nil)
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room/stats?house_id=house-1", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "Service error - House not found",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {
+				roomSvc.EXPECT().GetRoomStats(gomock.Any(), "user-1", "house-x").Return(nil, model.ErrHouseNotFound)
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room/stats?house_id=house-x", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:       "Unauthorized",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {},
+			buildRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/api/v1/room/stats", nil)
+			},
+			expectedStatus: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			roomSvc := mock_service.NewMockRoomService(ctrl)
+			tc.setupMocks(roomSvc)
+
+			roomHandler := room.NewRoomHandler(roomSvc, mock_service.NewMockInvoiceService(ctrl))
+			rec := httptest.NewRecorder()
+			roomHandler.GetRoomStats(rec, tc.buildRequest())
+
+			if rec.Code != tc.expectedStatus {
+				t.Errorf("expected %d, got %d", tc.expectedStatus, rec.Code)
+			}
+		})
+	}
+}
+
+func TestRoomHandler_ListAvailableRooms(t *testing.T) {
+	type testCase struct {
+		name           string
+		setupMocks     func(roomSvc *mock_service.MockRoomService)
+		buildRequest   func() *http.Request
+		expectedStatus int
+		expectedTotal  string
+	}
+
+	tests := []testCase{
+		{
+			name: "Happy path - default limit",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {
+				roomSvc.EXPECT().ListAvailableRooms(gomock.Any(), "user-1", 50).Return([]model.Room{{ID: "room-1", HouseName: "House A"}}, 8, nil)
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room/available?limit=500", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusOK,
+			expectedTotal:  "8",
+		},
+		{
+			name: "Custom limit",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {
+				roomSvc.EXPECT().ListAvailableRooms(gomock.Any(), "user-1", 10).Return([]model.Room{}, 0, nil)
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room/available?limit=10", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusOK,
+			expectedTotal:  "0",
+		},
+		{
+			name: "Service error",
+			setupMocks: func(roomSvc *mock_service.MockRoomService) {
+				roomSvc.EXPECT().ListAvailableRooms(gomock.Any(), "user-1", 50).Return(nil, 0, errors.New("db error"))
+			},
+			buildRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/room/available", nil)
+				return withContextClaims(req, "user-1")
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			roomSvc := mock_service.NewMockRoomService(ctrl)
+			tc.setupMocks(roomSvc)
+
+			roomHandler := room.NewRoomHandler(roomSvc, mock_service.NewMockInvoiceService(ctrl))
+			rec := httptest.NewRecorder()
+			roomHandler.ListAvailableRooms(rec, tc.buildRequest())
+
+			if rec.Code != tc.expectedStatus {
+				t.Errorf("expected %d, got %d", tc.expectedStatus, rec.Code)
+			}
+			if got := rec.Header().Get("X-Total-Count"); got != tc.expectedTotal {
+				t.Errorf("expected X-Total-Count %q, got %q", tc.expectedTotal, got)
 			}
 		})
 	}

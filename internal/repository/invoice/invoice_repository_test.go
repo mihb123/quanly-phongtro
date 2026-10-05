@@ -152,12 +152,14 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 	repo := invoice.NewInvoiceRepository(bunDB)
 	ctx := context.Background()
 
+	mock.MatchExpectationsInOrder(false)
+
 	columns := []string{"id", "room_id", "period", "status", "room_name", "house_id", "extra_person_threshold", "extra_person_fee_unit", "extra_vehicle_threshold", "extra_vehicle_fee_unit"}
 	filter := model.InvoiceListFilter{
 		RoomID:  "room-1",
 		HouseID: "house-1",
 		Period:  "2023-10",
-		Status:  "UNPAID",
+		Status:  "unpaid, PAID",
 		Limit:   10,
 		Page:    1,
 	}
@@ -166,6 +168,7 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 		name      string
 		mock      func()
 		wantCount int
+		wantTotal int
 		wantErr   bool
 	}{
 		{
@@ -173,15 +176,19 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 			mock: func() {
 				rows := sqlmock.NewRows(columns).
 					AddRow("inv-1", "room-1", "2023-10", "UNPAID", "Room 1", "house-1", 0, 0.0, 0, 0.0)
-				mock.ExpectQuery(`.*`).WillReturnRows(rows)
+				mock.ExpectQuery(`invoice.status IN \('UNPAID', 'PAID'\).* LIMIT 10`).WillReturnRows(rows)
+				mock.ExpectQuery(`SELECT count\(\*\) .*invoice.status IN \('UNPAID', 'PAID'\)`).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(23))
 			},
 			wantCount: 1,
+			wantTotal: 23,
 			wantErr:   false,
 		},
 		{
 			name: "DB Error",
 			mock: func() {
-				mock.ExpectQuery(`.*`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`LIMIT 10`).WillReturnError(errors.New("db error"))
+				mock.ExpectQuery(`SELECT count\(\*\)`).WillReturnError(errors.New("db error"))
 			},
 			wantCount: 0,
 			wantErr:   true,
@@ -191,12 +198,15 @@ func TestInvoiceRepository_ListInvoices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mock()
-			invs, err := repo.ListInvoices(ctx, "manager-1", filter)
+			invs, total, err := repo.ListInvoices(ctx, "manager-1", filter)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("expected error: %v, got: %v", tt.wantErr, err)
 			}
 			if len(invs) != tt.wantCount {
 				t.Errorf("expected %d invoices, got: %d", tt.wantCount, len(invs))
+			}
+			if total != tt.wantTotal {
+				t.Errorf("expected total %d, got: %d", tt.wantTotal, total)
 			}
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Errorf("unfulfilled expectations: %s", err)

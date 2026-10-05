@@ -747,3 +747,71 @@ func TestTenantRepository_ListTenantByHouseID(t *testing.T) {
 		})
 	}
 }
+
+func TestTenantRepository_SearchTenants(t *testing.T) {
+	t.Parallel()
+	cols := []string{
+		"tenant_id", "user_id", "room_id", "manager_id",
+		"full_name", "email", "phone",
+		"cccd_path", "identity_card",
+		"start_date", "end_date", "status", "zalo_user_id", "room_name", "house_id", "house_name",
+	}
+	summaryCols := []string{"tenants", "rooms", "verified", "houses"}
+	filter := model.TenantListFilter{HouseID: "h1", Search: "an", Limit: 25, Offset: 25}
+	tests := []struct {
+		name        string
+		mockFn      func(mock sqlmock.Sqlmock)
+		wantLen     int
+		wantTenants int
+		wantErr     bool
+	}{
+		{
+			name: "happy path",
+			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) AS tenants, .* FROM tenants AS t .* WHERE \(t.manager_id = 'm1'\) AND \(h.manager_id = 'm1'\) AND \(t.status = 'ACTIVE'\) AND \(rm.house_id = 'h1'\) AND \(\(u.full_name ILIKE '%an%'\) OR .*\(rm.name ILIKE '%an%'\)\)`).
+					WillReturnRows(sqlmock.NewRows(summaryCols).AddRow(26, 10, 5, 1))
+				mock.ExpectQuery(`SELECT t.id AS tenant_id, .* FROM tenants AS t .* LIMIT 25 OFFSET 25`).WillReturnRows(
+					sqlmock.NewRows(cols).AddRow("t1", "u1", "r1", "m1", "An", "e", "p", "", "", "2023-01-01T00:00:00Z", "", "ACTIVE", "", "Room 1", "h1", "House 1"))
+			},
+			wantLen:     1,
+			wantTenants: 26,
+		},
+		{
+			name: "no match skips page query",
+			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) AS tenants`).WillReturnRows(sqlmock.NewRows(summaryCols).AddRow(0, 0, 0, 0))
+			},
+		},
+		{
+			name: "db error",
+			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT COUNT\(\*\) AS tenants`).WillReturnError(errDB)
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			bunDB, mock := repotest.SetupTestDB(t)
+			defer bunDB.Close()
+			repo := tenant.NewTenantRepository(bunDB)
+			tt.mockFn(mock)
+
+			tenants, summary, err := repo.SearchTenants(context.Background(), "m1", filter)
+			checkError(t, err, nil, tt.wantErr)
+			if !tt.wantErr {
+				if len(tenants) != tt.wantLen || summary.Tenants != tt.wantTenants {
+					t.Errorf("unexpected result: tenants=%+v summary=%+v", tenants, summary)
+				}
+				if tt.wantLen > 0 && (tenants[0].StartDate != "2023-01-01" || tenants[0].HouseName != "House 1") {
+					t.Errorf("unexpected tenant: %+v", tenants[0])
+				}
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Errorf("unmet expectations: %v", err)
+			}
+		})
+	}
+}

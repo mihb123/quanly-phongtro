@@ -32,7 +32,7 @@ type CreateInvoiceInput struct {
 type InvoiceService interface {
 	CreateInvoice(ctx context.Context, managerID string, input CreateInvoiceInput) (*model.InvoiceWithRoom, error)
 	GetInvoice(ctx context.Context, managerID, invoiceID string) (*model.InvoiceWithRoom, error)
-	ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error)
+	ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, int, error)
 	SumInvoicesByStatus(ctx context.Context, managerID string, filter model.InvoiceBreakdownFilter) ([]model.InvoiceStatusTotals, error)
 	PayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error)
 	UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error)
@@ -285,7 +285,7 @@ func (s *InvoiceServiceImpl) GetInvoice(ctx context.Context, managerID, invoiceI
 	return s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 }
 
-func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error) {
+func (s *InvoiceServiceImpl) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, int, error) {
 	return s.invoiceRepo.ListInvoices(ctx, managerID, filter)
 }
 

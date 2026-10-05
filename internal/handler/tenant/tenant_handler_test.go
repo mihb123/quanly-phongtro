@@ -336,6 +336,98 @@ func TestTenantHandler_ListTenantByHouseID(t *testing.T) {
 	}
 }
 
+func TestTenantHandler_ListTenants(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	type mockBehavior func(s *mock_service.MockTenantService)
+
+	tests := []struct {
+		name           string
+		reqBuilder     func() *http.Request
+		mockBehavior   mockBehavior
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name: "Happy path",
+			reqBuilder: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/tenant?house_id=%20house-1%20&q=an&page=2&limit=10", nil)
+				return withClaims(req, "user-1")
+			},
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().SearchTenants(gomock.Any(), "user-1", tenantsvc.SearchTenantsQuery{HouseID: "house-1", Search: "an", Page: 2, Limit: 10}).
+					Return([]model.FullInfoTenant{{TenantID: "tenant-1", HouseName: "House A"}}, &model.TenantListSummary{Tenants: 11, Rooms: 4, Verified: 2, Houses: 1}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"total":11,"page":2,"limit":10,"summary":{"tenants":11,"rooms":4,"verified":2,"houses":1}`,
+		},
+		{
+			name: "Invalid page and limit fallback",
+			reqBuilder: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/tenant?page=x&limit=500", nil)
+				return withClaims(req, "user-1")
+			},
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().SearchTenants(gomock.Any(), "user-1", tenantsvc.SearchTenantsQuery{Page: 1, Limit: 25}).
+					Return([]model.FullInfoTenant{}, &model.TenantListSummary{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"items":[],"total":0,"page":1,"limit":25`,
+		},
+		{
+			name: "Unauthorized - missing claims",
+			reqBuilder: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/tenant", nil)
+			},
+			mockBehavior:   func(s *mock_service.MockTenantService) {},
+			expectedStatus: http.StatusUnauthorized,
+		},
+		{
+			name: "House not found",
+			reqBuilder: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/tenant?house_id=house-x", nil)
+				return withClaims(req, "user-1")
+			},
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().SearchTenants(gomock.Any(), "user-1", gomock.Any()).Return(nil, nil, model.ErrHouseNotFound)
+			},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name: "Service error - internal error",
+			reqBuilder: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/tenant", nil)
+				return withClaims(req, "user-1")
+			},
+			mockBehavior: func(s *mock_service.MockTenantService) {
+				s.EXPECT().SearchTenants(gomock.Any(), "user-1", gomock.Any()).Return(nil, nil, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := mock_service.NewMockTenantService(ctrl)
+			tt.mockBehavior(s)
+
+			h := tenant.NewTenantHandler(s)
+
+			req := tt.reqBuilder()
+			rec := httptest.NewRecorder()
+			h.ListTenants(rec, req)
+
+			if rec.Code != tt.expectedStatus {
+				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if tt.expectedBody != "" && !strings.Contains(rec.Body.String(), tt.expectedBody) {
+				t.Errorf("expected body to contain %s, got %s", tt.expectedBody, rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestTenantHandler_UpdateTenantInfo(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

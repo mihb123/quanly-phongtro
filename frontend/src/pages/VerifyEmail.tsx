@@ -73,7 +73,7 @@ export default function VerifyEmailPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-dvh flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="flex items-center justify-center size-12 rounded-lg bg-primary/10 border border-primary/20 mb-2">
@@ -121,9 +121,13 @@ export default function VerifyEmailPage() {
                 <Input
                   id="otp"
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  autoComplete="one-time-code"
+                  enterKeyHint="done"
                   maxLength={6}
                   placeholder="Nhập mã OTP..."
-                  className="h-10 text-center font-mono text-lg tracking-[0.5em] placeholder:tracking-normal"
+                  className="h-10 pointer-coarse:h-11 text-center font-mono text-lg tracking-[0.5em] placeholder:tracking-normal"
                   {...register('otp')}
                 />
                 {errors.otp && (

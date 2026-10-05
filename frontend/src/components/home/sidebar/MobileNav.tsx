@@ -14,21 +14,26 @@ export function MobileNav() {
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background safe-bottom pb-[env(safe-area-inset-bottom)] md:hidden">
-      <div className="flex items-center justify-around px-2 py-1">
+    <nav
+      aria-label="Điều hướng chính"
+      className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+    >
+      <div className="grid grid-cols-5 px-1 py-1">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setActiveTab(tab.id)}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'flex min-w-16 touch-target cursor-pointer flex-col items-center justify-center gap-1 rounded-md transition-colors active:scale-95',
+                'flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 rounded-md px-1 transition-colors active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none',
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              <tab.icon className="size-5" />
-              <span className="text-[11px] font-medium">{tab.label}</span>
+              <tab.icon className="size-5" aria-hidden />
+              <span className={cn('max-w-full truncate text-[11px]', isActive ? 'font-semibold' : 'font-medium')}>{tab.label}</span>
             </button>
           )
         })}

@@ -236,7 +236,7 @@ func TestInvoiceHandler_ResponseEncodingErrors(t *testing.T) {
 	}`))
 	h.CreateInvoice(newFailingResponseWriter(), setClaims(req, "user-1"))
 
-	invoiceSvc.EXPECT().ListInvoices(gomock.Any(), "user-1", model.InvoiceListFilter{Page: 1, Limit: 20}).Return([]model.InvoiceWithRoom{}, nil)
+	invoiceSvc.EXPECT().ListInvoices(gomock.Any(), "user-1", model.InvoiceListFilter{Page: 1, Limit: 20}).Return([]model.InvoiceWithRoom{}, 0, nil)
 	req = httptest.NewRequest(http.MethodGet, "/invoice", nil)
 	h.ListInvoices(newFailingResponseWriter(), setClaims(req, "user-1"))
 
@@ -267,6 +267,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 		setupAuth      func(*http.Request) *http.Request
 		mock           func()
 		expectedStatus int
+		expectedTotal  string
 	}{
 		{
 			name: "Happy path",
@@ -285,9 +286,38 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 				}
 				invoiceSvc.EXPECT().
 					ListInvoices(gomock.Any(), "user-1", filter).
-					Return([]model.InvoiceWithRoom{}, nil)
+					Return([]model.InvoiceWithRoom{}, 42, nil)
 			},
 			expectedStatus: http.StatusOK,
+			expectedTotal:  "42",
+		},
+		{
+			name: "Multiple statuses",
+			url:  "/invoice?status=UNPAID,partially_paid,PENDING_VERIFICATION",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock: func() {
+				filter := model.InvoiceListFilter{
+					Status: "UNPAID,partially_paid,PENDING_VERIFICATION",
+					Page:   1,
+					Limit:  20,
+				}
+				invoiceSvc.EXPECT().
+					ListInvoices(gomock.Any(), "user-1", filter).
+					Return([]model.InvoiceWithRoom{{}}, 1, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedTotal:  "1",
+		},
+		{
+			name: "Invalid status",
+			url:  "/invoice?status=UNPAID,BOGUS",
+			setupAuth: func(r *http.Request) *http.Request {
+				return setClaims(r, "user-1")
+			},
+			mock:           func() {},
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name: "Invalid page/limit fallback",
@@ -302,9 +332,10 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 				}
 				invoiceSvc.EXPECT().
 					ListInvoices(gomock.Any(), "user-1", filter).
-					Return([]model.InvoiceWithRoom{}, nil)
+					Return([]model.InvoiceWithRoom{}, 0, nil)
 			},
 			expectedStatus: http.StatusOK,
+			expectedTotal:  "0",
 		},
 		{
 			name: "Unauthorized",
@@ -333,7 +364,7 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 			mock: func() {
 				invoiceSvc.EXPECT().
 					ListInvoices(gomock.Any(), "user-1", gomock.Any()).
-					Return(nil, errors.New("db error"))
+					Return(nil, 0, errors.New("db error"))
 			},
 			expectedStatus: http.StatusInternalServerError,
 		},
@@ -350,6 +381,9 @@ func TestInvoiceHandler_ListInvoices(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if got := rec.Header().Get("X-Total-Count"); got != tt.expectedTotal {
+				t.Errorf("expected X-Total-Count %q, got %q", tt.expectedTotal, got)
 			}
 		})
 	}
@@ -401,6 +435,15 @@ func TestInvoiceHandler_GetInvoiceBreakdown(t *testing.T) {
 
 	t.Run("Invalid period", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/invoice/breakdown?period=2026-6", nil)
+		rec := httptest.NewRecorder()
+		h.GetInvoiceBreakdown(rec, setClaims(req, "user-1"))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("Invalid status", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/invoice/breakdown?status=DONE", nil)
 		rec := httptest.NewRecorder()
 		h.GetInvoiceBreakdown(rec, setClaims(req, "user-1"))
 		if rec.Code != http.StatusBadRequest {

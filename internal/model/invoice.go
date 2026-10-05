@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -43,6 +44,38 @@ const (
 	PaymentMethodSePay  = "SEPAY"
 	PaymentMethodManual = "MANUAL"
 )
+
+var validInvoiceStatuses = map[string]bool{
+	InvoiceStatusUnpaid:              true,
+	"PARTIALLY_PAID":                 true,
+	InvoiceStatusPaid:                true,
+	InvoiceStatusPendingVerification: true,
+}
+
+// SplitInvoiceStatuses parses a comma-separated status filter, dropping blanks and duplicates.
+func SplitInvoiceStatuses(raw string) []string {
+	var statuses []string
+	seen := map[string]bool{}
+	for _, s := range strings.Split(raw, ",") {
+		s = strings.ToUpper(strings.TrimSpace(s))
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		statuses = append(statuses, s)
+	}
+	return statuses
+}
+
+// ValidateInvoiceStatusFilter reports whether every status in a comma-separated filter is known.
+func ValidateInvoiceStatusFilter(raw string) bool {
+	for _, s := range SplitInvoiceStatuses(raw) {
+		if !validInvoiceStatuses[s] {
+			return false
+		}
+	}
+	return true
+}
 
 type InvoiceFeeItem struct {
 	Name   string  `json:"name" validate:"max=100"`
@@ -127,7 +160,7 @@ type InvoiceStatusTotals struct {
 type InvoiceRepository interface {
 	CreateInvoice(ctx context.Context, invoice *Invoice) error
 	GetInvoiceByID(ctx context.Context, managerID, id string) (*InvoiceWithRoom, error)
-	ListInvoices(ctx context.Context, managerID string, filter InvoiceListFilter) ([]InvoiceWithRoom, error)
+	ListInvoices(ctx context.Context, managerID string, filter InvoiceListFilter) ([]InvoiceWithRoom, int, error)
 	UpdateInvoiceStatus(ctx context.Context, managerID, id, status string) (*Invoice, error)
 	GetLatestInvoiceByRoomID(ctx context.Context, roomID string) (*Invoice, error)
 	GetInvoiceByRoomAndPeriod(ctx context.Context, roomID, period string) (*Invoice, error)

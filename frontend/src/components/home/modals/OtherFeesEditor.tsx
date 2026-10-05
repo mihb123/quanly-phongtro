@@ -20,7 +20,7 @@ export function OtherFeesEditor({ value, onChange }: OtherFeesEditorProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <label className="text-sm font-medium text-foreground">Chi phí phát sinh</label>
+        <p className="text-sm font-medium text-foreground">Chi phí phát sinh</p>
         {value.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">Tổng: {formatCurrency(total)}</span>
         )}
@@ -31,6 +31,7 @@ export function OtherFeesEditor({ value, onChange }: OtherFeesEditorProps) {
           <Input
             value={item.name}
             onChange={(e) => updateItem(index, { name: e.target.value })}
+            aria-label={`Tên khoản phát sinh ${index + 1}`}
             placeholder="Tên khoản, VD: Vệ sinh trả phòng"
             maxLength={100}
             className="h-11 min-w-0 flex-1 rounded-lg border-border bg-background"
@@ -38,6 +39,7 @@ export function OtherFeesEditor({ value, onChange }: OtherFeesEditorProps) {
           <CurrencyInput
             value={item.amount}
             onChange={(amount) => updateItem(index, { amount })}
+            aria-label={`Số tiền khoản phát sinh ${index + 1}`}
             placeholder="Số tiền"
             inputMode="numeric"
             className="h-11 w-32 shrink-0 rounded-lg border-border bg-background text-right tabular-nums sm:w-40"

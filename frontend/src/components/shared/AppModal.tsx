@@ -1,13 +1,17 @@
 import type { ComponentProps, ReactNode } from 'react'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { X } from '@/components/icons'
 import { cn } from '@/lib/utils'
+import { useBackToClose } from './useBackToClose'
 
 interface AppModalProps {
   open: boolean
@@ -37,6 +41,8 @@ export function AppModal({
   dismissible = true,
   initialFocus,
 }: AppModalProps) {
+  useBackToClose(open, onClose, dismissible)
+
   return (
     <Dialog
       open={open}
@@ -46,15 +52,36 @@ export function AppModal({
     >
       <DialogContent
         initialFocus={initialFocus}
-        className={cn('flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0', contentClassName)}
+        showCloseButton={false}
+        className={cn(
+          'flex flex-col gap-0 overflow-hidden p-0 sm:max-h-[90dvh]',
+          'max-sm:inset-0 max-sm:h-dvh max-sm:max-h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:ring-0 max-sm:data-open:zoom-in-100 max-sm:data-closed:zoom-out-100',
+          contentClassName,
+        )}
       >
-        <DialogHeader className="border-b border-border/60 px-6 pb-4 pt-6">
-          <DialogTitle className="text-lg">{title}</DialogTitle>
-          {description ? <DialogDescription>{description}</DialogDescription> : null}
+        <DialogHeader className="shrink-0 flex-row items-start gap-3 border-b border-border/60 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:pb-4 sm:pt-6">
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <DialogTitle className="text-lg">{title}</DialogTitle>
+            {description ? <DialogDescription>{description}</DialogDescription> : null}
+          </div>
+          <DialogClose
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="-mr-1 -mt-1 shrink-0 bg-secondary sm:-mr-2 sm:-mt-2"
+                aria-label="Đóng"
+              />
+            }
+          >
+            <X />
+          </DialogClose>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">{children}</div>
         {footer ? (
-          <DialogFooter className="border-t border-border/60 px-4 py-3 sm:px-6 sm:py-4">{footer}</DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border/60 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
+            {footer}
+          </DialogFooter>
         ) : null}
       </DialogContent>
     </Dialog>

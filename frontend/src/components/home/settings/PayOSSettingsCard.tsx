@@ -132,8 +132,8 @@ export function PayOSSettingsCard() {
           <div className="space-y-2 max-w-2xl">
             <Label htmlFor="payos-webhook-url">Webhook URL</Label>
             <div className="flex gap-2">
-              <Input id="payos-webhook-url" value={status.webhook_url} readOnly className="font-mono text-xs" />
-              <Button type="button" variant="outline" size="icon" onClick={copyWebhookURL} className="cursor-pointer flex-shrink-0">
+              <Input id="payos-webhook-url" value={status.webhook_url} readOnly className="font-mono text-base md:text-xs" />
+              <Button type="button" variant="outline" size="icon" onClick={copyWebhookURL} className="cursor-pointer flex-shrink-0" aria-label="Sao chép Webhook URL">
                 <Copy className="h-4 w-4" />
               </Button>
             </div>

@@ -4,18 +4,19 @@ import { formatNumber } from '@/utils/format'
 import { cn } from '@/lib/utils'
 
 // Select dùng lại style của Input để các ô trên cùng một hàng thẳng nhau.
-export const selectFieldClass = 'h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30'
+export const selectFieldClass = 'h-9 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-base outline-none pointer-coarse:h-11 md:text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30'
 
 export function FieldError({ message }: { message?: string }) {
   return message ? <span className="text-xs text-destructive">{message}</span> : null
 }
 
 // Ô nhập tiền: hiển thị có dấu phân cách, lưu lại chuỗi số thuần.
-export function MoneyInput<T extends FieldValues>({ control, name, className, placeholder }: {
+export function MoneyInput<T extends FieldValues>({ control, name, className, placeholder, id }: {
   control: Control<T>
   name: FieldPath<T>
   className?: string
   placeholder?: string
+  id?: string
 }) {
   return (
     <Controller
@@ -24,6 +25,7 @@ export function MoneyInput<T extends FieldValues>({ control, name, className, pl
       render={({ field }) => (
         <Input
           {...field}
+          id={id}
           inputMode="numeric"
           placeholder={placeholder}
           value={formatNumber(field.value)}

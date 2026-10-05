@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
@@ -49,22 +50,78 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 	return &room, nil
 }
 
-// ListRoomsByHouseID lists rooms for a house with pagination.
+// ListRoomsByHouseID lists rooms for a house with pagination, search and active tenant counts.
 // Ownership must be verified by the caller before this.
-func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]model.Room, error) {
+func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, filter model.RoomListFilter) ([]model.Room, int, error) {
 	var rooms []model.Room
-	err := r.db.NewSelect().
+	q := r.db.NewSelect().
 		Model(&rooms).
-		Where("house_id = ?", houseID).
-		Order("name ASC").
-		Limit(limit).
-		Offset(offset).
-		Scan(ctx)
+		ColumnExpr("room.*").
+		ColumnExpr("(SELECT COUNT(*) FROM tenants AS t WHERE t.room_id = room.id AND t.status = ?) AS tenant_count", string(model.TenantStatusActive)).
+		Where("room.house_id = ?", filter.HouseID)
+
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		q.Where("room.name ILIKE ?", "%"+escapeLike(search)+"%")
+	}
+	if filter.Status != "" {
+		q.Where("room.status = ?", filter.Status)
+	}
+
+	total, err := q.
+		OrderExpr("length(room.name) ASC, room.name ASC").
+		Limit(filter.Limit).
+		Offset(filter.Offset).
+		ScanAndCount(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list rooms: %w", err)
+		return nil, 0, fmt.Errorf("list rooms: %w", err)
 	}
-	return rooms, nil
+	return rooms, total, nil
+}
+
+// GetRoomStats counts rooms by status and active tenants in one aggregate query.
+func (r *RoomRepository) GetRoomStats(ctx context.Context, managerID, houseID string) (*model.RoomStats, error) {
+	var stats model.RoomStats
+	q := r.db.NewSelect().
+		TableExpr("rooms AS room").
+		Join("JOIN houses AS h ON h.id = room.house_id").
+		ColumnExpr("COUNT(*) AS total").
+		ColumnExpr("COUNT(*) FILTER (WHERE room.status = 'OCCUPIED') AS occupied").
+		ColumnExpr("COUNT(*) FILTER (WHERE room.status = 'AVAILABLE') AS available").
+		ColumnExpr("COUNT(*) FILTER (WHERE room.status = 'MAINTENANCE') AS maintenance").
+		ColumnExpr("COALESCE(SUM(room.max_tenants), 0) AS capacity").
+		ColumnExpr("COALESCE(SUM((SELECT COUNT(*) FROM tenants AS t WHERE t.room_id = room.id AND t.status = ?)), 0) AS tenants", string(model.TenantStatusActive)).
+		Where("h.manager_id = ?", managerID)
+	if houseID != "" {
+		q.Where("room.house_id = ?", houseID)
+	}
+	if err := q.Scan(ctx, &stats); err != nil {
+		return nil, fmt.Errorf("get room stats: %w", err)
+	}
+	return &stats, nil
+}
+
+// ListAvailableRooms lists available rooms across every house of the manager.
+func (r *RoomRepository) ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]model.Room, int, error) {
+	var rooms []model.Room
+	total, err := r.db.NewSelect().
+		Model(&rooms).
+		ColumnExpr("room.*").
+		ColumnExpr("h.name AS house_name").
+		Join("JOIN houses AS h ON h.id = room.house_id").
+		Where("h.manager_id = ?", managerID).
+		Where("room.status = ?", "AVAILABLE").
+		OrderExpr("h.name ASC, length(room.name) ASC, room.name ASC").
+		Limit(limit).
+		ScanAndCount(ctx)
+	if err != nil {
+		return nil, 0, fmt.Errorf("list available rooms: %w", err)
+	}
+	return rooms, total, nil
+}
+
+func escapeLike(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
 }
 
 // ListAllRoomsByHouseID lists all rooms for a house without pagination.

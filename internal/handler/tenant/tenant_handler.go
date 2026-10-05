@@ -3,6 +3,7 @@ package tenant
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +59,8 @@ type tenantResponse struct {
 	EndDate      string `json:"end_date,omitempty"`
 	Status       string `json:"status"`
 	ZaloUserID   string `json:"zalo_user_id,omitempty"`
+	HouseID      string `json:"house_id,omitempty"`
+	HouseName    string `json:"house_name,omitempty"`
 }
 
 // newTenantResponse shapes tenant output without exposing manager ownership fields.
@@ -76,6 +79,8 @@ func newTenantResponse(tenant model.FullInfoTenant) tenantResponse {
 		EndDate:      tenant.EndDate,
 		Status:       tenant.Status,
 		ZaloUserID:   tenant.ZaloUserID,
+		HouseID:      tenant.HouseID,
+		HouseName:    tenant.HouseName,
 	}
 }
 
@@ -232,6 +237,56 @@ func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Reque
 	}
 	httpx.WriteJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
 
+}
+
+type tenantPageResponse struct {
+	Items   []tenantResponse        `json:"items"`
+	Total   int                     `json:"total"`
+	Page    int                     `json:"page"`
+	Limit   int                     `json:"limit"`
+	Summary model.TenantListSummary `json:"summary"`
+}
+
+// GET /api/v1/tenant?house_id=&q=&page=&limit=
+func (h *TenantHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+	query := r.URL.Query()
+	page, err := strconv.Atoi(query.Get("page"))
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.Atoi(query.Get("limit"))
+	if err != nil || limit < 1 || limit > 100 {
+		limit = 25
+	}
+
+	tenants, summary, err := h.tenantService.SearchTenants(r.Context(), managerID, tenantsvc.SearchTenantsQuery{
+		HouseID: strings.TrimSpace(query.Get("house_id")),
+		Search:  query.Get("q"),
+		Page:    page,
+		Limit:   limit,
+	})
+	if err != nil {
+		if errors.Is(err, model.ErrHouseNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "house not found")
+			return
+		}
+		logger.Error(r, http.StatusInternalServerError, "failed to search tenants", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	w.Header().Set("X-Total-Count", strconv.Itoa(summary.Tenants))
+	httpx.WriteJSON(w, http.StatusOK, tenantPageResponse{
+		Items:   newTenantResponses(tenants),
+		Total:   summary.Tenants,
+		Page:    page,
+		Limit:   limit,
+		Summary: *summary,
+	}, "")
 }
 
 func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request) {

@@ -337,6 +337,27 @@ func TestHouseCostService_UpdateMonthlyCostPublishesEvent(t *testing.T) {
 	}
 }
 
+func TestHouseCostService_GetRevenueTrend(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
+	costService := housesvc.NewHouseCostService(mock_model.NewMockHouseCostRepository(ctrl), mock_model.NewMockHouseRepository(ctrl), nil, mockSummaryRepo)
+	ctx := context.Background()
+
+	mockSummaryRepo.EXPECT().
+		ListForManagerPeriods(ctx, "manager-1", []string{"house-1"}, []string{"2023-09", "2023-10"}).
+		Return([]model.HouseRevenueSummary{{HouseID: "house-1", Period: "2023-09"}, {HouseID: "house-1", Period: "2023-10"}}, nil)
+
+	summaries, err := costService.GetRevenueTrend(ctx, "manager-1", []string{"house-1"}, []string{"2023-09", "2023-10"})
+	if err != nil {
+		t.Errorf("error not expected: %v", err)
+	}
+	if len(summaries) != 2 {
+		t.Errorf("expected 2 summaries, got %d", len(summaries))
+	}
+}
+
 func TestHouseCostService_GetRevenueSummaries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

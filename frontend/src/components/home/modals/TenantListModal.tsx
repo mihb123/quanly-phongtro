@@ -104,10 +104,10 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                       {cccdList.length > 0 && <VerifiedBadge title="Đã tải ảnh CCCD" />}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button onClick={() => onEdit(t)} className="p-1.5 text-muted-foreground hover:text-primary bg-background shadow-sm border border-border/50 rounded-md transition-colors cursor-pointer" title="Sửa">
+                      <button aria-label="Sửa" onClick={() => onEdit(t)} className="p-1.5 text-muted-foreground hover:text-primary bg-background shadow-sm border border-border/50 rounded-md transition-colors cursor-pointer" title="Sửa">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button disabled={isDeleting} onClick={() => {
+                      <button aria-label="Xóa" disabled={isDeleting} onClick={() => {
                         if (confirm("Bạn có chắc chắn muốn xóa người thuê này?")) {
                           onDelete(t.id)
                         }

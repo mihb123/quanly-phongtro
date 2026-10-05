@@ -151,6 +151,8 @@ export function ZaloBotSettingsCard() {
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent cursor-pointer"
                     onClick={() => setShowBotToken(!showBotToken)}
+                    aria-label={showBotToken ? 'Ẩn Bot Token' : 'Hiện Bot Token'}
+                    aria-pressed={showBotToken}
                   >
                     {showBotToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
                   </Button>

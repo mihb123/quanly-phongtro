@@ -4,6 +4,7 @@ import { X, ZoomIn, Download, ExternalLink, RefreshCw, FileIcon, ChevronLeft, Ch
 import { Button } from '@/components/ui/button'
 import { getFileName, isImagePath } from '@/utils/file'
 import { getProtectedFileObjectUrl } from '@/api/files'
+import { useBackToClose } from './useBackToClose'
 
 export interface LightboxImageItem {
   url?: string
@@ -63,6 +64,18 @@ function ImageLightboxContent({
   const [isDragging, setIsDragging] = useState(false)
 
   const mainContainerRef = useRef<HTMLElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+
+  useBackToClose(true, onClose)
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeButtonRef.current?.focus({ preventScroll: true })
+    return () => {
+      if (previouslyFocused?.isConnected) previouslyFocused.focus({ preventScroll: true })
+    }
+  }, [])
   const isMouseDownRef = useRef(false)
   const dragStartRef = useRef<{ startX: number; startY: number; posX: number; posY: number }>({
     startX: 0,
@@ -234,6 +247,31 @@ function ImageLightboxContent({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const dialog = dialogRef.current
+        if (!dialog) return
+        const focusable = Array.from(
+          dialog.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'),
+        ).filter((el) => el.offsetParent !== null)
+        if (focusable.length === 0) {
+          e.preventDefault()
+          return
+        }
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        const active = document.activeElement
+        if (!dialog.contains(active)) {
+          e.preventDefault()
+          first.focus()
+        } else if (e.shiftKey && active === first) {
+          e.preventDefault()
+          last.focus()
+        } else if (!e.shiftKey && active === last) {
+          e.preventDefault()
+          first.focus()
+        }
+        return
+      }
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
@@ -483,6 +521,7 @@ function ImageLightboxContent({
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={activeTitle || 'Xem ảnh'}
@@ -494,7 +533,7 @@ function ImageLightboxContent({
     >
       {/* Top Header Bar */}
       <header
-        className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10"
+        className="flex items-center justify-between gap-3 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-6 sm:py-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 overflow-hidden text-white/90">
@@ -521,7 +560,7 @@ function ImageLightboxContent({
                 type="button"
                 onClick={handleZoomOut}
                 disabled={zoom <= 0.5}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
+                className="p-2 pointer-coarse:p-3 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
                 title="Thu nhỏ (- / Cuộn chuột xuống)"
                 aria-label="Thu nhỏ"
               >
@@ -532,7 +571,7 @@ function ImageLightboxContent({
                 type="button"
                 onClick={handleZoomIn}
                 disabled={zoom >= 6}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
+                className="p-2 pointer-coarse:p-3 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-transparent rounded-lg transition-colors cursor-pointer"
                 title="Phóng to (+ / Cuộn chuột lên)"
                 aria-label="Phóng to"
               >
@@ -553,7 +592,7 @@ function ImageLightboxContent({
               <button
                 type="button"
                 onClick={handleRotate}
-                className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                className="p-2 pointer-coarse:p-3 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                 title="Xoay ảnh 90° (R)"
                 aria-label="Xoay ảnh"
               >
@@ -566,7 +605,7 @@ function ImageLightboxContent({
             type="button"
             onClick={handleDownload}
             disabled={!activeUrl}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 rounded-lg transition-colors cursor-pointer"
+            className="p-2 pointer-coarse:p-3 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 rounded-lg transition-colors cursor-pointer"
             title="Tải về máy"
             aria-label="Tải về máy"
           >
@@ -577,7 +616,7 @@ function ImageLightboxContent({
             type="button"
             onClick={handleOpenNewTab}
             disabled={!activeUrl}
-            className="p-2 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 rounded-lg transition-colors cursor-pointer"
+            className="p-2 pointer-coarse:p-3 text-white/80 hover:text-white hover:bg-white/10 disabled:opacity-30 rounded-lg transition-colors cursor-pointer"
             title="Mở tab mới"
             aria-label="Mở tab mới"
           >
@@ -587,9 +626,10 @@ function ImageLightboxContent({
           <div className="h-5 w-px bg-white/20 mx-1" />
 
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="p-2 text-white hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+            className="p-2 pointer-coarse:p-3 text-white hover:text-white bg-white/10 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
             title="Đóng (Esc)"
             aria-label="Đóng"
           >
@@ -693,7 +733,7 @@ function ImageLightboxContent({
 
       {/* Bottom Hint Bar */}
       <footer
-        className="flex items-center justify-center py-2 px-4 bg-gradient-to-t from-black/60 to-transparent z-10 text-white/60 text-xs gap-3 sm:gap-4 select-none"
+        className="flex items-center justify-center py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] px-4 bg-gradient-to-t from-black/60 to-transparent z-10 text-white/60 text-xs gap-3 sm:gap-4 select-none"
         onClick={(e) => e.stopPropagation()}
       >
         {isImg && (

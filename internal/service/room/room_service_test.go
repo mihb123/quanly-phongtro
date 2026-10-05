@@ -226,7 +226,7 @@ func TestRoomService_ListRoomsByHouseID(t *testing.T) {
 			limit:     10,
 			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(true, nil)
-				mockRoomRepo.EXPECT().ListRoomsByHouseID(ctx, "house-1", 10, 0).Return(expectedRooms, nil)
+				mockRoomRepo.EXPECT().ListRoomsByHouseID(ctx, model.RoomListFilter{HouseID: "house-1", Search: "A1", Status: "AVAILABLE", Limit: 10, Offset: 0}).Return(expectedRooms, 1, nil)
 			},
 			want:    expectedRooms,
 			wantErr: nil,
@@ -271,7 +271,7 @@ func TestRoomService_ListRoomsByHouseID(t *testing.T) {
 			limit:     5,
 			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
 				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(true, nil)
-				mockRoomRepo.EXPECT().ListRoomsByHouseID(ctx, "house-1", 5, 5).Return(nil, errDB)
+				mockRoomRepo.EXPECT().ListRoomsByHouseID(ctx, model.RoomListFilter{HouseID: "house-1", Search: "A1", Status: "AVAILABLE", Limit: 5, Offset: 5}).Return(nil, 0, errDB)
 			},
 			want:    nil,
 			wantErr: errDB,
@@ -285,7 +285,13 @@ func TestRoomService_ListRoomsByHouseID(t *testing.T) {
 			tt.mock(mockRoomRepo, mockHouseRepo)
 
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
-			got, err := s.ListRoomsByHouseID(ctx, tt.houseID, tt.managerID, tt.page, tt.limit)
+			got, _, err := s.ListRoomsByHouseID(ctx, tt.managerID, roomsvc.ListRoomsQuery{
+				HouseID: tt.houseID,
+				Search:  "A1",
+				Status:  "AVAILABLE",
+				Page:    tt.page,
+				Limit:   tt.limit,
+			})
 
 			if err != tt.wantErr {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
@@ -295,6 +301,101 @@ func TestRoomService_ListRoomsByHouseID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoomService_GetRoomStats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	stats := &model.RoomStats{Total: 3, Occupied: 2, Available: 1}
+
+	tests := []struct {
+		name      string
+		managerID string
+		houseID   string
+		mock      func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository)
+		want      *model.RoomStats
+		wantErr   error
+	}{
+		{
+			name:      "All houses",
+			managerID: "manager-1",
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockRoomRepo.EXPECT().GetRoomStats(ctx, "manager-1", "").Return(stats, nil)
+			},
+			want: stats,
+		},
+		{
+			name:      "One house",
+			managerID: "manager-1",
+			houseID:   "house-1",
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(true, nil)
+				mockRoomRepo.EXPECT().GetRoomStats(ctx, "manager-1", "house-1").Return(stats, nil)
+			},
+			want: stats,
+		},
+		{
+			name:      "House not owned",
+			managerID: "manager-1",
+			houseID:   "house-1",
+			mock: func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {
+				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "manager-1").Return(false, errDB)
+			},
+			wantErr: errDB,
+		},
+		{
+			name:      "Empty Manager ID",
+			managerID: " ",
+			mock:      func(mockRoomRepo *mock_model.MockRoomRepository, mockHouseRepo *mock_model.MockHouseRepository) {},
+			wantErr:   sharedsvc.ErrInvalidManagerID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
+			mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
+			tt.mock(mockRoomRepo, mockHouseRepo)
+
+			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
+			got, err := s.GetRoomStats(ctx, tt.managerID, tt.houseID)
+
+			if err != tt.wantErr {
+				t.Errorf("expected error %v, got %v", tt.wantErr, err)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("expected %v, got %v", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestRoomService_ListAvailableRooms(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	rooms := []model.Room{{ID: "room-1", HouseName: "House A"}}
+
+	t.Run("Happy path", func(t *testing.T) {
+		mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
+		mockRoomRepo.EXPECT().ListAvailableRooms(ctx, "manager-1", 50).Return(rooms, 4, nil)
+
+		s := roomsvc.NewRoomService(mockRoomRepo, mock_model.NewMockHouseRepository(ctrl))
+		got, total, err := s.ListAvailableRooms(ctx, "manager-1", 50)
+		if err != nil || total != 4 || !reflect.DeepEqual(got, rooms) {
+			t.Errorf("unexpected result: %v, %d, %v", got, total, err)
+		}
+	})
+
+	t.Run("Empty Manager ID", func(t *testing.T) {
+		s := roomsvc.NewRoomService(mock_model.NewMockRoomRepository(ctrl), mock_model.NewMockHouseRepository(ctrl))
+		if _, _, err := s.ListAvailableRooms(ctx, " ", 50); err != sharedsvc.ErrInvalidManagerID {
+			t.Errorf("expected %v, got %v", sharedsvc.ErrInvalidManagerID, err)
+		}
+	})
 }
 
 func TestRoomService_UpdateRoom(t *testing.T) {

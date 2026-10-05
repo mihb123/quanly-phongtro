@@ -201,24 +201,24 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
         <FormSection title="Thông tin chung">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>
+              <Label htmlFor="edit-house-name">
                 Tên nhà trọ <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
+              <Input id="edit-house-name" {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
               <FieldError message={errors.name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label>
+              <Label htmlFor="edit-house-house-code">
                 Mã nhà (House Code) <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-input" />
+              <Input id="edit-house-house-code" {...register('house_code', { onBlur: handleHouseCodeBlur })} placeholder="vd: ntcg" maxLength={12} className="border-input" />
               <FieldError message={errors.house_code?.message} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>
+              <Label htmlFor="edit-house-address">
                 Địa chỉ <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
+              <Input id="edit-house-address" {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
               <FieldError message={errors.address?.message} />
             </div>
           </div>
@@ -229,47 +229,47 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className={selectFieldClass}>
+                  <Label htmlFor="edit-house-electricity-billing-type">Cách tính tiền điện</Label>
+                  <select id="edit-house-electricity-billing-type" {...register('electricity_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
-                    <Label>Đơn vị tính điện</Label>
-                    <select {...register('electricity_billing_unit')} className={selectFieldClass}>
+                    <Label htmlFor="edit-house-electricity-billing-unit">Đơn vị tính điện</Label>
+                    <select id="edit-house-electricity-billing-unit" {...register('electricity_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label>{getElectricityPriceLabel()}</Label>
-                  <MoneyInput control={control} name="electricity" />
+                  <Label htmlFor="edit-house-electricity">{getElectricityPriceLabel()}</Label>
+                  <MoneyInput id="edit-house-electricity" control={control} name="electricity" />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className={selectFieldClass}>
+                  <Label htmlFor="edit-house-water-billing-type">Cách tính tiền nước</Label>
+                  <select id="edit-house-water-billing-type" {...register('water_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
-                    <Label>Đơn vị tính nước</Label>
-                    <select {...register('water_billing_unit')} className={selectFieldClass}>
+                    <Label htmlFor="edit-house-water-billing-unit">Đơn vị tính nước</Label>
+                    <select id="edit-house-water-billing-unit" {...register('water_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label>{getWaterPriceLabel()}</Label>
-                  <MoneyInput control={control} name="water" />
+                  <Label htmlFor="edit-house-water">{getWaterPriceLabel()}</Label>
+                  <MoneyInput id="edit-house-water" control={control} name="water" />
                 </div>
               </div>
             </div>
@@ -278,16 +278,16 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
           <FormSubGroup label="Dịch vụ khác">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label>Wifi / phòng (VNĐ)</Label>
-                <MoneyInput control={control} name="wifi" />
+                <Label htmlFor="edit-house-wifi">Wifi / phòng (VNĐ)</Label>
+                <MoneyInput id="edit-house-wifi" control={control} name="wifi" />
               </div>
               <div className="space-y-1.5">
-                <Label>Gửi xe / xe (VNĐ)</Label>
-                <MoneyInput control={control} name="parking" />
+                <Label htmlFor="edit-house-parking">Gửi xe / xe (VNĐ)</Label>
+                <MoneyInput id="edit-house-parking" control={control} name="parking" />
               </div>
               <div className="space-y-1.5">
-                <Label>Dịch vụ chung / người (VNĐ)</Label>
-                <MoneyInput control={control} name="service" />
+                <Label htmlFor="edit-house-service">Dịch vụ chung / người (VNĐ)</Label>
+                <MoneyInput id="edit-house-service" control={control} name="service" />
               </div>
             </div>
           </FormSubGroup>
@@ -295,16 +295,16 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
           <FormSubGroup label="Phụ thu (để 0 nếu không áp dụng)">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Phụ thu nếu quá X người</Label>
+                <Label htmlFor="edit-house-extra-person-threshold">Phụ thu nếu quá X người</Label>
                 <div className="flex gap-2">
-                  <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
+                  <Input id="edit-house-extra-person-threshold" type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
                   <MoneyInput control={control} name="extra_person_fee" className="flex-1" placeholder="Giá/người (VNĐ)" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Phụ thu nếu quá X xe</Label>
+                <Label htmlFor="edit-house-extra-vehicle-threshold">Phụ thu nếu quá X xe</Label>
                 <div className="flex gap-2">
-                  <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
+                  <Input id="edit-house-extra-vehicle-threshold" type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
                   <MoneyInput control={control} name="extra_vehicle_fee" className="flex-1" placeholder="Giá/xe (VNĐ)" />
                 </div>
               </div>
@@ -316,30 +316,30 @@ export function EditHouseModal({ house, onClose }: EditHouseModalProps) {
           <FormSubGroup label="Chủ nhà & điều khoản hợp đồng">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Tên chủ nhà</Label>
-                <Input {...register('owner_name')} placeholder="vd: Nguyễn Văn A" className="border-input" />
+                <Label htmlFor="edit-house-owner-name">Tên chủ nhà</Label>
+                <Input id="edit-house-owner-name" {...register('owner_name')} placeholder="vd: Nguyễn Văn A" className="border-input" />
                 <FieldError message={errors.owner_name?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label>Số điện thoại</Label>
-                <Input {...register('owner_phone')} placeholder="vd: 0912345678" className="border-input" />
+                <Label htmlFor="edit-house-owner-phone">Số điện thoại</Label>
+                <Input id="edit-house-owner-phone" type="tel" inputMode="tel" {...register('owner_phone')} placeholder="vd: 0912345678" className="border-input" />
                 <FieldError message={errors.owner_phone?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label>Tiền thuê / tháng (VNĐ)</Label>
-                <MoneyInput control={control} name="owner_rent_price" />
+                <Label htmlFor="edit-house-owner-rent-price">Tiền thuê / tháng (VNĐ)</Label>
+                <MoneyInput id="edit-house-owner-rent-price" control={control} name="owner_rent_price" />
               </div>
               <div className="space-y-1.5">
-                <Label>Tiền cọc (VNĐ)</Label>
-                <MoneyInput control={control} name="owner_deposit" />
+                <Label htmlFor="edit-house-owner-deposit">Tiền cọc (VNĐ)</Label>
+                <MoneyInput id="edit-house-owner-deposit" control={control} name="owner_deposit" />
               </div>
               <div className="space-y-1.5">
-                <Label>Ngày bắt đầu thuê</Label>
-                <Input type="date" {...register('rent_start_date')} className="border-input" />
+                <Label htmlFor="edit-house-rent-start-date">Ngày bắt đầu thuê</Label>
+                <Input id="edit-house-rent-start-date" type="date" {...register('rent_start_date')} className="border-input" />
               </div>
               <div className="space-y-1.5">
-                <Label>Ngày kết thúc thuê</Label>
-                <Input type="date" {...register('rent_end_date')} className="border-input" />
+                <Label htmlFor="edit-house-rent-end-date">Ngày kết thúc thuê</Label>
+                <Input id="edit-house-rent-end-date" type="date" {...register('rent_end_date')} className="border-input" />
                 <FieldError message={errors.rent_end_date?.message} />
               </div>
             </div>

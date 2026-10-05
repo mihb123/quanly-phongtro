@@ -1,26 +1,20 @@
-import { useEffect, useState } from 'react'
-import { getInvoiceBreakdown, type InvoiceBreakdown } from '@/api/invoice'
+import { useEffect } from 'react'
+import { getInvoiceBreakdown } from '@/api/invoice'
+import { invalidateQueries, queryKey, useQuery } from '@/lib/queryCache'
 
 export function useInvoiceBreakdown(houseIds: string[], period: string, refreshKey?: unknown) {
-  const [result, setResult] = useState<{ key: string; data: InvoiceBreakdown | null } | null>(null)
   const houseKey = houseIds.join(',')
-  const requestKey = `${houseKey}|${period}`
   const hasInput = Boolean(houseKey && period)
+  const key = queryKey('invoices:breakdown-houses', { house_ids: houseKey, period })
+
+  const { data, isLoading } = useQuery(key, () => getInvoiceBreakdown({ house_ids: houseKey, period }), { enabled: hasInput })
 
   useEffect(() => {
-    if (!hasInput) return
-    let cancelled = false
-    getInvoiceBreakdown({ house_ids: houseKey, period })
-      .catch(() => null)
-      .then(data => {
-        if (!cancelled) setResult({ key: `${houseKey}|${period}`, data })
-      })
-    return () => { cancelled = true }
-  }, [houseKey, period, hasInput, refreshKey])
+    if (refreshKey !== undefined) invalidateQueries(key)
+  }, [refreshKey, key])
 
-  const isCurrent = result?.key === requestKey
   return {
-    breakdown: hasInput && isCurrent ? result.data : null,
-    isLoading: hasInput && !isCurrent,
+    breakdown: hasInput ? data ?? null : null,
+    isLoading: hasInput && isLoading,
   }
 }

@@ -155,7 +155,7 @@ func TestInvoiceService_ListInvoices(t *testing.T) {
 			managerID: "mgr-1",
 			filter:    model.InvoiceListFilter{},
 			setupMock: func() {
-				mockInvoiceRepo.EXPECT().ListInvoices(ctx, "mgr-1", gomock.Any()).Return([]model.InvoiceWithRoom{{}, {}}, nil)
+				mockInvoiceRepo.EXPECT().ListInvoices(ctx, "mgr-1", gomock.Any()).Return([]model.InvoiceWithRoom{{}, {}}, 7, nil)
 			},
 			wantErr: false,
 			wantLen: 2,
@@ -165,7 +165,7 @@ func TestInvoiceService_ListInvoices(t *testing.T) {
 			managerID: "mgr-1",
 			filter:    model.InvoiceListFilter{},
 			setupMock: func() {
-				mockInvoiceRepo.EXPECT().ListInvoices(ctx, "mgr-1", gomock.Any()).Return(nil, errors.New("db error"))
+				mockInvoiceRepo.EXPECT().ListInvoices(ctx, "mgr-1", gomock.Any()).Return(nil, 0, errors.New("db error"))
 			},
 			wantErr: true,
 		},
@@ -174,12 +174,13 @@ func TestInvoiceService_ListInvoices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMock()
-			got, err := s.ListInvoices(ctx, tt.managerID, tt.filter)
+			got, total, err := s.ListInvoices(ctx, tt.managerID, tt.filter)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				assert.Len(t, got, tt.wantLen)
+				assert.Equal(t, 7, total)
 			}
 		})
 	}

@@ -21,11 +21,41 @@ export interface Tenant {
   status: string
   room_name?: string
   cccd_path?: string
+  house_id?: string
+  house_name?: string
+}
+
+export interface TenantListSummary {
+  tenants: number
+  rooms: number
+  verified: number
+  houses: number
+}
+
+export interface TenantPage {
+  items: Tenant[]
+  total: number
+  page: number
+  limit: number
+  summary: TenantListSummary
+}
+
+export interface TenantListParams {
+  house_id?: string
+  q?: string
+  page: number
+  limit: number
 }
 
 // Normalize a tenant response: backend returns `tenant_id`, frontend uses `id`.
 const normalizeTenant = (t: Partial<Tenant> & { tenant_id?: string }) =>
   ({ ...t, id: t.tenant_id || t.id }) as Tenant
+
+export const searchTenants = async (params: TenantListParams): Promise<TenantPage> => {
+  const { data } = await apiClient.get('/tenant/', { params })
+  const page = data.data as Omit<TenantPage, 'items'> & { items: (Partial<Tenant> & { tenant_id?: string })[] }
+  return { ...page, items: (page.items || []).map(normalizeTenant) }
+}
 
 // Create a new tenant
 export const createTenant = async (payload: FormData) => {
@@ -40,17 +70,6 @@ export const createTenant = async (payload: FormData) => {
 // Get all active tenants by room ID
 export const getTenantsByRoom = async (roomId: string) => {
   const { data } = await apiClient.get(`/tenant/room/${roomId}`)
-  const tenants = data.data
-  if (!tenants || (Array.isArray(tenants) && tenants.length === 0)) {
-    return { data: [] }
-  }
-  const tenantArray = Array.isArray(tenants) ? tenants : [tenants]
-  return { data: tenantArray.map((t: Partial<Tenant> & { tenant_id?: string, room_name?: string }) => ({ ...t, id: t.tenant_id || t.id, room_name: t.room_name })) as Tenant[] }
-}
-
-// Get all active tenants by house ID
-export const getTenantsByHouse = async (houseId: string) => {
-  const { data } = await apiClient.get(`/tenant/house/${houseId}`)
   const tenants = data.data
   if (!tenants || (Array.isArray(tenants) && tenants.length === 0)) {
     return { data: [] }

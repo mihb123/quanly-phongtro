@@ -49,6 +49,24 @@ type FullInfoTenant struct {
 	EndDate      string `json:"end_date,omitempty"`
 	Status       string `json:"status"`
 	ZaloUserID   string `json:"zalo_user_id,omitempty"`
+	HouseID      string `json:"house_id,omitempty"`
+	HouseName    string `json:"house_name,omitempty"`
+}
+
+// TenantListFilter narrows a paginated listing of active tenants.
+type TenantListFilter struct {
+	HouseID string
+	Search  string
+	Limit   int
+	Offset  int
+}
+
+// TenantListSummary aggregates the whole filtered tenant set, not just the current page.
+type TenantListSummary struct {
+	Tenants  int `json:"tenants"`
+	Rooms    int `json:"rooms"`
+	Verified int `json:"verified"`
+	Houses   int `json:"houses"`
 }
 
 // UpdateTenantInput holds optional fields for tenant profile updates.
@@ -64,6 +82,7 @@ type TenantRepository interface {
 	GetCurrentNumTenantInRoom(ctx context.Context, roomID string) (int64, error)
 	ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]FullInfoTenant, error)
 	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]FullInfoTenant, error)
+	SearchTenants(ctx context.Context, managerID string, filter TenantListFilter) ([]FullInfoTenant, *TenantListSummary, error)
 	GetTenantByID(ctx context.Context, managerID, tenantID string) (*FullInfoTenant, error)
 	UpdateTenant(ctx context.Context, tenantID string, input UpdateTenantInput) (*Tenant, error)
 	// VerifyTenantOwnership checks that the tenant exists and belongs to the manager.

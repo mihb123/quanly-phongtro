@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -415,6 +416,42 @@ func TestHouseCostHandler_GetRevenueSummaries(t *testing.T) {
 			mockBehavior: func(svc *mock_service.MockHouseCostService) {
 				svc.EXPECT().
 					GetRevenueSummaries(gomock.Any(), "user-1", []string{"h1"}, "2023-10").
+					Return(nil, errors.New("db error"))
+			},
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:        "Trend - happy path",
+			setupAuth:   withValidClaims,
+			queryParams: "?house_ids=h1,%20h2,&periods=2023-09,%202023-10&period=ignored",
+			mockBehavior: func(svc *mock_service.MockHouseCostService) {
+				svc.EXPECT().
+					GetRevenueTrend(gomock.Any(), "user-1", []string{"h1", "h2"}, []string{"2023-09", "2023-10"}).
+					Return([]model.HouseRevenueSummary{{Period: "2023-09"}, {Period: "2023-10"}}, nil)
+			},
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "Trend - invalid period",
+			setupAuth:      withValidClaims,
+			queryParams:    "?house_ids=h1&periods=2023-09,2023-13",
+			mockBehavior:   func(svc *mock_service.MockHouseCostService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "Trend - too many periods",
+			setupAuth:      withValidClaims,
+			queryParams:    "?house_ids=h1&periods=" + strings.TrimSuffix(strings.Repeat("2023-10,", 25), ","),
+			mockBehavior:   func(svc *mock_service.MockHouseCostService) {},
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:        "Trend - service error",
+			setupAuth:   withValidClaims,
+			queryParams: "?house_ids=h1&periods=2023-10",
+			mockBehavior: func(svc *mock_service.MockHouseCostService) {
+				svc.EXPECT().
+					GetRevenueTrend(gomock.Any(), "user-1", []string{"h1"}, []string{"2023-10"}).
 					Return(nil, errors.New("db error"))
 			},
 			expectedStatus: http.StatusInternalServerError,

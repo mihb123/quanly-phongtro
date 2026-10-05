@@ -19,7 +19,7 @@ export function MobileHeader() {
         <UpdateProfileModal onClose={() => setShowUpdateProfile(false)} />
       )}
 
-      <header className="fixed top-0 left-0 right-0 z-40 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-xl safe-top pt-[env(safe-area-inset-top)] md:hidden">
+      <header className="fixed top-0 left-0 right-0 z-40 flex h-[calc(4rem+env(safe-area-inset-top))] items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur-xl safe-top pt-[env(safe-area-inset-top)] md:hidden">
         {/* Left: Logo */}
         <div className="flex items-center gap-2.5 overflow-hidden">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">

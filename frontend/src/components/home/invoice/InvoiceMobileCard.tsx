@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Download, Pencil, Send, Trash2 } from '@/components/icons'
 import { type Invoice } from '@/api/invoice'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -9,15 +10,15 @@ import { formatCurrency } from '@/utils/format'
 interface InvoiceMobileCardProps {
   invoice: Invoice
   houseName?: string
-  onOpen: () => void
-  onEdit: () => void
-  onDownload: () => void
-  onSendZalo: () => void
-  onDelete: () => void
+  onOpen: (invoice: Invoice) => void
+  onEdit: (invoice: Invoice) => void
+  onDownload: (invoice: Invoice) => void
+  onSendZalo: (invoice: Invoice) => void
+  onDelete: (invoice: Invoice) => void
 }
 
 // Thẻ hóa đơn mobile nhóm thông tin theo thứ tự quét và giữ hành động icon-only dễ chạm.
-export function InvoiceMobileCard({
+export const InvoiceMobileCard = memo(function InvoiceMobileCard({
   invoice,
   houseName,
   onOpen,
@@ -38,7 +39,7 @@ export function InvoiceMobileCard({
           type="button"
           variant="ghost"
           size="lg"
-          onClick={onOpen}
+          onClick={() => onOpen(invoice)}
           className="h-auto w-full cursor-pointer justify-start whitespace-normal rounded-none p-3 text-left"
           aria-label={`Xem hóa đơn phòng ${invoice.room_name}, kỳ ${invoice.period}`}
         >
@@ -73,7 +74,7 @@ export function InvoiceMobileCard({
           type="button"
           variant="ghost"
           size="icon-lg"
-          onClick={onEdit}
+          onClick={() => onEdit(invoice)}
           className="size-11 cursor-pointer"
           aria-label={`Sửa hóa đơn phòng ${invoice.room_name}`}
           title="Sửa hóa đơn"
@@ -84,7 +85,7 @@ export function InvoiceMobileCard({
           type="button"
           variant="ghost"
           size="icon-lg"
-          onClick={onDownload}
+          onClick={() => onDownload(invoice)}
           className="size-11 cursor-pointer"
           aria-label={`Tải hóa đơn phòng ${invoice.room_name}`}
           title="Tải hóa đơn"
@@ -96,7 +97,7 @@ export function InvoiceMobileCard({
             type="button"
             variant="ghost"
             size="icon-lg"
-            onClick={onSendZalo}
+            onClick={() => onSendZalo(invoice)}
             className="size-11 cursor-pointer"
             aria-label={`Gửi hóa đơn phòng ${invoice.room_name} qua Zalo`}
             title="Gửi qua Zalo"
@@ -108,7 +109,7 @@ export function InvoiceMobileCard({
           type="button"
           variant="ghost"
           size="icon-lg"
-          onClick={onDelete}
+          onClick={() => onDelete(invoice)}
           className="size-11 cursor-pointer"
           aria-label={`Xóa hóa đơn phòng ${invoice.room_name}`}
           title="Xóa hóa đơn"
@@ -118,4 +119,4 @@ export function InvoiceMobileCard({
       </CardFooter>
     </Card>
   )
-}
+})

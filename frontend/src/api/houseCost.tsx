@@ -62,6 +62,14 @@ export const updateMonthlyCost = async (id: string, payload: Partial<HouseCost>)
   await apiClient.patch(`/house-cost/${id}`, payload);
 };
 
+export const getRevenueTrend = async (houseIds: string[], periods: string[]): Promise<RevenueSummary[]> => {
+  if (houseIds.length === 0 || periods.length === 0) return [];
+  const response = await apiClient.get('/revenue-summary', {
+    params: { house_ids: houseIds.join(','), periods: periods.join(',') },
+  });
+  return response.data.data || [];
+};
+
 export const getRevenueSummaries = async (houseIds: string[], period: string): Promise<RevenueSummary[]> => {
   if (houseIds.length === 0) return [];
   const response = await apiClient.get('/revenue-summary', {

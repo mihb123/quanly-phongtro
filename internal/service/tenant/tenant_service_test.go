@@ -328,6 +328,47 @@ func TestTenantService_ListTenant(t *testing.T) {
 	})
 }
 
+func TestTenantService_SearchTenants(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tenantRepo := mock_model.NewMockTenantRepository(ctrl)
+	houseRepo := mock_model.NewMockHouseRepository(ctrl)
+	svc := tenantsvc.NewTenantServiceImpl(mock_model.NewMockUserRepository(ctrl), tenantRepo, mock_model.NewMockRoomRepository(ctrl), houseRepo, &mockPasswordHasher{})
+	ctx := context.Background()
+	summary := &model.TenantListSummary{Tenants: 3}
+
+	t.Run("All houses", func(t *testing.T) {
+		tenantRepo.EXPECT().SearchTenants(ctx, "m1", model.TenantListFilter{Search: "an", Limit: 25, Offset: 25}).Return([]model.FullInfoTenant{{}}, summary, nil)
+		res, sum, err := svc.SearchTenants(ctx, "m1", tenantsvc.SearchTenantsQuery{Search: "an", Page: 2, Limit: 25})
+		if err != nil || len(res) != 1 || sum != summary {
+			t.Errorf("SearchTenants failed: %v", err)
+		}
+	})
+
+	t.Run("Owned house", func(t *testing.T) {
+		houseRepo.EXPECT().IsHouseOwnedBy(ctx, "h1", "m1").Return(true, nil)
+		tenantRepo.EXPECT().SearchTenants(ctx, "m1", model.TenantListFilter{HouseID: "h1", Limit: 10}).Return([]model.FullInfoTenant{}, summary, nil)
+		if _, _, err := svc.SearchTenants(ctx, "m1", tenantsvc.SearchTenantsQuery{HouseID: "h1", Page: 1, Limit: 10}); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("House not owned", func(t *testing.T) {
+		houseRepo.EXPECT().IsHouseOwnedBy(ctx, "h2", "m1").Return(false, nil)
+		if _, _, err := svc.SearchTenants(ctx, "m1", tenantsvc.SearchTenantsQuery{HouseID: "h2", Page: 1, Limit: 10}); !errors.Is(err, model.ErrHouseNotFound) {
+			t.Errorf("expected ErrHouseNotFound, got %v", err)
+		}
+	})
+
+	t.Run("Ownership check error", func(t *testing.T) {
+		houseRepo.EXPECT().IsHouseOwnedBy(ctx, "h3", "m1").Return(false, errors.New("db error"))
+		if _, _, err := svc.SearchTenants(ctx, "m1", tenantsvc.SearchTenantsQuery{HouseID: "h3", Page: 1, Limit: 10}); err == nil {
+			t.Error("expected error, got nil")
+		}
+	})
+}
+
 func TestTenantService_UpdateTenantInfo(t *testing.T) {
 	setupTenantTestDir()
 	defer teardownTenantTestDir()

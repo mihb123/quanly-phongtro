@@ -168,6 +168,75 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 	return tenants, nil
 }
 
+func (r *TenantRepository) activeTenantQuery(managerID string, filter model.TenantListFilter) *bun.SelectQuery {
+	q := r.db.NewSelect().
+		TableExpr("tenants AS t").
+		Join("JOIN users AS u ON u.id = t.user_id").
+		Join("JOIN rooms AS rm ON rm.id = t.room_id").
+		Join("JOIN houses AS h ON h.id = rm.house_id").
+		Where("t.manager_id = ?", managerID).
+		Where("h.manager_id = ?", managerID).
+		Where("t.status = ?", string(model.TenantStatusActive))
+	if filter.HouseID != "" {
+		q.Where("rm.house_id = ?", filter.HouseID)
+	}
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		pattern := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(search) + "%"
+		q.WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
+			return q.Where("u.full_name ILIKE ?", pattern).
+				WhereOr("u.phone ILIKE ?", pattern).
+				WhereOr("u.email ILIKE ?", pattern).
+				WhereOr("t.identity_card ILIKE ?", pattern).
+				WhereOr("rm.name ILIKE ?", pattern)
+		})
+	}
+	return q
+}
+
+// SearchTenants lists one page of active tenants plus aggregates over the whole filtered set.
+func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, filter model.TenantListFilter) ([]model.FullInfoTenant, *model.TenantListSummary, error) {
+	var summary model.TenantListSummary
+	err := r.activeTenantQuery(managerID, filter).
+		ColumnExpr("COUNT(*) AS tenants").
+		ColumnExpr("COUNT(DISTINCT t.room_id) AS rooms").
+		ColumnExpr("COUNT(*) FILTER (WHERE COALESCE(t.cccd_path, '') <> '') AS verified").
+		ColumnExpr("COUNT(DISTINCT rm.house_id) AS houses").
+		Scan(ctx, &summary)
+	if err != nil {
+		return nil, nil, fmt.Errorf("summarize tenants: %w", err)
+	}
+
+	tenants := []model.FullInfoTenant{}
+	if summary.Tenants == 0 {
+		return tenants, &summary, nil
+	}
+
+	err = r.activeTenantQuery(managerID, filter).
+		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
+		ColumnExpr("u.full_name, u.email, u.phone").
+		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
+		ColumnExpr("COALESCE(t.identity_card, '') AS identity_card").
+		ColumnExpr("t.start_date, t.end_date, t.status, u.zalo_user_id").
+		ColumnExpr("rm.name AS room_name, rm.house_id, h.name AS house_name").
+		OrderExpr("h.name ASC, length(rm.name) ASC, rm.name ASC, u.full_name ASC, t.id ASC").
+		Limit(filter.Limit).
+		Offset(filter.Offset).
+		Scan(ctx, &tenants)
+	if err != nil {
+		return nil, nil, fmt.Errorf("search tenants: %w", err)
+	}
+
+	for i := range tenants {
+		if len(tenants[i].StartDate) > 10 {
+			tenants[i].StartDate = tenants[i].StartDate[:10]
+		}
+		if len(tenants[i].EndDate) > 10 {
+			tenants[i].EndDate = tenants[i].EndDate[:10]
+		}
+	}
+	return tenants, &summary, nil
+}
+
 // GetTenantByID retrieves one tenant profile and its account fields.
 func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantID string) (*model.FullInfoTenant, error) {
 	var ft model.FullInfoTenant

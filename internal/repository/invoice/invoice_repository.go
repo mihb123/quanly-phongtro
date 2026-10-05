@@ -75,7 +75,7 @@ func (r *InvoiceRepository) GetInvoiceByID(ctx context.Context, managerID, id st
 }
 
 // ListInvoices lists invoices with filters and ensures they belong to the manager.
-func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, error) {
+func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, filter model.InvoiceListFilter) ([]model.InvoiceWithRoom, int, error) {
 	var invoices []model.InvoiceWithRoom
 
 	q := selectInvoiceWithRoom(r.db.NewSelect().Model(&invoices)).
@@ -90,20 +90,20 @@ func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, 
 	if filter.Period != "" {
 		q.Where("invoice.period = ?", filter.Period)
 	}
-	if filter.Status != "" {
-		q.Where("invoice.status = ?", filter.Status)
+	if statuses := model.SplitInvoiceStatuses(filter.Status); len(statuses) > 0 {
+		q.Where("invoice.status IN (?)", bun.In(statuses))
 	}
 
-	err := q.Order("invoice.created_at DESC").
+	total, err := q.Order("invoice.created_at DESC", "invoice.id DESC").
 		Limit(filter.Limit).
 		Offset((filter.Page - 1) * filter.Limit).
-		Scan(ctx)
+		ScanAndCount(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list invoices: %w", err)
+		return nil, 0, fmt.Errorf("list invoices: %w", err)
 	}
 
-	return invoices, nil
+	return invoices, total, nil
 }
 
 func (r *InvoiceRepository) SumInvoicesByStatus(ctx context.Context, managerID string, filter model.InvoiceBreakdownFilter) ([]model.InvoiceStatusTotals, error) {
@@ -137,8 +137,8 @@ func (r *InvoiceRepository) SumInvoicesByStatus(ctx context.Context, managerID s
 	if filter.Period != "" {
 		q.Where("invoice.period = ?", filter.Period)
 	}
-	if filter.Status != "" {
-		q.Where("invoice.status = ?", filter.Status)
+	if statuses := model.SplitInvoiceStatuses(filter.Status); len(statuses) > 0 {
+		q.Where("invoice.status IN (?)", bun.In(statuses))
 	}
 
 	if err := q.GroupExpr("invoice.status").Scan(ctx, &totals); err != nil {

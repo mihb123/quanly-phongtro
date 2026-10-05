@@ -12,10 +12,20 @@ import (
 type RoomService interface {
 	CreateRoom(ctx context.Context, room *model.Room, managerID string) error
 	GetRoom(ctx context.Context, id, houseID, managerID string) (*model.Room, error)
-	ListRoomsByHouseID(ctx context.Context, houseID, managerID string, page, limit int) ([]model.Room, error)
+	ListRoomsByHouseID(ctx context.Context, managerID string, query ListRoomsQuery) ([]model.Room, int, error)
+	GetRoomStats(ctx context.Context, managerID, houseID string) (*model.RoomStats, error)
+	ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]model.Room, int, error)
 	UpdateRoom(ctx context.Context, id, houseID, managerID string, input UpdateRoomInput) (*model.Room, error)
 	UpdateRoomContract(ctx context.Context, id, houseID, managerID string, input UpdateRoomContractInput) (*model.Room, error)
 	DeleteRoom(ctx context.Context, id, houseID, managerID string) error
+}
+
+type ListRoomsQuery struct {
+	HouseID string
+	Search  string
+	Status  string
+	Page    int
+	Limit   int
 }
 
 type UpdateRoomInput struct {
@@ -93,18 +103,42 @@ func (s *RoomServiceImpl) GetRoom(ctx context.Context, id, houseID, managerID st
 	return s.roomRepo.GetRoomByID(ctx, id, houseID)
 }
 
-func (s *RoomServiceImpl) ListRoomsByHouseID(ctx context.Context, houseID, managerID string, page, limit int) ([]model.Room, error) {
-	if strings.TrimSpace(houseID) == "" {
-		return nil, shared.ErrInvalidHouseID
+func (s *RoomServiceImpl) ListRoomsByHouseID(ctx context.Context, managerID string, query ListRoomsQuery) ([]model.Room, int, error) {
+	if strings.TrimSpace(query.HouseID) == "" {
+		return nil, 0, shared.ErrInvalidHouseID
 	}
+	if strings.TrimSpace(managerID) == "" {
+		return nil, 0, shared.ErrInvalidManagerID
+	}
+	if err := s.checkOwnership(ctx, query.HouseID, managerID); err != nil {
+		return nil, 0, err
+	}
+	return s.roomRepo.ListRoomsByHouseID(ctx, model.RoomListFilter{
+		HouseID: query.HouseID,
+		Search:  query.Search,
+		Status:  query.Status,
+		Limit:   query.Limit,
+		Offset:  (query.Page - 1) * query.Limit,
+	})
+}
+
+func (s *RoomServiceImpl) GetRoomStats(ctx context.Context, managerID, houseID string) (*model.RoomStats, error) {
 	if strings.TrimSpace(managerID) == "" {
 		return nil, shared.ErrInvalidManagerID
 	}
-	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-		return nil, err
+	if houseID != "" {
+		if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
+			return nil, err
+		}
 	}
-	offset := (page - 1) * limit
-	return s.roomRepo.ListRoomsByHouseID(ctx, houseID, limit, offset)
+	return s.roomRepo.GetRoomStats(ctx, managerID, houseID)
+}
+
+func (s *RoomServiceImpl) ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]model.Room, int, error) {
+	if strings.TrimSpace(managerID) == "" {
+		return nil, 0, shared.ErrInvalidManagerID
+	}
+	return s.roomRepo.ListAvailableRooms(ctx, managerID, limit)
 }
 
 func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID string, input UpdateRoomInput) (*model.Room, error) {

@@ -1,16 +1,16 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2, Send } from '@/components/icons'
+import { memo, useState, useEffect, useMemo } from 'react'
+import { Plus, Receipt, Zap, TrendingUp, CheckCircle2, Clock, FilterX, Download, Pencil, Loader2, Trash2, Send, AlertTriangle } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { StatusBadge } from '@/components/shared/StatusBadge'
-import { useInvoiceStore } from '@/data/invoiceData'
+import { countActiveInvoiceFilters, invoiceBreakdownKey, invoiceListKey, useInvoiceStore } from '@/data/invoiceData'
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
-import { type Invoice, getInvoiceImageBlob } from '@/api/invoice'
+import { type Invoice, getAllInvoices, getInvoiceBreakdown, getInvoiceImageBlob, getInvoicesPage } from '@/api/invoice'
 import { sendInvoiceViaZalo } from '@/api/zalo'
 import { CreateInvoiceModal } from './modals/CreateInvoiceModal'
 import { InvoiceDetailModal } from './modals/InvoiceDetailModal'
@@ -24,6 +24,12 @@ import { InvoiceMobileCard } from './invoice/InvoiceMobileCard'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { BreakdownTable, type BreakdownRow } from '@/components/shared/BreakdownTable'
 import type { InvoiceAmounts } from '@/api/invoice'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { DataPagination } from '@/components/shared/DataPagination'
+import { Skeleton } from '@/components/ui/skeleton'
+import { useQuery } from '@/lib/queryCache'
+import { useStableCallback } from '@/hooks/useStableCallback'
+import { cn } from '@/lib/utils'
 
 const INVOICE_BREAKDOWN_ITEMS: { key: keyof InvoiceAmounts; label: string; alwaysShow?: boolean; deduction?: boolean }[] = [
   { key: 'room_fee', label: 'Tiền phòng', alwaysShow: true },
@@ -38,36 +44,66 @@ const INVOICE_BREAKDOWN_ITEMS: { key: keyof InvoiceAmounts; label: string; alway
   { key: 'discount', label: 'Giảm trừ', deduction: true },
 ]
 
+const EMPTY_INVOICES: Invoice[] = []
+
+const filterControlClass = 'h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground md:h-9 md:text-sm'
+
+const errorText = (error: unknown) =>
+  (error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Không tải được dữ liệu hóa đơn.'
+
 // View quản lý hóa đơn: lọc, thống kê nhanh, danh sách (card mobile + table desktop) và các modal tạo/sửa/xem.
 export function InvoicesView() {
   const { houses } = useHouseStore()
   const { getRoomsByHouse } = useRoomStore()
   const selectedHouse = useSelectedStore(state => state.selectedHouse)
   const selectHouse = useSelectedStore(state => state.selectHouse)
-  
-  const { invoices, breakdown, isLoading, invoiceFilter, setInvoiceFilter, fetchInvoices, deleteInvoice } = useInvoiceStore()
+
+  const invoiceFilter = useInvoiceStore(state => state.invoiceFilter)
+  const setInvoiceFilter = useInvoiceStore(state => state.setInvoiceFilter)
+  const clearInvoiceFilter = useInvoiceStore(state => state.clearInvoiceFilter)
+  const deleteInvoice = useInvoiceStore(state => state.deleteInvoice)
+
+  const listQuery = useQuery(invoiceListKey(invoiceFilter), () => getInvoicesPage(invoiceFilter))
+  const breakdownQuery = useQuery(invoiceBreakdownKey(invoiceFilter), () =>
+    getInvoiceBreakdown({
+      house_id: invoiceFilter.house_id || undefined,
+      room_id: invoiceFilter.room_id || undefined,
+      period: invoiceFilter.period || undefined,
+      status: invoiceFilter.status || undefined,
+    }),
+  )
+  const invoices = listQuery.data?.items ?? EMPTY_INVOICES
+  const total = listQuery.data?.total ?? 0
+  const breakdown = breakdownQuery.data ?? null
+  const loadError = listQuery.error ?? breakdownQuery.error
+  const activeFilterCount = countActiveInvoiceFilters(invoiceFilter)
+
+  useEffect(() => {
+    if (!listQuery.data || listQuery.isPlaceholder || listQuery.error !== undefined) return
+    const lastPage = Math.max(1, Math.ceil(listQuery.data.total / invoiceFilter.limit))
+    if (invoiceFilter.page > lastPage) setInvoiceFilter({ page: lastPage })
+  }, [listQuery.data, listQuery.isPlaceholder, listQuery.error, invoiceFilter.page, invoiceFilter.limit, setInvoiceFilter])
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showQuickCreateModal, setShowQuickCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [isDownloadingAll, setIsDownloadingAll] = useState(false)
   const [previewData, setPreviewData] = useState<{ url: string, filename: string } | null>(null)
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
-  const selectedInvoice = invoices.find(inv => inv.id === selectedInvoiceId) || null
+  const [openedInvoice, setOpenedInvoice] = useState<Invoice | null>(null)
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const selectedInvoice = openedInvoice ? invoices.find(inv => inv.id === openedInvoice.id) ?? openedInvoice : null
 
   useEffect(() => {
     if (selectedHouse && invoiceFilter.house_id !== selectedHouse.id) {
       setInvoiceFilter({ house_id: selectedHouse.id, room_id: '' })
-    } else {
-      fetchInvoices()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHouse])
 
   const handleClearFilter = () => {
-    const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
     selectHouse(null);
-    setInvoiceFilter({ house_id: '', room_id: '', period: currentMonth, status: '' });
+    clearInvoiceFilter();
   };
 
   const [filterRooms, setFilterRooms] = useState<{ id: string; name: string }[]>([])
@@ -77,7 +113,6 @@ export function InvoicesView() {
     selectHouse(houses.find(h => h.id === houseId) || null);
   };
 
-  // Fetch rooms when a house is selected in filter
   useEffect(() => {
     if (invoiceFilter.house_id) {
       getRoomsByHouse(invoiceFilter.house_id).then(res => setFilterRooms(res)).catch(console.error)
@@ -86,32 +121,17 @@ export function InvoicesView() {
     }
   }, [invoiceFilter.house_id, getRoomsByHouse])
 
+  const houseNames = useMemo(() => new Map(houses.map(h => [h.id, h.name])), [houses])
+
   const stats = useMemo(() => {
-    if (breakdown) {
-      return {
-        totalInvoices: breakdown.expected.invoice_count,
-        expectedRevenue: breakdown.expected.total_amount,
-        collectedRevenue: breakdown.collected.total_amount,
-        unpaidRevenue: breakdown.expected.total_amount - breakdown.collected.total_amount,
-      };
-    }
-
-    const totalInvoices = invoices.length;
-    let expectedRevenue = 0;
-    let collectedRevenue = 0;
-    let unpaidRevenue = 0;
-
-    invoices.forEach(inv => {
-      expectedRevenue += inv.total_amount;
-      if (inv.status === 'PAID') {
-        collectedRevenue += inv.total_amount;
-      } else {
-        unpaidRevenue += inv.total_amount;
-      }
-    });
-
-    return { totalInvoices, expectedRevenue, collectedRevenue, unpaidRevenue };
-  }, [breakdown, invoices]);
+    if (!breakdown) return null;
+    return {
+      totalInvoices: breakdown.expected.invoice_count,
+      expectedRevenue: breakdown.expected.total_amount,
+      collectedRevenue: breakdown.collected.total_amount,
+      unpaidRevenue: breakdown.expected.total_amount - breakdown.collected.total_amount,
+    };
+  }, [breakdown]);
 
   const breakdownRows = useMemo<BreakdownRow[]>(() => {
     if (!breakdown) return [];
@@ -124,7 +144,13 @@ export function InvoicesView() {
       });
   }, [breakdown]);
 
-  const handleDownload = async (invoice: Invoice) => {
+  const openInvoice = useStableCallback((invoice: Invoice) => setOpenedInvoice(invoice))
+  const editInvoice = useStableCallback((invoice: Invoice) => {
+    setOpenedInvoice(invoice)
+    setShowEditModal(true)
+  })
+
+  const handleDownload = useStableCallback(async (invoice: Invoice) => {
     try {
       toast.loading('Đang tạo ảnh hóa đơn...', { id: 'download-invoice' });
 
@@ -143,33 +169,44 @@ export function InvoicesView() {
       console.error('Lỗi tải ảnh:', error);
       toast.error('Lỗi khi tải ảnh hóa đơn', { id: 'download-invoice', description: 'Vui lòng thử lại sau.' });
     }
-  };
+  });
 
-  const handleDelete = async (invoice: Invoice) => {
+  const handleDelete = useStableCallback((invoice: Invoice) => {
     if (invoice.status === 'PAID') {
       toast.error('Không thể xóa hóa đơn đã thanh toán', { id: 'delete-invoice' });
       return;
     }
-    if (confirm(`Bạn có chắc muốn xóa hóa đơn phòng ${invoice.room_name} kỳ ${invoice.period}?`)) {
-      toast.loading('Đang xóa hóa đơn...', { id: 'delete-invoice' });
-      const res = await deleteInvoice(invoice.id);
-      if (res.success) {
-        toast.success(res.message, { id: 'delete-invoice' });
-      } else {
-        toast.error(res.message, { id: 'delete-invoice' });
-      }
+    setInvoiceToDelete(invoice);
+  });
+
+  const confirmDelete = async () => {
+    if (!invoiceToDelete) return;
+    setIsDeleting(true);
+    const res = await deleteInvoice(invoiceToDelete.id);
+    setIsDeleting(false);
+    setInvoiceToDelete(null);
+    if (res.success) {
+      toast.success(res.message, { id: 'delete-invoice' });
+    } else {
+      toast.error(res.message, { id: 'delete-invoice' });
     }
   };
 
   const handleDownloadAll = async () => {
-    if (invoices.length === 0) return;
-    
+    if (total === 0) return;
+
     setIsDownloadingAll(true);
-    toast.loading(`Đang tải ${invoices.length} ảnh hóa đơn...`, { id: 'download-all' });
-    
+    toast.loading(`Đang tải ${total} ảnh hóa đơn...`, { id: 'download-all' });
+
     try {
-      for (let i = 0; i < invoices.length; i++) {
-        const invoice = invoices[i];
+      const allInvoices = await getAllInvoices({
+        house_id: invoiceFilter.house_id,
+        room_id: invoiceFilter.room_id,
+        period: invoiceFilter.period,
+        status: invoiceFilter.status,
+      });
+      for (let i = 0; i < allInvoices.length; i++) {
+        const invoice = allInvoices[i];
         try {
           const imageData = await getInvoiceImageBlob(invoice.id);
 
@@ -195,7 +232,7 @@ export function InvoicesView() {
         }
       }
       
-      toast.success('Thành công', { id: 'download-all', description: `Đã hoàn tất tải ${invoices.length} ảnh hóa đơn.` });
+      toast.success('Thành công', { id: 'download-all', description: `Đã hoàn tất tải ${allInvoices.length} ảnh hóa đơn.` });
     } catch (error) {
       console.error('Lỗi khi tải tất cả:', error);
       toast.error('Có lỗi xảy ra', { id: 'download-all', description: 'Không thể tải toàn bộ hóa đơn.' });
@@ -204,7 +241,7 @@ export function InvoicesView() {
     }
   };
 
-  const handleSendZalo = async (invoice: Invoice) => {
+  const handleSendZalo = useStableCallback(async (invoice: Invoice) => {
     if (invoice.status === 'PAID') {
       toast.error('Hóa đơn đã thanh toán', { id: 'send-zalo' });
       return;
@@ -218,7 +255,9 @@ export function InvoicesView() {
       const err = error as { response?: { data?: { message?: string } } };
       toast.error(err.response?.data?.message || 'Không thể gửi qua Zalo', { id: 'send-zalo' });
     }
-  };
+  });
+
+  const money = (value?: number) => (value === undefined ? '—' : formatCurrency(value))
 
   return (
     <div className="flex flex-col gap-6 safe-fade-in">
@@ -230,9 +269,9 @@ export function InvoicesView() {
         <QuickCreateInvoiceModal onClose={() => setShowQuickCreateModal(false)} />
       )}
       {selectedInvoice && !showEditModal && (
-        <InvoiceDetailModal 
-          invoice={selectedInvoice} 
-          onClose={() => setSelectedInvoiceId(null)} 
+        <InvoiceDetailModal
+          invoice={selectedInvoice}
+          onClose={() => setOpenedInvoice(null)}
           onEdit={() => setShowEditModal(true)}
         />
       )}
@@ -241,8 +280,19 @@ export function InvoicesView() {
           invoice={selectedInvoice}
           onClose={() => {
             setShowEditModal(false)
-            setSelectedInvoiceId(null)
+            setOpenedInvoice(null)
           }}
+        />
+      )}
+      {invoiceToDelete && (
+        <ConfirmDialog
+          title="Xóa hóa đơn"
+          message={`Bạn có chắc muốn xóa hóa đơn phòng ${invoiceToDelete.room_name} kỳ ${invoiceToDelete.period}?`}
+          confirmText="Xóa"
+          cancelText="Bỏ qua"
+          isLoading={isDeleting}
+          onConfirm={confirmDelete}
+          onCancel={() => setInvoiceToDelete(null)}
         />
       )}
       {previewData && (
@@ -277,37 +327,43 @@ export function InvoicesView() {
 
       {/* Top Section: Filters & Compact Stats */}
       <Card className="gap-0 p-0 flex flex-col">
-        {/* Filters */}
         <div className="grid grid-cols-2 items-end gap-3 border-b border-border/40 p-3 sm:gap-4 sm:p-4 lg:flex lg:flex-wrap">
           <div className={houses.length <= HOUSE_BUTTON_LIMIT ? 'col-span-2 w-full lg:w-auto' : 'col-span-2 w-full sm:col-span-1 lg:min-w-[200px] lg:flex-1'}>
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</label>
             {houses.length <= HOUSE_BUTTON_LIMIT ? (
-              <HouseButtonGroup
-                houses={houses}
-                isSelected={id => invoiceFilter.house_id === id}
-                onSelect={handleHouseFilterChange}
-                allLabel="Tất cả"
-                isAllSelected={!invoiceFilter.house_id}
-                onSelectAll={() => handleHouseFilterChange('')}
-              />
+              <>
+                <span id="invoice-filter-house-label" className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</span>
+                <HouseButtonGroup
+                  houses={houses}
+                  isSelected={id => invoiceFilter.house_id === id}
+                  onSelect={handleHouseFilterChange}
+                  allLabel="Tất cả"
+                  isAllSelected={!invoiceFilter.house_id}
+                  onSelectAll={() => handleHouseFilterChange('')}
+                />
+              </>
             ) : (
-              <select 
-                className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
-                value={invoiceFilter.house_id || ''}
-                onChange={(e) => handleHouseFilterChange(e.target.value)}
-              >
-                <option value="">Tất cả nhà trọ</option>
-                {houses.map(h => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
+              <>
+                <label htmlFor="invoice-filter-house" className="mb-1.5 block text-xs font-medium text-muted-foreground">Nhà trọ</label>
+                <select
+                  id="invoice-filter-house"
+                  className={filterControlClass}
+                  value={invoiceFilter.house_id || ''}
+                  onChange={(e) => handleHouseFilterChange(e.target.value)}
+                >
+                  <option value="">Tất cả nhà trọ</option>
+                  {houses.map(h => (
+                    <option key={h.id} value={h.id}>{h.name}</option>
+                  ))}
+                </select>
+              </>
             )}
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Phòng</label>
-            <select 
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground sm:h-9 sm:text-sm"
+            <label htmlFor="invoice-filter-room" className="mb-1.5 block text-xs font-medium text-muted-foreground">Phòng</label>
+            <select
+              id="invoice-filter-room"
+              className={filterControlClass}
               value={invoiceFilter.room_id || ''}
               onChange={(e) => setInvoiceFilter({ room_id: e.target.value })}
               disabled={!invoiceFilter.house_id}
@@ -320,19 +376,21 @@ export function InvoicesView() {
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Kỳ hóa đơn</label>
-            <input 
+            <label htmlFor="invoice-filter-period" className="mb-1.5 block text-xs font-medium text-muted-foreground">Kỳ hóa đơn</label>
+            <input
+              id="invoice-filter-period"
               type="month"
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
+              className={filterControlClass}
               value={invoiceFilter.period || ''}
               onChange={(e) => setInvoiceFilter({ period: e.target.value })}
             />
           </div>
 
           <div className="w-full lg:w-[160px]">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Trạng thái</label>
-            <select 
-              className="h-11 w-full rounded-md border border-input bg-background px-3 text-base shadow-xs outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 sm:h-9 sm:text-sm"
+            <label htmlFor="invoice-filter-status" className="mb-1.5 block text-xs font-medium text-muted-foreground">Trạng thái</label>
+            <select
+              id="invoice-filter-status"
+              className={filterControlClass}
               value={invoiceFilter.status || ''}
               onChange={(e) => setInvoiceFilter({ status: e.target.value })}
             >
@@ -343,9 +401,15 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <Button variant="ghost" size="lg" onClick={handleClearFilter} className="w-full cursor-pointer text-muted-foreground lg:w-auto">
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={handleClearFilter}
+            disabled={activeFilterCount === 0}
+            className="w-full cursor-pointer text-muted-foreground lg:w-auto"
+          >
             <FilterX data-icon="inline-start" />
-            Xóa lọc
+            Xóa lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
           </Button>
         </div>
 
@@ -357,7 +421,7 @@ export function InvoicesView() {
              </div>
              <div className="min-w-0">
                <p className="truncate text-xs font-medium text-muted-foreground">Tổng hóa đơn</p>
-               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{stats.totalInvoices}</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{stats ? stats.totalInvoices.toLocaleString('vi-VN') : '—'}</p>
              </div>
           </div>
 
@@ -369,7 +433,7 @@ export function InvoicesView() {
              </div>
              <div className="min-w-0">
                <p className="truncate text-xs font-medium text-muted-foreground">Tổng dự kiến</p>
-               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.expectedRevenue)}</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{money(stats?.expectedRevenue)}</p>
              </div>
           </div>
 
@@ -381,7 +445,7 @@ export function InvoicesView() {
              </div>
              <div className="min-w-0">
                <p className="truncate text-xs font-medium text-muted-foreground">Đã thu</p>
-               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.collectedRevenue)}</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{money(stats?.collectedRevenue)}</p>
              </div>
           </div>
 
@@ -393,13 +457,23 @@ export function InvoicesView() {
              </div>
              <div className="min-w-0">
                <p className="truncate text-xs font-medium text-muted-foreground">Chưa thu</p>
-               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{formatCurrency(stats.unpaidRevenue)}</p>
+               <p className="truncate text-sm font-semibold leading-tight tabular-nums text-foreground sm:text-base">{money(stats?.unpaidRevenue)}</p>
              </div>
           </div>
         </div>
       </Card>
 
-      {breakdown && breakdown.expected.invoice_count > 0 && (
+      {loadError !== undefined && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span className="flex min-w-0 items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0" />
+            <span className="truncate">{errorText(loadError)}{listQuery.data ? ' Đang hiển thị dữ liệu cũ.' : ''}</span>
+          </span>
+          <Button variant="outline" size="sm" onClick={() => { listQuery.refetch(); breakdownQuery.refetch() }}>Thử lại</Button>
+        </div>
+      )}
+
+      {breakdown && breakdown.expected.invoice_count > 0 && stats && (
         <SectionCard icon={Receipt} title="Bóc tách khoản thu">
           <BreakdownTable
             itemLabel="Khoản thu"
@@ -418,40 +492,34 @@ export function InvoicesView() {
       )}
 
       {/* List */}
-      {isLoading ? (
-        <div className="text-center py-20">
-          <Loader2 className="size-8 text-primary animate-spin mx-auto" />
-          <p className="text-muted-foreground mt-4 font-medium">Đang tải hóa đơn...</p>
+      {listQuery.isLoading ? (
+        <div className="flex flex-col gap-2" aria-busy="true" aria-label="Đang tải hóa đơn">
+          {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
         </div>
       ) : invoices.length === 0 ? (
         <Card className="p-0">
           <EmptyState icon={Receipt} title="Không tìm thấy hóa đơn nào." className="py-20" />
         </Card>
       ) : (
-        <>
+        <div className={cn('flex flex-col gap-3 transition-opacity', listQuery.isPlaceholder && 'opacity-60')}>
           {/* Mobile Card View */}
           <div className="flex flex-col gap-2 md:hidden">
-            {invoices.map(invoice => {
-              const houseName = invoiceFilter.house_id
-                ? undefined
-                : houses.find(house => house.id === invoice.house_id)?.name || 'Không rõ nhà trọ'
-
-              return (
-                <InvoiceMobileCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  houseName={houseName}
-                  onOpen={() => setSelectedInvoiceId(invoice.id)}
-                  onEdit={() => {
-                    setSelectedInvoiceId(invoice.id)
-                    setShowEditModal(true)
-                  }}
-                  onDownload={() => handleDownload(invoice)}
-                  onSendZalo={() => handleSendZalo(invoice)}
-                  onDelete={() => handleDelete(invoice)}
-                />
-              )
-            })}
+            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm">
+              <span className="font-semibold text-foreground">Tổng {total.toLocaleString('vi-VN')} hóa đơn</span>
+              <span className="font-semibold tabular-nums text-foreground">{money(stats?.expectedRevenue)}</span>
+            </div>
+            {invoices.map(invoice => (
+              <InvoiceMobileCard
+                key={invoice.id}
+                invoice={invoice}
+                houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ nhà trọ'}
+                onOpen={openInvoice}
+                onEdit={editInvoice}
+                onDownload={handleDownload}
+                onSendZalo={handleSendZalo}
+                onDelete={handleDelete}
+              />
+            ))}
           </div>
 
           {/* Desktop Table View */}
@@ -469,10 +537,11 @@ export function InvoicesView() {
                       Hành động
                       <Button
                         onClick={handleDownloadAll}
-                        disabled={invoices.length === 0 || isDownloadingAll}
+                        disabled={total === 0 || isDownloadingAll}
                         variant="ghost"
                         size="icon"
                         className="text-muted-foreground"
+                        aria-label="Tải tất cả hóa đơn theo bộ lọc"
                         title="Tải tất cả hóa đơn (Mẫu 1)"
                       >
                         {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
@@ -482,96 +551,119 @@ export function InvoicesView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableCell colSpan={2} className="px-6 py-2.5 font-semibold text-foreground">
+                    Tổng ({total.toLocaleString('vi-VN')} hóa đơn)
+                  </TableCell>
+                  <TableCell className="px-6 py-2.5 text-right font-semibold tabular-nums text-foreground">
+                    {money(stats?.expectedRevenue)}
+                  </TableCell>
+                  <TableCell colSpan={3} className="px-6 py-2.5 text-xs text-muted-foreground">
+                    {stats ? `Đã thu ${formatCurrency(stats.collectedRevenue)} · Chưa thu ${formatCurrency(stats.unpaidRevenue)}` : null}
+                  </TableCell>
+                </TableRow>
                 {invoices.map(invoice => (
-                  <TableRow
+                  <InvoiceRow
                     key={invoice.id}
-                    onClick={() => setSelectedInvoiceId(invoice.id)}
-                    className="cursor-pointer group"
-                  >
-                    <TableCell className="px-6 py-3 font-medium text-foreground">
-                      {invoice.period}
-                    </TableCell>
-                    <TableCell className="px-6 py-3 font-medium text-foreground" title={!invoiceFilter.house_id ? houses.find(h => h.id === invoice.house_id)?.name : undefined}>
-                      {(() => {
-                        if (invoiceFilter.house_id) return invoice.room_name;
-                        const hName = houses.find(h => h.id === invoice.house_id)?.name || 'Không rõ';
-                        return `${invoice.room_name} (${hName.length > 20 ? hName.substring(0, 20) + '...' : hName})`;
-                      })()}
-                    </TableCell>
-                    <TableCell className="px-6 py-3 text-right font-semibold tabular-nums text-foreground">
-                      {formatCurrency(invoice.total_amount)}
-                    </TableCell>
-                    <TableCell className="px-6 py-3 text-center">
-                      <StatusBadge status={invoice.status} />
-                    </TableCell>
-                    <TableCell className="px-6 py-3 text-sm text-muted-foreground">
-                      {new Date(invoice.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                    </TableCell>
-                    <TableCell className="px-6 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedInvoiceId(invoice.id);
-                            setShowEditModal(true);
-                          }}
-                          className="text-muted-foreground"
-                          title="Sửa hóa đơn"
-                        >
-                          <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownload(invoice)
-                          }}
-                          className="cursor-pointer text-muted-foreground"
-                          aria-label={`Tải hóa đơn phòng ${invoice.room_name}`}
-                          title="Tải hóa đơn (Mẫu 1)"
-                        >
-                          <Download className="size-4" />
-                        </Button>
-                        {invoice.status === 'UNPAID' && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleSendZalo(invoice)
-                            }}
-                            className="cursor-pointer text-muted-foreground"
-                            aria-label={`Gửi hóa đơn phòng ${invoice.room_name} qua Zalo`}
-                            title="Gửi qua Zalo"
-                          >
-                            <Send className="size-4" />
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(invoice)
-                          }}
-                          className="cursor-pointer text-muted-foreground hover:text-destructive"
-                          aria-label={`Xóa hóa đơn phòng ${invoice.room_name}`}
-                          title="Xóa hóa đơn"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                    invoice={invoice}
+                    houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ'}
+                    onOpen={openInvoice}
+                    onEdit={editInvoice}
+                    onDownload={handleDownload}
+                    onSendZalo={handleSendZalo}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </TableBody>
             </Table>
           </Card>
-        </>
+
+          <DataPagination
+            page={invoiceFilter.page}
+            pageSize={invoiceFilter.limit}
+            total={total}
+            onPageChange={page => setInvoiceFilter({ page })}
+            onPageSizeChange={limit => setInvoiceFilter({ limit })}
+          />
+        </div>
       )}
     </div>
   )
 }
+
+interface InvoiceRowProps {
+  invoice: Invoice
+  houseName?: string
+  onOpen: (invoice: Invoice) => void
+  onEdit: (invoice: Invoice) => void
+  onDownload: (invoice: Invoice) => void
+  onSendZalo: (invoice: Invoice) => void
+  onDelete: (invoice: Invoice) => void
+}
+
+const InvoiceRow = memo(function InvoiceRow({ invoice, houseName, onOpen, onEdit, onDownload, onSendZalo, onDelete }: InvoiceRowProps) {
+  const shortHouse = houseName && houseName.length > 20 ? `${houseName.substring(0, 20)}...` : houseName
+  return (
+    <TableRow onClick={() => onOpen(invoice)} className="cursor-pointer group">
+      <TableCell className="px-6 py-3 font-medium text-foreground">{invoice.period}</TableCell>
+      <TableCell className="px-6 py-3 font-medium text-foreground" title={houseName}>
+        {houseName ? `${invoice.room_name} (${shortHouse})` : invoice.room_name}
+      </TableCell>
+      <TableCell className="px-6 py-3 text-right font-semibold tabular-nums text-foreground">
+        {formatCurrency(invoice.total_amount)}
+      </TableCell>
+      <TableCell className="px-6 py-3 text-center">
+        <StatusBadge status={invoice.status} />
+      </TableCell>
+      <TableCell className="px-6 py-3 text-sm text-muted-foreground">
+        {new Date(invoice.created_at).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+      </TableCell>
+      <TableCell className="px-6 py-3 text-center">
+        <div className="flex items-center justify-center gap-1 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={(e) => { e.stopPropagation(); onEdit(invoice) }}
+            className="text-muted-foreground"
+            aria-label={`Sửa hóa đơn phòng ${invoice.room_name}`}
+            title="Sửa hóa đơn"
+          >
+            <Pencil className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={(e) => { e.stopPropagation(); onDownload(invoice) }}
+            className="cursor-pointer text-muted-foreground"
+            aria-label={`Tải hóa đơn phòng ${invoice.room_name}`}
+            title="Tải hóa đơn (Mẫu 1)"
+          >
+            <Download className="size-4" />
+          </Button>
+          {invoice.status === 'UNPAID' && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={(e) => { e.stopPropagation(); onSendZalo(invoice) }}
+              className="cursor-pointer text-muted-foreground"
+              aria-label={`Gửi hóa đơn phòng ${invoice.room_name} qua Zalo`}
+              title="Gửi qua Zalo"
+            >
+              <Send className="size-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={(e) => { e.stopPropagation(); onDelete(invoice) }}
+            className="cursor-pointer text-muted-foreground hover:text-destructive"
+            aria-label={`Xóa hóa đơn phòng ${invoice.room_name}`}
+            title="Xóa hóa đơn"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+})

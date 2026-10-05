@@ -130,25 +130,31 @@ func TestRoomRepository_GetRoomByID(t *testing.T) {
 
 func TestRoomRepository_ListRoomsByHouseID(t *testing.T) {
 	ctx := context.Background()
+	filter := model.RoomListFilter{HouseID: "house-1", Search: "a_1", Status: "AVAILABLE", Limit: 10, Offset: 20}
 
 	tests := []struct {
-		name    string
-		mock    func(mock sqlmock.Sqlmock)
-		wantErr bool
+		name      string
+		mock      func(mock sqlmock.Sqlmock)
+		wantTotal int
+		wantErr   bool
 	}{
 		{
 			name: "Success",
 			mock: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"id", "house_id", "name"}).
-					AddRow("room-1", "house-1", "Room 1")
-				mock.ExpectQuery(`SELECT .* FROM "rooms"`).WillReturnRows(rows)
+				rows := sqlmock.NewRows([]string{"id", "house_id", "name", "tenant_count"}).
+					AddRow("room-1", "house-1", "Room 1", 2)
+				mock.ExpectQuery(`SELECT room\.\*, \(SELECT COUNT\(\*\) FROM tenants .* FROM "rooms" AS "room" WHERE \(room.house_id = 'house-1'\) AND \(room.name ILIKE '%a\\_1%'\) AND \(room.status = 'AVAILABLE'\) .* LIMIT 10 OFFSET 20`).
+					WillReturnRows(rows)
+				mock.ExpectQuery(`SELECT count\(\*\) FROM "rooms"`).
+					WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(21))
 			},
-			wantErr: false,
+			wantTotal: 21,
 		},
 		{
 			name: "DB Error",
 			mock: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT .* FROM "rooms"`).WillReturnError(sql.ErrConnDone)
+				mock.ExpectQuery(`LIMIT 10`).WillReturnError(sql.ErrConnDone)
+				mock.ExpectQuery(`SELECT count\(\*\) FROM "rooms"`).WillReturnError(sql.ErrConnDone)
 			},
 			wantErr: true,
 		},
@@ -158,16 +164,17 @@ func TestRoomRepository_ListRoomsByHouseID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bunDB, mock := repotest.SetupTestDB(t)
 			defer bunDB.Close()
+			mock.MatchExpectationsInOrder(false)
 			repo := roomrepo.NewRoomRepository(bunDB)
 
 			tt.mock(mock)
-			rooms, err := repo.ListRoomsByHouseID(ctx, "house-1", 10, 0)
+			rooms, total, err := repo.ListRoomsByHouseID(ctx, filter)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("expected error presence %v, got %v", tt.wantErr, err)
 			}
-			if err == nil && len(rooms) != 1 {
-				t.Errorf("expected 1 room, got %d", len(rooms))
+			if err == nil && (len(rooms) != 1 || rooms[0].TenantCount != 2 || total != tt.wantTotal) {
+				t.Errorf("unexpected result: rooms=%+v total=%d", rooms, total)
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -175,6 +182,76 @@ func TestRoomRepository_ListRoomsByHouseID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRoomRepository_GetRoomStats(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success scoped to house", func(t *testing.T) {
+		bunDB, mock := repotest.SetupTestDB(t)
+		defer bunDB.Close()
+		repo := roomrepo.NewRoomRepository(bunDB)
+
+		rows := sqlmock.NewRows([]string{"total", "occupied", "available", "maintenance", "capacity", "tenants"}).
+			AddRow(5, 3, 1, 1, 12, 7)
+		mock.ExpectQuery(`SELECT COUNT\(\*\) AS total, .* FROM rooms AS room JOIN houses AS h ON h.id = room.house_id WHERE \(h.manager_id = 'manager-1'\) AND \(room.house_id = 'house-1'\)`).
+			WillReturnRows(rows)
+
+		stats, err := repo.GetRoomStats(ctx, "manager-1", "house-1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		want := model.RoomStats{Total: 5, Occupied: 3, Available: 1, Maintenance: 1, Capacity: 12, Tenants: 7}
+		if *stats != want {
+			t.Errorf("expected %+v, got %+v", want, *stats)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		bunDB, mock := repotest.SetupTestDB(t)
+		defer bunDB.Close()
+		repo := roomrepo.NewRoomRepository(bunDB)
+
+		mock.ExpectQuery(`WHERE \(h.manager_id = 'manager-1'\)$`).WillReturnError(sql.ErrConnDone)
+		if _, err := repo.GetRoomStats(ctx, "manager-1", ""); err == nil {
+			t.Error("expected error, got nil")
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
+}
+
+func TestRoomRepository_ListAvailableRooms(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Success", func(t *testing.T) {
+		bunDB, mock := repotest.SetupTestDB(t)
+		defer bunDB.Close()
+		mock.MatchExpectationsInOrder(false)
+		repo := roomrepo.NewRoomRepository(bunDB)
+
+		rows := sqlmock.NewRows([]string{"id", "house_id", "name", "house_name"}).
+			AddRow("room-1", "house-1", "Room 1", "House A")
+		mock.ExpectQuery(`SELECT room\.\*, h.name AS house_name FROM "rooms" AS "room" JOIN houses AS h .* WHERE \(h.manager_id = 'manager-1'\) AND \(room.status = 'AVAILABLE'\) .* LIMIT 50`).
+			WillReturnRows(rows)
+		mock.ExpectQuery(`SELECT count\(\*\) FROM "rooms"`).
+			WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+
+		rooms, total, err := repo.ListAvailableRooms(ctx, "manager-1", 50)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(rooms) != 1 || rooms[0].HouseName != "House A" || total != 3 {
+			t.Errorf("unexpected result: rooms=%+v total=%d", rooms, total)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("there were unfulfilled expectations: %s", err)
+		}
+	})
 }
 
 func TestRoomRepository_ListAllRoomsByHouseID(t *testing.T) {

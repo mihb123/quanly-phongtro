@@ -21,10 +21,18 @@ type TenantService interface {
 	CheckCapicityOfRoom(ctx context.Context, roomID string) (bool, error)
 	ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error)
 	ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error)
+	SearchTenants(ctx context.Context, managerID string, query SearchTenantsQuery) ([]model.FullInfoTenant, *model.TenantListSummary, error)
 	UpdateTenantInfo(ctx context.Context, managerID, tenantID string, in UpdateTenantInput) (*model.FullInfoTenant, error)
 	DeleteTenant(ctx context.Context, managerID, tenantID string) error
 	CheckoutRoom(ctx context.Context, managerID, roomID string) (int, error)
 	ResolveTenantFilePath(ctx context.Context, managerID, requestPath string) (string, error)
+}
+
+type SearchTenantsQuery struct {
+	HouseID string
+	Search  string
+	Page    int
+	Limit   int
 }
 
 type TenantServiceImpl struct {
@@ -220,6 +228,25 @@ func (s *TenantServiceImpl) ListTenantByRoomID(ctx context.Context, managerID, r
 func (s *TenantServiceImpl) ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error) {
 
 	return s.tenants.ListTenantByHouseID(ctx, managerID, houseID)
+}
+
+// SearchTenants pages through active tenants of the manager; a house filter must belong to the manager.
+func (s *TenantServiceImpl) SearchTenants(ctx context.Context, managerID string, query SearchTenantsQuery) ([]model.FullInfoTenant, *model.TenantListSummary, error) {
+	if query.HouseID != "" {
+		owned, err := s.houses.IsHouseOwnedBy(ctx, query.HouseID, managerID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !owned {
+			return nil, nil, model.ErrHouseNotFound
+		}
+	}
+	return s.tenants.SearchTenants(ctx, managerID, model.TenantListFilter{
+		HouseID: query.HouseID,
+		Search:  query.Search,
+		Limit:   query.Limit,
+		Offset:  (query.Page - 1) * query.Limit,
+	})
 }
 
 // UpdateTenantInfo verifies that managerID owns the tenant, then performs a

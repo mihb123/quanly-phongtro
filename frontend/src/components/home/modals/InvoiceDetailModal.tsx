@@ -245,6 +245,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
         <div className="flex justify-between items-center gap-3 w-full no-print">
           <div className="flex gap-2">
             <Button
+              aria-label="Xem trước hóa đơn"
               variant="outline"
               size="icon"
               onClick={handlePreviewFrontend}
@@ -255,6 +256,7 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
                {isPreviewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
             </Button>
             <Button
+              aria-label="Tải hóa đơn"
               variant="outline"
               size="icon"
               onClick={handleDownload}

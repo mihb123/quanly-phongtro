@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 
@@ -60,6 +61,10 @@ type updateRoomRequest struct {
 	ExtraVehicleFee       *float64 `json:"extra_vehicle_fee,omitempty"`
 	GroupChatID           *string  `json:"group_chat_id,omitempty"`
 }
+
+const maxRoomListLimit = 200
+
+var validRoomStatuses = map[string]bool{"AVAILABLE": true, "OCCUPIED": true, "MAINTENANCE": true}
 
 func handleRoomError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
@@ -147,12 +152,60 @@ func (h *RoomHandler) ListRooms(w http.ResponseWriter, r *http.Request) {
 	if err != nil || limitInt < 1 {
 		limitInt = 25
 	}
+	if limitInt > maxRoomListLimit {
+		limitInt = maxRoomListLimit
+	}
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	if status != "" && !validRoomStatuses[status] {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid room status")
+		return
+	}
 
-	rooms, err := h.roomService.ListRoomsByHouseID(r.Context(), houseID, managerID, pageInt, limitInt)
+	rooms, total, err := h.roomService.ListRoomsByHouseID(r.Context(), managerID, roomsvc.ListRoomsQuery{
+		HouseID: houseID,
+		Search:  r.URL.Query().Get("q"),
+		Status:  status,
+		Page:    pageInt,
+		Limit:   limitInt,
+	})
 	if err != nil {
 		handleRoomError(w, r, err)
 		return
 	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
+	httpx.WriteJSON(w, http.StatusOK, rooms, "")
+}
+
+// GET /api/v1/room/stats?house_id=
+func (h *RoomHandler) GetRoomStats(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+	stats, err := h.roomService.GetRoomStats(r.Context(), managerID, r.URL.Query().Get("house_id"))
+	if err != nil {
+		handleRoomError(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, stats, "")
+}
+
+// GET /api/v1/room/available?limit=
+func (h *RoomHandler) ListAvailableRooms(w http.ResponseWriter, r *http.Request) {
+	managerID, ok := httpx.GetManagerID(r, w)
+	if !ok {
+		return
+	}
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
+	if err != nil || limit < 1 || limit > maxRoomListLimit {
+		limit = 50
+	}
+	rooms, total, err := h.roomService.ListAvailableRooms(r.Context(), managerID, limit)
+	if err != nil {
+		handleRoomError(w, r, err)
+		return
+	}
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	httpx.WriteJSON(w, http.StatusOK, rooms, "")
 }
 

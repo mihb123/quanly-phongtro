@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createMonthlyCost, getMonthlyCost, updateMonthlyCost, getRevenueSummaries } from '@/api/houseCost';
 import type { HouseCost, RevenueSummary } from '@/api/houseCost';
+import { FILTER_TTL, readStorage, writeStorage } from '@/lib/storage';
+
+const PERIOD_KEY = 'revenue:period';
 
 interface HouseCostState {
   costs: Record<string, HouseCost | null>; // keyed by houseId
@@ -32,7 +35,10 @@ export const useHouseCostStore = create<HouseCostState>()(
       isLoadingCosts: false,
       isLoadingSummaries: false,
       selectedHouseIds: [],
-      period: getCurrentPeriod(),
+      period: (() => {
+        const saved = readStorage<string>(PERIOD_KEY, { ttl: FILTER_TTL });
+        return saved && /^\d{4}-\d{2}$/.test(saved) ? saved : getCurrentPeriod();
+      })(),
 
       setSelectedHouseIds: (ids) => {
         set({ selectedHouseIds: ids });
@@ -42,6 +48,7 @@ export const useHouseCostStore = create<HouseCostState>()(
 
       setPeriod: (period) => {
         set({ period });
+        writeStorage(PERIOD_KEY, period);
         get().fetchCosts();
         get().fetchSummaries();
       },

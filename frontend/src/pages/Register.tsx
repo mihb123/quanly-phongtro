@@ -1,3 +1,4 @@
+import { readStorageRaw, writeStorageRaw } from '@/lib/storage'
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -46,7 +47,7 @@ export default function RegisterPage() {
     let shouldFetchLocation = false
 
     if ('geolocation' in navigator) {
-      if (!localStorage.getItem('has_asked_location')) {
+      if (!readStorageRaw('has_asked_location')) {
         shouldFetchLocation = true
       } else if (navigator.permissions && navigator.permissions.query) {
         try {
@@ -67,10 +68,10 @@ export default function RegisterPage() {
         })
         latitude = position.coords.latitude
         longitude = position.coords.longitude
-        localStorage.setItem('has_asked_location', 'true')
+        writeStorageRaw('has_asked_location', 'true')
       } catch (err) {
         console.error('CRITICAL: Geolocation failed or denied even though permission was granted. Error:', err)
-        localStorage.setItem('has_asked_location', 'true')
+        writeStorageRaw('has_asked_location', 'true')
         if (import.meta.env.DEV) {
           console.log('Mocking GPS for development...')
           latitude = 21.028511 // Hanoi mock
@@ -98,7 +99,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-dvh flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <form onSubmit={handleSubmit(onSubmit)} className="contents">
           <CardHeader>
@@ -124,6 +125,7 @@ export default function RegisterPage() {
               </Label>
               <Input
                 id="email"
+                autoComplete="email"
                 type="email"
                 placeholder="Nhập địa chỉ email"
                
@@ -141,19 +143,23 @@ export default function RegisterPage() {
               <div className="relative">
                 <Input
                   id="password"
+                  autoComplete="new-password"
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Nhập mật khẩu"
-                  className="pr-10"
+                  className="pr-10 pointer-coarse:pr-12"
                   {...register('password')}
                 />
-                <button
+                <Button
                   type="button"
-                  tabIndex={-1}
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0.5 my-auto text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
+                </Button>
               </div>
               {errors.password && (
                 <p className="text-xs text-destructive">{errors.password.message}</p>
@@ -167,19 +173,23 @@ export default function RegisterPage() {
               <div className="relative">
                 <Input
                   id="confirmPassword"
+                  autoComplete="new-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="Nhập lại mật khẩu"
-                  className="pr-10"
+                  className="pr-10 pointer-coarse:pr-12"
                   {...register('confirmPassword')}
                 />
-                <button
+                <Button
                   type="button"
-                  tabIndex={-1}
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                  aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  aria-pressed={showConfirmPassword}
+                  className="absolute inset-y-0 right-0.5 my-auto text-muted-foreground hover:text-foreground"
                 >
                   {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                </button>
+                </Button>
               </div>
               {errors.confirmPassword && (
                 <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>

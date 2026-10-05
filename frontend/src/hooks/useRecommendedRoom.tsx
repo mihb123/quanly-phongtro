@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type Room } from '@/api/room';
-import { getInvoices } from '@/api/invoice';
+import { getAllInvoices } from '@/api/invoice';
 
 export function useRecommendedRoom(houseId: string, period: string, rooms: Room[]) {
   const [recommendedRoomId, setRecommendedRoomId] = useState<string>('');
@@ -32,8 +32,7 @@ export function useRecommendedRoom(houseId: string, period: string, rooms: Room[
           return;
         }
 
-        const allInvoices = await getInvoices({ house_id: houseId, limit: 1000 });
-        const periodInvoices = (allInvoices || []).filter(inv => inv.period === period);
+        const periodInvoices = await getAllInvoices({ house_id: houseId, period });
         
         let foundId = '';
         

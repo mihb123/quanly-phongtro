@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { type House } from '@/api/house';
-import { getInvoices } from '@/api/invoice';
+import { getAllInvoices } from '@/api/invoice';
+import { readStorageRaw, writeStorageRaw } from '@/lib/storage';
 import { useRoomStore } from '@/data/roomData';
 
 export function useRecommendedHouse(houses: House[], period: string, fallbackHouseId?: string) {
@@ -30,7 +31,7 @@ export function useRecommendedHouse(houses: House[], period: string, fallbackHou
 
       setIsLoading(true);
 
-      const lastSelected = localStorage.getItem('lastSelectedHouseId_Invoice');
+      const lastSelected = readStorageRaw('lastSelectedHouseId_Invoice');
       const candidateHouses = [...houses].sort((a, b) => {
         const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -54,8 +55,7 @@ export function useRecommendedHouse(houses: House[], period: string, fallbackHou
           
           if (occupiedRooms.length === 0) continue; // Skip houses with no occupied rooms? Or maybe consider them invoiced? We'll skip to find one with actual work.
 
-          const allInvoices = await getInvoices({ house_id: house.id, limit: 1000 });
-          const periodInvoices = (allInvoices || []).filter(inv => inv.period === period);
+          const periodInvoices = await getAllInvoices({ house_id: house.id, period });
           
           let hasUninvoiced = false;
           for (const room of occupiedRooms) {
@@ -86,7 +86,7 @@ export function useRecommendedHouse(houses: House[], period: string, fallbackHou
   }, [houses, period, getRoomsByHouse]);
 
   const saveSelectedHouse = (id: string) => {
-    localStorage.setItem('lastSelectedHouseId_Invoice', id);
+    writeStorageRaw('lastSelectedHouseId_Invoice', id);
   };
 
   return { recommendedHouseId, isLoading, saveSelectedHouse };

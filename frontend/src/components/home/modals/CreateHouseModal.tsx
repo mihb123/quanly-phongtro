@@ -212,17 +212,17 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
         <FormSection title="Thông tin chung">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>
+              <Label htmlFor="create-house-name">
                 Tên nhà trọ <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
+              <Input id="create-house-name" {...register('name')} placeholder="vd: Trọ Cầu Giấy" className="border-input" />
               <FieldError message={errors.name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label>
+              <Label htmlFor="create-house-house-code">
                 Mã nhà (House Code) <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <Input id="create-house-house-code"
                 {...register('house_code', { onChange: () => setIsHouseCodeTouched(true), onBlur: handleHouseCodeBlur })}
                 placeholder="vd: ntcg"
                 maxLength={12}
@@ -231,10 +231,10 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
               <FieldError message={errors.house_code?.message} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>
+              <Label htmlFor="create-house-address">
                 Địa chỉ <span className="text-destructive">*</span>
               </Label>
-              <Input {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
+              <Input id="create-house-address" {...register('address')} placeholder="Nhập địa chỉ đầy đủ" className="border-input" />
               <FieldError message={errors.address?.message} />
             </div>
           </div>
@@ -245,47 +245,47 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Cách tính tiền điện</Label>
-                  <select {...register('electricity_billing_type')} className={selectFieldClass}>
+                  <Label htmlFor="create-house-electricity-billing-type">Cách tính tiền điện</Label>
+                  <select id="create-house-electricity-billing-type" {...register('electricity_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {electricityBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
-                    <Label>Đơn vị tính điện</Label>
-                    <select {...register('electricity_billing_unit')} className={selectFieldClass}>
+                    <Label htmlFor="create-house-electricity-billing-unit">Đơn vị tính điện</Label>
+                    <select id="create-house-electricity-billing-unit" {...register('electricity_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label>{getElectricityPriceLabel()}</Label>
-                  <MoneyInput control={control} name="electricity" />
+                  <Label htmlFor="create-house-electricity">{getElectricityPriceLabel()}</Label>
+                  <MoneyInput id="create-house-electricity" control={control} name="electricity" />
                 </div>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Cách tính tiền nước</Label>
-                  <select {...register('water_billing_type')} className={selectFieldClass}>
+                  <Label htmlFor="create-house-water-billing-type">Cách tính tiền nước</Label>
+                  <select id="create-house-water-billing-type" {...register('water_billing_type')} className={selectFieldClass}>
                     <option value="USAGE">Theo nhu cầu (chỉ số)</option>
                     <option value="FIXED">Theo giá mặc định</option>
                   </select>
                 </div>
                 {waterBillingType === 'FIXED' && (
                   <div className="space-y-1.5">
-                    <Label>Đơn vị tính nước</Label>
-                    <select {...register('water_billing_unit')} className={selectFieldClass}>
+                    <Label htmlFor="create-house-water-billing-unit">Đơn vị tính nước</Label>
+                    <select id="create-house-water-billing-unit" {...register('water_billing_unit')} className={selectFieldClass}>
                       <option value="ROOM">Theo phòng</option>
                       <option value="PERSON">Theo người</option>
                     </select>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label>{getWaterPriceLabel()}</Label>
-                  <MoneyInput control={control} name="water" />
+                  <Label htmlFor="create-house-water">{getWaterPriceLabel()}</Label>
+                  <MoneyInput id="create-house-water" control={control} name="water" />
                 </div>
               </div>
             </div>
@@ -294,16 +294,16 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
           <FormSubGroup label="Dịch vụ khác">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label>Wifi / phòng (VNĐ)</Label>
-                <MoneyInput control={control} name="wifi" />
+                <Label htmlFor="create-house-wifi">Wifi / phòng (VNĐ)</Label>
+                <MoneyInput id="create-house-wifi" control={control} name="wifi" />
               </div>
               <div className="space-y-1.5">
-                <Label>Gửi xe / xe (VNĐ)</Label>
-                <MoneyInput control={control} name="parking" />
+                <Label htmlFor="create-house-parking">Gửi xe / xe (VNĐ)</Label>
+                <MoneyInput id="create-house-parking" control={control} name="parking" />
               </div>
               <div className="space-y-1.5">
-                <Label>Dịch vụ chung / người (VNĐ)</Label>
-                <MoneyInput control={control} name="service" />
+                <Label htmlFor="create-house-service">Dịch vụ chung / người (VNĐ)</Label>
+                <MoneyInput id="create-house-service" control={control} name="service" />
               </div>
             </div>
           </FormSubGroup>
@@ -311,16 +311,16 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
           <FormSubGroup label="Phụ thu (để 0 nếu không áp dụng)">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Phụ thu nếu quá X người</Label>
+                <Label htmlFor="create-house-extra-person-threshold">Phụ thu nếu quá X người</Label>
                 <div className="flex gap-2">
-                  <Input type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
+                  <Input id="create-house-extra-person-threshold" type="number" {...register('extra_person_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số người miễn phí" />
                   <MoneyInput control={control} name="extra_person_fee" className="flex-1" placeholder="Giá/người (VNĐ)" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Phụ thu nếu quá X xe</Label>
+                <Label htmlFor="create-house-extra-vehicle-threshold">Phụ thu nếu quá X xe</Label>
                 <div className="flex gap-2">
-                  <Input type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
+                  <Input id="create-house-extra-vehicle-threshold" type="number" {...register('extra_vehicle_threshold')} placeholder="0" min="0" className="w-16 border-input" title="Số xe miễn phí" />
                   <MoneyInput control={control} name="extra_vehicle_fee" className="flex-1" placeholder="Giá/xe (VNĐ)" />
                 </div>
               </div>
@@ -333,8 +333,9 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
           hint="Hệ thống tự khởi tạo danh sách phòng theo số lượng bên dưới. Nhập 0 nếu chưa muốn tạo phòng."
         >
           <div className="space-y-1.5">
-            <Label>Số tầng của toà nhà (gồm cả trệt/thượng)</Label>
+            <Label htmlFor="create-house-floor-count">Số tầng của toà nhà (gồm cả trệt/thượng)</Label>
             <Input
+              id="create-house-floor-count"
               type="number"
               min="0"
               max="20"
@@ -351,8 +352,9 @@ export function CreateHouseModal({ onClose }: { onClose: () => void }) {
                   const floorNo = i + 1
                   return (
                     <div key={floorNo} className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground">Tầng {floorNo}</Label>
+                      <Label htmlFor={`create-house-floor-${floorNo}`} className="text-xs text-muted-foreground">Tầng {floorNo}</Label>
                       <Input
+                        id={`create-house-floor-${floorNo}`}
                         type="number"
                         min="0"
                         value={roomsPerFloor[floorNo] ?? 1}

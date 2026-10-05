@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { useSelectedStore, type TabType } from '@/data/selectedData'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
@@ -23,8 +24,82 @@ const TAB_TITLES: Record<TabType, string> = {
   settings: 'Cài đặt',
 }
 
+const SCROLL_STORAGE_KEY = 'home:tabScroll'
+
+function readTabScroll(): Partial<Record<TabType, number>> {
+  try {
+    const raw = sessionStorage.getItem(SCROLL_STORAGE_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? (parsed as Partial<Record<TabType, number>>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeTabScroll(value: Partial<Record<TabType, number>>) {
+  try {
+    sessionStorage.setItem(SCROLL_STORAGE_KEY, JSON.stringify(value))
+  } catch {
+    // Bỏ qua khi trình duyệt chặn sessionStorage.
+  }
+}
+
+// Mỗi tab giữ vị trí cuộn riêng: rời tab thì lưu, quay lại thì cuộn về chỗ cũ khi nội dung đã đủ cao.
+function useTabScrollRestoration(activeTab: TabType) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const positionsRef = useRef<Partial<Record<TabType, number>>>(readTabScroll())
+
+  useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const target = positionsRef.current[activeTab] ?? 0
+    container.scrollTop = target
+
+    let restoring = target > 0 && container.scrollTop < target
+    let observer: ResizeObserver | null = null
+    let timeoutId: number | undefined
+    const stopRestoring = () => {
+      restoring = false
+      observer?.disconnect()
+      window.clearTimeout(timeoutId)
+    }
+
+    if (restoring && typeof ResizeObserver !== 'undefined' && container.firstElementChild) {
+      observer = new ResizeObserver(() => {
+        if (!restoring) return
+        container.scrollTop = target
+        if (container.scrollTop >= target - 1) stopRestoring()
+      })
+      observer.observe(container.firstElementChild)
+      timeoutId = window.setTimeout(stopRestoring, 3000)
+    }
+
+    const handleScroll = () => {
+      if (restoring) return
+      positionsRef.current = { ...positionsRef.current, [activeTab]: container.scrollTop }
+      writeTabScroll(positionsRef.current)
+    }
+    const handleUserScroll = () => {
+      if (restoring) stopRestoring()
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    container.addEventListener('wheel', handleUserScroll, { passive: true })
+    container.addEventListener('touchstart', handleUserScroll, { passive: true })
+    return () => {
+      stopRestoring()
+      container.removeEventListener('scroll', handleScroll)
+      container.removeEventListener('wheel', handleUserScroll)
+      container.removeEventListener('touchstart', handleUserScroll)
+    }
+  }, [activeTab])
+
+  return containerRef
+}
+
 export default function HomePage() {
   const { activeTab } = useSelectedStore()
+  const scrollContainerRef = useTabScrollRestoration(activeTab)
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -39,7 +114,10 @@ export default function HomePage() {
           <h1 className="text-sm font-medium">{TAB_TITLES[activeTab]}</h1>
         </header>
 
-        <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 pt-20 pb-20 md:p-6 md:pt-6 md:pb-6">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-4 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(5rem+env(safe-area-inset-bottom))] md:p-6 md:pt-6 md:pb-6"
+        >
           <div className="mx-auto flex max-w-6xl flex-col gap-6">
             {activeTab === 'dashboard' && (
               <DashboardView />

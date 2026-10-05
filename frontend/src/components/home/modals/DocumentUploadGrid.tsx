@@ -78,6 +78,7 @@ export function DocumentUploadGrid({
             </div>
 
             <button
+              aria-label={`Xóa file ${itemLabel.toLowerCase()}`}
               type="button"
               disabled={isBusy}
               onClick={(e) => {

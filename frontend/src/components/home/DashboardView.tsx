@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, Users, Building2, TrendingUp, AlertCircle, Clock, CheckCircle2, Receipt, ArrowRight, DoorOpen } from '@/components/icons'
+import { Plus, Users, Building2, TrendingUp, AlertCircle, AlertTriangle, Clock, CheckCircle2, Receipt, ArrowRight, DoorOpen } from '@/components/icons'
 import { Button } from '@/components/ui/button'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatCard } from '@/components/shared/StatCard'
@@ -8,112 +8,54 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { formatCurrency } from '@/utils/format'
 import { useHouseStore } from '@/data/houseData'
-import { useRoomStore } from '@/data/roomData'
-import { useInvoiceStore } from '@/data/invoiceData'
-import { useTenantStore } from '@/data/tenantData'
+import { invoiceBreakdownKey, UNPAID_INVOICE_STATUSES } from '@/data/invoiceData'
+import { getInvoiceBreakdown, getInvoicesPage } from '@/api/invoice'
+import { getAvailableRooms, getRoomStats } from '@/api/room'
+import { invalidateQueries, queryKey, useQuery } from '@/lib/queryCache'
 import { useHouseCostStore } from '@/data/houseCostData'
 import { useSelectedStore } from '@/data/selectedData'
 import { CreateHouseModal } from './modals/CreateHouseModal'
-import { type Room } from '@/api/room'
 import { cn } from '@/lib/utils'
+
+const DASHBOARD_LIST_LIMIT = 20
 
 // View tổng quan: thống kê nhanh + danh sách hóa đơn cần thu/gần đây + phòng trống.
 export function DashboardView() {
   const [showCreateHouse, setShowCreateHouse] = useState(false)
   const { houses } = useHouseStore()
-  const { getRoomsByHouse } = useRoomStore()
-  const { tenantsByHouse, fetchTenants } = useTenantStore()
-  const { invoices, fetchInvoices } = useInvoiceStore()
   const { summaries, period, fetchSummaries } = useHouseCostStore()
   const { setActiveTab, selectHouse } = useSelectedStore()
 
-  const [allRooms, setAllRooms] = useState<(Room & { houseName?: string })[]>([])
-  const [isLoadingData, setIsLoadingData] = useState(true)
-
-  // Fetch invoices and summaries on mount
   useEffect(() => {
-    fetchInvoices()
     fetchSummaries()
-  }, [fetchInvoices, fetchSummaries, period])
+  }, [fetchSummaries, period])
 
-  // Fetch rooms for all houses to calculate occupancy and get available rooms
-  useEffect(() => {
-    let isMounted = true
-    async function loadData() {
-      if (houses.length === 0) {
-        if (isMounted) {
-          setAllRooms([])
-          setIsLoadingData(false)
-        }
-        return
-      }
+  const breakdownQuery = useQuery(invoiceBreakdownKey({ period }), () => getInvoiceBreakdown({ period }))
+  const unpaidQuery = useQuery(queryKey('invoices:unpaid', { period, limit: DASHBOARD_LIST_LIMIT }), () =>
+    getInvoicesPage({ status: UNPAID_INVOICE_STATUSES, period, page: 1, limit: DASHBOARD_LIST_LIMIT }),
+  )
+  const recentQuery = useQuery(queryKey('invoices:recent', { limit: 5 }), () => getInvoicesPage({ page: 1, limit: 5 }))
+  const roomStatsQuery = useQuery(queryKey('rooms:stats', {}), () => getRoomStats())
+  const availableQuery = useQuery(queryKey('rooms:available', { limit: DASHBOARD_LIST_LIMIT }), () => getAvailableRooms(DASHBOARD_LIST_LIMIT))
 
-      setIsLoadingData(true)
-      try {
-        const roomsList: (Room & { houseName?: string })[] = []
+  const breakdown = breakdownQuery.data
+  const expectedRevenue = breakdown?.expected.total_amount ?? 0
+  const collectedRevenue = breakdown?.collected.total_amount ?? 0
+  const unpaidRevenue = expectedRevenue - collectedRevenue
+  const pendingInvoicesCount = breakdown ? breakdown.expected.invoice_count - breakdown.collected.invoice_count : 0
+  const unpaidInvoices = unpaidQuery.data?.items ?? []
+  const unpaidTotal = unpaidQuery.data?.total ?? 0
+  const recentInvoices = recentQuery.data?.items ?? []
+  const availableRooms = availableQuery.data?.items ?? []
+  const availableTotal = availableQuery.data?.total ?? 0
 
-        await Promise.all(houses.map(async (house) => {
-          const rooms = await getRoomsByHouse(house.id)
-          rooms.forEach(r => roomsList.push({ ...r, houseName: house.name }))
-          fetchTenants(house.id) // trigger tenant fetch to populate tenantsByHouse
-        }))
+  const roomStats = roomStatsQuery.data
+  const totalRooms = roomStats?.total ?? 0
+  const occupiedRooms = roomStats?.occupied ?? 0
+  const totalTenants = roomStats?.tenants ?? 0
+  const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+  const loadFailed = [breakdownQuery, unpaidQuery, recentQuery, roomStatsQuery, availableQuery].some(q => q.error !== undefined)
 
-        if (isMounted) {
-          setAllRooms(roomsList)
-        }
-      } catch (err) {
-        console.error("Error loading data:", err)
-      } finally {
-        if (isMounted) setIsLoadingData(false)
-      }
-    }
-
-    loadData()
-    return () => { isMounted = false }
-  }, [houses, getRoomsByHouse, fetchTenants])
-
-  // Calculate invoice stats and lists
-  const { expectedRevenue, collectedRevenue, unpaidRevenue, pendingInvoicesCount, recentInvoices, unpaidInvoices } = useMemo(() => {
-    let expected = 0;
-    let collected = 0;
-    let unpaid = 0;
-    let pendingCount = 0;
-
-    invoices.forEach(inv => {
-      expected += inv.total_amount;
-      if (inv.status === 'PAID') {
-        collected += inv.total_amount;
-      } else {
-        unpaid += inv.total_amount;
-        pendingCount += 1;
-      }
-    });
-
-    const sortedInvoices = [...invoices].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    const recent = sortedInvoices.slice(0, 5);
-    const unpaidList = invoices.filter(inv => inv.status !== 'PAID');
-
-    return {
-      expectedRevenue: expected,
-      collectedRevenue: collected,
-      unpaidRevenue: unpaid,
-      pendingInvoicesCount: pendingCount,
-      recentInvoices: recent,
-      unpaidInvoices: unpaidList
-    };
-  }, [invoices]);
-
-  // Calculate total tenants across all houses
-  const totalTenants = useMemo(() => {
-    return Object.values(tenantsByHouse).reduce((acc, tenantsArray) => acc + (tenantsArray?.length || 0), 0);
-  }, [tenantsByHouse]);
-
-  const totalRooms = allRooms.length;
-  const occupiedRooms = allRooms.filter(r => r.status === 'OCCUPIED').length;
-  const availableRooms = allRooms.filter(r => r.status === 'AVAILABLE');
-  const occupancyRate = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
-
-  // Calculate aggregated profit for current period
   const totalProfit = useMemo(() => {
     return (summaries || []).reduce((sum, s) => sum + s.profit, 0);
   }, [summaries]);
@@ -140,6 +82,13 @@ export function DashboardView() {
         }
       />
 
+      {loadFailed && (
+        <div role="alert" className="flex items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <span className="flex items-center gap-2"><AlertTriangle className="size-4 shrink-0" /> Một phần số liệu chưa tải được.</span>
+          <Button variant="outline" size="sm" onClick={() => { invalidateQueries('invoices:'); invalidateQueries('rooms:') }}>Thử lại</Button>
+        </div>
+      )}
+
       {/* Balanced 4-Column Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
@@ -158,7 +107,7 @@ export function DashboardView() {
           sub={
             <span className="flex items-center gap-1">
               <CheckCircle2 className="size-3 shrink-0 text-success" />
-              <span className="truncate">Đã thu: {formatCurrency(collectedRevenue)}</span>
+              <span className="truncate">Đã thu: {formatCurrency(collectedRevenue)} · Kỳ {period}</span>
             </span>
           }
         />
@@ -167,7 +116,7 @@ export function DashboardView() {
           value={`${pendingInvoicesCount} phiếu`}
           icon={AlertCircle}
           tone="warning"
-          sub={`Tổng nợ: ${formatCurrency(unpaidRevenue)}`}
+          sub={`Tổng nợ: ${formatCurrency(unpaidRevenue)} · Kỳ ${period}`}
         />
         <StatCard
           label="Tỷ lệ lấp đầy"
@@ -194,7 +143,7 @@ export function DashboardView() {
           {/* Unpaid Invoices */}
           <SectionCard
             icon={AlertCircle}
-            title={`Cần thu tiền (${unpaidInvoices.length})`}
+            title={`Cần thu tiền kỳ ${period} (${unpaidTotal})`}
             action={
               <Button variant="ghost" size="sm" onClick={() => setActiveTab('invoices')} className="text-muted-foreground">
                 Xem tất cả
@@ -203,7 +152,7 @@ export function DashboardView() {
             }
             bodyClassName="divide-y divide-border/40 max-h-[300px] overflow-y-auto"
           >
-            {isLoadingData ? (
+            {unpaidQuery.isLoading ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Đang tải dữ liệu...</div>
             ) : unpaidInvoices.length === 0 ? (
               <EmptyState title="Không có hóa đơn nợ." />
@@ -229,7 +178,9 @@ export function DashboardView() {
             title="Hóa đơn gần đây"
             bodyClassName="divide-y divide-border/40"
           >
-            {recentInvoices.length === 0 ? (
+            {recentQuery.isLoading ? (
+              <div className="p-5 text-center text-sm text-muted-foreground">Đang tải dữ liệu...</div>
+            ) : recentInvoices.length === 0 ? (
               <EmptyState title="Chưa có hóa đơn nào được tạo." />
             ) : (
               recentInvoices.map(inv => (
@@ -260,11 +211,11 @@ export function DashboardView() {
         <div className="lg:col-span-1 relative min-h-[400px]">
           <SectionCard
             icon={DoorOpen}
-            title={`Phòng đang trống (${availableRooms.length})`}
+            title={`Phòng đang trống (${availableTotal})`}
             className="flex flex-col lg:absolute lg:inset-0 max-h-[600px] lg:max-h-none"
             bodyClassName="divide-y divide-border/40 overflow-y-auto flex-1"
           >
-            {isLoadingData ? (
+            {availableQuery.isLoading ? (
               <div className="p-5 text-center text-sm text-muted-foreground">Đang tải...</div>
             ) : availableRooms.length === 0 ? (
               <EmptyState title="Không có phòng trống." />
@@ -280,7 +231,7 @@ export function DashboardView() {
                     <p className="text-sm font-semibold tabular-nums text-foreground">{room.price ? formatCurrency(room.price) : 'Chưa đặt giá'}</p>
                   </div>
                   <div className="flex items-center justify-between mt-2">
-                    <p className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-sm line-clamp-1">{room.houseName}</p>
+                    <p className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-sm line-clamp-1">{room.house_name}</p>
                     <ArrowRight className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                 </div>

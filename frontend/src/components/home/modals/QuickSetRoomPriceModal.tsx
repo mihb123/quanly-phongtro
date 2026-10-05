@@ -187,13 +187,13 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                 <div key={room.id} className="grid grid-cols-12 gap-3 items-center p-3 rounded-lg hover:bg-muted/30 border border-transparent hover:border-border transition-all relative">
                   {showActionsFor === room.id && (
                     <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-lg flex items-center justify-center gap-2 sm:gap-4 shadow-sm border border-border/80">
-                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDuplicateRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-primary border-primary/20 hover:bg-primary/10 font-medium text-xs sm:text-sm">
+                      <Button variant="outline" aria-label="Nhân bản phòng" onClick={(e) => { e.stopPropagation(); handleDuplicateRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-primary border-primary/20 hover:bg-primary/10 font-medium text-xs sm:text-sm">
                         <Copy className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Nhân bản</span>
                       </Button>
-                      <Button variant="outline" onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-destructive border-destructive/20 hover:bg-destructive/10 font-medium text-xs sm:text-sm">
+                      <Button variant="outline" aria-label="Xóa phòng" onClick={(e) => { e.stopPropagation(); handleDeleteRoom(room); setShowActionsFor(null); }} disabled={isLoading} className="h-9 px-3 sm:px-4 text-destructive border-destructive/20 hover:bg-destructive/10 font-medium text-xs sm:text-sm">
                         <Trash2 className="w-4 h-4 sm:mr-2" /> <span className="hidden sm:inline">Xóa</span>
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setShowActionsFor(null); }} className="absolute right-1 sm:right-2 text-muted-foreground hover:bg-secondary rounded-full">
+                      <Button variant="ghost" size="icon" aria-label="Đóng thao tác" onClick={(e) => { e.stopPropagation(); setShowActionsFor(null); }} className="absolute right-1 sm:right-2 text-muted-foreground hover:bg-secondary rounded-full">
                         <X className="w-5 h-5"/>
                       </Button>
                     </div>

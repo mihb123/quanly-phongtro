@@ -95,6 +95,31 @@ export const getInvoices = async (filter?: InvoiceFilter) => {
   return response.data;
 };
 
+export interface Paged<T> {
+  items: T[];
+  total: number;
+}
+
+export const getInvoicesPage = async (filter: InvoiceFilter): Promise<Paged<Invoice>> => {
+  const response = await api.get<Invoice[]>('/invoice', { params: filter });
+  const items = response.data || [];
+  const total = Number(response.headers['x-total-count']);
+  return { items, total: Number.isFinite(total) ? total : items.length };
+};
+
+const ALL_INVOICES_PAGE = 100;
+
+// Đi hết các trang (backend giới hạn 100 dòng/trang) để lấy đủ hóa đơn theo bộ lọc.
+export const getAllInvoices = async (filter: Omit<InvoiceFilter, 'page' | 'limit'>) => {
+  const first = await getInvoicesPage({ ...filter, page: 1, limit: ALL_INVOICES_PAGE });
+  const pages = Math.ceil(first.total / ALL_INVOICES_PAGE);
+  if (pages <= 1) return first.items;
+  const rest = await Promise.all(
+    Array.from({ length: pages - 1 }, (_, i) => getInvoicesPage({ ...filter, page: i + 2, limit: ALL_INVOICES_PAGE })),
+  );
+  return [...first.items, ...rest.flatMap(page => page.items)];
+};
+
 export const getInvoiceBreakdown = async (filter?: InvoiceBreakdownFilter) => {
   const response = await api.get<InvoiceBreakdown>('/invoice/breakdown', { params: filter });
   return response.data;

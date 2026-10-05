@@ -134,8 +134,31 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
         }
         contentClassName="sm:max-w-2xl"
         dismissible={!isLoading}
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await logout()
+                navigate('/login')
+              }}
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 px-2 sm:px-3"
+            >
+              <LogOut className="w-4 h-4" /> <span className="hidden xs:inline">Đăng xuất</span>
+            </Button>
+
+            <div className="flex gap-2 sm:gap-3">
+              <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
+              <Button type="submit" form="update-profile-form" disabled={isLoading}>
+                {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu thay đổi</>}
+              </Button>
+            </div>
+          </div>
+        }
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        <form id="update-profile-form" onSubmit={handleSubmit(onSubmit)} className="space-y-8">
 
           {/* Thông tin cá nhân */}
           <div className="space-y-4">
@@ -145,19 +168,19 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground">Họ và tên</Label>
+                <Label htmlFor="update-profile-full-name" className="text-xs font-semibold text-muted-foreground">Họ và tên</Label>
                 <div className="relative">
-                  <UserCircle className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input {...register('full_name')} placeholder="Nhập họ tên" className="pl-9 border-border/60 bg-background" />
+                  <UserCircle className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="update-profile-full-name" autoComplete="name" {...register('full_name')} placeholder="Nhập họ tên" className="pl-9 border-border/60 bg-background" />
                 </div>
                 {errors.full_name && <span className="text-destructive text-xs">{errors.full_name.message}</span>}
               </div>
 
               <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground">Số điện thoại</Label>
+                <Label htmlFor="update-profile-phone" className="text-xs font-semibold text-muted-foreground">Số điện thoại</Label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input {...register('phone')} placeholder="09xxxxxxx" className="pl-9 border-border/60 bg-background" />
+                  <Phone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input id="update-profile-phone" type="tel" inputMode="tel" autoComplete="tel" {...register('phone')} placeholder="09xxxxxxx" className="pl-9 border-border/60 bg-background" />
                 </div>
                 {errors.phone && <span className="text-destructive text-xs">{errors.phone.message}</span>}
               </div>
@@ -194,8 +217,8 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
 
             {/* Chế độ sáng/tối/hệ thống — áp dụng ngay và lưu để đồng bộ đa thiết bị */}
             <div className="space-y-2">
-              <Label className="text-xs font-semibold text-muted-foreground">Chế độ</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <p id="update-profile-color-mode-label" className="text-xs font-semibold text-muted-foreground">Chế độ</p>
+              <div role="group" aria-labelledby="update-profile-color-mode-label" className="grid grid-cols-3 gap-2">
                 {COLOR_MODES.map((mode) => {
                   const Icon = COLOR_MODE_ICONS[mode.id]
                   const isActive = activeMode === mode.id
@@ -226,8 +249,8 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Tông màu — chọn theme màu (Red/Sky) */}
-            <Label className="text-xs font-semibold text-muted-foreground">Tông màu</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p id="update-profile-theme-label" className="text-xs font-semibold text-muted-foreground">Tông màu</p>
+            <div role="group" aria-labelledby="update-profile-theme-label" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {THEMES.map((theme) => {
                 const isActive = activeTheme === theme.id
                 const isSaving = savingTheme === theme.id
@@ -265,27 +288,6 @@ export function UpdateProfileModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-4 border-t border-border/40">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                await logout()
-                navigate('/login')
-              }}
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 px-2 sm:px-3"
-            >
-              <LogOut className="w-4 h-4" /> <span className="hidden xs:inline">Đăng xuất</span>
-            </Button>
-
-            <div className="flex gap-2 sm:gap-3">
-              <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Đang lưu...' : <><Save className="w-4 h-4" /> Lưu thay đổi</>}
-              </Button>
-            </div>
-          </div>
         </form>
       </AppModal>
     </>

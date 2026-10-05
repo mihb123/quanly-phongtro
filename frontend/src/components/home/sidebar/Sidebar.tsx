@@ -49,7 +49,7 @@ import { UpdateProfileModal } from '@/components/home/modals/UpdateProfileModal'
 
 import { useHouseStore } from '@/data/houseData'
 import { useRoomStore } from '@/data/roomData'
-import { useSelectedStore, type TabType } from '@/data/selectedData'
+import { readSavedHouseId, useSelectedStore, type TabType } from '@/data/selectedData'
 
 import { CreateHouseModal } from '@/components/home/modals/CreateHouseModal'
 import { EditHouseModal } from '@/components/home/modals/EditHouseModal'
@@ -89,7 +89,7 @@ export function AppSidebar() {
 
   // Hydrate selected house on load
   useEffect(() => {
-    const savedHouseId = localStorage.getItem('home_selected_house_id')
+    const savedHouseId = readSavedHouseId()
     if (savedHouseId && houses.length > 0 && !selectedHouse) {
       const house = houses.find(h => h.id === savedHouseId)
       if (house) {

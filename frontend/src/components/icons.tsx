@@ -58,6 +58,7 @@ import {
   Cancel01Icon,
   FlashIcon,
   ZoomInAreaIcon,
+  Search01Icon,
   Sun03Icon,
   Moon02Icon,
   ComputerIcon,
@@ -136,6 +137,7 @@ export const Receipt = makeIcon(Invoice01Icon)
 export const RefreshCw = makeIcon(ArrowReloadHorizontalIcon)
 export const Save = makeIcon(FloppyDiskIcon)
 export const Send = makeIcon(Navigation03Icon)
+export const Search = makeIcon(Search01Icon)
 export const Settings = makeIcon(Settings01Icon)
 export const Shield = makeIcon(Shield01Icon)
 export const Trash2 = makeIcon(Delete02Icon)

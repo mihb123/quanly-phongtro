@@ -66,44 +66,46 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       }
       contentClassName="sm:max-w-md"
       dismissible={!isLoading}
+      footer={
+        <div className="flex w-full gap-2 sm:justify-end sm:gap-3">
+          <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+          <Button type="submit" form="change-password-form" disabled={isLoading} className="flex-1 sm:flex-none">
+            {isLoading ? 'Đang xử lý...' : <><Save className="w-4 h-4" /> Xác nhận đổi</>}
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form id="change-password-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Mật khẩu cũ</Label>
+            <Label htmlFor="change-password-old-password" className="text-xs font-semibold text-muted-foreground">Mật khẩu cũ</Label>
             <div className="relative">
-              <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="password" {...register('old_password')} placeholder="Nhập mật khẩu hiện tại" className="pl-9 border-border/60 bg-background" />
+              <Key className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="change-password-old-password" type="password" autoComplete="current-password" {...register('old_password')} placeholder="Nhập mật khẩu hiện tại" className="pl-9 border-border/60 bg-background" />
             </div>
             {errors.old_password && <span className="text-destructive text-xs">{errors.old_password.message}</span>}
           </div>
 
           <div className="space-y-2 pt-2 border-t border-border/40">
-            <Label className="text-xs font-semibold text-muted-foreground">Mật khẩu mới</Label>
+            <Label htmlFor="change-password-password" className="text-xs font-semibold text-muted-foreground">Mật khẩu mới</Label>
             <div className="relative">
-              <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="password" {...register('password')} placeholder="Nhập mật khẩu mới" className="pl-9 border-border/60 bg-background" />
+              <Key className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="change-password-password" type="password" autoComplete="new-password" {...register('password')} placeholder="Nhập mật khẩu mới" className="pl-9 border-border/60 bg-background" />
             </div>
             {errors.password && <span className="text-destructive text-xs">{errors.password.message}</span>}
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-semibold text-muted-foreground">Xác nhận mật khẩu mới</Label>
+            <Label htmlFor="change-password-confirm-password" className="text-xs font-semibold text-muted-foreground">Xác nhận mật khẩu mới</Label>
             <div className="relative">
-              <Key className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input type="password" {...register('confirm_password')} placeholder="Nhập lại mật khẩu mới" className="pl-9 border-border/60 bg-background" />
+              <Key className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="change-password-confirm-password" type="password" autoComplete="new-password" {...register('confirm_password')} placeholder="Nhập lại mật khẩu mới" className="pl-9 border-border/60 bg-background" />
             </div>
             {errors.confirm_password && <span className="text-destructive text-xs">{errors.confirm_password.message}</span>}
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border/40">
-          <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
-          <Button type="submit" disabled={isLoading} className="flex-1 sm:flex-none">
-            {isLoading ? 'Đang xử lý...' : <><Save className="w-4 h-4" /> Xác nhận đổi</>}
-          </Button>
-        </div>
       </form>
     </AppModal>
   )

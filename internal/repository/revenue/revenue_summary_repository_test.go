@@ -159,3 +159,37 @@ func TestRevenueSummaryRepository_CalculateRevenue(t *testing.T) {
 		t.Errorf("unfulfilled expectations: %s", err)
 	}
 }
+
+func TestRevenueSummaryRepository_ListForManagerPeriods(t *testing.T) {
+	bunDB, mock := repotest.SetupTestDB(t)
+	defer bunDB.Close()
+
+	repo := revenue.NewRevenueSummaryRepository(bunDB)
+	ctx := context.Background()
+
+	summaries, err := repo.ListForManagerPeriods(ctx, "manager-1", []string{"house-1"}, nil)
+	if err != nil || len(summaries) != 0 {
+		t.Errorf("expected empty result without query, got %v, %v", summaries, err)
+	}
+
+	rows := sqlmock.NewRows([]string{"house_id", "period", "total_revenue", "total_cost", "profit"}).
+		AddRow("house-1", "2026-08", 5000.0, 2000.0, 3000.0).
+		AddRow("house-1", "2026-09", 6000.0, 1000.0, 5000.0)
+	mock.ExpectQuery(`FROM "house_revenue_summaries" AS "house_revenue_summary" JOIN houses AS h ON h.id = house_revenue_summary.house_id WHERE \(h.manager_id = 'manager-1'\) AND \(house_revenue_summary.house_id IN \('house-1'\)\) AND \(house_revenue_summary.period IN \('2026-08', '2026-09'\)\) ORDER BY "house_revenue_summary"."period" ASC`).
+		WillReturnRows(rows)
+	summaries, err = repo.ListForManagerPeriods(ctx, "manager-1", []string{"house-1"}, []string{"2026-08", "2026-09"})
+	if err != nil {
+		t.Errorf("error was not expected: %s", err)
+	}
+	if len(summaries) != 2 {
+		t.Errorf("expected 2 summaries, got %d", len(summaries))
+	}
+
+	mock.ExpectQuery(`SELECT .* FROM "house_revenue_summaries"`).WillReturnError(errors.New("db error"))
+	if _, err = repo.ListForManagerPeriods(ctx, "manager-1", []string{"house-1"}, []string{"2026-08"}); err == nil {
+		t.Errorf("expected db error")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unfulfilled expectations: %s", err)
+	}
+}

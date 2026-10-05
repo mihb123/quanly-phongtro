@@ -25,6 +25,27 @@ type Room struct {
 	ContractPath          string    `json:"contract_path"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
+	TenantCount           int       `json:"tenant_count" bun:",scanonly"`
+	HouseName             string    `json:"house_name,omitempty" bun:",scanonly"`
+}
+
+// RoomListFilter narrows a paginated room listing for one house.
+type RoomListFilter struct {
+	HouseID string
+	Search  string
+	Status  string
+	Limit   int
+	Offset  int
+}
+
+// RoomStats aggregates room occupancy for a manager, optionally scoped to one house.
+type RoomStats struct {
+	Total       int `json:"total"`
+	Occupied    int `json:"occupied"`
+	Available   int `json:"available"`
+	Maintenance int `json:"maintenance"`
+	Tenants     int `json:"tenants"`
+	Capacity    int `json:"capacity"`
 }
 
 // UpdateRoomParams holds the fields for a full room update (prices are pointers for NULL).
@@ -48,7 +69,9 @@ type UpdateRoomParams struct {
 type RoomRepository interface {
 	CreateRoom(ctx context.Context, room *Room) error
 	GetRoomByID(ctx context.Context, id, houseID string) (*Room, error)
-	ListRoomsByHouseID(ctx context.Context, houseID string, limit, offset int) ([]Room, error)
+	ListRoomsByHouseID(ctx context.Context, filter RoomListFilter) ([]Room, int, error)
+	GetRoomStats(ctx context.Context, managerID, houseID string) (*RoomStats, error)
+	ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]Room, int, error)
 	ListAllRoomsByHouseID(ctx context.Context, houseID string) ([]Room, error)
 	UpdateRoom(ctx context.Context, id, houseID string, params UpdateRoomParams) (*Room, error)
 	DeleteRoom(ctx context.Context, id, houseID string) error

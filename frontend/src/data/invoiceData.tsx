@@ -1,26 +1,82 @@
 import { create } from 'zustand';
 import {
   type Invoice,
-  type InvoiceBreakdown,
   type InvoiceFilter,
-  getInvoices,
-  getInvoiceBreakdown,
+  type Paged,
   createInvoice,
   type CreateInvoicePayload,
   payInvoice,
   unpayInvoice,
   deleteInvoice,
 } from '../api/invoice';
+import { invalidateQueries, queryKey, updateQueries } from '@/lib/queryCache';
+import { FILTER_TTL, readPageSize, readStorage, removeStorage, writeStorage } from '@/lib/storage';
 
+export const INVOICE_FILTERS_KEY = 'invoices:filters';
+export const INVOICE_PAGE_SIZE_KEY = 'invoices:pageSize';
+export const UNPAID_INVOICE_STATUSES = 'UNPAID,PARTIALLY_PAID,PENDING_VERIFICATION';
+
+export type InvoiceListFilter = Required<Pick<InvoiceFilter, 'house_id' | 'room_id' | 'period' | 'status' | 'page' | 'limit'>>;
+
+type PersistedFilter = Pick<InvoiceListFilter, 'house_id' | 'room_id' | 'period' | 'status'>;
+
+export const currentPeriod = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const defaultFilter = (): InvoiceListFilter => ({
+  house_id: '',
+  room_id: '',
+  period: currentPeriod(),
+  status: '',
+  page: 1,
+  limit: readPageSize(INVOICE_PAGE_SIZE_KEY),
+});
+
+function restoreFilter(): InvoiceListFilter {
+  const saved = readStorage<Partial<PersistedFilter>>(INVOICE_FILTERS_KEY, { ttl: FILTER_TTL }) || {};
+  const base = defaultFilter();
+  return {
+    ...base,
+    house_id: typeof saved.house_id === 'string' ? saved.house_id : base.house_id,
+    room_id: typeof saved.room_id === 'string' ? saved.room_id : base.room_id,
+    period: typeof saved.period === 'string' && /^\d{4}-\d{2}$/.test(saved.period) ? saved.period : base.period,
+    status: typeof saved.status === 'string' ? saved.status : base.status,
+  };
+}
+
+export function countActiveInvoiceFilters(filter: InvoiceListFilter) {
+  return [filter.house_id, filter.room_id, filter.status, filter.period !== currentPeriod() ? filter.period : '']
+    .filter(Boolean).length;
+}
+
+export const invoiceListKey = (filter: InvoiceListFilter) => queryKey('invoices:list', filter);
+
+export const invoiceBreakdownKey = (filter: Pick<InvoiceFilter, 'house_id' | 'room_id' | 'period' | 'status'>) =>
+  queryKey('invoices:breakdown', {
+    house_id: filter.house_id,
+    room_id: filter.room_id,
+    period: filter.period,
+    status: filter.status,
+  });
+
+const refreshInvoiceQueries = () => {
+  invalidateQueries('invoices:');
+  invalidateQueries('revenue:');
+};
+
+const setInvoiceStatus = (id: string, status: string) =>
+  updateQueries<Paged<Invoice>>('invoices:list', page => ({
+    ...page,
+    items: page.items.map(inv => (inv.id === id ? { ...inv, status } : inv)),
+  }));
 
 interface InvoiceDataState {
-  invoices: Invoice[];
-  breakdown: InvoiceBreakdown | null;
-  isLoading: boolean;
-  invoiceFilter: InvoiceFilter;
-  setInvoiceFilter: (filter: Partial<InvoiceFilter>) => void;
-  fetchInvoices: () => Promise<void>;
-  fetchBreakdown: () => Promise<void>;
+  invoiceFilter: InvoiceListFilter;
+  setInvoiceFilter: (filter: Partial<InvoiceListFilter>) => void;
+  clearInvoiceFilter: () => void;
+  fetchInvoices: () => void;
   createNewInvoice: (payload: CreateInvoicePayload) => Promise<{ success: boolean; message?: string }>;
   updateInvoice: (payload: CreateInvoicePayload) => Promise<{ success: boolean; message?: string }>;
   payInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
@@ -28,127 +84,86 @@ interface InvoiceDataState {
   deleteInvoice: (id: string) => Promise<{ success: boolean; message?: string }>;
 }
 
-const currentMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+const errorMessage = (error: unknown, fallback: string) =>
+  (error as { response?: { data?: { message?: string } } }).response?.data?.message || fallback;
 
 export const useInvoiceStore = create<InvoiceDataState>((set, get) => ({
-  invoices: [],
-  breakdown: null,
-  isLoading: false,
-  invoiceFilter: {
-    page: 1,
-    limit: 20,
-    period: currentMonth,
-  },
+  invoiceFilter: restoreFilter(),
 
   setInvoiceFilter: (filter) => {
-    set((state) => ({
-      invoiceFilter: { ...state.invoiceFilter, ...filter },
-    }));
-    // Automatically fetch when filters change
-    get().fetchInvoices();
+    const prev = get().invoiceFilter;
+    const next = { ...prev, ...filter };
+    const criteriaChanged = (['house_id', 'room_id', 'period', 'status', 'limit'] as const).some(key => next[key] !== prev[key]);
+    if (criteriaChanged && filter.page === undefined) next.page = 1;
+    if (next.house_id !== prev.house_id && filter.room_id === undefined) next.room_id = '';
+    set({ invoiceFilter: next });
+    writeStorage<PersistedFilter>(INVOICE_FILTERS_KEY, {
+      house_id: next.house_id,
+      room_id: next.room_id,
+      period: next.period,
+      status: next.status,
+    });
+    if (next.limit !== prev.limit) writeStorage(INVOICE_PAGE_SIZE_KEY, next.limit);
   },
 
-  fetchInvoices: async () => {
-    set({ isLoading: true });
-    get().fetchBreakdown();
-    try {
-      const data = await getInvoices(get().invoiceFilter);
-      set({ invoices: data || [] });
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      console.error(err.response?.data?.message || 'Lỗi khi tải danh sách hóa đơn');
-    } finally {
-      set({ isLoading: false });
-    }
+  clearInvoiceFilter: () => {
+    removeStorage(INVOICE_FILTERS_KEY);
+    set(state => ({ invoiceFilter: { ...defaultFilter(), limit: state.invoiceFilter.limit } }));
   },
 
-  fetchBreakdown: async () => {
-    const { house_id, room_id, period, status } = get().invoiceFilter;
-    try {
-      const breakdown = await getInvoiceBreakdown({ house_id, room_id, period, status });
-      set({ breakdown });
-    } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      console.error(err.response?.data?.message || 'Lỗi khi tải tổng hợp hóa đơn');
-    }
-  },
+  fetchInvoices: refreshInvoiceQueries,
 
   createNewInvoice: async (payload: CreateInvoicePayload) => {
     try {
       await createInvoice(payload);
-      await get().fetchInvoices();
+      refreshInvoiceQueries();
       return { success: true, message: 'Tạo hóa đơn thành công' };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      return { success: false, message: err.response?.data?.message || 'Lỗi khi tạo hóa đơn' };
+      return { success: false, message: errorMessage(error, 'Lỗi khi tạo hóa đơn') };
     }
   },
 
   updateInvoice: async (payload: CreateInvoicePayload) => {
     try {
       await createInvoice(payload);
-      await get().fetchInvoices();
+      refreshInvoiceQueries();
       return { success: true, message: 'Cập nhật hóa đơn thành công' };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      return { success: false, message: err.response?.data?.message || 'Lỗi khi cập nhật hóa đơn' };
+      return { success: false, message: errorMessage(error, 'Lỗi khi cập nhật hóa đơn') };
     }
   },
 
   payInvoice: async (id: string) => {
-    const { invoices } = get();
-    const originalInvoices = [...invoices];
-
-    // Optimistic update
-    set({
-      invoices: invoices.map((inv) =>
-        inv.id === id ? { ...inv, status: 'PAID' } : inv
-      ),
-    });
-
+    setInvoiceStatus(id, 'PAID');
     try {
       await payInvoice(id);
-      get().fetchBreakdown();
       return { success: true, message: 'Thanh toán hóa đơn thành công' };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      // Rollback
-      set({ invoices: originalInvoices });
-      return { success: false, message: err.response?.data?.message || 'Lỗi khi thanh toán' };
+      return { success: false, message: errorMessage(error, 'Lỗi khi thanh toán') };
+    } finally {
+      refreshInvoiceQueries();
     }
   },
 
   unpayInvoice: async (id: string) => {
-    const { invoices } = get();
-    const originalInvoices = [...invoices];
-
-    // Optimistic update
-    set({
-      invoices: invoices.map((inv) =>
-        inv.id === id ? { ...inv, status: 'UNPAID' } : inv
-      ),
-    });
-
+    setInvoiceStatus(id, 'UNPAID');
     try {
       await unpayInvoice(id);
-      get().fetchBreakdown();
       return { success: true, message: 'Đã hoàn tác thanh toán' };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      // Rollback
-      set({ invoices: originalInvoices });
-      return { success: false, message: err.response?.data?.message || 'Lỗi khi hoàn tác thanh toán' };
+      return { success: false, message: errorMessage(error, 'Lỗi khi hoàn tác thanh toán') };
+    } finally {
+      refreshInvoiceQueries();
     }
   },
 
   deleteInvoice: async (id: string) => {
     try {
       await deleteInvoice(id);
-      await get().fetchInvoices();
+      refreshInvoiceQueries();
       return { success: true, message: 'Xóa hóa đơn thành công' };
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string } } };
-      return { success: false, message: err.response?.data?.message || 'Lỗi khi xóa hóa đơn' };
+      return { success: false, message: errorMessage(error, 'Lỗi khi xóa hóa đơn') };
     }
   },
 }));

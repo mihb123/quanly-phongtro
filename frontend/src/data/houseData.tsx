@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { getHouses, deleteHouse, updateHouse as apiUpdateHouse, createHouse as apiCreateHouse, updateHouseDocuments as apiUpdateHouseDocuments, type House } from '@/api/house'
 import { useInvoiceStore } from './invoiceData'
+import { invalidateQueries } from '@/lib/queryCache'
 
 interface HouseDataState {
   houses: House[]
@@ -30,6 +31,7 @@ export const useHouseStore = create<HouseDataState>((set) => ({
 
     try {
       await deleteHouse(houseId)
+      invalidateQueries()
       return { success: true }
     } catch (error) {
       const err = error as Error & { response?: { data?: { message?: string } } };
@@ -100,6 +102,7 @@ export const useHouseStore = create<HouseDataState>((set) => ({
     try {
       const house = await apiCreateHouse(payload)
       set(state => ({ houses: state.houses.map(h => h.id === tempId ? house : h) }))
+      invalidateQueries()
       return { success: true, house }
     } catch (error) {
       const err = error as Error & { response?: { data?: { message?: string } } };

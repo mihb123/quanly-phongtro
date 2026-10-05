@@ -105,8 +105,35 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
       title="Sửa hóa đơn"
       description={`Phòng ${invoice.room_name} - Kỳ ${invoice.period}`}
       contentClassName="sm:max-w-lg"
+      footer={
+        <div className="flex w-full gap-3">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={handleClose}
+            className="flex-1"
+          >
+            Hủy bỏ
+          </Button>
+          <Button 
+            type="submit"
+            form="edit-invoice-form"
+            disabled={isSubmitting}
+            className="flex-1"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Lưu thay đổi
+              </>
+            )}
+          </Button>
+        </div>
+      }
     >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form id="edit-invoice-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <Controller
             control={control}
             name="exclude_room_fee"
@@ -120,10 +147,10 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
               {!isElectricityFixed && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
+                    <label htmlFor="edit-invoice-old-electricity-index" className="text-sm font-medium text-foreground">
                       Chỉ số điện cũ
                     </label>
-                    <Input 
+                    <Input id="edit-invoice-old-electricity-index" 
                       type="number" 
                       {...register('old_electricity_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -131,10 +158,10 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
                     {errors.old_electricity_index && <p className="text-destructive text-xs font-medium">{errors.old_electricity_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
+                    <label htmlFor="edit-invoice-new-electricity-index" className="text-sm font-medium text-foreground">
                       Chỉ số điện mới
                     </label>
-                    <Input 
+                    <Input id="edit-invoice-new-electricity-index" 
                       type="number" 
                       {...register('new_electricity_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -147,10 +174,10 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
               {!isWaterFixed && (
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
+                    <label htmlFor="edit-invoice-old-water-index" className="text-sm font-medium text-foreground">
                       Chỉ số nước cũ
                     </label>
-                    <Input 
+                    <Input id="edit-invoice-old-water-index" 
                       type="number" 
                       {...register('old_water_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -158,10 +185,10 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
                     {errors.old_water_index && <p className="text-destructive text-xs font-medium">{errors.old_water_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">
+                    <label htmlFor="edit-invoice-new-water-index" className="text-sm font-medium text-foreground">
                       Chỉ số nước mới
                     </label>
-                    <Input 
+                    <Input id="edit-invoice-new-water-index" 
                       type="number" 
                       {...register('new_water_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -182,8 +209,8 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Số người ở</label>
-              <Input
+              <label htmlFor="edit-invoice-tenant-count" className="text-sm font-medium text-foreground">Số người ở</label>
+              <Input id="edit-invoice-tenant-count"
                 type="number"
                 {...register('tenant_count', { valueAsNumber: true })}
                 className="h-11 rounded-lg border-border bg-background"
@@ -192,8 +219,8 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Số lượng xe</label>
-              <Input
+              <label htmlFor="edit-invoice-vehicle-count" className="text-sm font-medium text-foreground">Số lượng xe</label>
+              <Input id="edit-invoice-vehicle-count"
                 type="number"
                 {...register('vehicle_count', { valueAsNumber: true })}
                 className="h-11 rounded-lg border-border bg-background"
@@ -210,12 +237,12 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
           {errors.other_fees && <p className="text-destructive text-xs font-medium">Vui lòng kiểm tra lại các khoản phát sinh</p>}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Giảm trừ</label>
+            <label htmlFor="edit-invoice-discount" className="text-sm font-medium text-foreground">Giảm trừ</label>
             <Controller
               control={control}
               name="discount"
               render={({ field }) => (
-                <CurrencyInput
+                <CurrencyInput id="edit-invoice-discount"
                   value={field.value}
                   onChange={field.onChange}
                   placeholder="0"
@@ -227,30 +254,6 @@ export function EditInvoiceModal({ invoice, onClose }: Props) {
             {errors.discount && <p className="text-destructive text-xs font-medium">{errors.discount.message}</p>}
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-border/40">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={handleClose}
-              className="flex-1"
-            >
-              Hủy bỏ
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Lưu thay đổi
-                </>
-              )}
-            </Button>
-          </div>
         </form>
     </AppModal>
     {confirmModal}

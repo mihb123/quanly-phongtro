@@ -84,5 +84,7 @@ type RevenueSummaryRepository interface {
 	Upsert(ctx context.Context, summary *HouseRevenueSummary) error
 	GetByHouseAndPeriod(ctx context.Context, houseID, period string) (*HouseRevenueSummary, error)
 	ListByHouseIDs(ctx context.Context, houseIDs []string, period string) ([]HouseRevenueSummary, error)
+	// ListForManagerPeriods fetches summaries of the manager's houses for several periods in one query.
+	ListForManagerPeriods(ctx context.Context, managerID string, houseIDs, periods []string) ([]HouseRevenueSummary, error)
 	CalculateRevenue(ctx context.Context, houseID, period string) (float64, error)
 }

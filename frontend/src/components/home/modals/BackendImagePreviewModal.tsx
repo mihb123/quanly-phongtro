@@ -45,7 +45,7 @@ export function BackendImagePreviewModal({ imageUrl, filename, title = "Xem trư
         </>
       }
     >
-      <div className="bg-muted/30 flex items-center justify-center min-h-0 -mx-6 -my-4 px-4 py-4">
+      <div className="bg-muted/30 flex items-center justify-center min-h-0 -mx-4 -my-4 px-4 py-4 sm:-mx-6">
         <div className="relative group cursor-pointer max-w-full max-h-full flex items-center justify-center h-full" onClick={handleDownload} title="Click để tải về máy">
           <img
             src={imageUrl}

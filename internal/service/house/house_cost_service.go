@@ -17,6 +17,7 @@ type HouseCostService interface {
 	GetMonthlyCost(ctx context.Context, managerID, houseID, period string) (*model.HouseCost, error)
 	UpdateMonthlyCost(ctx context.Context, managerID string, input UpdateCostInput) error
 	GetRevenueSummaries(ctx context.Context, managerID string, houseIDs []string, period string) ([]model.HouseRevenueSummary, error)
+	GetRevenueTrend(ctx context.Context, managerID string, houseIDs, periods []string) ([]model.HouseRevenueSummary, error)
 	GenerateMonthlyCostsFromPrevious(ctx context.Context, previousPeriod, period string) (GenerateMonthlyCostsResult, error)
 }
 
@@ -209,6 +210,10 @@ func (s *houseCostServiceImpl) GetRevenueSummaries(ctx context.Context, managerI
 		return nil, err
 	}
 	return summaries, nil
+}
+
+func (s *houseCostServiceImpl) GetRevenueTrend(ctx context.Context, managerID string, houseIDs, periods []string) ([]model.HouseRevenueSummary, error) {
+	return s.summaryRepo.ListForManagerPeriods(ctx, managerID, houseIDs, periods)
 }
 
 // GenerateMonthlyCostsResult summarises one batch run of GenerateMonthlyCostsFromPrevious.

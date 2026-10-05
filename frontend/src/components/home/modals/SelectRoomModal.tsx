@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import type { Room } from '@/api/room'
-import { type Tenant } from '@/api/tenant'
 import { useRoomStore } from '@/data/roomData'
 
 interface SelectRoomModalProps {
   houseId: string
-  tenants: Tenant[]
   onSelect: (room: Room) => void
   onClose: () => void
 }
 
 // Modal chọn phòng để thêm khách thuê. Vỏ dùng AppModal; nội dung là danh sách phòng bấm chọn.
-export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectRoomModalProps) {
+export function SelectRoomModal({ houseId, onSelect, onClose }: SelectRoomModalProps) {
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const getRoomsByHouse = useRoomStore(state => state.getRoomsByHouse)
@@ -49,7 +47,7 @@ export function SelectRoomModal({ houseId, tenants, onSelect, onClose }: SelectR
             <p className="text-sm text-muted-foreground text-center py-4">Nhà này chưa có phòng nào.</p>
           ) : (
             rooms.map(r => {
-              const currentTenants = tenants.filter(t => t.room_id === r.id).length
+              const currentTenants = r.tenant_count ?? 0
               const isFull = currentTenants >= r.max_tenants
 
               return (

@@ -274,12 +274,13 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
         </>
       }
     >
-        <div className="-mx-6 -my-4 bg-muted/10 flex flex-col">
+        <div className="-mx-4 -my-4 bg-muted/10 flex flex-col sm:-mx-6">
           <div className="p-4 bg-card border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-end shrink-0">
             <div className="w-full md:flex-1 md:max-w-[200px]">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Chọn nhà trọ</label>
-              <select 
-                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold disabled:opacity-50 bg-background"
+              <label htmlFor="quick-create-invoice-house" className="block text-xs font-medium text-muted-foreground mb-1">Chọn nhà trọ</label>
+              <select
+                id="quick-create-invoice-house"
+                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-base md:text-sm font-semibold disabled:opacity-50 bg-background"
                 value={selectedHouseId}
                 onChange={(e) => handleHouseChange(e.target.value)}
                 disabled={isHouseLoading}
@@ -292,10 +293,10 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
             </div>
             
             <div className="w-full md:flex-1 md:max-w-[200px]">
-              <label className="block text-xs font-medium text-muted-foreground mb-1">Kỳ hóa đơn</label>
-              <input 
+              <label htmlFor="quick-create-invoice-ky-hoa-don" className="block text-xs font-medium text-muted-foreground mb-1">Kỳ hóa đơn</label>
+              <input id="quick-create-invoice-ky-hoa-don" 
                 type="month"
-                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-semibold bg-background"
+                className="w-full h-10 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-base md:text-sm font-semibold bg-background"
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
               />

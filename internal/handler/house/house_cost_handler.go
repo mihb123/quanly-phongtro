@@ -149,6 +149,11 @@ func (h *HouseCostHandler) GetRevenueSummaries(w http.ResponseWriter, r *http.Re
 	houseIDsParam := r.URL.Query().Get("house_ids")
 	period := r.URL.Query().Get("period")
 
+	if periodsParam := r.URL.Query().Get("periods"); periodsParam != "" && houseIDsParam != "" {
+		h.getRevenueTrend(w, r, managerID, houseIDsParam, periodsParam)
+		return
+	}
+
 	if houseIDsParam == "" || period == "" {
 		httpx.WriteError(w, http.StatusBadRequest, "house_ids and period are required")
 		return
@@ -170,4 +175,38 @@ func (h *HouseCostHandler) GetRevenueSummaries(w http.ResponseWriter, r *http.Re
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, summaries, "success")
+}
+
+const maxRevenueTrendPeriods = 24
+
+func (h *HouseCostHandler) getRevenueTrend(w http.ResponseWriter, r *http.Request, managerID, houseIDsParam, periodsParam string) {
+	houseIDs := splitTrimmed(houseIDsParam)
+	periods := splitTrimmed(periodsParam)
+	if len(periods) > maxRevenueTrendPeriods {
+		httpx.WriteError(w, http.StatusBadRequest, "too many periods")
+		return
+	}
+	for _, p := range periods {
+		if err := httpx.ValidateMonthPeriodValue(p); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
+	summaries, err := h.costService.GetRevenueTrend(r.Context(), managerID, houseIDs, periods)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to get revenue summaries")
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, summaries, "success")
+}
+
+func splitTrimmed(raw string) []string {
+	var out []string
+	for _, v := range strings.Split(raw, ",") {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }

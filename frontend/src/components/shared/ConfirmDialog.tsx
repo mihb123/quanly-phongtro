@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertTriangle } from '@/components/icons'
+import { useBackToClose } from './useBackToClose'
 
 interface ConfirmDialogProps {
   title: string
@@ -36,6 +37,8 @@ export function ConfirmDialog({
   const [typed, setTyped] = useState('')
 
   const isUnlocked = !confirmPhrase || normalize(typed) === normalize(confirmPhrase)
+
+  useBackToClose(true, onCancel, !isLoading)
 
   const actions = (
     <div className="flex w-full gap-3 pt-2">

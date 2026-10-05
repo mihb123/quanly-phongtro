@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { getRevenueSummaries } from '@/api/houseCost'
+import { useMemo } from 'react'
+import { getRevenueTrend } from '@/api/houseCost'
+import { queryKey, useQuery } from '@/lib/queryCache'
 
 export interface RevenueTrendPoint {
   period: string // yyyy-mm
@@ -20,37 +21,27 @@ function buildPeriods(endPeriod: string, count: number): string[] {
   return periods
 }
 
-// Hook lấy xu hướng doanh thu/chi phí N kỳ gần nhất (tổng hợp các nhà đang chọn)
-// bằng cách gọi API summaries cho từng kỳ — backend chưa có endpoint time-series.
-// Kết quả lưu kèm requestKey để suy ra trạng thái loading thay vì set đồng bộ trong effect.
+// Xu hướng doanh thu/chi phí N kỳ gần nhất của các nhà đang chọn, lấy bằng 1 request nhiều kỳ.
 export function useRevenueTrend(houseIds: string[], endPeriod: string, count = 6) {
-  const [result, setResult] = useState<{ key: string; points: RevenueTrendPoint[] } | null>(null)
   const houseKey = houseIds.join(',')
-  const requestKey = `${houseKey}|${endPeriod}|${count}`
-  const hasInput = Boolean(houseKey && endPeriod)
+  const periods = useMemo(() => buildPeriods(endPeriod, count), [endPeriod, count])
+  const hasInput = Boolean(houseKey && periods.length)
 
-  useEffect(() => {
-    if (!hasInput) return
-    let cancelled = false
-    const ids = houseKey.split(',')
-    const periods = buildPeriods(endPeriod, count)
-    Promise.all(periods.map(p => getRevenueSummaries(ids, p).catch(() => [])))
-      .then(results => {
-        if (cancelled) return
-        const points = periods.map((period, i) => {
-          const summaries = results[i] || []
-          const revenue = summaries.reduce((acc, s) => acc + s.total_revenue, 0)
-          const cost = summaries.reduce((acc, s) => acc + s.total_cost, 0)
-          return { period, revenue, cost, profit: revenue - cost }
-        })
-        setResult({ key: `${houseKey}|${endPeriod}|${count}`, points })
-      })
-    return () => { cancelled = true }
-  }, [houseKey, endPeriod, count, hasInput])
+  const { data, isLoading } = useQuery(
+    queryKey('revenue:trend', { house_ids: houseKey, periods: periods.join(',') }),
+    () => getRevenueTrend(houseKey.split(','), periods),
+    { enabled: hasInput },
+  )
 
-  const isCurrent = result?.key === requestKey
-  return {
-    points: hasInput && isCurrent ? result.points : [],
-    isLoading: hasInput && !isCurrent,
-  }
+  const points = useMemo<RevenueTrendPoint[]>(() => {
+    if (!data) return []
+    return periods.map(period => {
+      const rows = data.filter(s => s.period === period)
+      const revenue = rows.reduce((acc, s) => acc + s.total_revenue, 0)
+      const cost = rows.reduce((acc, s) => acc + s.total_cost, 0)
+      return { period, revenue, cost, profit: revenue - cost }
+    })
+  }, [data, periods])
+
+  return { points: hasInput ? points : [], isLoading: hasInput && isLoading }
 }

@@ -73,6 +73,26 @@ func (r *RevenueSummaryRepository) ListByHouseIDs(ctx context.Context, houseIDs 
 	return summaries, nil
 }
 
+func (r *RevenueSummaryRepository) ListForManagerPeriods(ctx context.Context, managerID string, houseIDs, periods []string) ([]model.HouseRevenueSummary, error) {
+	summaries := []model.HouseRevenueSummary{}
+	if len(houseIDs) == 0 || len(periods) == 0 {
+		return summaries, nil
+	}
+
+	err := r.db.NewSelect().
+		Model(&summaries).
+		Join("JOIN houses AS h ON h.id = house_revenue_summary.house_id").
+		Where("h.manager_id = ?", managerID).
+		Where("house_revenue_summary.house_id IN (?)", bun.In(houseIDs)).
+		Where("house_revenue_summary.period IN (?)", bun.In(periods)).
+		Order("house_revenue_summary.period ASC").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list revenue summaries for periods: %w", err)
+	}
+	return summaries, nil
+}
+
 // CalculateRevenue dynamically calculates the total revenue from paid invoices
 // for a given house and period.
 func (r *RevenueSummaryRepository) CalculateRevenue(ctx context.Context, houseID, period string) (float64, error) {

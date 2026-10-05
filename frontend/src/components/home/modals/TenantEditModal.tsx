@@ -188,28 +188,28 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
         <form id="tenant-edit-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
-              <Label>Họ và tên <span className="text-destructive">*</span></Label>
-              <Input {...register('fullName')} placeholder="Nguyễn Văn A" className="border-border bg-background" />
+              <Label htmlFor="tenant-edit-full-name">Họ và tên <span className="text-destructive">*</span></Label>
+              <Input id="tenant-edit-full-name" {...register('fullName')} placeholder="Nguyễn Văn A" className="border-border bg-background" />
               {errors.fullName && <span className="text-destructive text-xs">{errors.fullName.message}</span>}
             </div>
             <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Số điện thoại</Label>
-              <Input {...register('phone')} placeholder="09..." className="border-border bg-background" />
+              <Label htmlFor="tenant-edit-phone">Số điện thoại</Label>
+              <Input id="tenant-edit-phone" type="tel" inputMode="tel" {...register('phone')} placeholder="09..." className="border-border bg-background" />
               {errors.phone && <span className="text-destructive text-xs">{errors.phone.message}</span>}
             </div>
             <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Email</Label>
-              <Input type="email" {...register('email')} placeholder="abc@gmail.com" className="border-border bg-background" />
+              <Label htmlFor="tenant-edit-email">Email</Label>
+              <Input id="tenant-edit-email" type="email" {...register('email')} placeholder="abc@gmail.com" className="border-border bg-background" />
               {errors.email && <span className="text-destructive text-xs">{errors.email.message}</span>}
             </div>
             <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Căn cước công dân</Label>
-              <Input {...register('identityCard')} placeholder="12 số CCCD" className="border-border bg-background" />
+              <Label htmlFor="tenant-edit-identity-card">Căn cước công dân</Label>
+              <Input id="tenant-edit-identity-card" {...register('identityCard')} placeholder="12 số CCCD" className="border-border bg-background" />
               {errors.identityCard && <span className="text-destructive text-xs">{errors.identityCard.message}</span>}
             </div>
             <div className="space-y-2 col-span-2 md:col-span-1">
-              <Label>Ngày bắt đầu thuê</Label>
-              <Input type="date" {...register('startDate')} className="border-border bg-background" />
+              <Label htmlFor="tenant-edit-start-date">Ngày bắt đầu thuê</Label>
+              <Input id="tenant-edit-start-date" type="date" {...register('startDate')} className="border-border bg-background" />
               {errors.startDate && <span className="text-destructive text-xs">{errors.startDate.message}</span>}
             </div>
 
@@ -252,6 +252,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
 
                       {/* Delete Button */}
                       <button
+                        aria-label="Xóa ảnh CCCD"
                         type="button"
                         disabled={isUploadingCccd || isDeletingCccd}
                         onClick={(e) => {

@@ -270,12 +270,18 @@ func (h *InvoiceHandler) ListInvoices(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	invoices, err := h.invoiceService.ListInvoices(r.Context(), managerID, filter)
+	if !model.ValidateInvoiceStatusFilter(filter.Status) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid invoice status")
+		return
+	}
+
+	invoices, total, err := h.invoiceService.ListInvoices(r.Context(), managerID, filter)
 	if err != nil {
 		handleInvoiceError(w, r, err)
 		return
 	}
 
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	writeInvoiceListResponse(w, r, newInvoiceResponses(invoices))
 }
 
@@ -350,6 +356,10 @@ func (h *InvoiceHandler) GetInvoiceBreakdown(w http.ResponseWriter, r *http.Requ
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
+	}
+	if !model.ValidateInvoiceStatusFilter(filter.Status) {
+		httpx.WriteError(w, http.StatusBadRequest, "invalid invoice status")
+		return
 	}
 
 	totals, err := h.invoiceService.SumInvoicesByStatus(r.Context(), managerID, filter)

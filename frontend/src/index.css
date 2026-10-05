@@ -263,6 +263,9 @@
   }
   html {
     @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
   }
   /* Prevent iOS zoom on inputs */
   input, textarea, select {

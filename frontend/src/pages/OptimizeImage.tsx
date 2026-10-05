@@ -903,6 +903,7 @@ export default function OptimizeImagePage() {
                               Tải về
                             </Button>
                             <Button
+                              aria-label="Sao chép ảnh vào clipboard"
                               size="icon-sm"
                               variant="ghost"
                               className="size-8 shrink-0 touch-manipulation text-muted-foreground hover:text-foreground"
@@ -912,6 +913,7 @@ export default function OptimizeImagePage() {
                               <Copy className="size-3.5" />
                             </Button>
                             <Button
+                              aria-label="Xem toàn màn hình"
                               size="icon-sm"
                               variant="ghost"
                               className="size-8 shrink-0 touch-manipulation text-muted-foreground hover:text-foreground"
@@ -945,6 +947,7 @@ export default function OptimizeImagePage() {
                       >
                         {/* Thumbnail có click mở Lightbox */}
                         <button
+                          aria-label="Bấm để xem ảnh phóng to"
                           type="button"
                           onClick={() => handleOpenLightbox(item.id)}
                           className="group relative size-14 shrink-0 overflow-hidden rounded-lg border bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:size-16"
@@ -997,6 +1000,7 @@ export default function OptimizeImagePage() {
                           {item.status === 'done' && item.blob && item.downloadName && (
                             <>
                               <Button
+                                aria-label="Sao chép ảnh"
                                 size="icon-sm"
                                 variant="ghost"
                                 className="size-9 text-muted-foreground hover:text-foreground touch-manipulation"
@@ -1006,6 +1010,7 @@ export default function OptimizeImagePage() {
                                 <Copy className="size-4" />
                               </Button>
                               <Button
+                                aria-label={`Tải ${item.downloadName}`}
                                 size="icon-sm"
                                 variant="outline"
                                 className="size-9 touch-manipulation"
@@ -1017,6 +1022,7 @@ export default function OptimizeImagePage() {
                             </>
                           )}
                           <Button
+                            aria-label={`Xóa ${item.file.name}`}
                             size="icon-sm"
                             variant="ghost"
                             className="size-9 text-muted-foreground hover:text-destructive touch-manipulation"

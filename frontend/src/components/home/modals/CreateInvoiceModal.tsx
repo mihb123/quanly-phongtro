@@ -198,14 +198,34 @@ export function CreateInvoiceModal({ onClose }: Props) {
       title="Tạo hóa đơn mới"
       description="Hóa đơn điện, nước, dịch vụ"
       contentClassName="sm:max-w-lg"
+      footer={
+        <div className="flex w-full gap-3">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onClose}
+            className="flex-1"
+          >
+            Hủy bỏ
+          </Button>
+          <Button 
+            type="submit"
+            form="create-invoice-form"
+            disabled={isSubmitting}
+            className="flex-1"
+          >
+            {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Tạo hóa đơn'}
+          </Button>
+        </div>
+      }
     >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form id="create-invoice-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Nhà trọ</label>
-              <select 
+              <label htmlFor="create-invoice-house-id" className="text-sm font-medium text-foreground">Nhà trọ</label>
+              <select id="create-invoice-house-id" 
                 {...register('house_id')}
-                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-base md:text-sm font-medium bg-background disabled:opacity-50"
                 disabled={isHouseLoading}
               >
                 <option value="">-- Chọn nhà trọ --</option>
@@ -217,10 +237,10 @@ export function CreateInvoiceModal({ onClose }: Props) {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Phòng</label>
-              <select 
+              <label htmlFor="create-invoice-room-id" className="text-sm font-medium text-foreground">Phòng</label>
+              <select id="create-invoice-room-id" 
                 {...register('room_id')}
-                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-sm font-medium bg-background disabled:opacity-50"
+                className="w-full h-11 px-3 rounded-lg border border-border focus:border-primary focus:ring focus:ring-primary/20 outline-none transition-all text-base md:text-sm font-medium bg-background disabled:opacity-50"
                 disabled={!watchHouseId || isLoadingRoom}
               >
                 <option value="">{isLoadingRoom ? 'Đang tìm phòng...' : '-- Chọn phòng --'}</option>
@@ -233,8 +253,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Kỳ hóa đơn</label>
-            <Input 
+            <label htmlFor="create-invoice-period" className="text-sm font-medium text-foreground">Kỳ hóa đơn</label>
+            <Input id="create-invoice-period" 
               type="month"
               {...register('period')}
               className="h-11 rounded-lg border-border bg-background"
@@ -258,8 +278,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isElectricityFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Chỉ số điện cũ (tùy chọn)</label>
-                    <Input 
+                    <label htmlFor="create-invoice-old-electricity-index" className="text-sm font-medium text-foreground">Chỉ số điện cũ (tùy chọn)</label>
+                    <Input id="create-invoice-old-electricity-index" 
                       type="number" 
                       {...register('old_electricity_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -268,8 +288,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
                     {errors.old_electricity_index && <p className="text-destructive text-xs font-medium">{errors.old_electricity_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Chỉ số điện mới</label>
-                    <Input 
+                    <label htmlFor="create-invoice-new-electricity-index" className="text-sm font-medium text-foreground">Chỉ số điện mới</label>
+                    <Input id="create-invoice-new-electricity-index" 
                       type="number" 
                       {...register('new_electricity_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -283,8 +303,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
               {!isWaterFixed && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Chỉ số nước cũ (tùy chọn)</label>
-                    <Input 
+                    <label htmlFor="create-invoice-old-water-index" className="text-sm font-medium text-foreground">Chỉ số nước cũ (tùy chọn)</label>
+                    <Input id="create-invoice-old-water-index" 
                       type="number" 
                       {...register('old_water_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -293,8 +313,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
                     {errors.old_water_index && <p className="text-destructive text-xs font-medium">{errors.old_water_index.message}</p>}
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Chỉ số nước mới</label>
-                    <Input 
+                    <label htmlFor="create-invoice-new-water-index" className="text-sm font-medium text-foreground">Chỉ số nước mới</label>
+                    <Input id="create-invoice-new-water-index" 
                       type="number" 
                       {...register('new_water_index', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -333,8 +353,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
               <div className="p-4 pt-0 space-y-4 border-t border-border/40 mt-1">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Số người ở</label>
-                    <Input 
+                    <label htmlFor="create-invoice-tenant-count" className="text-sm font-medium text-foreground">Số người ở</label>
+                    <Input id="create-invoice-tenant-count" 
                       type="number" 
                       {...register('tenant_count', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -344,8 +364,8 @@ export function CreateInvoiceModal({ onClose }: Props) {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Số lượng xe</label>
-                    <Input 
+                    <label htmlFor="create-invoice-vehicle-count" className="text-sm font-medium text-foreground">Số lượng xe</label>
+                    <Input id="create-invoice-vehicle-count" 
                       type="number" 
                       {...register('vehicle_count', { valueAsNumber: true })}
                       className="h-11 rounded-lg border-border bg-background"
@@ -363,12 +383,12 @@ export function CreateInvoiceModal({ onClose }: Props) {
                 {errors.other_fees && <p className="text-destructive text-xs font-medium">Vui lòng kiểm tra lại các khoản phát sinh</p>}
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Giảm trừ</label>
+                  <label htmlFor="create-invoice-discount" className="text-sm font-medium text-foreground">Giảm trừ</label>
                   <Controller
                     control={control}
                     name="discount"
                     render={({ field }) => (
-                      <CurrencyInput
+                      <CurrencyInput id="create-invoice-discount"
                         value={field.value}
                         onChange={field.onChange}
                         placeholder="0"
@@ -383,23 +403,6 @@ export function CreateInvoiceModal({ onClose }: Props) {
             )}
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-border/40">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={onClose}
-              className="flex-1"
-            >
-              Hủy bỏ
-            </Button>
-            <Button 
-              type="submit" 
-              disabled={isSubmitting}
-              className="flex-1"
-            >
-              {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Tạo hóa đơn'}
-            </Button>
-          </div>
         </form>
     </AppModal>
   )

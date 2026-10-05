@@ -193,28 +193,41 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
 
   return (
     <>
-    <AppModal open onClose={handleClose} title="Sửa thông tin phòng" contentClassName="sm:max-w-xl">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <AppModal
+      open
+      onClose={handleClose}
+      title="Sửa thông tin phòng"
+      contentClassName="sm:max-w-xl"
+      footer={
+        <div className="flex w-full gap-2 sm:justify-end sm:gap-3">
+          <Button type="button" variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">Hủy</Button>
+          <Button type="submit" form="edit-room-form" disabled={isLoading || isUploadingContract} className="flex-1 sm:flex-none">
+            {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+          </Button>
+        </div>
+      }
+    >
+      <form id="edit-room-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2 col-span-2">
-              <Label>Tên phòng</Label>
-              <Input {...register('name')} className="border-border" />
+              <Label htmlFor="edit-room-name">Tên phòng</Label>
+              <Input id="edit-room-name" {...register('name')} className="border-border" />
               {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
             </div>
             <div className="space-y-2">
-              <Label>Giá thuê hàng tháng (VNĐ)</Label>
+              <Label htmlFor="edit-room-price">Giá thuê hàng tháng (VNĐ)</Label>
               <Controller
                 name="price"
                 control={control}
                 render={({ field }) => (
-                  <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
+                  <Input inputMode="numeric" id="edit-room-price" {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
                 )}
               />
               {errors.price && <span className="text-destructive text-xs">{errors.price.message}</span>}
             </div>
             <div className="space-y-2">
-              <Label>Sức chứa tối đa (người)</Label>
-              <Input type="number" min="1" {...register('maxTenants')} className="border-border" />
+              <Label htmlFor="edit-room-max-tenants">Sức chứa tối đa (người)</Label>
+              <Input id="edit-room-max-tenants" type="number" min="1" {...register('maxTenants')} className="border-border" />
               {errors.maxTenants && <span className="text-destructive text-xs">{errors.maxTenants.message}</span>}
             </div>
           </div>
@@ -223,52 +236,52 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
              <h3 className="font-medium text-foreground text-sm mb-3">Đơn giá dịch vụ riêng cho phòng này</h3>
              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Điện (VNĐ/kWh)</Label>
+                  <Label htmlFor="edit-room-electricity" className="text-xs text-muted-foreground">Điện (VNĐ/kWh)</Label>
                   <Controller
                     name="electricity"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-electricity" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Nước (VNĐ/m3 hoặc ng)</Label>
+                  <Label htmlFor="edit-room-water" className="text-xs text-muted-foreground">Nước (VNĐ/m3 hoặc ng)</Label>
                   <Controller
                     name="water"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-water" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Wifi</Label>
+                  <Label htmlFor="edit-room-wifi" className="text-xs text-muted-foreground">Wifi</Label>
                   <Controller
                     name="wifi"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-wifi" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Giữ xe (VNĐ/xe)</Label>
+                  <Label htmlFor="edit-room-parking" className="text-xs text-muted-foreground">Giữ xe (VNĐ/xe)</Label>
                   <Controller
                     name="parking"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-parking" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Dịch vụ</Label>
+                  <Label htmlFor="edit-room-service" className="text-xs text-muted-foreground">Dịch vụ</Label>
                   <Controller
                     name="service"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-service" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
@@ -279,30 +292,30 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
              <h3 className="font-medium text-foreground text-sm mb-3">Quy định phụ thu phát sinh</h3>
              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Số người miễn phí</Label>
-                  <Input type="number" min="0" {...register('extraPersonThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
+                  <Label htmlFor="edit-room-extra-person-threshold" className="text-xs text-muted-foreground">Số người miễn phí</Label>
+                  <Input id="edit-room-extra-person-threshold" type="number" min="0" {...register('extraPersonThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Phí / người vượt (VNĐ)</Label>
+                  <Label htmlFor="edit-room-extra-person-fee" className="text-xs text-muted-foreground">Phí / người vượt (VNĐ)</Label>
                   <Controller
                     name="extraPersonFee"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-extra-person-fee" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Số xe miễn phí</Label>
-                  <Input type="number" min="0" {...register('extraVehicleThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
+                  <Label htmlFor="edit-room-extra-vehicle-threshold" className="text-xs text-muted-foreground">Số xe miễn phí</Label>
+                  <Input id="edit-room-extra-vehicle-threshold" type="number" min="0" {...register('extraVehicleThreshold')} placeholder="Mặc định..." className="h-8 border-border bg-background" />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Phí / xe vượt (VNĐ)</Label>
+                  <Label htmlFor="edit-room-extra-vehicle-fee" className="text-xs text-muted-foreground">Phí / xe vượt (VNĐ)</Label>
                   <Controller
                     name="extraVehicleFee"
                     control={control}
                     render={({ field }) => (
-                      <Input {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
+                      <Input inputMode="numeric" id="edit-room-extra-vehicle-fee" {...field} placeholder="Mặc định..." value={formatNumber(field.value || '')} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="h-8 border-border bg-background" />
                     )}
                   />
                 </div>
@@ -349,6 +362,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
 
                     {/* Delete Button */}
                     <button
+                      aria-label="Xóa file hợp đồng"
                       type="button"
                       disabled={isUploadingContract || isDeletingContract}
                       onClick={(e) => {
@@ -406,17 +420,11 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
              <h3 className="font-medium text-info text-sm mb-1">Zalo Bot Auto-linking</h3>
              <p className="text-xs text-info/80 mb-3">Group Chat ID sẽ tự động cập nhật khi bot được thêm vào nhóm. Bạn có thể sửa thủ công nếu bị lỗi.</p>
              <div className="space-y-1">
-               <Label className="text-xs text-info">Group Chat ID</Label>
-               <Input {...register('groupChatId')} placeholder="Tự động cập nhật..." className="h-8 border-border bg-background" />
+               <Label htmlFor="edit-room-group-chat-id" className="text-xs text-info">Group Chat ID</Label>
+               <Input id="edit-room-group-chat-id" {...register('groupChatId')} placeholder="Tự động cập nhật..." className="h-8 border-border bg-background" />
              </div>
           </div>
 
-          <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border/40">
-            <Button type="button" variant="outline" onClick={handleClose} className="flex-1 sm:flex-none">Hủy</Button>
-            <Button type="submit" disabled={isLoading || isUploadingContract} className="flex-1 sm:flex-none">
-              {isLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
-            </Button>
-          </div>
       </form>
     </AppModal>
 

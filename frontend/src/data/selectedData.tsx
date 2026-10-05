@@ -1,7 +1,20 @@
 import { create } from 'zustand'
 import { type House } from '@/api/house'
+import { readStorageRaw, writeStorageRaw } from '@/lib/storage'
 
-export type TabType = 'dashboard' | 'house_rooms' | 'tenants' | 'invoices' | 'revenue' | 'settings'
+export const TABS = ['dashboard', 'house_rooms', 'tenants', 'invoices', 'revenue', 'settings'] as const
+export type TabType = (typeof TABS)[number]
+
+const TAB_KEY = 'home_active_tab'
+const HOUSE_KEY = 'home_selected_house_id'
+
+export function readSavedHouseId(): string | null {
+  return readStorageRaw(HOUSE_KEY)
+}
+
+function isTab(value: string | null): value is TabType {
+  return TABS.includes(value as TabType)
+}
 
 interface SelectedDataState {
   selectedHouse: House | null
@@ -14,12 +27,13 @@ interface SelectedDataState {
   setTabChangeInterceptor: (interceptor: ((nextTab: TabType) => boolean) | null) => void
 }
 
-const savedTab = localStorage.getItem('home_active_tab') as TabType | null
-const savedHouseId = localStorage.getItem('home_selected_house_id')
+const rawTab = readStorageRaw(TAB_KEY)
+const savedTab: TabType = isTab(rawTab) ? rawTab : 'dashboard'
+const savedHouseId = readStorageRaw(HOUSE_KEY)
 
 export const useSelectedStore = create<SelectedDataState>((set, get) => ({
   selectedHouse: null, // this will be hydrated in Home.tsx after fetchHouses
-  activeTab: savedTab || 'dashboard',
+  activeTab: savedTab,
   isHouseListOpen: !!savedHouseId,
   tabChangeInterceptor: null,
   
@@ -27,11 +41,7 @@ export const useSelectedStore = create<SelectedDataState>((set, get) => ({
   
   selectHouse: (house: House | null) => {
     set({ selectedHouse: house })
-    if (house) {
-      localStorage.setItem('home_selected_house_id', house.id)
-    } else {
-      localStorage.removeItem('home_selected_house_id')
-    }
+    writeStorageRaw(HOUSE_KEY, house ? house.id : null)
   },
   
   setActiveTab: (tab: TabType) => {
@@ -39,8 +49,9 @@ export const useSelectedStore = create<SelectedDataState>((set, get) => ({
     if (interceptor && !interceptor(tab)) {
       return; // Interceptor rejected the tab change
     }
+    if (!isTab(tab)) return
     set({ activeTab: tab })
-    localStorage.setItem('home_active_tab', tab)
+    writeStorageRaw(TAB_KEY, tab)
   },
   
   setIsHouseListOpen: (open: boolean) => set({ isHouseListOpen: open }),

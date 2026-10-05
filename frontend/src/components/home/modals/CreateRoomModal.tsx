@@ -59,32 +59,38 @@ export function CreateRoomModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <AppModal open onClose={onClose} title="Thêm phòng mới">
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <AppModal
+      open
+      onClose={onClose}
+      title="Thêm phòng mới"
+      footer={
+        <div className="flex w-full gap-2 sm:justify-end sm:gap-3">
+          <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
+          <Button type="submit" form="create-room-form" disabled={isLoading} className="flex-1 sm:flex-none">
+            {isLoading ? 'Đang tạo...' : 'Tạo mới'}
+          </Button>
+        </div>
+      }
+    >
+      <form id="create-room-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Tên phòng</Label>
-            <Input {...register('name')} placeholder="vd: Phòng 101" className="border-border" />
+            <Label htmlFor="create-room-name">Tên phòng</Label>
+            <Input id="create-room-name" {...register('name')} placeholder="vd: Phòng 101" className="border-border" />
             {errors.name && <span className="text-destructive text-xs">{errors.name.message}</span>}
           </div>
           <div className="space-y-2">
-            <Label>Giá thuê (VNĐ)</Label>
+            <Label htmlFor="create-room-price">Giá thuê (VNĐ)</Label>
             <Controller
               name="price"
               control={control}
               render={({ field }) => (
-                <Input {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
+                <Input inputMode="numeric" id="create-room-price" {...field} value={formatNumber(field.value)} onChange={e => field.onChange(e.target.value.replace(/\D/g, ''))} className="border-border" />
               )}
             />
           </div>
           <div className="space-y-2">
-            <Label>Số khách thuê tối đa</Label>
-            <Input type="number" min="1" {...register('maxTenants')} className="border-border" />
-          </div>
-          <div className="flex justify-end gap-2 sm:gap-3 pt-4 border-t border-border/40">
-            <Button type="button" variant="outline" onClick={onClose} className="flex-1 sm:flex-none">Hủy</Button>
-            <Button type="submit" disabled={isLoading} className="flex-1 sm:flex-none">
-              {isLoading ? 'Đang tạo...' : 'Tạo mới'}
-            </Button>
+            <Label htmlFor="create-room-max-tenants">Số khách thuê tối đa</Label>
+            <Input id="create-room-max-tenants" type="number" min="1" {...register('maxTenants')} className="border-border" />
           </div>
       </form>
     </AppModal>

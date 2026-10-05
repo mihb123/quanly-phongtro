@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getMe, logout as logoutApi, refreshToken } from '@/api/auth'
+import { clearQueryCache } from '@/lib/queryCache'
 import type { AuthOutput } from '@/types/auth'
 
 interface AuthContextType {
@@ -31,7 +32,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loadUser()
   }, [])
 
-  const login = (user: AuthOutput) => setUser(user)
+  const login = (user: AuthOutput) => {
+    clearQueryCache()
+    setUser(user)
+  }
   const updateUser = (user: AuthOutput) => setUser(user)
   const logout = async () => {
     try {
@@ -39,6 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to logout:', error)
     } finally {
+      clearQueryCache()
       setUser(null)
     }
   }

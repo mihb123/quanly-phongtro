@@ -1,4 +1,4 @@
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/utils/format'
 
 export interface BreakdownColumn {
@@ -31,26 +31,6 @@ export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTab
   return (
     <>
       <ul className="divide-y sm:hidden">
-        {rows.map(row => (
-          <li key={row.key} className="flex flex-col gap-0.5 px-4 py-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <span className="truncate text-sm text-foreground">{row.label}</span>
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
-                {formatCell(primary, row.values[0], row.deduction)}
-              </span>
-            </div>
-            {secondary.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-x-3 text-xs text-muted-foreground">
-                {secondary.map((column, i) => (
-                  <span key={column.label}>
-                    {column.label}:{' '}
-                    <span className="tabular-nums">{formatCell(column, row.values[i + 1], row.deduction)}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-          </li>
-        ))}
         {total && (
           <li className="flex flex-col gap-0.5 bg-muted/50 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -71,6 +51,26 @@ export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTab
             )}
           </li>
         )}
+        {rows.map(row => (
+          <li key={row.key} className="flex flex-col gap-0.5 px-4 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate text-sm text-foreground">{row.label}</span>
+              <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                {formatCell(primary, row.values[0], row.deduction)}
+              </span>
+            </div>
+            {secondary.length > 0 && (
+              <div className="flex flex-wrap justify-end gap-x-3 text-xs text-muted-foreground">
+                {secondary.map((column, i) => (
+                  <span key={column.label}>
+                    {column.label}:{' '}
+                    <span className="tabular-nums">{formatCell(column, row.values[i + 1], row.deduction)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </li>
+        ))}
       </ul>
 
       <Table className="hidden sm:table">
@@ -83,6 +83,16 @@ export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTab
           </TableRow>
         </TableHeader>
         <TableBody>
+          {total && (
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableCell className="px-5 font-semibold text-foreground">{total.label}</TableCell>
+              {columns.map((column, i) => (
+                <TableCell key={column.label} className="px-5 text-right font-semibold tabular-nums text-foreground">
+                  {formatCell(column, total.values[i])}
+                </TableCell>
+              ))}
+            </TableRow>
+          )}
           {rows.map(row => (
             <TableRow key={row.key}>
               <TableCell className="px-5 font-medium text-foreground">{row.label}</TableCell>
@@ -94,18 +104,6 @@ export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTab
             </TableRow>
           ))}
         </TableBody>
-        {total && (
-          <TableFooter className="bg-muted/50">
-            <TableRow className="hover:bg-transparent">
-              <TableCell className="px-5 font-semibold text-foreground">{total.label}</TableCell>
-              {columns.map((column, i) => (
-                <TableCell key={column.label} className="px-5 text-right font-semibold tabular-nums text-foreground">
-                  {formatCell(column, total.values[i])}
-                </TableCell>
-              ))}
-            </TableRow>
-          </TableFooter>
-        )}
       </Table>
     </>
   )
