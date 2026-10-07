@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler/room"
@@ -18,6 +16,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
+	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	"go.uber.org/mock/gomock"
 )
 
@@ -154,7 +153,7 @@ func TestRoomHandler_CreateRoom(t *testing.T) {
 			invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
 			tc.setupMocks(roomSvc, invoiceSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, invoiceSvc)
+			roomHandler := room.NewRoomHandler(roomSvc)
 			req := tc.buildRequest()
 			rec := httptest.NewRecorder()
 
@@ -252,7 +251,7 @@ func TestRoomHandler_ListRooms(t *testing.T) {
 			invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
 			tc.setupMocks(roomSvc, invoiceSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, invoiceSvc)
+			roomHandler := room.NewRoomHandler(roomSvc)
 			req := tc.buildRequest()
 			rec := httptest.NewRecorder()
 
@@ -317,7 +316,7 @@ func TestRoomHandler_GetRoomStats(t *testing.T) {
 			roomSvc := mock_service.NewMockRoomService(ctrl)
 			tc.setupMocks(roomSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, mock_service.NewMockInvoiceService(ctrl))
+			roomHandler := room.NewRoomHandler(roomSvc)
 			rec := httptest.NewRecorder()
 			roomHandler.GetRoomStats(rec, tc.buildRequest())
 
@@ -383,7 +382,7 @@ func TestRoomHandler_ListAvailableRooms(t *testing.T) {
 			roomSvc := mock_service.NewMockRoomService(ctrl)
 			tc.setupMocks(roomSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, mock_service.NewMockInvoiceService(ctrl))
+			roomHandler := room.NewRoomHandler(roomSvc)
 			rec := httptest.NewRecorder()
 			roomHandler.ListAvailableRooms(rec, tc.buildRequest())
 
@@ -474,7 +473,7 @@ func TestRoomHandler_GetRoom(t *testing.T) {
 			invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
 			tc.setupMocks(roomSvc, invoiceSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, invoiceSvc)
+			roomHandler := room.NewRoomHandler(roomSvc)
 			req := tc.buildRequest()
 			rec := httptest.NewRecorder()
 
@@ -500,7 +499,6 @@ func TestRoomHandler_UpdateRoom(t *testing.T) {
 			name: "Happy path",
 			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
 				roomSvc.EXPECT().UpdateRoom(gomock.Any(), "room-1", "house-1", "user-1", gomock.Any()).Return(&model.Room{}, nil)
-				invoiceSvc.EXPECT().RecalculateUnpaidInvoicesByRoom(gomock.Any(), "user-1", "room-1").Return(nil)
 			},
 			buildRequest: func() *http.Request {
 				body := map[string]interface{}{
@@ -520,8 +518,7 @@ func TestRoomHandler_UpdateRoom(t *testing.T) {
 		{
 			name: "Recalculate invoice error",
 			setupMocks: func(roomSvc *mock_service.MockRoomService, invoiceSvc *mock_service.MockInvoiceService) {
-				roomSvc.EXPECT().UpdateRoom(gomock.Any(), "room-1", "house-1", "user-1", gomock.Any()).Return(&model.Room{}, nil)
-				invoiceSvc.EXPECT().RecalculateUnpaidInvoicesByRoom(gomock.Any(), "user-1", "room-1").Return(errors.New("db error"))
+				roomSvc.EXPECT().UpdateRoom(gomock.Any(), "room-1", "house-1", "user-1", gomock.Any()).Return(nil, errors.New("recalculation failed"))
 			},
 			buildRequest: func() *http.Request {
 				body := map[string]interface{}{
@@ -616,7 +613,7 @@ func TestRoomHandler_UpdateRoom(t *testing.T) {
 			invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
 			tc.setupMocks(roomSvc, invoiceSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, invoiceSvc)
+			roomHandler := room.NewRoomHandler(roomSvc)
 			req := tc.buildRequest()
 			rec := httptest.NewRecorder()
 
@@ -694,7 +691,7 @@ func TestRoomHandler_DeleteRoom(t *testing.T) {
 			invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
 			tc.setupMocks(roomSvc, invoiceSvc)
 
-			roomHandler := room.NewRoomHandler(roomSvc, invoiceSvc)
+			roomHandler := room.NewRoomHandler(roomSvc)
 			req := tc.buildRequest()
 			rec := httptest.NewRecorder()
 

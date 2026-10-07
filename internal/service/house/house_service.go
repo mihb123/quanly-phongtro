@@ -23,16 +23,32 @@ type HouseService interface {
 	IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error)
 }
 
+type invoiceRecalculator interface {
+	RecalculateUnpaidInvoicesByHouse(context.Context, string, string) error
+}
+
+type BillingOption func(*HouseServiceImpl)
+
+func WithInvoiceRecalculation(invoices invoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
+	return func(s *HouseServiceImpl) { s.invoices = invoices; s.transaction = transaction }
+}
+
 type HouseServiceImpl struct {
+	invoices      invoiceRecalculator
+	transaction   func(context.Context, func(context.Context) error) error
 	houseRepo     model.HouseRepository
 	houseCostRepo model.HouseCostRepository
 }
 
-func NewHouseServiceImpt(houseRepo model.HouseRepository, houseCostRepo model.HouseCostRepository) HouseService {
-	return &HouseServiceImpl{
+func NewHouseServiceImpt(houseRepo model.HouseRepository, houseCostRepo model.HouseCostRepository, options ...BillingOption) HouseService {
+	s := &HouseServiceImpl{
 		houseRepo:     houseRepo,
 		houseCostRepo: houseCostRepo,
 	}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 
 type UpdateHouseInput struct {
@@ -172,7 +188,24 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 		RentStartDate:           input.RentStartDate,
 		RentEndDate:             input.RentEndDate,
 	}
-	house, err := h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
+	var house *model.House
+	update := func(ctx context.Context) error {
+		var err error
+		house, err = h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
+		if err != nil {
+			return err
+		}
+		if h.invoices != nil {
+			return h.invoices.RecalculateUnpaidInvoicesByHouse(ctx, managerID, id)
+		}
+		return nil
+	}
+	var err error
+	if h.transaction != nil {
+		err = h.transaction(ctx, update)
+	} else {
+		err = update(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}

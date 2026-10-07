@@ -12,23 +12,21 @@ import (
 	"strings"
 	"time"
 
-	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
-	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
-
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type zaloInvoiceDeliveryDeps struct {
 	client            ZaloClient
-	userRepo          model.UserRepository
-	roomRepo          model.RoomRepository
-	tenantRepo        model.TenantRepository
-	invoiceRepo       model.InvoiceRepository
+	userRepo          deliveryUserReader
+	roomRepo          deliveryRoomReader
+	tenantRepo        deliveryTenantReader
+	invoiceRepo       deliveryInvoiceReader
 	imageService      invoicesvc.ImageService
-	paymentService    paymentsvc.PaymentService
+	paymentService    commandPayments
 	encryptionKey     []byte
 	publicBaseURL     string
 	markTokenInactive func(ctx context.Context, managerID string)
@@ -164,7 +162,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 }
 
 // getDecryptedZaloToken returns the manager account and decrypted bot token.
-func getDecryptedZaloToken(ctx context.Context, userRepo model.UserRepository, managerID string, encryptionKey []byte) (*model.User, string, error) {
+func getDecryptedZaloToken(ctx context.Context, userRepo deliveryUserReader, managerID string, encryptionKey []byte) (*model.User, string, error) {
 	user, err := userRepo.GetByUserID(ctx, managerID)
 	if err != nil {
 		return nil, "", err

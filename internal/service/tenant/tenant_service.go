@@ -9,11 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mihb123/quanly-phongtro/internal/service/auth"
-	"github.com/mihb123/quanly-phongtro/internal/service/shared"
-
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/auth"
+	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 )
 
 type TenantService interface {
@@ -145,14 +144,6 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 		return nil, err
 	}
 
-	ok, err := s.CheckCapicityOfRoom(ctx, in.RoomID)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, model.ErrMaxTenans
-	}
-
 	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
 		return nil, err
@@ -181,10 +172,6 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 
 	err = s.tenants.CreateTenantWithAccount(ctx, newTenant, newRoomTenant)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := s.rooms.UpdateRoomStatus(ctx, in.RoomID, "OCCUPIED"); err != nil {
 		return nil, err
 	}
 

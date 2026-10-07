@@ -52,13 +52,29 @@ type UpdateRoomContractInput struct {
 	KeptContractPaths *string
 }
 
-type RoomServiceImpl struct {
-	roomRepo  model.RoomRepository
-	houseRepo model.HouseRepository
+type invoiceRecalculator interface {
+	RecalculateUnpaidInvoicesByRoom(context.Context, string, string) error
 }
 
-func NewRoomService(roomRepo model.RoomRepository, houseRepo model.HouseRepository) RoomService {
-	return &RoomServiceImpl{roomRepo: roomRepo, houseRepo: houseRepo}
+type BillingOption func(*RoomServiceImpl)
+
+func WithInvoiceRecalculation(invoices invoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
+	return func(s *RoomServiceImpl) { s.invoices = invoices; s.transaction = transaction }
+}
+
+type RoomServiceImpl struct {
+	invoices    invoiceRecalculator
+	transaction func(context.Context, func(context.Context) error) error
+	roomRepo    model.RoomRepository
+	houseRepo   model.HouseRepository
+}
+
+func NewRoomService(roomRepo model.RoomRepository, houseRepo model.HouseRepository, options ...BillingOption) RoomService {
+	s := &RoomServiceImpl{roomRepo: roomRepo, houseRepo: houseRepo}
+	for _, option := range options {
+		option(s)
+	}
+	return s
 }
 
 // checkOwnership verifies that houseID belongs to managerID.
@@ -171,7 +187,28 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		GroupChatID:           input.GroupChatID,
 	}
 
-	return s.roomRepo.UpdateRoom(ctx, id, houseID, params)
+	var room *model.Room
+	update := func(ctx context.Context) error {
+		var err error
+		room, err = s.roomRepo.UpdateRoom(ctx, id, houseID, params)
+		if err != nil {
+			return err
+		}
+		if s.invoices != nil {
+			return s.invoices.RecalculateUnpaidInvoicesByRoom(ctx, managerID, id)
+		}
+		return nil
+	}
+	var err error
+	if s.transaction != nil {
+		err = s.transaction(ctx, update)
+	} else {
+		err = update(ctx)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return room, nil
 }
 
 // UpdateRoomContract lưu hợp đồng thuê của phòng: giữ lại các file cũ được chọn và nối thêm file mới.

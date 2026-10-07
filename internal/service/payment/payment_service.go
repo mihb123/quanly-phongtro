@@ -2,6 +2,7 @@ package payment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -26,6 +27,8 @@ type ZaloMessenger interface {
 }
 
 type paymentRepository interface {
+	QueueNotification(context.Context, string, string, string, string) error
+	WithinPaymentTransaction(context.Context, string, func(context.Context) error) error
 	CreatePaymentLink(ctx context.Context, link *model.InvoicePaymentLink) error
 	GetActivePaymentLinkByProvider(ctx context.Context, invoiceID, provider string) (*model.InvoicePaymentLink, error)
 	GetPaymentLinkByProviderOrderRef(ctx context.Context, provider, providerOrderRef string) (*model.InvoicePaymentLink, error)
@@ -68,7 +71,7 @@ func NewPaymentService(
 	credentialService PaymentCredentialService,
 	registry *PaymentProviderRegistry,
 	appURL string,
-) PaymentService {
+) *paymentService {
 	return &paymentService{
 		paymentRepo:       paymentRepo,
 		invoiceRepo:       invoiceRepo,
@@ -220,6 +223,16 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 // invoice only when it is unsettled and fully paid. Shared by webhook handling and API v2
 // reconciliation, so it must stay source-agnostic.
 func (s *paymentService) ProcessVerifiedTransaction(ctx context.Context, provider, managerID string, verifiedEvent *VerifiedPaymentEvent) error {
+	if verifiedEvent == nil {
+		return ErrPayOSVerifiedDataNil
+	}
+	provider = normalizePaymentProvider(provider)
+	return s.paymentRepo.WithinPaymentTransaction(ctx, provider+":"+verifiedEvent.ProviderOrderRef, func(ctx context.Context) error {
+		return s.settleVerifiedTransaction(ctx, provider, managerID, verifiedEvent)
+	})
+}
+
+func (s *paymentService) settleVerifiedTransaction(ctx context.Context, provider, managerID string, verifiedEvent *VerifiedPaymentEvent) error {
 	exists, err := s.paymentRepo.CheckProviderEventExists(ctx, provider, verifiedEvent.ProviderOrderRef, verifiedEvent.TransactionReference)
 	if err != nil {
 		return fmt.Errorf("check event exists: %w", err)
@@ -269,9 +282,11 @@ func (s *paymentService) provider(provider string) (PaymentProvider, error) {
 	return providerAdapter, nil
 }
 
-// processInvoicePayment marks the invoice paid and sends best-effort notifications.
 func (s *paymentService) processInvoicePayment(ctx context.Context, provider, invoiceID string, amount int, paymentLink *model.InvoicePaymentLink) error {
 	invoiceWithRoom, err := s.invoiceRepo.SystemUpdateInvoiceStatusAndMethod(ctx, invoiceID, model.InvoiceStatusPaid, paymentMethodForProvider(provider))
+	if errors.Is(err, model.ErrInvoiceAlreadyPaid) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("system update invoice status: %w", err)
 	}
@@ -279,13 +294,13 @@ func (s *paymentService) processInvoicePayment(ctx context.Context, provider, in
 	managerID := invoiceWithRoom.ManagerID
 	if paymentLink != nil {
 		if err := s.paymentRepo.UpdatePaymentLinkStatus(ctx, paymentLink.ID, model.PaymentLinkStatusPaid); err != nil {
-			log.Printf("failed to mark %s payment link %s paid: %v", provider, paymentLink.ID, err)
+			return fmt.Errorf("mark payment link paid: %w", err)
 		}
 	}
 
 	tenants, err := s.tenantRepo.ListTenantByRoomID(ctx, managerID, invoiceWithRoom.RoomID)
 	if err != nil {
-		log.Printf("failed to list tenants for room %s: %v", invoiceWithRoom.RoomID, err)
+		return fmt.Errorf("list payment notification recipients: %w", err)
 	}
 	tenantName := defaultTenantName
 	if len(tenants) > 0 {
@@ -298,31 +313,40 @@ func (s *paymentService) processInvoicePayment(ctx context.Context, provider, in
 		if tenant.ZaloUserID == "" {
 			continue
 		}
-		s.sendTextMessageBestEffort(ctx, managerID, tenant.ZaloUserID, tenantMsg)
+		if err := s.paymentRepo.QueueNotification(ctx, invoiceID, managerID, tenant.ZaloUserID, tenantMsg); err != nil {
+			return err
+		}
 	}
 
 	managerMsg := fmt.Sprintf("[Thanh toán] Khách hàng %s tại phòng %s vừa thanh toán thành công %s. Hóa đơn đã tự động chuyển sang đã thanh toán.",
 		tenantName, invoiceWithRoom.RoomName, formatCurrency(amount))
 	managerUser, err := s.userRepo.GetByUserID(ctx, managerID)
-	if err == nil && managerUser.ZaloUserID != nil && *managerUser.ZaloUserID != "" {
-		s.sendTextMessageBestEffort(ctx, managerID, *managerUser.ZaloUserID, managerMsg)
-		return nil
+	if err == nil && managerUser != nil && managerUser.ZaloUserID != nil && *managerUser.ZaloUserID != "" {
+		return s.paymentRepo.QueueNotification(ctx, invoiceID, managerID, *managerUser.ZaloUserID, managerMsg)
 	}
 	if err != nil {
-		log.Printf("failed to fetch manager %s for payment notification: %v", managerID, err)
+		return fmt.Errorf("get payment notification manager: %w", err)
 	}
 	log.Printf("Manager Notification: %s", managerMsg)
 	return nil
 }
 
-// sendTextMessageBestEffort logs notification errors without failing payment processing.
-func (s *paymentService) sendTextMessageBestEffort(ctx context.Context, managerID, chatID, text string) {
+func (s *paymentService) DeliverNotification(ctx context.Context, payload json.RawMessage) error {
+	var message struct {
+		ManagerID string `json:"manager_id"`
+		ChatID    string `json:"chat_id"`
+		Message   string `json:"message"`
+	}
+	if err := json.Unmarshal(payload, &message); err != nil {
+		return err
+	}
+	if message.ManagerID == "" || message.ChatID == "" || message.Message == "" {
+		return fmt.Errorf("invalid payment notification")
+	}
 	if s.zaloService == nil {
-		return
+		return fmt.Errorf("payment notification messenger unavailable")
 	}
-	if err := s.zaloService.SendTextMessage(ctx, managerID, chatID, text); err != nil {
-		log.Printf("failed to send payment notification to chat %s: %v", chatID, err)
-	}
+	return s.zaloService.SendTextMessage(ctx, message.ManagerID, message.ChatID, message.Message)
 }
 
 // matchedPaymentInvoice resolves the invoice attached to a payment link.

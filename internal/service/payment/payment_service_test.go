@@ -13,20 +13,21 @@ var errStub = errors.New("stub failure")
 
 // cfgPaymentRepo is a configurable paymentRepository stub with per-method error and value injection.
 type cfgPaymentRepo struct {
-	activeLink       *model.InvoicePaymentLink
-	activeErr        error
-	linkByRef        *model.InvoicePaymentLink
-	linkByRefErr     error
-	linkForManager   *model.InvoicePaymentLink
-	linkForMgrErr    error
-	createLinkErr    error
-	updateStatusErr  error
-	eventExists      bool
-	eventExistsErr   error
-	createEventErr   error
-	createdLink      *model.InvoicePaymentLink
-	createdEvent     *model.PaymentEvent
-	updatedStatuses  map[string]string
+	activeLink      *model.InvoicePaymentLink
+	activeErr       error
+	linkByRef       *model.InvoicePaymentLink
+	linkByRefErr    error
+	linkForManager  *model.InvoicePaymentLink
+	linkForMgrErr   error
+	createLinkErr   error
+	updateStatusErr error
+	eventExists     bool
+	eventExistsErr  error
+	createEventErr  error
+	createdLink     *model.InvoicePaymentLink
+	createdEvent    *model.PaymentEvent
+	updatedStatuses map[string]string
+	queued          []sentPayOSMessage
 }
 
 // CreatePaymentLink records the persisted link and returns the configured error.
@@ -137,9 +138,9 @@ func (p *cfgProvider) VerifyWebhook(context.Context, PaymentWebhookInput) (*Veri
 // cfgCredentialService overrides credential resolution on top of the base fake.
 type cfgCredentialService struct {
 	fakePaymentCredentialService
-	getErr          error
-	preferred       string
-	preferredErr    error
+	getErr       error
+	preferred    string
+	preferredErr error
 }
 
 // GetCredentials returns the configured credentials or an injected error.
@@ -176,10 +177,7 @@ func TestNewPaymentServiceTrimsAppURL(t *testing.T) {
 		&cfgPaymentRepo{}, &cfgInvoiceRepo{}, &cfgTenantRepo{}, &cfgUserRepo{},
 		&cfgZalo{}, cfgCredentialService{}, NewPaymentProviderRegistry(), "https://app.example/",
 	)
-	concrete, ok := svc.(*paymentService)
-	if !ok {
-		t.Fatalf("NewPaymentService returned %T, want *paymentService", svc)
-	}
+	concrete := svc
 	if concrete.appURL != "https://app.example" {
 		t.Errorf("appURL = %q, want trailing slash trimmed", concrete.appURL)
 	}
@@ -496,8 +494,7 @@ func TestProcessInvoicePaymentUpdateError(t *testing.T) {
 	}
 }
 
-// TestProcessInvoicePaymentTolerantOfSideFailures logs but does not fail on link/tenant/manager errors.
-func TestProcessInvoicePaymentTolerantOfSideFailures(t *testing.T) {
+func TestProcessInvoicePaymentPropagatesSideFailures(t *testing.T) {
 	paymentRepo := &cfgPaymentRepo{updateStatusErr: errStub}
 	invoiceRepo := &cfgInvoiceRepo{invoice: &model.InvoiceWithRoom{
 		Invoice: model.Invoice{ID: "invoice-1", RoomID: "room-1", Period: "2024-01"}, RoomName: "A101", ManagerID: "manager-1",
@@ -509,15 +506,15 @@ func TestProcessInvoicePaymentTolerantOfSideFailures(t *testing.T) {
 		userRepo:    &cfgUserRepo{err: errStub},
 		zaloService: &cfgZalo{},
 	}
-	if err := svc.processInvoicePayment(context.Background(), "sepay", "invoice-1", 150000, &model.InvoicePaymentLink{ID: "link-1"}); err != nil {
-		t.Fatalf("processInvoicePayment() error = %v, want nil despite side failures", err)
+	if err := svc.processInvoicePayment(context.Background(), "sepay", "invoice-1", 150000, &model.InvoicePaymentLink{ID: "link-1"}); !errors.Is(err, errStub) {
+		t.Fatalf("expected transaction failure, got %v", err)
 	}
 }
 
 // TestProcessInvoicePaymentNotifiesManager sends the manager notification when a Zalo ID exists.
 func TestProcessInvoicePaymentNotifiesManager(t *testing.T) {
 	zaloID := "mgr-zalo"
-	zalo := &cfgZalo{sendErr: errStub} // exercise the best-effort error log branch too
+	zalo := &cfgZalo{sendErr: errStub}
 	svc := &paymentService{
 		paymentRepo: &cfgPaymentRepo{},
 		invoiceRepo: &cfgInvoiceRepo{invoice: &model.InvoiceWithRoom{
@@ -530,15 +527,16 @@ func TestProcessInvoicePaymentNotifiesManager(t *testing.T) {
 	if err := svc.processInvoicePayment(context.Background(), "sepay", "invoice-1", 150000, &model.InvoicePaymentLink{ID: "link-1"}); err != nil {
 		t.Fatalf("processInvoicePayment() error = %v", err)
 	}
-	if zalo.sent != 2 {
-		t.Fatalf("sent = %d, want 2 (tenant + manager)", zalo.sent)
+	if len(svc.paymentRepo.(*cfgPaymentRepo).queued) != 2 || zalo.sent != 0 {
+		t.Fatal("expected two queued notifications and no sends before commit")
 	}
 }
 
-// TestSendTextMessageBestEffortNilMessenger returns quietly when no messenger is configured.
-func TestSendTextMessageBestEffortNilMessenger(t *testing.T) {
+func TestDeliverNotificationNilMessenger(t *testing.T) {
 	svc := &paymentService{}
-	svc.sendTextMessageBestEffort(context.Background(), "manager-1", "chat", "hi") // must not panic
+	if err := svc.DeliverNotification(context.Background(), []byte(`{"manager_id":"manager-1","chat_id":"chat","message":"hi"}`)); err == nil {
+		t.Fatal("missing messenger must keep the job retryable")
+	}
 }
 
 // TestNormalizePaymentProvider covers the empty-default and lowercasing branches.
@@ -577,4 +575,12 @@ func TestPaymentProviderRegistrySkipsNilAndMissing(t *testing.T) {
 	if _, ok := nilRegistry.Get("sepay"); ok {
 		t.Fatal("expected nil registry Get to return false")
 	}
+}
+
+func (r *cfgPaymentRepo) WithinPaymentTransaction(ctx context.Context, _ string, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (r *cfgPaymentRepo) QueueNotification(_ context.Context, _ string, managerID, chatID, text string) error {
+	r.queued = append(r.queued, sentPayOSMessage{managerID: managerID, chatID: chatID, text: text})
+	return nil
 }

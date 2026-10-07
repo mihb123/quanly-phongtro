@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +22,7 @@ func NewRoomRepository(db *bun.DB) *RoomRepository {
 
 // CreateRoom inserts a new room. Ownership must be verified by the caller before this.
 func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(room).
 		Column("house_id", "name", "price", "max_tenants", "status", "electricity_price", "water_price", "wifi_price", "parking_price", "service_price", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee", "group_chat_id").
 		Returning("id, created_at, updated_at").
@@ -37,7 +38,7 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*model.Room, error) {
 	var room model.Room
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&room).
 		Where("id = ? AND house_id = ?", id, houseID).
 		Scan(ctx)
@@ -54,7 +55,7 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, filter model.RoomListFilter) ([]model.Room, int, error) {
 	var rooms []model.Room
-	q := r.db.NewSelect().
+	q := database.Executor(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ColumnExpr("room.*").
 		ColumnExpr("(SELECT COUNT(*) FROM tenants AS t WHERE t.room_id = room.id AND t.status = ?) AS tenant_count", string(model.TenantStatusActive)).
@@ -82,7 +83,7 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, filter model.Ro
 // GetRoomStats counts rooms by status and active tenants in one aggregate query.
 func (r *RoomRepository) GetRoomStats(ctx context.Context, managerID, houseID string) (*model.RoomStats, error) {
 	var stats model.RoomStats
-	q := r.db.NewSelect().
+	q := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("rooms AS room").
 		Join("JOIN houses AS h ON h.id = room.house_id").
 		ColumnExpr("COUNT(*) AS total").
@@ -104,7 +105,7 @@ func (r *RoomRepository) GetRoomStats(ctx context.Context, managerID, houseID st
 // ListAvailableRooms lists available rooms across every house of the manager.
 func (r *RoomRepository) ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]model.Room, int, error) {
 	var rooms []model.Room
-	total, err := r.db.NewSelect().
+	total, err := database.Executor(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ColumnExpr("room.*").
 		ColumnExpr("h.name AS house_name").
@@ -128,7 +129,7 @@ func escapeLike(s string) string {
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) ListAllRoomsByHouseID(ctx context.Context, houseID string) ([]model.Room, error) {
 	var rooms []model.Room
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&rooms).
 		Where("house_id = ?", houseID).
 		Order("name ASC").
@@ -143,7 +144,7 @@ func (r *RoomRepository) ListAllRoomsByHouseID(ctx context.Context, houseID stri
 // UpdateRoom partially updates a room within a specific house.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, params model.UpdateRoomParams) (*model.Room, error) {
-	q := r.db.NewUpdate().
+	q := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.Room)(nil)).
 		Where("id = ? AND house_id = ?", id, houseID).
 		Returning("id, house_id, name, price, max_tenants, status, electricity_price, water_price, wifi_price, parking_price, service_price, extra_person_threshold, extra_person_fee, extra_vehicle_threshold, extra_vehicle_fee, group_chat_id, contract_path, created_at, updated_at")
@@ -178,7 +179,7 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 // DeleteRoom deletes a room within a specific house.
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) DeleteRoom(ctx context.Context, id, houseID string) error {
-	res, err := r.db.NewDelete().
+	res, err := database.Executor(ctx, r.db).NewDelete().
 		Model((*model.Room)(nil)).
 		Where("id = ? AND house_id = ?", id, houseID).
 		Exec(ctx)
@@ -197,7 +198,7 @@ func (r *RoomRepository) DeleteRoom(ctx context.Context, id, houseID string) err
 
 func (r *RoomRepository) GetMaxTenants(ctx context.Context, roomID string) (int64, error) {
 	var maxTenants int64
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.Room)(nil)).
 		Column("max_tenants").
 		Where("id = ?", roomID).
@@ -212,7 +213,7 @@ func (r *RoomRepository) GetMaxTenants(ctx context.Context, roomID string) (int6
 }
 
 func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status string) error {
-	res, err := r.db.NewUpdate().
+	res, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.Room)(nil)).
 		Set("status = ?", status).
 		Where("id = ?", roomID).
@@ -230,7 +231,7 @@ func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status st
 // GetRoomByIDOnly fetches a room by its ID only.
 func (r *RoomRepository) GetRoomByIDOnly(ctx context.Context, id string) (*model.Room, error) {
 	var room model.Room
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&room).
 		Where("id = ?", id).
 		Scan(ctx)
@@ -246,7 +247,7 @@ func (r *RoomRepository) GetRoomByIDOnly(ctx context.Context, id string) (*model
 // GetRoomByIDForManager fetches a room only when its house belongs to the manager.
 func (r *RoomRepository) GetRoomByIDForManager(ctx context.Context, managerID, roomID string) (*model.Room, error) {
 	var room model.Room
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&room).
 		ModelTableExpr("rooms AS room").
 		ColumnExpr("room.*").
@@ -266,7 +267,7 @@ func (r *RoomRepository) GetRoomByIDForManager(ctx context.Context, managerID, r
 // GetRoomByGroupChatID fetches a room by its Zalo group chat ID.
 func (r *RoomRepository) GetRoomByGroupChatID(ctx context.Context, groupChatID string) (*model.Room, error) {
 	var room model.Room
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&room).
 		Where("group_chat_id = ?", groupChatID).
 		Scan(ctx)
@@ -283,7 +284,7 @@ func (r *RoomRepository) GetRoomByGroupChatID(ctx context.Context, groupChatID s
 // Ownership must be verified by the caller before this.
 func (r *RoomRepository) UpdateRoomContract(ctx context.Context, id, houseID, contractPath string) (*model.Room, error) {
 	var room model.Room
-	err := r.db.NewUpdate().
+	err := database.Executor(ctx, r.db).NewUpdate().
 		Model(&room).
 		Set("contract_path = ?", contractPath).
 		Set("updated_at = NOW()").
@@ -301,7 +302,7 @@ func (r *RoomRepository) UpdateRoomContract(ctx context.Context, id, houseID, co
 
 // HasRoomWithFilePath reports whether any room of the manager references the given upload path.
 func (r *RoomRepository) HasRoomWithFilePath(ctx context.Context, managerID, filePath string) (bool, error) {
-	exists, err := r.db.NewSelect().
+	exists, err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.Room)(nil)).
 		ModelTableExpr("rooms AS room").
 		Join("JOIN houses AS h ON h.id = room.house_id").

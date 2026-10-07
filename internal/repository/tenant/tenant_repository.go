@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
+	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
 )
@@ -74,7 +75,7 @@ func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *mo
 
 // AssignRoom inserts a tenant profile linked to a tenant login account.
 func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(tenant).
 		Column("user_id", "room_id", "manager_id", "identity_card", "cccd_path", "start_date", "status").
 		Returning("id, created_at, updated_at").
@@ -88,7 +89,7 @@ func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant)
 
 // GetCurrentNumTenantInRoom returns the number of active tenants in a room.
 func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID string) (int64, error) {
-	count, err := r.db.NewSelect().
+	count, err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.Tenant)(nil)).
 		Where("room_id = ? AND status = ?", roomID, string(model.TenantStatusActive)).
 		Count(ctx)
@@ -103,7 +104,7 @@ func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID
 func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, roomID string) ([]model.FullInfoTenant, error) {
 	var tenants []model.FullInfoTenant
 
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").
@@ -136,7 +137,7 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, houseID string) ([]model.FullInfoTenant, error) {
 	var tenants []model.FullInfoTenant
 
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").
@@ -168,8 +169,8 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 	return tenants, nil
 }
 
-func (r *TenantRepository) activeTenantQuery(managerID string, filter model.TenantListFilter) *bun.SelectQuery {
-	q := r.db.NewSelect().
+func (r *TenantRepository) activeTenantQuery(ctx context.Context, managerID string, filter model.TenantListFilter) *bun.SelectQuery {
+	q := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		Join("JOIN users AS u ON u.id = t.user_id").
 		Join("JOIN rooms AS rm ON rm.id = t.room_id").
@@ -196,7 +197,7 @@ func (r *TenantRepository) activeTenantQuery(managerID string, filter model.Tena
 // SearchTenants lists one page of active tenants plus aggregates over the whole filtered set.
 func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, filter model.TenantListFilter) ([]model.FullInfoTenant, *model.TenantListSummary, error) {
 	var summary model.TenantListSummary
-	err := r.activeTenantQuery(managerID, filter).
+	err := r.activeTenantQuery(ctx, managerID, filter).
 		ColumnExpr("COUNT(*) AS tenants").
 		ColumnExpr("COUNT(DISTINCT t.room_id) AS rooms").
 		ColumnExpr("COUNT(*) FILTER (WHERE COALESCE(t.cccd_path, '') <> '') AS verified").
@@ -211,7 +212,7 @@ func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, 
 		return tenants, &summary, nil
 	}
 
-	err = r.activeTenantQuery(managerID, filter).
+	err = r.activeTenantQuery(ctx, managerID, filter).
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").
 		ColumnExpr("COALESCE(t.cccd_path, '') AS cccd_path").
@@ -240,7 +241,7 @@ func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, 
 // GetTenantByID retrieves one tenant profile and its account fields.
 func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantID string) (*model.FullInfoTenant, error) {
 	var ft model.FullInfoTenant
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").
@@ -273,7 +274,7 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 
 // UpdateTenant partially updates tenant profile fields only.
 func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, input model.UpdateTenantInput) (*model.Tenant, error) {
-	q := r.db.NewUpdate().
+	q := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.Tenant)(nil)).
 		Where("id = ?", tenantID).
 		Returning("id, user_id, room_id, manager_id").
@@ -311,7 +312,7 @@ func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, in
 // VerifyTenantOwnership checks that a tenant profile belongs to the manager.
 func (r *TenantRepository) VerifyTenantOwnership(ctx context.Context, managerID, tenantID string) error {
 	var storedManagerID string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.Tenant)(nil)).
 		Column("manager_id").
 		Where("id = ?", tenantID).
@@ -332,7 +333,7 @@ func (r *TenantRepository) VerifyTenantOwnership(ctx context.Context, managerID,
 // DeleteTenant marks the tenant profile inactive and returns its room id.
 func (r *TenantRepository) DeleteTenant(ctx context.Context, tenantID string) (string, error) {
 	var roomID string
-	err := r.db.NewUpdate().
+	err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.Tenant)(nil)).
 		Set("status = ?", string(model.TenantStatusInactive)).
 		Set("end_date = COALESCE(end_date, CURRENT_DATE)").
@@ -353,7 +354,7 @@ func (r *TenantRepository) DeleteTenant(ctx context.Context, tenantID string) (s
 // getTenantRecordByID retrieves the raw tenant record without account fields.
 func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID string) (*model.Tenant, error) {
 	var tenant model.Tenant
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&tenant).
 		Where("id = ?", tenantID).
 		Scan(ctx)
@@ -370,7 +371,7 @@ func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID str
 // GetTenantByPhoneAndManager retrieves an active tenant by their user phone number and manager ID.
 func (r *TenantRepository) GetTenantByPhoneAndManager(ctx context.Context, managerID, phone string) (*model.Tenant, error) {
 	var tenant model.Tenant
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.*").
 		Join("JOIN users AS u ON u.id = t.user_id").
@@ -391,7 +392,7 @@ func (r *TenantRepository) GetTenantByPhoneAndManager(ctx context.Context, manag
 // GetFirstTenantByUserID retrieves the first active tenant profile for a user.
 func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID, userID string) (*model.FullInfoTenant, error) {
 	var ft model.FullInfoTenant
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").
@@ -427,7 +428,7 @@ func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID
 // GetTenantByFilePath retrieves the active tenant that owns an uploaded file path.
 func (r *TenantRepository) GetTenantByFilePath(ctx context.Context, managerID, filePath string) (*model.FullInfoTenant, error) {
 	var ft model.FullInfoTenant
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("tenants AS t").
 		ColumnExpr("t.id AS tenant_id, t.user_id, t.room_id, t.manager_id").
 		ColumnExpr("u.full_name, u.email, u.phone").

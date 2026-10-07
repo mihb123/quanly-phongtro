@@ -158,6 +158,7 @@ type InvoiceStatusTotals struct {
 
 // InvoiceRepository defines the contract for invoice database operations
 type InvoiceRepository interface {
+	GetUnpaidInvoicesByHouseID(context.Context, string, string) ([]Invoice, error)
 	CreateInvoice(ctx context.Context, invoice *Invoice) error
 	GetInvoiceByID(ctx context.Context, managerID, id string) (*InvoiceWithRoom, error)
 	ListInvoices(ctx context.Context, managerID string, filter InvoiceListFilter) ([]InvoiceWithRoom, int, error)

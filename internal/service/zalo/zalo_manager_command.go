@@ -143,7 +143,9 @@ func (s *zaloInvoiceCommandServiceImpl) resolveManagerCommandRoom(ctx context.Co
 
 // linkRoomToGroupChat stores a Zalo group chat ID on a room. Every other field is copied from the
 // current room because the repository update replaces the whole row.
-func linkRoomToGroupChat(ctx context.Context, roomRepo model.RoomRepository, room model.Room, houseID, groupChatID string) error {
+func linkRoomToGroupChat(ctx context.Context, roomRepo interface {
+	UpdateRoom(context.Context, string, string, model.UpdateRoomParams) (*model.Room, error)
+}, room model.Room, houseID, groupChatID string) error {
 	params := model.UpdateRoomParams{
 		Name:                  room.Name,
 		Price:                 room.Price,

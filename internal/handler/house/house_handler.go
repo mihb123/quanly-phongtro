@@ -8,21 +8,17 @@ import (
 	"strings"
 	"time"
 
-	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
-
-	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
-	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 )
 
 type HouseHandler struct {
-	houseService   housesvc.HouseService
-	invoiceService invoicesvc.InvoiceService
+	houseService housesvc.HouseService
 }
 
 type createHouseRequest struct {
@@ -75,8 +71,8 @@ type updateHouseRequest struct {
 	RentEndDate             string  `json:"rent_end_date" validate:"omitempty,datetime=2006-01-02"`
 }
 
-func NewHouseHandler(service housesvc.HouseService, invoiceService invoicesvc.InvoiceService) *HouseHandler {
-	return &HouseHandler{houseService: service, invoiceService: invoiceService}
+func NewHouseHandler(service housesvc.HouseService) *HouseHandler {
+	return &HouseHandler{houseService: service}
 }
 
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
@@ -328,14 +324,6 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 		}
 		logger.Warn(r, http.StatusBadRequest, "cannot update house", err)
 		httpx.WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	// Trigger recalculation for unpaid invoices when house is updated
-	err = h.invoiceService.RecalculateUnpaidInvoicesByHouse(r.Context(), userID, id)
-	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after house update", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to recalculate invoices after house update")
 		return
 	}
 

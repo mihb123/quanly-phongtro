@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"testing"
 
-	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler/house"
@@ -20,6 +18,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
+	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	"go.uber.org/mock/gomock"
 )
 
@@ -36,8 +35,7 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 	defer ctrl.Finish()
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
-	invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
-	h := house.NewHouseHandler(houseSvc, invoiceSvc)
+	h := house.NewHouseHandler(houseSvc)
 
 	tests := []struct {
 		name           string
@@ -135,7 +133,7 @@ func TestHouseHandler_GetHouseByID(t *testing.T) {
 	defer ctrl.Finish()
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
-	h := house.NewHouseHandler(houseSvc, nil)
+	h := house.NewHouseHandler(houseSvc)
 
 	tests := []struct {
 		name           string
@@ -214,7 +212,7 @@ func TestHouseHandler_ListHouseByManagerID(t *testing.T) {
 	defer ctrl.Finish()
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
-	h := house.NewHouseHandler(houseSvc, nil)
+	h := house.NewHouseHandler(houseSvc)
 
 	tests := []struct {
 		name           string
@@ -282,7 +280,7 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
 	invoiceSvc := mock_service.NewMockInvoiceService(ctrl)
-	h := house.NewHouseHandler(houseSvc, invoiceSvc)
+	h := house.NewHouseHandler(houseSvc)
 
 	tests := []struct {
 		name           string
@@ -304,7 +302,6 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			},
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(&model.House{}, nil)
-				iSvc.EXPECT().RecalculateUnpaidInvoicesByHouse(gomock.Any(), "user-1", "house-1").Return(nil)
 			},
 			expectedStatus: http.StatusOK,
 		},
@@ -318,10 +315,9 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 				"address":    "456 Street",
 			},
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
-				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(&model.House{}, nil)
-				iSvc.EXPECT().RecalculateUnpaidInvoicesByHouse(gomock.Any(), "user-1", "house-1").Return(errors.New("invoice error"))
+				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(nil, errors.New("recalculation failed"))
 			},
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "Unauthorized",
@@ -397,7 +393,7 @@ func TestHouseHandler_DeleteHouse(t *testing.T) {
 	defer ctrl.Finish()
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
-	h := house.NewHouseHandler(houseSvc, nil)
+	h := house.NewHouseHandler(houseSvc)
 
 	tests := []struct {
 		name           string
@@ -486,7 +482,7 @@ func TestHouseHandler_UpdateHouseDocuments(t *testing.T) {
 	defer ctrl.Finish()
 
 	houseSvc := mock_service.NewMockHouseService(ctrl)
-	h := house.NewHouseHandler(houseSvc, mock_service.NewMockInvoiceService(ctrl))
+	h := house.NewHouseHandler(houseSvc)
 
 	// buildForm dựng multipart body từ các field text và file (fieldName -> danh sách tên file).
 	buildForm := func(fields map[string]string, files map[string][]string) (*bytes.Buffer, string) {

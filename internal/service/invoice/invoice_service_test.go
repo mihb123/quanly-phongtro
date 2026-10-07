@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
-	"github.com/mihb123/quanly-phongtro/internal/service/shared"
-
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
+	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -897,82 +896,40 @@ func TestInvoiceService_CreateInvoicePublishesEvent(t *testing.T) {
 }
 
 func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
-	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
-	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
-	ctx := context.Background()
-
-	tests := []struct {
-		name      string
-		managerID string
-		roomID    string
-		setupMock func()
-		wantErr   bool
-	}{
-		{
-			name:      "Happy path",
-			managerID: "mgr-1",
-			roomID:    "room-1",
-			setupMock: func() {
-				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{
-					{
-						RoomID: "room-1", Period: "01/2023", OldElectricityIndex: 10, NewElectricityIndex: 20,
-						OldWaterIndex: 5, NewWaterIndex: 10, OtherFee: 0, Discount: 0, VehicleCount: 1, TenantCount: 2,
-					},
-				}, nil)
-
-				// Inside CreateInvoice calls
-				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1000}, nil)
-				mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil)
-				mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil)
-				mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
-
-				mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", "01/2023").Return(nil, model.ErrInvoiceNotFound)
-				mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).Return(nil)
-				mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:      "GetUnpaidInvoicesByRoomID error",
-			managerID: "mgr-1",
-			roomID:    "room-1",
-			setupMock: func() {
-				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return(nil, errors.New("db error"))
-			},
-			wantErr: true,
-		},
-		{
-			name:      "CreateInvoice error is logged and ignored",
-			managerID: "mgr-1",
-			roomID:    "room-1",
-			setupMock: func() {
-				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{
-					{
-						RoomID: "room-1", Period: "01/2023", OldElectricityIndex: 10, NewElectricityIndex: 20,
-						OldWaterIndex: 5, NewWaterIndex: 10, OtherFee: 0, Discount: 0, VehicleCount: 1, TenantCount: 2,
-					},
-				}, nil)
-				mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(nil, errors.New("room repo error"))
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-			err := s.RecalculateUnpaidInvoicesByRoom(ctx, tt.managerID, tt.roomID)
-			if tt.wantErr {
-				require.Error(t, err)
+	for _, scenario := range []string{"success", "read failure", "write failure", "forbidden"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			invoices := mock_model.NewMockInvoiceRepository(ctrl)
+			rooms := mock_model.NewMockRoomRepository(ctrl)
+			houses := mock_model.NewMockHouseRepository(ctrl)
+			svc := NewInvoiceService(invoices, rooms, houses, nil, nil)
+			if scenario == "forbidden" {
+				rooms.EXPECT().GetRoomByIDForManager(gomock.Any(), "mgr", "room").Return(nil, model.ErrRoomNotFound)
 			} else {
+				rooms.EXPECT().GetRoomByIDForManager(gomock.Any(), "mgr", "room").Return(&model.Room{ID: "room", HouseID: "house", Price: 1000}, nil)
+				houses.EXPECT().GetByID(gomock.Any(), "house", "mgr").Return(&model.House{ID: "house"}, nil)
+				if scenario == "read failure" {
+					invoices.EXPECT().GetUnpaidInvoicesByRoomID(gomock.Any(), "room").Return(nil, errors.New("read failed"))
+				} else {
+					invoices.EXPECT().GetUnpaidInvoicesByRoomID(gomock.Any(), "room").Return([]model.Invoice{{ID: "invoice", RoomID: "room", Period: "2026-10", Status: model.InvoiceStatusUnpaid}}, nil)
+					var writeErr error
+					if scenario == "write failure" {
+						writeErr = errors.New("write failed")
+					}
+					invoices.EXPECT().UpdateInvoice(gomock.Any(), "mgr", gomock.Any()).Return(writeErr)
+				}
+			}
+			err := svc.RecalculateUnpaidInvoicesByRoom(context.Background(), "mgr", "room")
+			if scenario == "success" {
 				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+			if scenario == "write failure" {
+				var result *RecalculationError
+				require.ErrorAs(t, err, &result)
+				require.Equal(t, 1, result.Failed)
+				require.Zero(t, result.Succeeded)
 			}
 		})
 	}
@@ -980,98 +937,64 @@ func TestInvoiceService_RecalculateUnpaidInvoicesByRoom(t *testing.T) {
 
 func TestInvoiceService_RecalculateKeepsExcludedRoomFee(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
-	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
-	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
-	ctx := context.Background()
-
-	mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{
-		{RoomID: "room-1", Period: "2026-09", RoomFee: 0, NewElectricityIndex: 20, NewWaterIndex: 10},
-		{RoomID: "room-1", Period: "2026-10", RoomFee: 1000, NewElectricityIndex: 30, NewWaterIndex: 12},
+	invoices := mock_model.NewMockInvoiceRepository(ctrl)
+	rooms := mock_model.NewMockRoomRepository(ctrl)
+	houses := mock_model.NewMockHouseRepository(ctrl)
+	svc := NewInvoiceService(invoices, rooms, houses, nil, nil)
+	rooms.EXPECT().GetRoomByIDForManager(gomock.Any(), "mgr", "room").Return(&model.Room{ID: "room", HouseID: "house", Price: 1500, Status: "AVAILABLE"}, nil)
+	houses.EXPECT().GetByID(gomock.Any(), "house", "mgr").Return(&model.House{ID: "house"}, nil)
+	image := "/uploads/transactions/proof.jpg"
+	invoices.EXPECT().GetUnpaidInvoicesByRoomID(gomock.Any(), "room").Return([]model.Invoice{
+		{ID: "a", RoomID: "room", Period: "2026-09", RoomFee: 0, Status: "UNPAID", TransactionImagePath: &image},
+		{ID: "b", RoomID: "room", Period: "2026-10", RoomFee: 1000, Status: "UNPAID", TransactionImagePath: &image},
 	}, nil)
-	mockRoomRepo.EXPECT().GetRoomByIDOnly(ctx, "room-1").Return(&model.Room{ID: "room-1", HouseID: "house-1", Price: 1500, Status: "AVAILABLE"}, nil).Times(2)
-	mockHouseRepo.EXPECT().IsHouseOwnedBy(ctx, "house-1", "mgr-1").Return(true, nil).Times(2)
-	mockHouseRepo.EXPECT().GetByID(ctx, "house-1", "mgr-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE", WaterBillingType: "USAGE"}, nil).Times(2)
-	mockInvoiceRepo.EXPECT().GetPreviousInvoice(ctx, "room-1", gomock.Any()).Return(nil, model.ErrInvoiceNotFound).Times(2)
-	mockInvoiceRepo.EXPECT().GetInvoiceByRoomAndPeriod(ctx, "room-1", gomock.Any()).Return(nil, model.ErrInvoiceNotFound).Times(2)
-
-	roomFees := map[string]float64{}
-	mockInvoiceRepo.EXPECT().CreateInvoice(ctx, gomock.Any()).DoAndReturn(func(_ context.Context, inv *model.Invoice) error {
-		roomFees[inv.Period] = inv.RoomFee
+	fees := map[string]float64{}
+	invoices.EXPECT().UpdateInvoice(gomock.Any(), "mgr", gomock.Any()).DoAndReturn(func(_ context.Context, _ string, inv *model.Invoice) error {
+		fees[inv.Period] = inv.RoomFee
+		require.Equal(t, &image, inv.TransactionImagePath)
+		require.Equal(t, "UNPAID", inv.Status)
 		return nil
 	}).Times(2)
-	mockInvoiceRepo.EXPECT().GetInvoiceByID(ctx, "mgr-1", gomock.Any()).Return(&model.InvoiceWithRoom{}, nil).Times(2)
-
-	require.NoError(t, s.RecalculateUnpaidInvoicesByRoom(ctx, "mgr-1", "room-1"))
-	require.Equal(t, map[string]float64{"2026-09": 0, "2026-10": 1500}, roomFees)
+	require.NoError(t, svc.RecalculateUnpaidInvoicesByRoom(context.Background(), "mgr", "room"))
+	require.Equal(t, map[string]float64{"2026-09": 0, "2026-10": 1500}, fees)
 }
 
 func TestInvoiceService_RecalculateUnpaidInvoicesByHouse(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockInvoiceRepo := mock_model.NewMockInvoiceRepository(ctrl)
-	mockRoomRepo := mock_model.NewMockRoomRepository(ctrl)
-	mockHouseRepo := mock_model.NewMockHouseRepository(ctrl)
-	mockTenantRepo := mock_model.NewMockTenantRepository(ctrl)
-
-	s := NewInvoiceService(mockInvoiceRepo, mockRoomRepo, mockHouseRepo, mockTenantRepo, nil)
-	ctx := context.Background()
-
-	tests := []struct {
-		name      string
-		managerID string
-		houseID   string
-		setupMock func()
-		wantErr   bool
-	}{
-		{
-			name:      "Happy path",
-			managerID: "mgr-1",
-			houseID:   "house-1",
-			setupMock: func() {
-				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return([]model.Room{
-					{ID: "room-1"},
-				}, nil)
-
-				// RecalculateUnpaidInvoicesByRoom calls
-				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return([]model.Invoice{}, nil)
-			},
-			wantErr: false,
-		},
-		{
-			name:      "ListAllRoomsByHouseID error",
-			managerID: "mgr-1",
-			houseID:   "house-1",
-			setupMock: func() {
-				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return(nil, errors.New("db error"))
-			},
-			wantErr: true,
-		},
-		{
-			name:      "Room recalculation error is logged and ignored",
-			managerID: "mgr-1",
-			houseID:   "house-1",
-			setupMock: func() {
-				mockRoomRepo.EXPECT().ListAllRoomsByHouseID(ctx, "house-1").Return([]model.Room{{ID: "room-1"}}, nil)
-				mockInvoiceRepo.EXPECT().GetUnpaidInvoicesByRoomID(ctx, "room-1").Return(nil, errors.New("db error"))
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMock()
-			err := s.RecalculateUnpaidInvoicesByHouse(ctx, tt.managerID, tt.houseID)
-			if tt.wantErr {
-				require.Error(t, err)
+	for _, scenario := range []string{"success", "room read failure", "invoice read failure", "write failure"} {
+		t.Run(scenario, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			invoices := mock_model.NewMockInvoiceRepository(ctrl)
+			rooms := mock_model.NewMockRoomRepository(ctrl)
+			houses := mock_model.NewMockHouseRepository(ctrl)
+			svc := NewInvoiceService(invoices, rooms, houses, nil, nil)
+			houses.EXPECT().GetByID(gomock.Any(), "house", "mgr").Return(&model.House{ID: "house"}, nil)
+			if scenario == "room read failure" {
+				rooms.EXPECT().ListAllRoomsByHouseID(gomock.Any(), "house").Return(nil, errors.New("read failed"))
 			} else {
+				rooms.EXPECT().ListAllRoomsByHouseID(gomock.Any(), "house").Return([]model.Room{{ID: "r1"}, {ID: "r2"}}, nil)
+				if scenario == "invoice read failure" {
+					invoices.EXPECT().GetUnpaidInvoicesByHouseID(gomock.Any(), "mgr", "house").Return(nil, errors.New("read failed"))
+				} else {
+					invoices.EXPECT().GetUnpaidInvoicesByHouseID(gomock.Any(), "mgr", "house").Return([]model.Invoice{{ID: "i1", RoomID: "r1"}, {ID: "i2", RoomID: "r2"}}, nil)
+					invoices.EXPECT().UpdateInvoice(gomock.Any(), "mgr", gomock.Any()).Return(nil)
+					var writeErr error
+					if scenario == "write failure" {
+						writeErr = errors.New("write failed")
+					}
+					invoices.EXPECT().UpdateInvoice(gomock.Any(), "mgr", gomock.Any()).Return(writeErr)
+				}
+			}
+			err := svc.RecalculateUnpaidInvoicesByHouse(context.Background(), "mgr", "house")
+			if scenario == "success" {
 				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+			if scenario == "write failure" {
+				var result *RecalculationError
+				require.ErrorAs(t, err, &result)
+				require.Equal(t, 1, result.Succeeded)
+				require.Equal(t, 1, result.Failed)
 			}
 		})
 	}

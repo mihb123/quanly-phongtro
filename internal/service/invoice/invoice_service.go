@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
-	"github.com/mihb123/quanly-phongtro/internal/service/shared"
-
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
+	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 )
 
 type CreateInvoiceInput struct {
@@ -111,121 +109,9 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 		tenantCountInt = int(tenantCount)
 	}
 
-	elecPrice := house.DefaultElectricityPrice
-	if room.ElectricityPrice != nil {
-		elecPrice = *room.ElectricityPrice
-	}
-
-	waterPrice := house.DefaultWaterPrice
-	if room.WaterPrice != nil {
-		waterPrice = *room.WaterPrice
-	}
-
-	wifiPrice := house.DefaultWifiPrice
-	if room.WifiPrice != nil {
-		wifiPrice = *room.WifiPrice
-	}
-
-	parkingPrice := house.DefaultParkingPrice
-	if room.ParkingPrice != nil {
-		parkingPrice = *room.ParkingPrice
-	}
-
-	servicePrice := house.DefaultServicePrice
-	if room.ServicePrice != nil {
-		servicePrice = *room.ServicePrice
-	}
-
-	// Calculate electricity fee based on billing type
-	elecFee, err := s.calculateUtilityFee(house.ElectricityBillingType, house.ElectricityBillingUnit, elecPrice, input.NewElectricityIndex, oldElecIndex, tenantCountInt)
+	invoice, err := s.calculateInvoice(room, house, input, oldElecIndex, oldWaterIndex, tenantCountInt)
 	if err != nil {
 		return nil, err
-	}
-
-	// Calculate water fee based on billing type
-	waterFee, err := s.calculateUtilityFee(house.WaterBillingType, house.WaterBillingUnit, waterPrice, input.NewWaterIndex, oldWaterIndex, tenantCountInt)
-	if err != nil {
-		return nil, err
-	}
-
-	if house.ElectricityBillingType == "FIXED" {
-		input.NewElectricityIndex = oldElecIndex
-	} else if input.NewElectricityIndex < oldElecIndex {
-		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex)
-	}
-
-	if house.WaterBillingType == "FIXED" {
-		input.NewWaterIndex = oldWaterIndex
-	} else if input.NewWaterIndex < oldWaterIndex {
-		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex)
-	}
-
-	roomFee := float64(room.Price)
-	excludeRoomFee := room.Status == "AVAILABLE"
-	if input.ExcludeRoomFee != nil {
-		excludeRoomFee = *input.ExcludeRoomFee
-	}
-	if excludeRoomFee {
-		roomFee = 0
-	}
-
-	// tenantCount already fetched above
-
-	// Resolve surcharge thresholds: room override takes priority over house default
-	personThreshold := house.ExtraPersonThreshold
-	if room.ExtraPersonThreshold != nil {
-		personThreshold = *room.ExtraPersonThreshold
-	}
-	personFeeUnit := house.ExtraPersonFee
-	if room.ExtraPersonFee != nil {
-		personFeeUnit = *room.ExtraPersonFee
-	}
-	vehicleThreshold := house.ExtraVehicleThreshold
-	if room.ExtraVehicleThreshold != nil {
-		vehicleThreshold = *room.ExtraVehicleThreshold
-	}
-	vehicleFeeUnit := house.ExtraVehicleFee
-	if room.ExtraVehicleFee != nil {
-		vehicleFeeUnit = *room.ExtraVehicleFee
-	}
-
-	extraPersonFee := 0.0
-	if personThreshold > 0 && tenantCountInt > personThreshold {
-		extraPersonFee = float64(tenantCountInt-personThreshold) * personFeeUnit
-	}
-
-	extraVehicleFee := 0.0
-	if vehicleThreshold > 0 && input.VehicleCount > vehicleThreshold {
-		extraVehicleFee = float64(input.VehicleCount-vehicleThreshold) * vehicleFeeUnit
-	}
-
-	otherFees, otherFee := normalizeOtherFees(input.OtherFees, input.OtherFee)
-
-	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + otherFee - input.Discount
-
-	invoice := &model.Invoice{
-		ID:                  uuid.Must(uuid.NewV7()).String(),
-		RoomID:              room.ID,
-		Period:              input.Period,
-		RoomFee:             roomFee,
-		OldElectricityIndex: oldElecIndex,
-		NewElectricityIndex: input.NewElectricityIndex,
-		ElectricityFee:      elecFee,
-		OldWaterIndex:       oldWaterIndex,
-		NewWaterIndex:       input.NewWaterIndex,
-		WaterFee:            waterFee,
-		WifiFee:             wifiPrice,
-		ParkingFee:          parkingPrice,
-		ServiceFee:          servicePrice,
-		OtherFee:            otherFee,
-		OtherFees:           otherFees,
-		Discount:            input.Discount,
-		TenantCount:         tenantCountInt,
-		VehicleCount:        input.VehicleCount,
-		ExtraPersonFee:      extraPersonFee,
-		ExtraVehicleFee:     extraVehicleFee,
-		TotalAmount:         totalAmount,
-		Status:              "UNPAID",
 	}
 
 	// Check if invoice for this period already exists
@@ -385,49 +271,211 @@ func (s *InvoiceServiceImpl) calculateUtilityFee(billingType, billingUnit string
 	return float64(newIndex-oldIndex) * defaultPrice, nil
 }
 
+type RecalculationError struct {
+	Succeeded int
+	Failed    int
+	Cause     error
+}
+
+func (e *RecalculationError) Error() string {
+	return fmt.Sprintf("invoice recalculation: %d succeeded, %d failed: %v", e.Succeeded, e.Failed, e.Cause)
+}
+
+func (e *RecalculationError) Unwrap() error { return e.Cause }
+
 func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error {
+	room, err := s.roomRepo.GetRoomByIDForManager(ctx, managerID, roomID)
+	if err != nil {
+		return err
+	}
+	house, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID)
+	if err != nil {
+		return err
+	}
 	invoices, err := s.invoiceRepo.GetUnpaidInvoicesByRoomID(ctx, roomID)
 	if err != nil {
 		return err
 	}
-	for _, inv := range invoices {
-		oldElec := inv.OldElectricityIndex
-		oldWater := inv.OldWaterIndex
-		tenantCount := inv.TenantCount
-		excludeRoomFee := inv.RoomFee == 0
-		input := CreateInvoiceInput{
-			RoomID:              inv.RoomID,
-			Period:              inv.Period,
-			OldElectricityIndex: &oldElec,
-			NewElectricityIndex: inv.NewElectricityIndex,
-			OldWaterIndex:       &oldWater,
-			NewWaterIndex:       inv.NewWaterIndex,
-			OtherFee:            inv.OtherFee,
-			OtherFees:           inv.OtherFees,
-			Discount:            inv.Discount,
-			VehicleCount:        inv.VehicleCount,
-			TenantCount:         &tenantCount,
-			ExcludeRoomFee:      &excludeRoomFee,
-		}
-		// CreateInvoice acts as an upsert for the same room and period
-		_, err := s.CreateInvoice(ctx, managerID, input)
-		if err != nil {
-			logger.Error(nil, 0, fmt.Sprintf("recalculate invoice roomID=%s period=%s", inv.RoomID, inv.Period), err)
-		}
-	}
-	return nil
+	return s.recalculateInvoices(ctx, managerID, house, map[string]*model.Room{room.ID: room}, invoices)
 }
 
 func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByHouse(ctx context.Context, managerID, houseID string) error {
+	house, err := s.houseRepo.GetByID(ctx, houseID, managerID)
+	if err != nil {
+		return err
+	}
 	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, houseID)
 	if err != nil {
 		return err
 	}
-	for _, room := range rooms {
-		err := s.RecalculateUnpaidInvoicesByRoom(ctx, managerID, room.ID)
+	invoices, err := s.invoiceRepo.GetUnpaidInvoicesByHouseID(ctx, managerID, houseID)
+	if err != nil {
+		return err
+	}
+	byID := make(map[string]*model.Room, len(rooms))
+	for i := range rooms {
+		byID[rooms[i].ID] = &rooms[i]
+	}
+	return s.recalculateInvoices(ctx, managerID, house, byID, invoices)
+}
+
+func (s *InvoiceServiceImpl) recalculateInvoices(ctx context.Context, managerID string, house *model.House, rooms map[string]*model.Room, invoices []model.Invoice) error {
+	result := &RecalculationError{}
+	for _, inv := range invoices {
+		if err := ctx.Err(); err != nil {
+			return errors.Join(result.Cause, err)
+		}
+		room := rooms[inv.RoomID]
+		var err error
+		if room == nil {
+			err = model.ErrRoomNotFound
+		} else {
+			excludeRoomFee := inv.RoomFee == 0
+			input := CreateInvoiceInput{
+				RoomID: inv.RoomID, Period: inv.Period,
+				NewElectricityIndex: inv.NewElectricityIndex, NewWaterIndex: inv.NewWaterIndex,
+				OtherFee: inv.OtherFee, OtherFees: inv.OtherFees, Discount: inv.Discount,
+				VehicleCount: inv.VehicleCount, ExcludeRoomFee: &excludeRoomFee,
+			}
+			var updated *model.Invoice
+			updated, err = s.calculateInvoice(room, house, input, inv.OldElectricityIndex, inv.OldWaterIndex, inv.TenantCount)
+			if err == nil {
+				updated.ID = inv.ID
+				updated.CreatedAt = inv.CreatedAt
+				updated.Status = inv.Status
+				updated.PaymentMethod = inv.PaymentMethod
+				updated.TransactionImagePath = inv.TransactionImagePath
+				err = s.invoiceRepo.UpdateInvoice(ctx, managerID, updated)
+			}
+		}
 		if err != nil {
-			logger.Error(nil, 0, fmt.Sprintf("recalculate unpaid invoices for roomID=%s", room.ID), err)
+			result.Failed++
+			result.Cause = errors.Join(result.Cause, fmt.Errorf("invoice %s: %w", inv.ID, err))
+		} else {
+			result.Succeeded++
 		}
 	}
+	if result.Failed > 0 {
+		return result
+	}
 	return nil
+}
+
+func (s *InvoiceServiceImpl) calculateInvoice(room *model.Room, house *model.House, input CreateInvoiceInput, oldElecIndex, oldWaterIndex, tenantCountInt int) (*model.Invoice, error) {
+	elecPrice := house.DefaultElectricityPrice
+	if room.ElectricityPrice != nil {
+		elecPrice = *room.ElectricityPrice
+	}
+
+	waterPrice := house.DefaultWaterPrice
+	if room.WaterPrice != nil {
+		waterPrice = *room.WaterPrice
+	}
+
+	wifiPrice := house.DefaultWifiPrice
+	if room.WifiPrice != nil {
+		wifiPrice = *room.WifiPrice
+	}
+
+	parkingPrice := house.DefaultParkingPrice
+	if room.ParkingPrice != nil {
+		parkingPrice = *room.ParkingPrice
+	}
+
+	servicePrice := house.DefaultServicePrice
+	if room.ServicePrice != nil {
+		servicePrice = *room.ServicePrice
+	}
+
+	// Calculate electricity fee based on billing type
+	elecFee, err := s.calculateUtilityFee(house.ElectricityBillingType, house.ElectricityBillingUnit, elecPrice, input.NewElectricityIndex, oldElecIndex, tenantCountInt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate water fee based on billing type
+	waterFee, err := s.calculateUtilityFee(house.WaterBillingType, house.WaterBillingUnit, waterPrice, input.NewWaterIndex, oldWaterIndex, tenantCountInt)
+	if err != nil {
+		return nil, err
+	}
+
+	if house.ElectricityBillingType == "FIXED" {
+		input.NewElectricityIndex = oldElecIndex
+	} else if input.NewElectricityIndex < oldElecIndex {
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex)
+	}
+
+	if house.WaterBillingType == "FIXED" {
+		input.NewWaterIndex = oldWaterIndex
+	} else if input.NewWaterIndex < oldWaterIndex {
+		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex)
+	}
+
+	roomFee := float64(room.Price)
+	excludeRoomFee := room.Status == "AVAILABLE"
+	if input.ExcludeRoomFee != nil {
+		excludeRoomFee = *input.ExcludeRoomFee
+	}
+	if excludeRoomFee {
+		roomFee = 0
+	}
+
+	// Resolve surcharge thresholds: room override takes priority over house default
+	personThreshold := house.ExtraPersonThreshold
+	if room.ExtraPersonThreshold != nil {
+		personThreshold = *room.ExtraPersonThreshold
+	}
+	personFeeUnit := house.ExtraPersonFee
+	if room.ExtraPersonFee != nil {
+		personFeeUnit = *room.ExtraPersonFee
+	}
+	vehicleThreshold := house.ExtraVehicleThreshold
+	if room.ExtraVehicleThreshold != nil {
+		vehicleThreshold = *room.ExtraVehicleThreshold
+	}
+	vehicleFeeUnit := house.ExtraVehicleFee
+	if room.ExtraVehicleFee != nil {
+		vehicleFeeUnit = *room.ExtraVehicleFee
+	}
+
+	extraPersonFee := 0.0
+	if personThreshold > 0 && tenantCountInt > personThreshold {
+		extraPersonFee = float64(tenantCountInt-personThreshold) * personFeeUnit
+	}
+
+	extraVehicleFee := 0.0
+	if vehicleThreshold > 0 && input.VehicleCount > vehicleThreshold {
+		extraVehicleFee = float64(input.VehicleCount-vehicleThreshold) * vehicleFeeUnit
+	}
+
+	otherFees, otherFee := normalizeOtherFees(input.OtherFees, input.OtherFee)
+
+	totalAmount := roomFee + elecFee + waterFee + wifiPrice + parkingPrice + servicePrice + extraPersonFee + extraVehicleFee + otherFee - input.Discount
+
+	invoice := &model.Invoice{
+		ID:                  uuid.Must(uuid.NewV7()).String(),
+		RoomID:              room.ID,
+		Period:              input.Period,
+		RoomFee:             roomFee,
+		OldElectricityIndex: oldElecIndex,
+		NewElectricityIndex: input.NewElectricityIndex,
+		ElectricityFee:      elecFee,
+		OldWaterIndex:       oldWaterIndex,
+		NewWaterIndex:       input.NewWaterIndex,
+		WaterFee:            waterFee,
+		WifiFee:             wifiPrice,
+		ParkingFee:          parkingPrice,
+		ServiceFee:          servicePrice,
+		OtherFee:            otherFee,
+		OtherFees:           otherFees,
+		Discount:            input.Discount,
+		TenantCount:         tenantCountInt,
+		VehicleCount:        input.VehicleCount,
+		ExtraPersonFee:      extraPersonFee,
+		ExtraVehicleFee:     extraVehicleFee,
+		TotalAmount:         totalAmount,
+		Status:              "UNPAID",
+	}
+
+	return invoice, nil
 }

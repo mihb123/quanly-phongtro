@@ -22,6 +22,7 @@ import (
 	authrepo "github.com/mihb123/quanly-phongtro/internal/repository/auth"
 	houserepo "github.com/mihb123/quanly-phongtro/internal/repository/house"
 	invoicerepo "github.com/mihb123/quanly-phongtro/internal/repository/invoice"
+	jobrepo "github.com/mihb123/quanly-phongtro/internal/repository/jobs"
 	revenuerepo "github.com/mihb123/quanly-phongtro/internal/repository/revenue"
 	roomrepo "github.com/mihb123/quanly-phongtro/internal/repository/room"
 	tenantrepo "github.com/mihb123/quanly-phongtro/internal/repository/tenant"
@@ -32,9 +33,9 @@ import (
 	geosvc "github.com/mihb123/quanly-phongtro/internal/service/geo"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	jobsvc "github.com/mihb123/quanly-phongtro/internal/service/jobs"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
-	revenuesvc "github.com/mihb123/quanly-phongtro/internal/service/revenue"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
@@ -68,41 +69,32 @@ func main() {
 	houseCostRepo := houserepo.NewHouseCostRepository(sqlDB)
 	revenueSummaryRepo := revenuerepo.NewRevenueSummaryRepository(sqlDB)
 
-	revenueWorker := revenuesvc.NewRevenueWorker(revenueSummaryRepo, houseCostRepo)
+	jobRepo := jobrepo.NewRepository(sqlDB)
+	revenueWorker := jobsvc.NewWorker(jobRepo, "revenue", revenueSummaryRepo.RecalculateJob)
 	revenueWorker.Start()
-	// defer revenueWorker.Stop() // will stop before shutdown
-
-	eventBus := revenuesvc.NewEventBus()
-	eventBus.Subscribe(revenuesvc.EventInvoiceChanged, func(payload interface{}) {
-		if p, ok := payload.(revenuesvc.RevenueSummaryPayload); ok {
-			revenueWorker.Enqueue(p.HouseID, p.Period)
-		}
-	})
-	eventBus.Subscribe(revenuesvc.EventHouseCostChanged, func(payload interface{}) {
-		if p, ok := payload.(revenuesvc.RevenueSummaryPayload); ok {
-			revenueWorker.Enqueue(p.HouseID, p.Period)
-		}
-	})
 
 	houseRepo := houserepo.NewHouseRepository(sqlDB)
-	houseService := housesvc.NewHouseServiceImpt(houseRepo, houseCostRepo)
 	invoiceRepo := invoicerepo.NewInvoiceRepository(sqlDB)
 
 	roomRepo := roomrepo.NewRoomRepository(sqlDB)
-	roomService := roomsvc.NewRoomService(roomRepo, houseRepo)
 
 	tenantRepo := tenantrepo.NewTenantRepository(sqlDB)
 	tenantService := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, houseRepo, hasher)
 	tenanHandler := tenanthandler.NewTenantHandler(tenantService)
 
 	imageService := invoicesvc.NewImageService()
-	invoiceService := invoicesvc.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo, eventBus)
+	invoiceService := invoicesvc.NewInvoiceService(invoiceRepo, roomRepo, houseRepo, tenantRepo, nil)
+	transaction := func(ctx context.Context, fn func(context.Context) error) error {
+		return db.WithinTransaction(ctx, sqlDB, fn)
+	}
+	roomService := roomsvc.NewRoomService(roomRepo, houseRepo, roomsvc.WithInvoiceRecalculation(invoiceService, transaction))
+	houseService := housesvc.NewHouseServiceImpt(houseRepo, houseCostRepo, housesvc.WithInvoiceRecalculation(invoiceService, transaction))
 	invoiceHandler := invoicehandler.NewInvoiceHandler(invoiceService, imageService)
 
-	houseHandler := househandler.NewHouseHandler(houseService, invoiceService)
-	roomHandler := roomhandler.NewRoomHandler(roomService, invoiceService)
+	houseHandler := househandler.NewHouseHandler(houseService)
+	roomHandler := roomhandler.NewRoomHandler(roomService)
 
-	houseCostService := housesvc.NewHouseCostService(houseCostRepo, houseRepo, eventBus, revenueSummaryRepo)
+	houseCostService := housesvc.NewHouseCostService(houseCostRepo, houseRepo, nil, revenueSummaryRepo)
 	houseCostHandler := househandler.NewHouseCostHandler(houseCostService)
 
 	// Auto-create each house's cost record on the 1st of every month
@@ -141,11 +133,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init zalo service: %v", err)
 	}
-	if configurablePaymentService, ok := paymentService.(interface {
-		SetZaloService(paymentsvc.ZaloMessenger)
-	}); ok {
-		configurablePaymentService.SetZaloService(zaloService)
-	}
+	paymentService.SetZaloService(zaloService)
+	notificationWorker := jobsvc.NewWorker(jobRepo, "payment_notification", paymentService.DeliverNotification)
+	notificationWorker.Start()
 	keyBytes, err := sharedsvc.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
 	if err != nil {
 		log.Fatalf("decode zalo encryption key: %v", err)
@@ -223,6 +213,7 @@ func main() {
 		log.Printf("shutdown error: %v", err)
 	}
 
+	notificationWorker.Stop()
 	revenueWorker.Stop()
 	zaloCron.Stop()
 	houseCostCron.Stop()

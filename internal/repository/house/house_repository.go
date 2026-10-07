@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +20,7 @@ func NewHouseRepository(db *bun.DB) *HouseRepository {
 }
 
 func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(h).
 		Column("manager_id", "name", "house_code", "address", "default_electricity_price", "default_water_price", "default_wifi_price", "default_parking_price", "default_service_price", "electricity_billing_type", "water_billing_type", "electricity_billing_unit", "water_billing_unit", "extra_person_threshold", "extra_person_fee", "extra_vehicle_threshold", "extra_vehicle_fee", "owner_name", "owner_phone", "owner_rent_price", "owner_deposit", "rent_start_date", "rent_end_date").
 		Returning("id, created_at, updated_at").
@@ -32,7 +33,7 @@ func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error
 
 func (r *HouseRepository) GetByID(ctx context.Context, id, managerID string) (*model.House, error) {
 	var h model.House
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&h).
 		Where("id = ? AND manager_id = ?", id, managerID).
 		Scan(ctx)
@@ -48,7 +49,7 @@ func (r *HouseRepository) GetByID(ctx context.Context, id, managerID string) (*m
 // GetHouseByCode finds a house by its short code within a manager's houses.
 func (r *HouseRepository) GetHouseByCode(ctx context.Context, managerID, houseCode string) (*model.House, error) {
 	var h model.House
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&h).
 		Where("manager_id = ? AND LOWER(house_code) = LOWER(?)", managerID, houseCode).
 		Scan(ctx)
@@ -64,7 +65,7 @@ func (r *HouseRepository) GetHouseByCode(ctx context.Context, managerID, houseCo
 // IsHouseCodeTaken reports whether house_code is used by any house system-wide
 // (case-insensitive), ignoring excludeHouseID (empty means check all houses).
 func (r *HouseRepository) IsHouseCodeTaken(ctx context.Context, houseCode, excludeHouseID string) (bool, error) {
-	q := r.db.NewSelect().
+	q := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.House)(nil)).
 		Where("LOWER(house_code) = LOWER(?)", houseCode)
 	if excludeHouseID != "" {
@@ -79,7 +80,7 @@ func (r *HouseRepository) IsHouseCodeTaken(ctx context.Context, houseCode, exclu
 
 func (r *HouseRepository) ListHouseByManagerID(ctx context.Context, managerID string, limit, offset int, search string) ([]model.House, error) {
 	var houses []model.House
-	q := r.db.NewSelect().
+	q := database.Executor(ctx, r.db).NewSelect().
 		Model(&houses).
 		Where("manager_id = ?", managerID).
 		OrderExpr("created_at DESC, name ASC").
@@ -99,7 +100,7 @@ func (r *HouseRepository) ListHouseByManagerID(ctx context.Context, managerID st
 
 func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string, params model.UpdateHouseParams) (*model.House, error) {
 	var h model.House
-	q := r.db.NewUpdate().
+	q := database.Executor(ctx, r.db).NewUpdate().
 		Model(&h).
 		Where("id = ? AND manager_id = ?", id, managerID).
 		Returning("*")
@@ -141,7 +142,7 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 // Ownership is enforced by the manager_id filter.
 func (r *HouseRepository) UpdateHouseDocuments(ctx context.Context, id, managerID, cccdPath, contractPath string) (*model.House, error) {
 	var h model.House
-	err := r.db.NewUpdate().
+	err := database.Executor(ctx, r.db).NewUpdate().
 		Model(&h).
 		Set("owner_cccd_path = ?", cccdPath).
 		Set("owner_contract_path = ?", contractPath).
@@ -161,7 +162,7 @@ func (r *HouseRepository) UpdateHouseDocuments(ctx context.Context, id, managerI
 // HasHouseWithFilePath reports whether any house of the manager references the given upload path
 // in its landlord CCCD or head-lease contract.
 func (r *HouseRepository) HasHouseWithFilePath(ctx context.Context, managerID, filePath string) (bool, error) {
-	exists, err := r.db.NewSelect().
+	exists, err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.House)(nil)).
 		ModelTableExpr("houses AS house").
 		Where("house.manager_id = ?", managerID).
@@ -177,7 +178,7 @@ func (r *HouseRepository) HasHouseWithFilePath(ctx context.Context, managerID, f
 }
 
 func (r *HouseRepository) DeleteHouse(ctx context.Context, id, managerID string) error {
-	res, err := r.db.NewDelete().
+	res, err := database.Executor(ctx, r.db).NewDelete().
 		Model((*model.House)(nil)).
 		Where("id = ? AND manager_id = ?", id, managerID).
 		Exec(ctx)
@@ -196,7 +197,7 @@ func (r *HouseRepository) DeleteHouse(ctx context.Context, id, managerID string)
 
 func (r *HouseRepository) IsHouseOwnedBy(ctx context.Context, houseID, managerID string) (bool, error) {
 	var exists int
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		ColumnExpr("1").
 		Model((*model.House)(nil)).
 		Where("id = ? AND manager_id = ?", houseID, managerID).

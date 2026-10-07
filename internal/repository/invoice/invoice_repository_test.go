@@ -651,7 +651,13 @@ func TestInvoiceRepository_UpdateInvoice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mock.ExpectBegin()
 			tt.mock()
+			if tt.wantErr {
+				mock.ExpectRollback()
+			} else {
+				mock.ExpectCommit()
+			}
 			err := repo.UpdateInvoice(ctx, "manager-1", inv)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("expected error: %v, got: %v", tt.wantErr, err)

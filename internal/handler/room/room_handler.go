@@ -7,24 +7,20 @@ import (
 	"strconv"
 	"strings"
 
-	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
-
-	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
+	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 )
 
 type RoomHandler struct {
-	roomService    roomsvc.RoomService
-	invoiceService invoicesvc.InvoiceService
+	roomService roomsvc.RoomService
 }
 
-func NewRoomHandler(roomService roomsvc.RoomService, invoiceService invoicesvc.InvoiceService) *RoomHandler {
-	return &RoomHandler{roomService: roomService, invoiceService: invoiceService}
+func NewRoomHandler(roomService roomsvc.RoomService) *RoomHandler {
+	return &RoomHandler{roomService: roomService}
 }
 
 type createRoomRequest struct {
@@ -270,14 +266,6 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		handleRoomError(w, r, err)
-		return
-	}
-
-	// Trigger recalculation for UNPAID invoices when room is updated
-	err = h.invoiceService.RecalculateUnpaidInvoicesByRoom(r.Context(), managerID, id)
-	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to recalculate invoices after room update", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to recalculate invoices after room update")
 		return
 	}
 

@@ -206,10 +206,10 @@ func TestDeliverInvoiceMethodDelegatesDelivery(t *testing.T) {
 	zaloClient := &flowZaloClient{}
 	deps := newDeliveryDeps(t, ctx, ctrl, zaloClient, &model.Room{ID: "room-1", HouseID: "house-1", GroupChatID: &groupChatID}, nil)
 	service := &zaloInvoiceCommandServiceImpl{
-		userRepo:      deps.userRepo,
-		roomRepo:      deps.roomRepo,
-		tenantRepo:    deps.tenantRepo,
-		invoiceRepo:   deps.invoiceRepo,
+		userRepo:      deps.userRepo.(commandUsers),
+		roomRepo:      deps.roomRepo.(commandRooms),
+		tenantRepo:    deps.tenantRepo.(commandTenants),
+		invoiceRepo:   deps.invoiceRepo.(commandInvoices),
 		zaloClient:    deps.client,
 		imageService:  deps.imageService,
 		encryptionKey: deps.encryptionKey,
@@ -234,10 +234,10 @@ func TestDeliverInvoiceMethodMarksInvalidTokenInactive(t *testing.T) {
 	userRepository := deps.userRepo.(*mock_model.MockUserRepository)
 	userRepository.EXPECT().UpdateUser(ctx, "manager-1", gomock.Any()).Return(&model.User{}, nil)
 	service := &zaloInvoiceCommandServiceImpl{
-		userRepo:      deps.userRepo,
-		roomRepo:      deps.roomRepo,
-		tenantRepo:    deps.tenantRepo,
-		invoiceRepo:   deps.invoiceRepo,
+		userRepo:      deps.userRepo.(commandUsers),
+		roomRepo:      deps.roomRepo.(commandRooms),
+		tenantRepo:    deps.tenantRepo.(commandTenants),
+		invoiceRepo:   deps.invoiceRepo.(commandInvoices),
 		zaloClient:    deps.client,
 		imageService:  deps.imageService,
 		encryptionKey: deps.encryptionKey,

@@ -5,31 +5,28 @@ import (
 	"errors"
 	"strings"
 
-	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
-	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
-	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
-
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 )
 
 type zaloInvoiceCommandServiceImpl struct {
-	invoiceService invoicesvc.InvoiceService
-	invoiceRepo    model.InvoiceRepository
-	roomRepo       model.RoomRepository
-	houseRepo      model.HouseRepository
-	tenantRepo     model.TenantRepository
-	tenantService  tenantsvc.TenantService
-	userRepo       model.UserRepository
-	pendingRepo    model.PendingInvoiceUpdateRepository
+	invoiceService invoiceCommands
+	invoiceRepo    commandInvoices
+	roomRepo       commandRooms
+	houseRepo      commandHouses
+	tenantRepo     commandTenants
+	tenantService  tenantCommands
+	userRepo       commandUsers
+	pendingRepo    pendingCommands
 	zaloClient     ZaloClient
 	imageService   invoicesvc.ImageService
-	paymentService paymentsvc.PaymentService
+	paymentService commandPayments
 	encryptionKey  []byte
 	publicBaseURL  string
 }
 
 // NewZaloInvoiceCommandService creates the business handler for invoice chat commands.
-func NewZaloInvoiceCommandService(invoiceService invoicesvc.InvoiceService, invoiceRepo model.InvoiceRepository, roomRepo model.RoomRepository, houseRepo model.HouseRepository, tenantRepo model.TenantRepository, tenantService tenantsvc.TenantService, userRepo model.UserRepository, pendingRepo model.PendingInvoiceUpdateRepository, zaloClient ZaloClient, imageService invoicesvc.ImageService, paymentService paymentsvc.PaymentService, encryptionKey []byte, publicBaseURL string) ZaloInvoiceCommandService {
+func NewZaloInvoiceCommandService(invoiceService invoiceCommands, invoiceRepo commandInvoices, roomRepo commandRooms, houseRepo commandHouses, tenantRepo commandTenants, tenantService tenantCommands, userRepo commandUsers, pendingRepo pendingCommands, zaloClient ZaloClient, imageService invoicesvc.ImageService, paymentService commandPayments, encryptionKey []byte, publicBaseURL string) ZaloInvoiceCommandService {
 	return &zaloInvoiceCommandServiceImpl{
 		invoiceService: invoiceService,
 		invoiceRepo:    invoiceRepo,

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +22,7 @@ func NewInvoicePaymentRepository(db *bun.DB) *InvoicePaymentRepository {
 
 // CreatePaymentLink inserts a new payment link.
 func (r *InvoicePaymentRepository) CreatePaymentLink(ctx context.Context, link *model.InvoicePaymentLink) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(link).
 		ExcludeColumn("created_at", "updated_at").
 		Returning("id, created_at, updated_at").
@@ -41,7 +42,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentLink(ctx context.Context, inv
 // GetActivePaymentLinkByProvider returns the latest active payment link for an invoice/provider pair.
 func (r *InvoicePaymentRepository) GetActivePaymentLinkByProvider(ctx context.Context, invoiceID, provider string) (*model.InvoicePaymentLink, error) {
 	var link model.InvoicePaymentLink
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&link).
 		Where("invoice_id = ?", invoiceID).
 		Where("provider = ?", provider).
@@ -61,7 +62,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentLinkByProvider(ctx context.Co
 
 // UpdatePaymentLinkStatus updates the status of a payment link (e.g. to CANCELLED or PAID).
 func (r *InvoicePaymentRepository) UpdatePaymentLinkStatus(ctx context.Context, id, status string) error {
-	_, err := r.db.NewUpdate().
+	_, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.InvoicePaymentLink)(nil)).
 		Set("status = ?", status).
 		Where("id = ?", id).
@@ -76,7 +77,7 @@ func (r *InvoicePaymentRepository) UpdatePaymentLinkStatus(ctx context.Context, 
 // GetPaymentLinkByOrderCode retrieves a PayOS payment link by its unique order code.
 func (r *InvoicePaymentRepository) GetPaymentLinkByOrderCode(ctx context.Context, orderCode int64) (*model.InvoicePaymentLink, error) {
 	var link model.InvoicePaymentLink
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&link).
 		Where("provider = ?", model.PaymentProviderPayOS).
 		Where("order_code = ?", orderCode).
@@ -94,7 +95,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByOrderCode(ctx context.Context
 // GetPaymentLinkByProviderOrderRef retrieves a payment link by provider and provider order reference.
 func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRef(ctx context.Context, provider, providerOrderRef string) (*model.InvoicePaymentLink, error) {
 	var link model.InvoicePaymentLink
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&link).
 		Where("provider = ?", provider).
 		Where("provider_order_ref = ?", providerOrderRef).
@@ -111,7 +112,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRef(ctx context.
 // GetPaymentLinkByProviderOrderRefForManager retrieves a payment link only when its invoice belongs to the manager.
 func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRefForManager(ctx context.Context, managerID, provider, providerOrderRef string) (*model.InvoicePaymentLink, error) {
 	var link model.InvoicePaymentLink
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&link).
 		Join("JOIN invoices AS i ON i.id = invoice_payment_link.invoice_id").
 		Join("JOIN rooms AS r ON r.id = i.room_id").
@@ -119,6 +120,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRefForManager(ct
 		Where("invoice_payment_link.provider = ?", provider).
 		Where("invoice_payment_link.provider_order_ref = ?", providerOrderRef).
 		Where("h.manager_id = ?", managerID).
+		For("UPDATE OF i, invoice_payment_link").
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -131,14 +133,14 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRefForManager(ct
 
 // MarkActivePaymentLinksStaleByManager marks active provider links stale for invoices owned by the manager.
 func (r *InvoicePaymentRepository) MarkActivePaymentLinksStaleByManager(ctx context.Context, managerID, provider string) error {
-	_, err := r.db.NewUpdate().
+	_, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.InvoicePaymentLink)(nil)).
 		Set("status = ?", model.PaymentLinkStatusStale).
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Where("provider = ?", provider).
 		Where("status = ?", model.PaymentLinkStatusActive).
 		Where("invoice_id IN (?)",
-			r.db.NewSelect().
+			database.Executor(ctx, r.db).NewSelect().
 				TableExpr("invoices AS i").
 				ColumnExpr("i.id").
 				Join("JOIN rooms AS r ON r.id = i.room_id").
@@ -154,7 +156,7 @@ func (r *InvoicePaymentRepository) MarkActivePaymentLinksStaleByManager(ctx cont
 
 // CreatePaymentEvent records a new webhook event.
 func (r *InvoicePaymentRepository) CreatePaymentEvent(ctx context.Context, event *model.PaymentEvent) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(event).
 		ExcludeColumn("id", "created_at").
 		Returning("id, created_at").
@@ -173,7 +175,7 @@ func (r *InvoicePaymentRepository) CheckEventExists(ctx context.Context, orderCo
 
 // CheckProviderEventExists checks if a provider event has already been processed.
 func (r *InvoicePaymentRepository) CheckProviderEventExists(ctx context.Context, provider, providerOrderRef, transactionRef string) (bool, error) {
-	exists, err := r.db.NewSelect().
+	exists, err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.PaymentEvent)(nil)).
 		Where("provider = ?", provider).
 		Where("provider_order_ref = ?", providerOrderRef).
@@ -189,7 +191,7 @@ func (r *InvoicePaymentRepository) CheckProviderEventExists(ctx context.Context,
 // GetActivePaymentProviderCredential returns an active manager credential for a provider.
 func (r *InvoicePaymentRepository) GetActivePaymentProviderCredential(ctx context.Context, managerID, provider string) (*model.PaymentProviderCredential, error) {
 	var credential model.PaymentProviderCredential
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model(&credential).
 		Where("manager_id = ?", managerID).
 		Where("provider = ?", provider).
@@ -207,7 +209,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentProviderCredential(ctx contex
 
 // UpsertPaymentProviderCredential stores encrypted provider credentials for a manager.
 func (r *InvoicePaymentRepository) UpsertPaymentProviderCredential(ctx context.Context, credential *model.PaymentProviderCredential) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(credential).
 		ExcludeColumn("id", "created_at", "updated_at").
 		On("CONFLICT (manager_id, provider) DO UPDATE").
@@ -225,7 +227,7 @@ func (r *InvoicePaymentRepository) UpsertPaymentProviderCredential(ctx context.C
 
 // DeletePaymentProviderCredential deactivates a manager's provider credentials.
 func (r *InvoicePaymentRepository) DeletePaymentProviderCredential(ctx context.Context, managerID, provider string) error {
-	_, err := r.db.NewUpdate().
+	_, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.PaymentProviderCredential)(nil)).
 		Set("is_active = ?", false).
 		Set("updated_at = CURRENT_TIMESTAMP").
@@ -237,4 +239,13 @@ func (r *InvoicePaymentRepository) DeletePaymentProviderCredential(ctx context.C
 		return fmt.Errorf("delete payment provider credential: %w", err)
 	}
 	return nil
+}
+
+func (r *InvoicePaymentRepository) WithinPaymentTransaction(ctx context.Context, key string, fn func(context.Context) error) error {
+	return database.WithinTransaction(ctx, r.db, func(ctx context.Context) error {
+		if _, err := database.Executor(ctx, r.db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key); err != nil {
+			return err
+		}
+		return fn(ctx)
+	})
 }

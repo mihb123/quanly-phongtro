@@ -10,6 +10,7 @@ import (
 )
 
 type fakePayOSPaymentRepository struct {
+	queued        []sentPayOSMessage
 	updatedID     string
 	updatedStatus string
 	event         *model.PaymentEvent
@@ -244,11 +245,11 @@ func TestPayOSWebhookServiceProcessInvoicePayment(t *testing.T) {
 	if userRepository.userID != "manager-1" {
 		t.Fatalf("manager lookup = %q, want manager-1", userRepository.userID)
 	}
-	if len(zaloService.sent) != 2 {
-		t.Fatalf("sent notifications = %d, want 2", len(zaloService.sent))
+	if len(paymentRepository.queued) != 2 {
+		t.Fatalf("sent notifications = %d, want 2", len(paymentRepository.queued))
 	}
-	if zaloService.sent[0].chatID != "tenant-zalo" || zaloService.sent[1].chatID != "manager-zalo" {
-		t.Fatalf("notification chat IDs = %q, %q; want tenant-zalo, manager-zalo", zaloService.sent[0].chatID, zaloService.sent[1].chatID)
+	if paymentRepository.queued[0].chatID != "tenant-zalo" || paymentRepository.queued[1].chatID != "manager-zalo" {
+		t.Fatalf("notification chat IDs = %q, %q; want tenant-zalo, manager-zalo", paymentRepository.queued[0].chatID, paymentRepository.queued[1].chatID)
 	}
 }
 
@@ -384,4 +385,12 @@ func TestPayOSWebhookServiceHandleWebhookDoesNotProcessOtherManagerLink(t *testi
 	if paymentRepository.updatedID != "" {
 		t.Fatalf("updated payment link ID = %q, want empty", paymentRepository.updatedID)
 	}
+}
+
+func (r *fakePayOSPaymentRepository) WithinPaymentTransaction(ctx context.Context, _ string, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (r *fakePayOSPaymentRepository) QueueNotification(_ context.Context, _ string, managerID, chatID, text string) error {
+	r.queued = append(r.queued, sentPayOSMessage{managerID: managerID, chatID: chatID, text: text})
+	return nil
 }

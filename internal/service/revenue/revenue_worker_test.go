@@ -2,131 +2,72 @@ package revenue
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
-	"github.com/mihb123/quanly-phongtro/internal/model"
-	"go.uber.org/mock/gomock"
+	"github.com/mihb123/quanly-phongtro/internal/service/jobs"
 )
 
-func TestRevenueWorker_ProcessEvent(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
-	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
-
-	worker := NewRevenueWorker(mockSummaryRepo, mockCostRepo)
-
-	event := RevenueSummaryEvent{
-		HouseID: "house-1",
-		Period:  "2023-10",
-	}
-
-	// CalculateRevenue -> 15000
-	mockSummaryRepo.EXPECT().
-		CalculateRevenue(gomock.Any(), "house-1", "2023-10").
-		Return(15000.0, nil)
-
-	// GetByHouseAndPeriod -> 5000
-	mockCostRepo.EXPECT().
-		GetByHouseAndPeriod(gomock.Any(), "house-1", "2023-10").
-		Return(&model.HouseCost{TotalCost: 5000.0}, nil)
-
-	// Upsert -> Profit = 10000
-	mockSummaryRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, summary *model.HouseRevenueSummary) error {
-		if summary.HouseID != "house-1" || summary.TotalRevenue != 15000 || summary.TotalCost != 5000 || summary.Profit != 10000 {
-			return errors.New("mismatch")
-		}
-		return nil
-	})
-
-	// Call synchronously
-	worker.processEvent(event)
+type workerQueue struct {
+	run func(context.Context, func(context.Context, json.RawMessage) error) (bool, error)
 }
 
-func TestRevenueWorker_ProcessEvent_NoCostAndNoRevenue(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
-	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
-
-	worker := NewRevenueWorker(mockSummaryRepo, mockCostRepo)
-
-	event := RevenueSummaryEvent{
-		HouseID: "house-2",
-		Period:  "2023-11",
-	}
-
-	// CalculateRevenue -> returns error
-	mockSummaryRepo.EXPECT().
-		CalculateRevenue(gomock.Any(), "house-2", "2023-11").
-		Return(0.0, errors.New("some error"))
-
-	// GetByHouseAndPeriod -> returns house cost not found
-	mockCostRepo.EXPECT().
-		GetByHouseAndPeriod(gomock.Any(), "house-2", "2023-11").
-		Return(nil, errors.New("house cost not found"))
-
-	// Upsert -> Profit = 0
-	mockSummaryRepo.EXPECT().Upsert(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, summary *model.HouseRevenueSummary) error {
-		if summary.HouseID != "house-2" || summary.TotalRevenue != 0 || summary.TotalCost != 0 || summary.Profit != 0 {
-			return errors.New("mismatch")
-		}
-		return nil
-	})
-
-	// Call synchronously
-	worker.processEvent(event)
+func (q workerQueue) ProcessNext(ctx context.Context, _ string, process func(context.Context, json.RawMessage) error) (bool, error) {
+	return q.run(ctx, process)
 }
 
-// TestRevenueWorker_StartStopAndEnqueue covers the async worker loop.
-func TestRevenueWorker_StartStopAndEnqueue(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockSummaryRepo := mock_model.NewMockRevenueSummaryRepository(ctrl)
-	mockCostRepo := mock_model.NewMockHouseCostRepository(ctrl)
-	worker := NewRevenueWorker(mockSummaryRepo, mockCostRepo)
+func TestRevenueWorker_StartStopAndRetry(t *testing.T) {
+	var attempts atomic.Int32
 	done := make(chan struct{}, 1)
-
-	mockSummaryRepo.EXPECT().
-		CalculateRevenue(gomock.Any(), "house-1", "2023-10").
-		Return(1000.0, nil)
-	mockCostRepo.EXPECT().
-		GetByHouseAndPeriod(gomock.Any(), "house-1", "2023-10").
-		Return(&model.HouseCost{TotalCost: 250.0}, nil)
-	mockSummaryRepo.EXPECT().
-		Upsert(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, summary *model.HouseRevenueSummary) error {
-			if summary.Profit != 750 {
-				t.Errorf("expected profit 750, got %v", summary.Profit)
-			}
-			done <- struct{}{}
-			return nil
-		})
-
+	queue := workerQueue{run: func(ctx context.Context, process func(context.Context, json.RawMessage) error) (bool, error) {
+		if attempts.Add(1) == 1 {
+			return true, errors.New("temporary database failure")
+		}
+		if err := process(ctx, []byte(`{"house_id":"h","period":"2026-10"}`)); err != nil {
+			return true, err
+		}
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+		return false, nil
+	}}
+	worker := jobs.NewWorker(queue, "revenue", func(_ context.Context, payload json.RawMessage) error {
+		if string(payload) != `{"house_id":"h","period":"2026-10"}` {
+			return errors.New("wrong payload")
+		}
+		return nil
+	})
 	worker.Start()
-	worker.Enqueue("house-1", "2023-10")
-
+	defer worker.Stop()
 	select {
 	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("expected worker to process event")
+	case <-time.After(3 * time.Second):
+		t.Fatal("job was not retried")
 	}
-
-	worker.Stop()
+	if attempts.Load() < 2 {
+		t.Fatal("expected retry")
+	}
 }
 
-// TestRevenueWorker_EnqueueDropsWhenFull covers the non-blocking full-channel branch.
-func TestRevenueWorker_EnqueueDropsWhenFull(t *testing.T) {
-	worker := NewRevenueWorker(nil, nil)
-	for i := 0; i < cap(worker.eventChannel); i++ {
-		worker.Enqueue("house-1", "2023-10")
+func TestRevenueWorker_StopCancelsActiveJob(t *testing.T) {
+	entered := make(chan struct{})
+	queue := workerQueue{run: func(ctx context.Context, _ func(context.Context, json.RawMessage) error) (bool, error) {
+		close(entered)
+		<-ctx.Done()
+		return true, ctx.Err()
+	}}
+	worker := jobs.NewWorker(queue, "revenue", nil)
+	worker.Start()
+	<-entered
+	stopped := make(chan struct{})
+	go func() { worker.Stop(); worker.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not cancel job")
 	}
-
-	worker.Enqueue("house-1", "2023-10")
 }

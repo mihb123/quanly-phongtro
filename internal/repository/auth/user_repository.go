@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/lib/pq"
+	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
 )
@@ -23,7 +24,7 @@ func NewUserRepository(db *bun.DB) *UserRepository {
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("email = ?", email).
@@ -43,7 +44,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 func (r *UserRepository) GetAuthUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("email = ?", email).
@@ -63,7 +64,7 @@ func (r *UserRepository) GetAuthUserByEmail(ctx context.Context, email string) (
 func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "password_hash", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("id = ?", userID).
@@ -83,7 +84,7 @@ func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model
 func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("phone = ?", phone).
@@ -103,7 +104,7 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*model.U
 func (r *UserRepository) GetByZaloUserID(ctx context.Context, zaloUserID string) (*model.User, error) {
 	var u model.User
 	var role string
-	err := r.db.NewSelect().
+	err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "role", "full_name", "phone", "is_activated", "theme", "color_mode", "zalo_bot_token", "zalo_webhook_secret", "is_zalo_bot_active", "zalo_user_id", "created_at", "updated_at").
 		Where("zalo_user_id = ?", zaloUserID).
@@ -121,7 +122,7 @@ func (r *UserRepository) GetByZaloUserID(ctx context.Context, zaloUserID string)
 }
 
 func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
-	_, err := r.db.NewInsert().
+	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(u).
 		Column("email", "password_hash", "role", "full_name", "phone", "is_activated").
 		Returning("id, created_at, updated_at, theme, color_mode").
@@ -137,7 +138,7 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 }
 
 func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
-	_, err := r.db.NewUpdate().
+	_, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.User)(nil)).
 		Set("is_activated = true").
 		Set("updated_at = NOW()").
@@ -147,7 +148,7 @@ func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
 }
 
 func (r *UserRepository) DeactivateUser(ctx context.Context, userID string) error {
-	res, err := r.db.NewUpdate().
+	res, err := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.User)(nil)).
 		Set("is_activated = false").
 		Where("id = ?", userID).
@@ -166,7 +167,7 @@ func (r *UserRepository) DeactivateUser(ctx context.Context, userID string) erro
 }
 
 func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input model.UpdateUserInput) (*model.User, error) {
-	q := r.db.NewUpdate().
+	q := database.Executor(ctx, r.db).NewUpdate().
 		Model((*model.User)(nil)).
 		Where("id = ?", userID).
 		Returning("id, email, role, full_name, phone, is_activated, theme, color_mode, zalo_bot_token, zalo_webhook_secret, is_zalo_bot_active, zalo_user_id, created_at, updated_at")
@@ -235,7 +236,7 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 // GetAllUsersWithZaloToken returns all users who have a configured Zalo bot token.
 // Used by the cron job to periodically verify token validity.
 func (r *UserRepository) GetAllUsersWithZaloToken(ctx context.Context) ([]model.User, error) {
-	rows, err := r.db.NewSelect().
+	rows, err := database.Executor(ctx, r.db).NewSelect().
 		Model((*model.User)(nil)).
 		Column("id", "email", "zalo_bot_token", "is_zalo_bot_active").
 		Where("zalo_bot_token IS NOT NULL AND zalo_bot_token != ''").
