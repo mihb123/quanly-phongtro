@@ -3,37 +3,51 @@ package sepay
 import (
 	"context"
 	"net/url"
+	"regexp"
 	"testing"
 )
 
-// TestBuildPaymentCode keeps codes uppercase alphanumeric with the prefix intact.
+// TestBuildPaymentCode keeps codes as prefix + exactly 6 uppercase alphanumerics.
 func TestBuildPaymentCode(t *testing.T) {
-	tests := []struct {
-		prefix, id string
-		attempt    int
-		want       string
-	}{
-		{"PH", "01a11784-18e8-7ad9-80cd-494a3bd7dee8", 0, "PH01A11784"},
-		{"ph", "abc-12", 0, "PHABC12"},
-		{"PH", "01a11784-18e8", 2, "PH01A117842"},
-		{"P-H", "x_y", 0, "PHXY"},
+	const id = "01a11784-18e8-7ad9-80cd-494a3bd7dee8"
+	if got := BuildPaymentCode("PH", id, 0); got != "PHD7DEE8" {
+		t.Errorf("first attempt = %q, want PHD7DEE8 (tail of the id)", got)
 	}
-	for _, tt := range tests {
-		if got := BuildPaymentCode(tt.prefix, tt.id, tt.attempt); got != tt.want {
-			t.Errorf("BuildPaymentCode(%q, %q, %d) = %q, want %q", tt.prefix, tt.id, tt.attempt, got, tt.want)
+	if got := BuildPaymentCode("p-h", id, 0); got != "PHD7DEE8" {
+		t.Errorf("prefix must be uppercased alphanumerics, got %q", got)
+	}
+
+	seen := map[string]bool{}
+	for attempt := 0; attempt < DefaultCodeAttempts; attempt++ {
+		code := BuildPaymentCode("PH", id, attempt)
+		if !regexp.MustCompile(`^PH[A-Z0-9]{6}$`).MatchString(code) {
+			t.Fatalf("attempt %d code %q must be PH + 6 [A-Z0-9]", attempt, code)
 		}
+		if seen[code] {
+			t.Fatalf("attempt %d repeated code %q", attempt, code)
+		}
+		seen[code] = true
+	}
+	if got := BuildPaymentCode("PH", id, 3); got != BuildPaymentCode("PH", id, 3) {
+		t.Errorf("codes must be deterministic, got %q", got)
+	}
+	if got := BuildPaymentCode("PH", "x_y", 0); !regexp.MustCompile(`^PH[A-Z0-9]{6}$`).MatchString(got) {
+		t.Errorf("short ids must still yield 6 characters, got %q", got)
 	}
 }
 
-// TestGenerateUniquePaymentCodeRetriesAndExhausts verifies collisions advance the attempt suffix.
+// TestGenerateUniquePaymentCodeRetriesAndExhausts verifies collisions move to a new fixed-length code.
 func TestGenerateUniquePaymentCodeRetriesAndExhausts(t *testing.T) {
-	seen := 0
-	code, err := GenerateUniquePaymentCode(context.Background(), "PT", "abc12345", 0, func(context.Context, string) (bool, error) {
-		seen++
-		return seen == 1, nil
+	first := ""
+	code, err := GenerateUniquePaymentCode(context.Background(), "PT", "abc12345", 0, func(_ context.Context, code string) (bool, error) {
+		if first == "" {
+			first = code
+			return true, nil
+		}
+		return false, nil
 	})
-	if err != nil || code != "PTABC123451" {
-		t.Fatalf("code, err = %q, %v; want PTABC123451", code, err)
+	if err != nil || code == first || len(code) != len(first) {
+		t.Fatalf("code, first, err = %q, %q, %v; want a different code of equal length", code, first, err)
 	}
 
 	if _, err := GenerateUniquePaymentCode(context.Background(), "PT", "abc12345", 3, func(context.Context, string) (bool, error) {

@@ -2,6 +2,8 @@ package sepay
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net/url"
@@ -69,28 +71,39 @@ func GenerateUniquePaymentCode(ctx context.Context, prefix, referenceID string, 
 	return "", errors.New("could not generate unique SePay payment code")
 }
 
-// BuildPaymentCode creates a formatted string from prefix and an invoice identifier.
+// PaymentCodeSuffixLength is the fixed number of characters after the prefix. SePay's payment-code
+// pattern must accept it (e.g. "PH[A-Za-z0-9]{6,8}"); longer codes get truncated by SePay.
+const PaymentCodeSuffixLength = 6
+
+// BuildPaymentCode creates a fixed-length code: prefix + the last 6 characters of the reference ID
+// (the random tail of a UUIDv7, so it stays recognisable). Retries, and IDs too short to fill the
+// suffix, use 6 base36 characters hashed from the ID and attempt so every code keeps the same length.
 func BuildPaymentCode(prefix, referenceID string, attempt int) string {
-	cleanID := strings.ReplaceAll(referenceID, "-", "")
-	cleanID = strings.ToUpper(cleanID)
-	if len(cleanID) > 8 {
-		cleanID = cleanID[:8]
+	suffix := alphanumericUpper(referenceID)
+	if attempt > 0 || len(suffix) < PaymentCodeSuffixLength {
+		suffix = hashedSuffix(referenceID, attempt)
+	} else {
+		suffix = suffix[len(suffix)-PaymentCodeSuffixLength:]
 	}
 
-	// Uppercase the whole code so a lowercase prefix still survives the [A-Z0-9] filter below;
-	// SePay must receive the prefix intact to auto-extract the payment code.
-	code := strings.ToUpper(prefix + cleanID)
-	if attempt > 0 {
-		code += strconv.Itoa(attempt)
-	}
+	// Uppercase the prefix too so a lowercase prefix still matches SePay's configured pattern.
+	return alphanumericUpper(prefix) + suffix
+}
 
-	// Keep only [A-Z0-9] so the code is safe inside a bank transfer memo.
-	var safeCode strings.Builder
-	for _, ch := range code {
+func hashedSuffix(referenceID string, attempt int) string {
+	digest := sha256.Sum256([]byte(referenceID + "#" + strconv.Itoa(attempt)))
+	encoded := strings.ToUpper(strconv.FormatUint(binary.BigEndian.Uint64(digest[:8]), 36))
+	encoded = strings.Repeat("0", PaymentCodeSuffixLength) + encoded
+	return encoded[len(encoded)-PaymentCodeSuffixLength:]
+}
+
+// alphanumericUpper keeps only [A-Z0-9] so the code is safe inside a bank transfer memo.
+func alphanumericUpper(value string) string {
+	var safe strings.Builder
+	for _, ch := range strings.ToUpper(value) {
 		if (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') {
-			safeCode.WriteRune(ch)
+			safe.WriteRune(ch)
 		}
 	}
-
-	return safeCode.String()
+	return safe.String()
 }

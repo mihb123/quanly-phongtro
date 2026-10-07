@@ -22,7 +22,15 @@ for invoice_id in "${ids[@]}"; do
                 or provider_order_ref in (select provider_order_ref from invoice_payment_links where invoice_id='$invoice_id')" |
     sed "s/^/payment_events $invoice_id: /"
   if [[ -n "$period" ]]; then
-    echo "invoice $invoice_id: HTTP $(api DELETE "/invoice/$invoice_id" -o /dev/null -w '%{http_code}')"
+    if [[ "$(db -At -c "select status from invoices where id='$invoice_id'")" == "PAID" ]]; then
+      echo "invoice $invoice_id unpay: HTTP $(api PATCH "/invoice/$invoice_id/unpay" -o /dev/null -w '%{http_code}')"
+    fi
+    code="$(api DELETE "/invoice/$invoice_id" -o /dev/null -w '%{http_code}')"
+    echo "invoice $invoice_id delete: HTTP $code"
+    if [[ "$code" != 2* ]]; then
+      echo "Không xoá được $invoice_id, giữ lại trong danh sách theo dõi" >&2
+      continue
+    fi
   fi
   if [[ -d "$UPLOADS_DIR" ]]; then
     find "$UPLOADS_DIR" -maxdepth 1 -type f -name "${invoice_id}_*" -print -delete | sed 's/^/xoá ảnh: /'

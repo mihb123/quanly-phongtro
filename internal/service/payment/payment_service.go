@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 )
 
 type PaymentService interface {
@@ -411,7 +412,7 @@ func paymentMethodForProvider(provider string) string {
 	}
 }
 
-// formatCurrency returns a simple VND amount string for chat notifications.
+// formatCurrency returns a grouped VND amount (e.g. "1.000.000 ₫") for chat notifications.
 func formatCurrency(amount int) string {
-	return fmt.Sprintf("%d VND", amount)
+	return invoicesvc.FormatCurrencyToVND(float64(amount))
 }

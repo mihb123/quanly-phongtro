@@ -22,7 +22,7 @@ S=.agents/skills/sepay-e2e/scripts
 $S/sepay-login.sh                                   # mở playwright-cli session "sepay" (persistent), đăng nhập + vào Test Mode
 $S/app-login.sh                                     # đăng nhập manager, in cấu hình SePay (đã mask)
 $S/create-invoice.sh <room_id> 2099-01 1000000      # tạo hóa đơn đúng số tiền, ghi id vào file theo dõi
-$S/send-zalo.sh <invoice_id>                        # gửi ảnh hóa đơn + QR qua Zalo, in payment link (mã PHxxxxxxxx)
+$S/send-zalo.sh <invoice_id>                        # gửi ảnh hóa đơn + QR qua Zalo, in payment link (mã PH + 6 ký tự, ví dụ PHD7DEE8)
 $S/simulate.sh <payment_code> 1000000               # giả lập tiền vào trên SePay → SePay bắn webhook
 $S/status.sh <invoice_id>                           # hóa đơn, payment link, payment_events + log API
 $S/reconcile.sh ["2026-10-01 00:00:00" "2026-10-08 23:59:59"]

@@ -38,7 +38,7 @@ Frontend: copy `web/*.ts` vào `src/lib/` (TypeScript, không phụ thuộc fram
 ## 3. Chuẩn bị trên SePay
 
 1. Tạo tài khoản tại https://my.sepay.vn, liên kết tài khoản ngân hàng nhận tiền. Muốn thử trước thì bật **Test Mode** (https://docs.sepay.vn/test-mode.html).
-2. **Cấu hình → Cấu hình mã thanh toán**: bật nhận diện, đặt tiền tố (2–5 chữ cái, ví dụ `PH`). Tiền tố này phải trùng `Credentials.CodePrefix`, nếu không webhook sẽ có `code` rỗng và bị bỏ qua.
+2. **Cấu hình → Cấu hình mã thanh toán**: bật nhận diện, đặt tiền tố (2–5 chữ cái, ví dụ `PH`), hậu tố "Số và chữ" dài **6** ký tự (hoặc khoảng 6–8). Tiền tố này phải trùng `Credentials.CodePrefix`, nếu không webhook sẽ có `code` rỗng và bị bỏ qua.
 3. **Tích hợp Webhook → Thêm webhook**:
    - URL: endpoint của bạn, nên chứa id chủ tài khoản, ví dụ `https://app.example.com/api/v1/payments/providers/sepay/owners/{ownerID}/webhook`.
    - Loại giao dịch: Tiền vào (hoặc Tất cả, module tự bỏ qua tiền ra).
@@ -100,7 +100,7 @@ if err != nil { return err } // ErrMissingCredentials khi thiếu ngân hàng/s�
 
 Cần tách bước thì dùng trực tiếp `sepay.GenerateUniquePaymentCode` + `sepay.BuildQRURL`.
 
-- Mã = `prefix + 8 ký tự đầu của id (bỏ "-")`, viết hoa, chỉ giữ `[A-Z0-9]`; trùng thì thêm hậu tố `1, 2, ...`.
+- Mã = `prefix` + đúng 6 ký tự `[A-Z0-9]` (`PaymentCodeSuffixLength`): lần đầu là 6 ký tự cuối của id (với UUIDv7 là phần ngẫu nhiên, đừng lấy phần đầu vì đó là timestamp — mọi đơn tạo trong vài giờ sẽ trùng); trùng thì sinh 6 ký tự base36 từ hash(id + lần thử). Độ dài cố định để không vượt cấu trúc mã trên SePay.
 - `QRURL` là ảnh PNG (`https://qr.sepay.vn/img?...`), có thể nhúng `<img>` hoặc tải về gửi qua chat.
 - Tái sử dụng link `ACTIVE` nếu số tiền không đổi; đổi số tiền thì đánh dấu link cũ `STALE` rồi tạo mới.
 - Để DB tự sinh `id` (đừng insert chuỗi rỗng vào cột uuid, xem mục 10).
@@ -209,6 +209,7 @@ const result = await sepayApi.reconcile()   // mặc định 7 ngày gần nhấ
 |---|---|
 | Webhook 400 `signature mismatch` | Secret trong app khác Secret Key của webhook trên SePay; hoặc body bị middleware đọc/parse trước khi kiểm HMAC (phải ký trên raw bytes). |
 | Webhook 400 `timestamp expired` | Đồng hồ server lệch hơn 5 phút, cần đồng bộ NTP. |
+| Đơn khớp nhầm / `code` bị cụt | Mã dài hơn cấu trúc hậu tố trên SePay → SePay cắt mã. Giữ `PaymentCodeSuffixLength` nằm trong khoảng hậu tố đã cấu hình. |
 | Webhook 200 nhưng đơn không PAID | `code` rỗng (prefix không khớp, nội dung chuyển khoản bị sửa), event `UNMATCHED`, hoặc chuyển thiếu tiền. |
 | `account mismatch` | Số tài khoản cấu hình khác `accountNumber` SePay gửi. |
 | Không tạo được payment link: `invalid input syntax for type uuid: ""` | ORM insert cột `id` rỗng. Với bun dùng `ExcludeColumn("id", ...)` + `Returning("id, ...")`, để DB tự sinh. |

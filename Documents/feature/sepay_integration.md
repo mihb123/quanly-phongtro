@@ -178,7 +178,7 @@ QR URL có dạng:
 https://qr.sepay.vn/img?acc={account_number}&bank={bank_short_name}&amount={amount}&des={payment_code}
 ```
 
-Mã thanh toán được build từ `code_prefix + invoice_id`, uppercase, bỏ ký tự không thuộc `[A-Z0-9]`, chỉ lấy tối đa 8 ký tự đầu của invoice ID sau khi bỏ dấu `-`. Nếu trùng `provider_order_ref`, hệ thống thêm suffix attempt cho tới khi không còn trùng.
+Mã thanh toán luôn dài cố định `code_prefix` + 6 ký tự `[A-Z0-9]` (ví dụ `PHD7DEE8`): lần đầu lấy 6 ký tự cuối của invoice ID (phần ngẫu nhiên của UUIDv7, dễ đối chiếu); nếu trùng `provider_order_ref` thì sinh 6 ký tự base36 từ hash(invoice ID + lần thử), tối đa 5 lần. Cấu trúc mã trên SePay dashboard phải nhận đủ 6 ký tự sau tiền tố (ví dụ "Hậu tố từ 6 đến 8 ký tự", để mã 8 ký tự cũ vẫn khớp); mã dài hơn cấu hình sẽ bị SePay cắt và khớp nhầm.
 
 ## Luồng Webhook
 

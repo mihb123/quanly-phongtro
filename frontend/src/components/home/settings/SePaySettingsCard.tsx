@@ -326,13 +326,13 @@ export function SePaySettingsCard() {
 
               <Field data-invalid={Boolean(form.formState.errors.accountNumber)}>
                 <FieldLabel htmlFor="sepay-account-number">Số tài khoản</FieldLabel>
-                <Input id="sepay-account-number" placeholder={stored.account ? `Để trống để giữ ${status?.masked_account_number ?? 'số tài khoản đã lưu'}` : 'Nhập số tài khoản'} inputMode="numeric" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountNumber)} {...form.register('accountNumber')} />
+                <Input id="sepay-account-number" autoComplete="off" placeholder={stored.account ? `Để trống để giữ ${status?.masked_account_number ?? 'số tài khoản đã lưu'}` : 'Nhập số tài khoản'} inputMode="numeric" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountNumber)} {...form.register('accountNumber')} />
                 <FieldError>{form.formState.errors.accountNumber?.message}</FieldError>
               </Field>
 
               <Field data-invalid={Boolean(form.formState.errors.accountName)}>
                 <FieldLabel htmlFor="sepay-account-name">Tên chủ tài khoản</FieldLabel>
-                <Input id="sepay-account-name" placeholder="Nhập tên chủ tài khoản" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountName)} {...form.register('accountName')} />
+                <Input id="sepay-account-name" autoComplete="off" placeholder="Nhập tên chủ tài khoản" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountName)} {...form.register('accountName')} />
                 <FieldDescription>Nếu có API Token, hệ thống sẽ đối chiếu tài khoản đã liên kết và dùng tên chính thức do SePay trả về.</FieldDescription>
                 <FieldError>{form.formState.errors.accountName?.message}</FieldError>
               </Field>
@@ -369,7 +369,7 @@ export function SePaySettingsCard() {
               {authMethod === 'apikey' && (
                 <Field data-invalid={Boolean(form.formState.errors.webhookApiKey)}>
                   <FieldLabel htmlFor="sepay-webhook-api-key">API Key webhook</FieldLabel>
-                  <Input id="sepay-webhook-api-key" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookApiKey ? KEEP_STORED_HINT : 'Nhập API Key webhook'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookApiKey)} {...form.register('webhookApiKey')} />
+                  <Input id="sepay-webhook-api-key" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookApiKey ? KEEP_STORED_HINT : 'Nhập API Key webhook'} autoComplete="new-password" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookApiKey)} {...form.register('webhookApiKey')} />
                   <FieldError>{form.formState.errors.webhookApiKey?.message}</FieldError>
                 </Field>
               )}
@@ -377,7 +377,7 @@ export function SePaySettingsCard() {
               {authMethod === 'hmac' && (
                 <Field data-invalid={Boolean(form.formState.errors.webhookSecret)}>
                   <FieldLabel htmlFor="sepay-webhook-secret">Secret Key webhook (HMAC)</FieldLabel>
-                  <Input id="sepay-webhook-secret" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookSecret ? KEEP_STORED_HINT : 'Nhập Secret Key (whsec_...) từ SePay'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookSecret)} {...form.register('webhookSecret')} />
+                  <Input id="sepay-webhook-secret" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookSecret ? KEEP_STORED_HINT : 'Nhập Secret Key (whsec_...) từ SePay'} autoComplete="new-password" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookSecret)} {...form.register('webhookSecret')} />
                   <FieldDescription>Lấy ở SePay → Tích hợp Webhook → Sửa → tab Bảo mật (chuỗi whsec_...). Hệ thống xác thực raw body và từ chối chữ ký cũ quá 5 phút.</FieldDescription>
                   <FieldError>{form.formState.errors.webhookSecret?.message}</FieldError>
                 </Field>
@@ -385,7 +385,7 @@ export function SePaySettingsCard() {
 
               <Field data-invalid={Boolean(form.formState.errors.apiToken)}>
                 <FieldLabel htmlFor="sepay-api-token">API Token (tùy chọn, dùng cho đối soát)</FieldLabel>
-                <Input id="sepay-api-token" type={showSecrets ? 'text' : 'password'} placeholder={stored.apiToken ? KEEP_STORED_HINT : 'Nhập API Token'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.apiToken)} {...form.register('apiToken')} />
+                <Input id="sepay-api-token" type={showSecrets ? 'text' : 'password'} placeholder={stored.apiToken ? KEEP_STORED_HINT : 'Nhập API Token'} autoComplete="new-password" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.apiToken)} {...form.register('apiToken')} />
                 <FieldError>{form.formState.errors.apiToken?.message}</FieldError>
               </Field>
 
