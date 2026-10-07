@@ -23,18 +23,18 @@ type HouseService interface {
 	IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error)
 }
 
-type invoiceRecalculator interface {
+type houseInvoiceRecalculator interface {
 	RecalculateUnpaidInvoicesByHouse(context.Context, string, string) error
 }
 
 type BillingOption func(*HouseServiceImpl)
 
-func WithInvoiceRecalculation(invoices invoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
+func WithInvoiceRecalculation(invoices houseInvoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
 	return func(s *HouseServiceImpl) { s.invoices = invoices; s.transaction = transaction }
 }
 
 type HouseServiceImpl struct {
-	invoices      invoiceRecalculator
+	invoices      houseInvoiceRecalculator
 	transaction   func(context.Context, func(context.Context) error) error
 	houseRepo     model.HouseRepository
 	houseCostRepo model.HouseCostRepository

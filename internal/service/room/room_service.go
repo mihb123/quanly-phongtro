@@ -52,18 +52,18 @@ type UpdateRoomContractInput struct {
 	KeptContractPaths *string
 }
 
-type invoiceRecalculator interface {
+type roomInvoiceRecalculator interface {
 	RecalculateUnpaidInvoicesByRoom(context.Context, string, string) error
 }
 
 type BillingOption func(*RoomServiceImpl)
 
-func WithInvoiceRecalculation(invoices invoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
+func WithInvoiceRecalculation(invoices roomInvoiceRecalculator, transaction func(context.Context, func(context.Context) error) error) BillingOption {
 	return func(s *RoomServiceImpl) { s.invoices = invoices; s.transaction = transaction }
 }
 
 type RoomServiceImpl struct {
-	invoices    invoiceRecalculator
+	invoices    roomInvoiceRecalculator
 	transaction func(context.Context, func(context.Context) error) error
 	roomRepo    model.RoomRepository
 	houseRepo   model.HouseRepository
