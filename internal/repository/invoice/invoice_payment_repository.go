@@ -24,7 +24,7 @@ func NewInvoicePaymentRepository(db *bun.DB) *InvoicePaymentRepository {
 func (r *InvoicePaymentRepository) CreatePaymentLink(ctx context.Context, link *model.InvoicePaymentLink) error {
 	_, err := database.Executor(ctx, r.db).NewInsert().
 		Model(link).
-		ExcludeColumn("created_at", "updated_at").
+		ExcludeColumn("id", "created_at", "updated_at").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 
