@@ -8,6 +8,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
 // fakePaymentCredentialRepo is a configurable stub for paymentCredentialRepository.
@@ -78,9 +79,9 @@ func validPayOSCreds() PayOSCredentials {
 	return PayOSCredentials{ClientID: "client-1234567890", APIKey: "api-key", ChecksumKey: "checksum-key"}
 }
 
-func validSePayCreds() SePayCredentials {
-	return SePayCredentials{
-		Environment:       SePayEnvironmentSandbox,
+func validSePayCreds() sepay.Credentials {
+	return sepay.Credentials{
+		Environment:       sepay.EnvironmentSandbox,
 		BankShortName:     "MBBank",
 		AccountNumber:     "0123456789",
 		AccountName:       "NGUYEN VAN A",
@@ -197,7 +198,7 @@ func TestGetCredentialsSePay(t *testing.T) {
 		if creds["account_number"] != "0123456789" {
 			t.Errorf("account_number = %q", creds["account_number"])
 		}
-		if creds["environment"] != SePayEnvironmentSandbox {
+		if creds["environment"] != sepay.EnvironmentSandbox {
 			t.Errorf("environment = %q", creds["environment"])
 		}
 	})
@@ -452,7 +453,7 @@ func TestGetSePayConfig(t *testing.T) {
 		if status.MaskedAccountNumber != "****6789" || status.BankShortName != "MBBank" || status.CodePrefix != "PT" || status.WebhookAuthMethod != "hmac" {
 			t.Errorf("unexpected sepay status: %+v", status)
 		}
-		if status.Environment != SePayEnvironmentProduction {
+		if status.Environment != sepay.EnvironmentProduction {
 			t.Errorf("environment = %q, want production default", status.Environment)
 		}
 	})

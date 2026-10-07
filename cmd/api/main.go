@@ -41,6 +41,7 @@ import (
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/web"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
 func main() {
@@ -156,7 +157,7 @@ func main() {
 	go zaloCron.RunNow()
 
 	paymentHandler := paymenthandler.NewPaymentHandler(paymentService, paymentCredentialService, webhookBaseURL)
-	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(paymentsvc.NewSePayClient(), paymentCredentialService, paymentService)
+	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(sepay.NewClient(nil), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
 	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{

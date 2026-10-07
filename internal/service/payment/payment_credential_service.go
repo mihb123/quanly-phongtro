@@ -7,6 +7,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
 type PaymentCredentialService interface {
@@ -15,7 +16,8 @@ type PaymentCredentialService interface {
 	SavePayOSConfig(ctx context.Context, managerID string, credentials PayOSCredentials) error
 	DeletePayOSConfig(ctx context.Context, managerID string) error
 	GetSePayConfig(ctx context.Context, managerID, appURL string) (SePayConfigStatus, error)
-	SaveSePayConfig(ctx context.Context, managerID string, credentials SePayCredentials) error
+	GetSePayCredentials(ctx context.Context, managerID string) (*sepay.Credentials, error)
+	SaveSePayConfig(ctx context.Context, managerID string, credentials sepay.Credentials) error
 	DeleteSePayConfig(ctx context.Context, managerID string) error
 	ResolvePreferredProvider(ctx context.Context, managerID string) (string, error)
 }
@@ -34,27 +36,19 @@ type PayOSConfigStatus struct {
 	WebhookURL     string `json:"webhook_url"`
 }
 
-type SePayCredentials struct {
-	Environment       string `json:"environment"`
-	BankShortName     string `json:"bank_short_name"`
-	AccountNumber     string `json:"account_number"`
-	AccountName       string `json:"account_name"`
-	CodePrefix        string `json:"code_prefix"`
-	WebhookAuthMethod string `json:"webhook_auth_method"` // "apikey" | "hmac" | "none"
-	WebhookAPIKey     string `json:"webhook_api_key"`
-	WebhookSecret     string `json:"webhook_secret"`
-	APIToken          string `json:"api_token"`
-}
-
 type SePayConfigStatus struct {
 	HasConfig           bool   `json:"has_config"`
 	IsActive            bool   `json:"is_active"`
 	Provider            string `json:"provider"`
 	Environment         string `json:"environment"`
 	MaskedAccountNumber string `json:"masked_account_number"`
+	AccountName         string `json:"account_name"`
 	BankShortName       string `json:"bank_short_name"`
 	CodePrefix          string `json:"code_prefix"`
 	WebhookAuthMethod   string `json:"webhook_auth_method"`
+	HasWebhookAPIKey    bool   `json:"has_webhook_api_key"`
+	HasWebhookSecret    bool   `json:"has_webhook_secret"`
+	HasAPIToken         bool   `json:"has_api_token"`
 	WebhookURL          string `json:"webhook_url"`
 }
 
@@ -114,7 +108,7 @@ func (s *paymentCredentialService) GetCredentials(ctx context.Context, managerID
 				if err != nil {
 					return nil, err
 				}
-				return sePayCredentialsMap(sePayCredentials), nil
+				return sePayCredentials.Map(), nil
 			}
 		}
 		return nil, ErrPaymentCredentialsNotFound
@@ -196,16 +190,33 @@ func (s *paymentCredentialService) GetSePayConfig(ctx context.Context, managerID
 	}
 	status.HasConfig = true
 	status.IsActive = credential.IsActive
-	status.Environment = normalizeSePayEnvironment(credentials.Environment)
+	status.Environment = sepay.NormalizeEnvironment(credentials.Environment)
 	status.MaskedAccountNumber = maskSecret(credentials.AccountNumber)
 	status.BankShortName = credentials.BankShortName
 	status.CodePrefix = credentials.CodePrefix
 	status.WebhookAuthMethod = credentials.WebhookAuthMethod
+	status.AccountName = credentials.AccountName
+	status.HasWebhookAPIKey = credentials.WebhookAPIKey != ""
+	status.HasWebhookSecret = credentials.WebhookSecret != ""
+	status.HasAPIToken = credentials.APIToken != ""
 	return status, nil
 }
 
+// GetSePayCredentials returns the manager's stored SePay credentials, or nil when none are configured.
+func (s *paymentCredentialService) GetSePayCredentials(ctx context.Context, managerID string) (*sepay.Credentials, error) {
+	credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderSePay)
+	if err != nil || credential == nil {
+		return nil, err
+	}
+	credentials, err := s.decryptSePayCredentials(credential.EncryptedCredentials)
+	if err != nil {
+		return nil, err
+	}
+	return &credentials, nil
+}
+
 // SaveSePayConfig encrypts and stores manager-specific SePay credentials.
-func (s *paymentCredentialService) SaveSePayConfig(ctx context.Context, managerID string, credentials SePayCredentials) error {
+func (s *paymentCredentialService) SaveSePayConfig(ctx context.Context, managerID string, credentials sepay.Credentials) error {
 	payload, err := json.Marshal(credentials)
 	if err != nil {
 		return fmt.Errorf("marshal sepay credentials: %w", err)
@@ -278,31 +289,16 @@ func payOSCredentialsMap(credentials PayOSCredentials) map[string]string {
 }
 
 // decryptSePayCredentials decrypts stored SePay credential JSON.
-func (s *paymentCredentialService) decryptSePayCredentials(encryptedCredentials string) (SePayCredentials, error) {
+func (s *paymentCredentialService) decryptSePayCredentials(encryptedCredentials string) (sepay.Credentials, error) {
 	plaintext, err := security.Decrypt(encryptedCredentials, s.encryptionKey)
 	if err != nil {
-		return SePayCredentials{}, fmt.Errorf("decrypt sepay credentials: %w", err)
+		return sepay.Credentials{}, fmt.Errorf("decrypt sepay credentials: %w", err)
 	}
-	var credentials SePayCredentials
+	var credentials sepay.Credentials
 	if err := json.Unmarshal([]byte(plaintext), &credentials); err != nil {
-		return SePayCredentials{}, fmt.Errorf("unmarshal sepay credentials: %w", err)
+		return sepay.Credentials{}, fmt.Errorf("unmarshal sepay credentials: %w", err)
 	}
 	return credentials, nil
-}
-
-// sePayCredentialsMap converts typed SePay credentials to the provider adapter format.
-func sePayCredentialsMap(credentials SePayCredentials) map[string]string {
-	return map[string]string{
-		"environment":         normalizeSePayEnvironment(credentials.Environment),
-		"bank_short_name":     credentials.BankShortName,
-		"account_number":      credentials.AccountNumber,
-		"account_name":        credentials.AccountName,
-		"code_prefix":         credentials.CodePrefix,
-		"webhook_auth_method": credentials.WebhookAuthMethod,
-		"webhook_api_key":     credentials.WebhookAPIKey,
-		"webhook_secret":      credentials.WebhookSecret,
-		"api_token":           credentials.APIToken,
-	}
 }
 
 // validPayOSCredentials checks whether fallback PayOS credentials are complete.

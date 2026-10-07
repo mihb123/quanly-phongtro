@@ -22,9 +22,8 @@ SePay được triển khai như một payment provider trong kiến trúc provi
 
 Backend:
 
-- `internal/service/payment/sepay_provider.go`: adapter SePay, tạo QR, xác thực webhook, map payload sang event chuẩn hóa.
-- `internal/service/payment/sepay_client.go`: HTTP client gọi SePay User API v2.
-- `internal/service/payment/sepay_reconciliation_service.go`: đối soát giao dịch qua API v2.
+- `pkg/sepay/`: module SePay độc lập (chỉ dùng stdlib) gồm mã thanh toán + QR, xác thực webhook, client User API v2, vòng đối soát; hướng dẫn copy sang dự án khác ở `pkg/sepay/guide.md`.
+- `internal/service/payment/sepay_adapter.go`: file nối duy nhất giữa `pkg/sepay` và app — `SePayProvider` (implement `PaymentProvider`) và `SePayReconciliationService` (đọc credential manager, chạy `sepay.Reconciler`, settle qua `PaymentService`), map lỗi/event sang chuẩn của app.
 - `internal/service/payment/payment_service.go`: orchestration provider-neutral, xử lý link, webhook, event, invoice paid, notification.
 - `internal/service/payment/payment_credential_service.go`: credential SePay, trạng thái config và chọn provider ưu tiên.
 - `internal/handler/payment/payment_handler.go`: HTTP handler cho config, webhook và reconcile.
@@ -38,7 +37,7 @@ Frontend:
 - `frontend/src/api/payment.tsx`: API client cho SePay config và reconcile.
 - `frontend/src/components/home/settings/SePaySettingsCard.tsx`: card cấu hình SePay trong Settings.
 - `frontend/src/components/home/SettingsView.tsx`: mount card SePay.
-- `frontend/src/lib/sepay-banks.ts`: snapshot typed của danh sách ngân hàng VietQR được SePay hỗ trợ.
+- `pkg/sepay/web/`: `sepay-api.ts` (client + mã hoá RSA secret) và `sepay-banks.ts` (danh sách ngân hàng hỗ trợ); frontend import qua alias `@sepay/*` (khai báo trong `frontend/vite.config.ts`, `frontend/tsconfig*.json`). `frontend/src/api/payment.tsx` tạo `sepayApi` với transport là axios `apiClient` (có DPoP).
 - `frontend/e2e/sepay.e2e.mjs`: Puppeteer E2E trên SePay Test Mode và ứng dụng local.
 - `frontend/TESTING.md`: hướng dẫn chạy kiểm tra tĩnh và E2E frontend.
 

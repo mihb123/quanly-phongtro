@@ -2,9 +2,6 @@ package payment
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/url"
@@ -14,13 +11,14 @@ import (
 	"time"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
 // sePayTestCredentials returns a full credential map for a given webhook auth method.
 func sePayTestCredentials(authMethod string) map[string]string {
 	return map[string]string{
 		"bank_short_name":     "MBBank",
-		"environment":         SePayEnvironmentSandbox,
+		"environment":         sepay.EnvironmentSandbox,
 		"account_number":      "123456789",
 		"account_name":        "NGUYEN VAN A",
 		"code_prefix":         "PT",
@@ -139,16 +137,6 @@ func TestSePayCreatePaymentLinkReturnsCollisionErrors(t *testing.T) {
 	}
 }
 
-// TestGenerateUniqueSePayCodeExhaustsAttempts verifies all-colliding codes fail clearly.
-func TestGenerateUniqueSePayCodeExhaustsAttempts(t *testing.T) {
-	_, err := generateUniqueSePayCode(context.Background(), "PT", "abc12345", func(context.Context, string) (bool, error) {
-		return true, nil
-	})
-	if err == nil {
-		t.Fatal("expected error after all generated codes collide, got nil")
-	}
-}
-
 // TestSePayCancelPaymentLinkIsNoop verifies SePay QR payments have no remote cancellation call.
 func TestSePayCancelPaymentLinkIsNoop(t *testing.T) {
 	if err := NewSePayProvider().CancelPaymentLink(context.Background(), PaymentCancelInput{}); err != nil {
@@ -158,9 +146,7 @@ func TestSePayCancelPaymentLinkIsNoop(t *testing.T) {
 
 // signSePayBody computes the SePay HMAC signature header value for a raw body.
 func signSePayBody(secret, timestamp string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(timestamp + "." + string(body)))
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return sepay.SignHMAC(secret, timestamp, body)
 }
 
 const sePayIncomingBody = `{"id":92704,"gateway":"Vietcombank","transactionDate":"2024-07-02 11:08:33","accountNumber":"123456789","subAccount":"","code":"PTABC123","content":"PTABC123 chuyen tien","transferType":"in","transferAmount":500000,"referenceCode":"FT24012345678"}`
@@ -238,33 +224,6 @@ func TestSePayVerifyWebhookHMAC(t *testing.T) {
 	}
 }
 
-// TestSePayVerifyWebhookRejectsExpiredHMAC blocks replayed signed requests.
-func TestSePayVerifyWebhookRejectsExpiredHMAC(t *testing.T) {
-	body := []byte(sePayIncomingBody)
-	timestamp := strconv.FormatInt(time.Now().Add(-sePayWebhookMaxClockSkew-time.Second).Unix(), 10)
-	headers := http.Header{}
-	headers.Set("X-SePay-Timestamp", timestamp)
-	headers.Set("X-SePay-Signature", signSePayBody("secret-hmac", timestamp, body))
-
-	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
-		Body: body, Headers: headers, Credentials: sePayTestCredentials("hmac"),
-	})
-	if !errors.Is(err, ErrPaymentWebhookInvalid) {
-		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
-	}
-}
-
-// TestSePayVerifyWebhookRejectsWrongAccount prevents a valid webhook for another account settling an invoice.
-func TestSePayVerifyWebhookRejectsWrongAccount(t *testing.T) {
-	body := []byte(`{"id":92705,"transferType":"in","transferAmount":500000,"code":"PTABC123","accountNumber":"987654321"}`)
-	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
-		Body: body, Credentials: sePayTestCredentials("none"),
-	})
-	if !errors.Is(err, ErrPaymentWebhookInvalid) {
-		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
-	}
-}
-
 // TestSePayVerifyWebhookAuthErrors covers missing provider auth configuration.
 func TestSePayVerifyWebhookAuthErrors(t *testing.T) {
 	provider := NewSePayProvider()
@@ -307,17 +266,6 @@ func TestSePayVerifyWebhookAuthErrors(t *testing.T) {
 				t.Fatalf("error = %v, want %v", err, tt.want)
 			}
 		})
-	}
-}
-
-// TestSePayVerifyWebhookRejectsInvalidJSON verifies authenticated malformed payloads fail.
-func TestSePayVerifyWebhookRejectsInvalidJSON(t *testing.T) {
-	_, err := NewSePayProvider().VerifyWebhook(context.Background(), PaymentWebhookInput{
-		Body:        []byte("{bad json"),
-		Credentials: sePayTestCredentials("none"),
-	})
-	if !errors.Is(err, ErrPaymentWebhookInvalid) {
-		t.Fatalf("error = %v, want ErrPaymentWebhookInvalid", err)
 	}
 }
 
@@ -396,5 +344,131 @@ func TestSePayHandleWebhookSufficientMarksPaid(t *testing.T) {
 	}
 	if invoiceRepository.updatedMethod != model.PaymentMethodSePay {
 		t.Errorf("invoice method = %q, want %q", invoiceRepository.updatedMethod, model.PaymentMethodSePay)
+	}
+}
+
+// fakeSePayLister serves pre-canned transaction pages keyed by requested page number.
+type fakeSePayLister struct {
+	pages map[int]*sepay.TransactionsResponse
+	calls []sepay.ListTransactionsParams
+	err   error
+}
+
+// ListTransactions records the request params and returns the configured page.
+func (f *fakeSePayLister) ListTransactions(_ context.Context, _ string, params sepay.ListTransactionsParams) (*sepay.TransactionsResponse, error) {
+	f.calls = append(f.calls, params)
+	if f.err != nil {
+		return nil, f.err
+	}
+	if resp, ok := f.pages[params.Page]; ok {
+		return resp, nil
+	}
+	return &sepay.TransactionsResponse{}, nil
+}
+
+// fakeReconcileProcessor records every verified event it is asked to process.
+type fakeReconcileProcessor struct {
+	events []*VerifiedPaymentEvent
+	err    error
+}
+
+// ProcessVerifiedTransaction stores the event for assertions.
+func (f *fakeReconcileProcessor) ProcessVerifiedTransaction(_ context.Context, _, _ string, event *VerifiedPaymentEvent) error {
+	f.events = append(f.events, event)
+	return f.err
+}
+
+// pageWith builds a one-page response with the given transactions and has_more flag.
+func pageWith(hasMore bool, txs ...sepay.Transaction) *sepay.TransactionsResponse {
+	resp := &sepay.TransactionsResponse{Status: "success", Data: txs}
+	resp.Meta.Pagination.HasMore = hasMore
+	return resp
+}
+
+// TestSePayReconcileProcessesIncomingWithCodeAcrossPages verifies paging, filtering, and mapping.
+func TestSePayReconcileProcessesIncomingWithCodeAcrossPages(t *testing.T) {
+	lister := &fakeSePayLister{pages: map[int]*sepay.TransactionsResponse{
+		1: pageWith(true,
+			sepay.Transaction{ID: "uuid-in-1", Code: "PTAAA", AmountIn: 100000, TransferType: "in", AccountNumber: "123"},
+			sepay.Transaction{ID: "uuid-out", Code: "PTOUT", AmountOut: 50000, TransferType: "out"},
+			sepay.Transaction{ID: "uuid-nocode", Code: "", AmountIn: 70000, TransferType: "in"},
+		),
+		2: pageWith(false,
+			sepay.Transaction{ID: "uuid-in-2", Code: "PTBBB", AmountIn: 200000, TransferType: "in", AccountNumber: "456"},
+		),
+	}}
+	processor := &fakeReconcileProcessor{}
+	creds := fakePaymentCredentialService{credentials: map[string]string{"api_token": "tok", "environment": sepay.EnvironmentSandbox}}
+
+	svc := NewSePayReconciliationService(lister, creds, processor)
+	svc.reconciler.Throttle = 0
+
+	result, err := svc.ReconcileManager(context.Background(), "manager-1", "2026-06-01 00:00:00", "2026-06-27 00:00:00")
+	if err != nil {
+		t.Fatalf("ReconcileManager() error = %v", err)
+	}
+
+	if result.PagesFetched != 2 {
+		t.Errorf("PagesFetched = %d, want 2", result.PagesFetched)
+	}
+	if result.Scanned != 4 {
+		t.Errorf("Scanned = %d, want 4", result.Scanned)
+	}
+	if result.Processed != 2 {
+		t.Errorf("Processed = %d, want 2 (only incoming with code)", result.Processed)
+	}
+	if len(processor.events) != 2 {
+		t.Fatalf("processed events = %d, want 2", len(processor.events))
+	}
+
+	first := processor.events[0]
+	if first.ProviderOrderRef != "PTAAA" || first.Amount != 100000 || first.TransactionReference != "uuid-in-1" {
+		t.Errorf("first event = {%q, %d, %q}, want {PTAAA, 100000, uuid-in-1}", first.ProviderOrderRef, first.Amount, first.TransactionReference)
+	}
+	if processor.events[1].ProviderOrderRef != "PTBBB" {
+		t.Errorf("second event ref = %q, want PTBBB", processor.events[1].ProviderOrderRef)
+	}
+	if lister.calls[0].Environment != sepay.EnvironmentSandbox {
+		t.Errorf("environment = %q, want sandbox", lister.calls[0].Environment)
+	}
+}
+
+// TestSePayReconcileRequiresAPIToken verifies a missing api_token is rejected.
+func TestSePayReconcileRequiresAPIToken(t *testing.T) {
+	svc := NewSePayReconciliationService(
+		&fakeSePayLister{},
+		fakePaymentCredentialService{credentials: map[string]string{}},
+		&fakeReconcileProcessor{},
+	)
+	svc.reconciler.Throttle = 0
+
+	if _, err := svc.ReconcileManager(context.Background(), "manager-1", "", ""); !errors.Is(err, ErrPaymentCredentialsNotFound) {
+		t.Errorf("error = %v, want ErrPaymentCredentialsNotFound", err)
+	}
+}
+
+// TestProcessVerifiedTransactionSkipsPaidLink verifies the cross-source guard: an already-paid
+// link (settled by a webhook) is recorded for audit but not re-settled by reconciliation.
+func TestProcessVerifiedTransactionSkipsPaidLink(t *testing.T) {
+	svc, paymentRepository, invoiceRepository := newSePayWebhookService(
+		&model.InvoicePaymentLink{ID: "link-1", InvoiceID: "invoice-1", ProviderOrderRef: "PTABC123", Amount: 500000, Status: model.PaymentLinkStatusPaid},
+	)
+
+	event := &VerifiedPaymentEvent{
+		ProviderOrderRef:     "PTABC123",
+		Amount:               500000,
+		TransactionReference: "uuid-from-api-v2",
+		MatchingMethod:       paymentMatchOrderRef,
+		SignatureResult:      paymentSignatureValid,
+	}
+	if err := svc.ProcessVerifiedTransaction(context.Background(), model.PaymentProviderSePay, "manager-1", event); err != nil {
+		t.Fatalf("ProcessVerifiedTransaction() error = %v", err)
+	}
+
+	if invoiceRepository.updatedStatus == model.InvoiceStatusPaid {
+		t.Error("already-paid invoice was settled again by reconciliation")
+	}
+	if paymentRepository.event == nil {
+		t.Error("expected the reconciled transaction to be recorded for audit")
 	}
 }

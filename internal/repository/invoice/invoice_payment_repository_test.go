@@ -31,22 +31,29 @@ func TestInvoicePaymentRepository_CreatePaymentLink(t *testing.T) {
 	ctx := context.Background()
 
 	paymentLink := &model.InvoicePaymentLink{
-		ID:            "link-1",
-		InvoiceID:     "inv-1",
-		OrderCode:     12345,
-		Amount:        100000,
-		CheckoutURL:   "http://checkout.url",
-		QRCode:        "qr-code",
-		PaymentLinkID: "pay-link-id",
-		Status:        model.PaymentLinkStatusActive,
+		InvoiceID:        "inv-1",
+		Provider:         model.PaymentProviderSePay,
+		ProviderOrderRef: "PHINV1",
+		Amount:           100000,
+		CheckoutURL:      "http://checkout.url",
+		QRCode:           "qr-code",
+		PaymentLinkID:    "pay-link-id",
+		Status:           model.PaymentLinkStatusActive,
 	}
+	createdAt := time.Date(2026, 10, 8, 1, 0, 0, 0, time.UTC)
 
-	mock.ExpectQuery(`.*`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("link-1"))
+	mock.ExpectQuery(`^INSERT INTO "invoice_payment_links" \("invoice_id", "provider", "provider_order_ref", "order_code", "payment_link_id", "checkout_url", "qr_code", "amount", "status"\) VALUES \('inv-1', 'sepay', 'PHINV1', 0, 'pay-link-id', 'http://checkout.url', 'qr-code', 100000, 'ACTIVE'\) RETURNING id, created_at, updated_at$`).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).AddRow("019e0000-0000-7000-8000-000000000001", createdAt, createdAt))
 
 	err := repo.CreatePaymentLink(ctx, paymentLink)
 	if err != nil {
-		t.Errorf("CreatePaymentLink() error = %v", err)
+		t.Fatalf("CreatePaymentLink() error = %v", err)
+	}
+	if paymentLink.ID != "019e0000-0000-7000-8000-000000000001" {
+		t.Errorf("CreatePaymentLink() ID = %q, want DB-generated id", paymentLink.ID)
+	}
+	if !paymentLink.CreatedAt.Equal(createdAt) || !paymentLink.UpdatedAt.Equal(createdAt) {
+		t.Errorf("CreatePaymentLink() timestamps = %v/%v, want %v", paymentLink.CreatedAt, paymentLink.UpdatedAt, createdAt)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {

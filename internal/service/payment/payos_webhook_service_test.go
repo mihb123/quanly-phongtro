@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 	"github.com/payOSHQ/payos-lib-golang/v2"
 )
 
@@ -170,7 +171,11 @@ func (s fakePaymentCredentialService) GetSePayConfig(context.Context, string, st
 }
 
 // SaveSePayConfig is unused by payment service tests.
-func (s fakePaymentCredentialService) SaveSePayConfig(context.Context, string, SePayCredentials) error {
+func (s fakePaymentCredentialService) GetSePayCredentials(context.Context, string) (*sepay.Credentials, error) {
+	return nil, nil
+}
+
+func (s fakePaymentCredentialService) SaveSePayConfig(context.Context, string, sepay.Credentials) error {
 	return nil
 }
 

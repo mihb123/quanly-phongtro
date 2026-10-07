@@ -19,18 +19,19 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
+	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
 const maxPaymentWebhookBodyBytes = 1 << 20
 
 // sePayReconciler runs API v2 reconciliation for a manager; satisfied by *paymentsvc.SePayReconciliationService.
 type sePayReconciler interface {
-	ReconcileManager(ctx context.Context, managerID, dateFrom, dateTo string) (paymentsvc.SePayReconcileResult, error)
+	ReconcileManager(ctx context.Context, managerID, dateFrom, dateTo string) (sepay.ReconcileResult, error)
 }
 
 // sePayBankAccountLister reads accounts already linked to the authenticated SePay company.
 type sePayBankAccountLister interface {
-	ListBankAccounts(ctx context.Context, apiToken string, params paymentsvc.SePayListBankAccountsParams) (*paymentsvc.SePayBankAccountsResponse, error)
+	ListBankAccounts(ctx context.Context, apiToken string, params sepay.ListBankAccountsParams) (*sepay.BankAccountsResponse, error)
 }
 
 type PaymentHandler struct {
@@ -76,7 +77,7 @@ func NewPaymentHandler(paymentService paymentsvc.PaymentService, credentialServi
 	return &PaymentHandler{
 		paymentService:     paymentService,
 		credentialService:  credentialService,
-		sePayAccountLister: paymentsvc.NewSePayClient(),
+		sePayAccountLister: sepay.NewClient(nil),
 		privateKey:         privateKey,
 		publicKey:          &privateKey.PublicKey,
 		appURL:             strings.TrimRight(appURL, "/"),
@@ -188,32 +189,26 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.BankShortName == "" || req.AccountNumber == "" || req.AccountName == "" || req.CodePrefix == "" {
-		http.Error(w, "missing SePay credentials", http.StatusBadRequest)
-		return
-	}
-	if req.Environment == "" {
-		req.Environment = paymentsvc.SePayEnvironmentProduction
-	}
-	if req.Environment != paymentsvc.SePayEnvironmentProduction && req.Environment != paymentsvc.SePayEnvironmentSandbox {
-		http.Error(w, "invalid SePay environment", http.StatusBadRequest)
-		return
-	}
-
-	if req.WebhookAuthMethod == "apikey" && req.WebhookAPIKey == "" {
-		http.Error(w, "missing webhook api key for apikey auth", http.StatusBadRequest)
-		return
-	}
-	if req.WebhookAuthMethod == "hmac" && req.WebhookSecret == "" {
-		http.Error(w, "missing webhook secret for hmac auth", http.StatusBadRequest)
-		return
-	}
-
 	credentials, err := h.decryptSePayConfig(req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	existing, err := h.credentialService.GetSePayCredentials(r.Context(), managerID)
+	if err != nil {
+		log.Printf("GetSePayCredentials error: %v", err)
+		http.Error(w, "failed to load existing SePay config", http.StatusInternalServerError)
+		return
+	}
+	if existing != nil {
+		credentials = sepay.MergeCredentials(credentials, *existing)
+	}
+	credentials.Environment = sepay.NormalizeEnvironment(credentials.Environment)
+	if err := credentials.Validate(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	verifiedAccount, err := h.verifySePayBankAccount(r.Context(), credentials)
 	if err != nil {
 		log.Printf("VerifySePayBankAccount error: %v", err)
@@ -376,13 +371,13 @@ func (h *PaymentHandler) decryptPayOSConfig(req payOSConfigRequest) (paymentsvc.
 }
 
 // decryptSePayConfig decrypts RSA-encrypted SePay credential fields.
-func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.SePayCredentials, error) {
+func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (sepay.Credentials, error) {
 	var err error
 	webhookAPIKey := req.WebhookAPIKey
 	if webhookAPIKey != "" {
 		webhookAPIKey, err = h.decryptSecret(req.WebhookAPIKey, "webhook_api_key")
 		if err != nil {
-			return paymentsvc.SePayCredentials{}, err
+			return sepay.Credentials{}, err
 		}
 	}
 
@@ -390,7 +385,7 @@ func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.
 	if webhookSecret != "" {
 		webhookSecret, err = h.decryptSecret(req.WebhookSecret, "webhook_secret")
 		if err != nil {
-			return paymentsvc.SePayCredentials{}, err
+			return sepay.Credentials{}, err
 		}
 	}
 
@@ -398,11 +393,11 @@ func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.
 	if apiToken != "" {
 		apiToken, err = h.decryptSecret(req.APIToken, "api_token")
 		if err != nil {
-			return paymentsvc.SePayCredentials{}, err
+			return sepay.Credentials{}, err
 		}
 	}
 
-	return paymentsvc.SePayCredentials{
+	return sepay.Credentials{
 		Environment:       req.Environment,
 		BankShortName:     req.BankShortName,
 		AccountNumber:     req.AccountNumber,
@@ -416,12 +411,12 @@ func (h *PaymentHandler) decryptSePayConfig(req sePayConfigRequest) (paymentsvc.
 }
 
 // verifySePayBankAccount confirms an entered account belongs to the token's company and returns its canonical holder name.
-func (h *PaymentHandler) verifySePayBankAccount(ctx context.Context, credentials paymentsvc.SePayCredentials) (*paymentsvc.SePayBankAccount, error) {
+func (h *PaymentHandler) verifySePayBankAccount(ctx context.Context, credentials sepay.Credentials) (*sepay.BankAccount, error) {
 	if credentials.APIToken == "" {
 		return nil, nil
 	}
 
-	response, err := h.sePayAccountLister.ListBankAccounts(ctx, credentials.APIToken, paymentsvc.SePayListBankAccountsParams{
+	response, err := h.sePayAccountLister.ListBankAccounts(ctx, credentials.APIToken, sepay.ListBankAccountsParams{
 		Environment:   credentials.Environment,
 		BankShortName: credentials.BankShortName,
 		AccountNumber: credentials.AccountNumber,
@@ -429,13 +424,7 @@ func (h *PaymentHandler) verifySePayBankAccount(ctx context.Context, credentials
 	if err != nil {
 		return nil, fmt.Errorf("list linked sepay bank accounts: %w", err)
 	}
-	for index := range response.Data {
-		account := &response.Data[index]
-		if strings.EqualFold(account.BankShortName, credentials.BankShortName) && account.AccountNumber == credentials.AccountNumber {
-			return account, nil
-		}
-	}
-	return nil, errors.New("bank account is not linked to the authenticated SePay company")
+	return sepay.FindLinkedAccount(response.Data, credentials.BankShortName, credentials.AccountNumber)
 }
 
 // decryptSecret decodes a base64 RSA-OAEP encrypted request field.

@@ -4,16 +4,7 @@ import { AlertCircle, CheckCircle2, Copy, Eye, EyeOff, Loader2, RefreshCw, Trash
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import {
-  deleteSePayConfig,
-  getPaymentPublicKey,
-  getSePayConfig,
-  reconcileSePay,
-  saveSePayConfig,
-  type SePayConfigPayload,
-  type SePayConfigStatus,
-  type SePayReconcileResult,
-} from '@/api/payment'
+import { sepayApi } from '@/api/payment'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -39,38 +30,37 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { useAuth } from '@/contexts/AuthContext'
-import { isSePaySupportedBank, SEPAY_SUPPORTED_BANKS } from '@/lib/sepay-banks'
 import { cn } from '@/lib/utils'
-import { encryptRSA } from '@/utils/encryption'
+import type { SePayConfigStatus, SePayReconcileResult } from '@sepay/sepay-api'
+import { isSePaySupportedBank, SEPAY_SUPPORTED_BANKS } from '@sepay/sepay-banks'
 
 const sePayConfigSchema = z.object({
   environment: z.enum(['production', 'sandbox']),
   bankShortName: z.string()
     .min(1, 'Vui lòng chọn ngân hàng')
     .refine(isSePaySupportedBank, 'Ngân hàng này chưa được SePay hỗ trợ'),
-  accountNumber: z.string().min(1, 'Vui lòng nhập Số tài khoản'),
-  accountName: z.string().min(1, 'Vui lòng nhập Tên chủ tài khoản'),
+  accountNumber: z.string(),
+  accountName: z.string(),
   codePrefix: z.string().min(1, 'Vui lòng nhập Tiền tố mã thanh toán'),
   webhookAuthMethod: z.string().min(1, 'Vui lòng chọn phương thức xác thực'),
   webhookApiKey: z.string().optional(),
   webhookSecret: z.string().optional(),
   apiToken: z.string().optional(),
+  stored: z.object({ account: z.boolean(), webhookApiKey: z.boolean(), webhookSecret: z.boolean(), apiToken: z.boolean() }),
 }).superRefine((data, ctx) => {
-  if (data.webhookAuthMethod === 'apikey' && !data.webhookApiKey) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Vui lòng nhập API Key webhook',
-      path: ['webhookApiKey'],
-    })
+  const requireField = (missing: boolean, path: string, message: string) => {
+    if (missing) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message, path: [path] })
+    }
   }
-  if (data.webhookAuthMethod === 'hmac' && !data.webhookSecret) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Vui lòng nhập Webhook Secret',
-      path: ['webhookSecret'],
-    })
-  }
+  requireField(!data.stored.account && !data.accountNumber, 'accountNumber', 'Vui lòng nhập Số tài khoản')
+  requireField(!data.stored.account && !data.accountName, 'accountName', 'Vui lòng nhập Tên chủ tài khoản')
+  requireField(data.webhookAuthMethod === 'apikey' && !data.webhookApiKey && !data.stored.webhookApiKey, 'webhookApiKey', 'Vui lòng nhập API Key webhook')
+  requireField(data.webhookAuthMethod === 'hmac' && !data.webhookSecret && !data.stored.webhookSecret, 'webhookSecret', 'Vui lòng nhập Webhook Secret')
 })
+
+const NOTHING_STORED = { account: false, webhookApiKey: false, webhookSecret: false, apiToken: false }
+const KEEP_STORED_HINT = 'Đã lưu, để trống để giữ nguyên'
 
 type SePayConfigForm = z.infer<typeof sePayConfigSchema>
 
@@ -100,6 +90,7 @@ export function SePaySettingsCard() {
       webhookApiKey: '',
       webhookSecret: '',
       apiToken: '',
+      stored: NOTHING_STORED,
     },
   })
 
@@ -107,9 +98,13 @@ export function SePaySettingsCard() {
     control: form.control,
     name: 'webhookAuthMethod',
   })
+  const stored = useWatch({
+    control: form.control,
+    name: 'stored',
+  })
 
   const refreshStatus = useCallback(async () => {
-    const nextStatus = await getSePayConfig()
+    const nextStatus = await sepayApi.getConfig()
     setStatus(nextStatus)
   }, [])
 
@@ -128,28 +123,17 @@ export function SePaySettingsCard() {
 
   const handleSave = form.handleSubmit(async (values) => {
     try {
-      const { public_key: publicKey } = await getPaymentPublicKey()
-      
-      const payload: SePayConfigPayload = {
+      const result = await sepayApi.saveConfig({
         environment: values.environment,
         bank_short_name: values.bankShortName,
         account_number: values.accountNumber,
         account_name: values.accountName,
         code_prefix: values.codePrefix,
         webhook_auth_method: values.webhookAuthMethod,
-      }
-      
-      if (values.webhookApiKey) {
-        payload.webhook_api_key = await encryptRSA(values.webhookApiKey, publicKey)
-      }
-      if (values.webhookSecret) {
-        payload.webhook_secret = await encryptRSA(values.webhookSecret, publicKey)
-      }
-      if (values.apiToken) {
-        payload.api_token = await encryptRSA(values.apiToken, publicKey)
-      }
-
-      const result = await saveSePayConfig(payload)
+        webhook_api_key: values.webhookApiKey || undefined,
+        webhook_secret: values.webhookSecret || undefined,
+        api_token: values.apiToken || undefined,
+      })
 
       toast.success(result.bank_account_verified
         ? `Đã xác thực tài khoản ${result.account_holder_name} qua SePay`
@@ -169,12 +153,18 @@ export function SePaySettingsCard() {
         environment: status.environment || 'production',
         bankShortName: status.bank_short_name || '',
         accountNumber: '',
-        accountName: '',
+        accountName: status.account_name || '',
         codePrefix: status.code_prefix || 'PH',
         webhookAuthMethod: status.webhook_auth_method || '',
         webhookApiKey: '',
         webhookSecret: '',
         apiToken: '',
+        stored: {
+          account: Boolean(status.masked_account_number),
+          webhookApiKey: status.has_webhook_api_key,
+          webhookSecret: status.has_webhook_secret,
+          apiToken: status.has_api_token,
+        },
       })
     } else {
       form.reset({
@@ -187,6 +177,7 @@ export function SePaySettingsCard() {
         webhookApiKey: '',
         webhookSecret: '',
         apiToken: '',
+        stored: NOTHING_STORED,
       })
     }
     setIsEditing(true)
@@ -195,7 +186,7 @@ export function SePaySettingsCard() {
   const handleDelete = async () => {
     setDeleting(true)
     try {
-      await deleteSePayConfig()
+      await sepayApi.deleteConfig()
       toast.success('Đã xóa cấu hình SePay')
       setIsEditing(false)
       setDeleteDialogOpen(false)
@@ -212,7 +203,7 @@ export function SePaySettingsCard() {
   const handleReconcile = async () => {
     setReconciling(true)
     try {
-      const result: SePayReconcileResult = await reconcileSePay()
+      const result: SePayReconcileResult = await sepayApi.reconcile()
       let msg = `Đối soát xong: quét ${result.scanned}, xử lý ${result.processed} giao dịch`
       if (result.truncated) {
         msg += ' (đã chạm giới hạn, chạy lại để tiếp tục)'
@@ -335,7 +326,7 @@ export function SePaySettingsCard() {
 
               <Field data-invalid={Boolean(form.formState.errors.accountNumber)}>
                 <FieldLabel htmlFor="sepay-account-number">Số tài khoản</FieldLabel>
-                <Input id="sepay-account-number" placeholder="Nhập số tài khoản" inputMode="numeric" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountNumber)} {...form.register('accountNumber')} />
+                <Input id="sepay-account-number" placeholder={stored.account ? `Để trống để giữ ${status?.masked_account_number ?? 'số tài khoản đã lưu'}` : 'Nhập số tài khoản'} inputMode="numeric" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.accountNumber)} {...form.register('accountNumber')} />
                 <FieldError>{form.formState.errors.accountNumber?.message}</FieldError>
               </Field>
 
@@ -378,23 +369,23 @@ export function SePaySettingsCard() {
               {authMethod === 'apikey' && (
                 <Field data-invalid={Boolean(form.formState.errors.webhookApiKey)}>
                   <FieldLabel htmlFor="sepay-webhook-api-key">API Key webhook</FieldLabel>
-                  <Input id="sepay-webhook-api-key" type={showSecrets ? 'text' : 'password'} placeholder="Nhập API Key webhook" autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookApiKey)} {...form.register('webhookApiKey')} />
+                  <Input id="sepay-webhook-api-key" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookApiKey ? KEEP_STORED_HINT : 'Nhập API Key webhook'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookApiKey)} {...form.register('webhookApiKey')} />
                   <FieldError>{form.formState.errors.webhookApiKey?.message}</FieldError>
                 </Field>
               )}
 
               {authMethod === 'hmac' && (
                 <Field data-invalid={Boolean(form.formState.errors.webhookSecret)}>
-                  <FieldLabel htmlFor="sepay-webhook-secret">Mã HMAC (Webhook Secret)</FieldLabel>
-                  <Input id="sepay-webhook-secret" type={showSecrets ? 'text' : 'password'} placeholder="Nhập mã HMAC Secret từ SePay" autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookSecret)} {...form.register('webhookSecret')} />
-                  <FieldDescription>Hệ thống xác thực raw body và từ chối chữ ký cũ quá 5 phút.</FieldDescription>
+                  <FieldLabel htmlFor="sepay-webhook-secret">Secret Key webhook (HMAC)</FieldLabel>
+                  <Input id="sepay-webhook-secret" type={showSecrets ? 'text' : 'password'} placeholder={stored.webhookSecret ? KEEP_STORED_HINT : 'Nhập Secret Key (whsec_...) từ SePay'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.webhookSecret)} {...form.register('webhookSecret')} />
+                  <FieldDescription>Lấy ở SePay → Tích hợp Webhook → Sửa → tab Bảo mật (chuỗi whsec_...). Hệ thống xác thực raw body và từ chối chữ ký cũ quá 5 phút.</FieldDescription>
                   <FieldError>{form.formState.errors.webhookSecret?.message}</FieldError>
                 </Field>
               )}
 
               <Field data-invalid={Boolean(form.formState.errors.apiToken)}>
                 <FieldLabel htmlFor="sepay-api-token">API Token (tùy chọn, dùng cho đối soát)</FieldLabel>
-                <Input id="sepay-api-token" type={showSecrets ? 'text' : 'password'} placeholder="Nhập API Token" autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.apiToken)} {...form.register('apiToken')} />
+                <Input id="sepay-api-token" type={showSecrets ? 'text' : 'password'} placeholder={stored.apiToken ? KEEP_STORED_HINT : 'Nhập API Token'} autoComplete="off" className="min-h-11 text-base md:text-sm" aria-invalid={Boolean(form.formState.errors.apiToken)} {...form.register('apiToken')} />
                 <FieldError>{form.formState.errors.apiToken?.message}</FieldError>
               </Field>
 
