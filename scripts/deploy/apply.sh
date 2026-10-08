@@ -56,8 +56,13 @@ restart_backend_service() {
   run_sudo "$SYSTEMCTL_CMD" stop "$SERVICE_NAME" || true
 
   # Forcefully kill any remaining process holding the app port (e.g. from a manual dev server)
-  local app_port
-  if app_port=$(grep -E "^APP_PORT=" "$PROJECT_DIR/.env" | cut -d '=' -f2 | tr -d '"'\'' ') && [[ -n "$app_port" ]]; then
+  local app_env app_port port_key
+  app_env=$(grep -E "^APP_ENV=" "$PROJECT_DIR/.env" | tail -n1 | cut -d '=' -f2 | tr -d '"'\'' ' || true)
+  port_key="APP_PORT"
+  if [[ "$app_env" == "dev" ]] && grep -qE "^APP_PORT_DEV=[^ ]" "$PROJECT_DIR/.env"; then
+    port_key="APP_PORT_DEV"
+  fi
+  if app_port=$(grep -E "^${port_key}=" "$PROJECT_DIR/.env" | tail -n1 | cut -d '=' -f2 | tr -d '"'\'' ') && [[ -n "$app_port" ]]; then
     echo "Freeing port $app_port..."
     fuser -k -9 "${app_port}/tcp" 2>/dev/null || true
   fi
