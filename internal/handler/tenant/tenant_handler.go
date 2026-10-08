@@ -475,5 +475,6 @@ func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	w.Header().Set("Cache-Control", "private, no-store")
 	http.ServeFile(w, r, filePath)
 }

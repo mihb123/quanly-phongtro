@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getMe, logout as logoutApi, refreshToken } from '@/api/auth'
+import { clearProtectedFileCache } from '@/api/files'
+import { useHouseStore } from '@/data/houseData'
+import { useHouseCostStore } from '@/data/houseCostData'
+import { useInvoiceStore } from '@/data/invoiceData'
+import { useRoomStore } from '@/data/roomData'
+import { useSelectedStore } from '@/data/selectedData'
 import { clearQueryCache } from '@/lib/queryCache'
+import { writeStorageRaw } from '@/lib/storage'
 import type { AuthOutput } from '@/types/auth'
 
 interface AuthContextType {
@@ -12,6 +19,18 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+function clearUserData() {
+  clearQueryCache()
+  clearProtectedFileCache()
+  useHouseStore.setState({ houses: [] })
+  useRoomStore.setState({ rooms: [], roomsHouseId: null, roomTotal: 0, roomPage: 1, roomSearch: '', roomsLoading: false, roomsError: null })
+  useSelectedStore.getState().selectHouse(null)
+  useSelectedStore.setState({ isHouseListOpen: false })
+  useInvoiceStore.getState().clearInvoiceFilter()
+  useHouseCostStore.setState({ costs: {}, summaries: [], selectedHouseIds: [] })
+  writeStorageRaw('lastSelectedHouseId_Invoice', null)
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthOutput | null>(null)
@@ -33,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = (user: AuthOutput) => {
-    clearQueryCache()
+    clearUserData()
     setUser(user)
   }
   const updateUser = (user: AuthOutput) => setUser(user)
@@ -43,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to logout:', error)
     } finally {
-      clearQueryCache()
+      clearUserData()
       setUser(null)
     }
   }

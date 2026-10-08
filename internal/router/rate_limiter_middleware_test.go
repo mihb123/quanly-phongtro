@@ -18,7 +18,7 @@ func TestRateLimiterMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := RateLimiter(handler)
+	middleware := userRateLimit(nil)(handler)
 
 	t.Run("Missing claims", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -102,7 +102,7 @@ func TestIPRateLimiterMiddleware(t *testing.T) {
 	})
 
 	t.Run("Blocks after burst is exhausted", func(t *testing.T) {
-		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 2), nil, "60")(handler)
+		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 2), nil, "60", nil)(handler)
 
 		for i := 0; i < 2; i++ {
 			req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -127,7 +127,7 @@ func TestIPRateLimiterMiddleware(t *testing.T) {
 	})
 
 	t.Run("Limits are per IP", func(t *testing.T) {
-		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), nil, "60")(handler)
+		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), nil, "60", nil)(handler)
 
 		for _, addr := range []string{"203.0.113.10:1", "203.0.113.11:1"} {
 			req := httptest.NewRequest(http.MethodPost, "/", nil)
@@ -143,7 +143,7 @@ func TestIPRateLimiterMiddleware(t *testing.T) {
 	// X-Forwarded-For chỉ được tin khi peer nằm trong dải proxy tin cậy, nếu không
 	// client tự đặt header là bypass được rate limit.
 	t.Run("Ignores untrusted X-Forwarded-For", func(t *testing.T) {
-		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), nil, "60")(handler)
+		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), nil, "60", nil)(handler)
 
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		req.RemoteAddr = "203.0.113.20:1"
@@ -167,7 +167,7 @@ func TestIPRateLimiterMiddleware(t *testing.T) {
 	// Cloudflare nối IP thật vào cuối X-Forwarded-For, nên đổi phần đầu không tách được bucket.
 	t.Run("Rotating spoofed X-Forwarded-For prefix does not bypass the limit", func(t *testing.T) {
 		trusted := []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")}
-		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), trusted, "60")(handler)
+		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), trusted, "60", nil)(handler)
 
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		req.RemoteAddr = "127.0.0.1:1"
@@ -190,7 +190,7 @@ func TestIPRateLimiterMiddleware(t *testing.T) {
 
 	t.Run("Honors X-Forwarded-For from trusted proxy", func(t *testing.T) {
 		trusted := []netip.Prefix{netip.MustParsePrefix("203.0.113.30/32")}
-		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), trusted, "60")(handler)
+		middleware := ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 1), trusted, "60", nil)(handler)
 
 		for _, forwarded := range []string{"198.51.100.10", "198.51.100.11"} {
 			req := httptest.NewRequest(http.MethodPost, "/", nil)

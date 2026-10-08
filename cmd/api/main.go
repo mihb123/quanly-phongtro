@@ -171,6 +171,12 @@ func main() {
 	}
 	defer slowAPILogger.Close()
 
+	securityLogger, err := logger.NewSecurityLogger(logger.SecurityConfig{})
+	if err != nil {
+		log.Fatalf("init security logger: %v", err)
+	}
+	defer securityLogger.Close()
+
 	frontendFS, err := web.DistFS()
 	if err != nil {
 		log.Fatalf("load embedded frontend: %v", err)
@@ -190,6 +196,7 @@ func main() {
 		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
 		httpRouter.WithStaticFS(frontendFS),
 		httpRouter.WithSlowAPILogger(slowAPILogger),
+		httpRouter.WithSecurityLogger(securityLogger),
 	)
 	server := &http.Server{
 		Addr:              ":" + listenPort,

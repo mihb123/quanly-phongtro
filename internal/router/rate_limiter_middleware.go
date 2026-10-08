@@ -81,35 +81,39 @@ func (s *limiterStore) pruneLocked(now time.Time) {
 // userRateLimiter giới hạn theo user ID cho endpoint gửi lại OTP.
 var userRateLimiter = newLimiterStore(rate.Every(100*time.Second), 1)
 
-func RateLimiter(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims, ok := security.ClaimsFromContext(r.Context())
-		if !ok || claims == nil {
-			writeError(w, http.StatusInternalServerError, "cannot parse token")
-			return
-		}
+func userRateLimit(monitor *abuseMonitor) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := security.ClaimsFromContext(r.Context())
+			if !ok || claims == nil {
+				writeError(w, http.StatusInternalServerError, "cannot parse token")
+				return
+			}
 
-		userID, err := claims.GetSubject()
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "cannot parse token")
-			return
-		}
+			userID, err := claims.GetSubject()
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "cannot parse token")
+				return
+			}
 
-		if !userRateLimiter.allow(userID) {
-			writeError(w, http.StatusBadRequest, "too many request")
-			return
-		}
+			if !userRateLimiter.allow(userID) {
+				monitor.rateLimited(r)
+				writeError(w, http.StatusBadRequest, "too many request")
+				return
+			}
 
-		next.ServeHTTP(w, r)
-	})
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // ipRateLimiter giới hạn theo IP cho các endpoint công khai, nơi chưa có token để định danh.
 // Mỗi route dùng một store riêng nên hạn mức không dùng chung giữa các route.
-func ipRateLimiter(store *limiterStore, trustedProxies []netip.Prefix, retryAfter string) func(http.Handler) http.Handler {
+func ipRateLimiter(store *limiterStore, trustedProxies []netip.Prefix, retryAfter string, monitor *abuseMonitor) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !store.allow(security.ResolvedClientIP(r, trustedProxies)) {
+				monitor.rateLimited(r)
 				w.Header().Set("Retry-After", retryAfter)
 				writeError(w, http.StatusTooManyRequests, "too many requests, please try again later")
 				return
@@ -129,13 +133,13 @@ type authRateLimiters struct {
 
 // newAuthRateLimiters tạo store riêng cho từng route: gõ sai mật khẩu vài lần vẫn thoải mái,
 // nhưng dò mật khẩu / tạo tài khoản hàng loạt từ một IP thì bị chặn.
-func newAuthRateLimiters(trustedProxies []netip.Prefix) authRateLimiters {
+func newAuthRateLimiters(trustedProxies []netip.Prefix, monitor *abuseMonitor) authRateLimiters {
 	return authRateLimiters{
 		// 10 lần liên tiếp, sau đó 4 lần/phút.
-		login: ipRateLimiter(newLimiterStore(rate.Every(15*time.Second), 10), trustedProxies, "15"),
+		login: ipRateLimiter(newLimiterStore(rate.Every(15*time.Second), 10), trustedProxies, "15", monitor),
 		// Đăng ký là hành vi hiếm: 5 lần liên tiếp, sau đó 1 lần/phút.
-		register: ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 5), trustedProxies, "60"),
+		register: ipRateLimiter(newLimiterStore(rate.Every(time.Minute), 5), trustedProxies, "60", monitor),
 		// Lớp chặn theo IP bổ sung cho bộ đếm otp_checks vốn tính theo email.
-		verifyOTP: ipRateLimiter(newLimiterStore(rate.Every(10*time.Second), 10), trustedProxies, "10"),
+		verifyOTP: ipRateLimiter(newLimiterStore(rate.Every(10*time.Second), 10), trustedProxies, "10", monitor),
 	}
 }

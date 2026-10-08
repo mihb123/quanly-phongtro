@@ -14,6 +14,7 @@ type options struct {
 	uploadURLSigningKey string
 	staticFS            fs.FS
 	slowAPILogger       *logger.SlowAPILogger
+	securityLogger      *logger.SecurityLogger
 }
 
 // WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
@@ -41,6 +42,12 @@ func WithStaticFS(staticFS fs.FS) Option {
 func WithSlowAPILogger(slowLogger *logger.SlowAPILogger) Option {
 	return func(o *options) {
 		o.slowAPILogger = slowLogger
+	}
+}
+
+func WithSecurityLogger(securityLogger *logger.SecurityLogger) Option {
+	return func(o *options) {
+		o.securityLogger = securityLogger
 	}
 }
 

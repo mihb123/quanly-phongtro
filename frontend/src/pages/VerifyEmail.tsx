@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -27,10 +27,18 @@ export default function VerifyEmailPage() {
   const [otpSent, setOtpSent] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
   const { formError, handleApiError, clearFormError } = useFormError()
+  const autoSentRef = useRef(false)
 
   const { register, handleSubmit, formState: { errors } } = useForm<VerifyFormValues>({
     resolver: zodResolver(verifySchema),
   })
+
+  useEffect(() => {
+    if (!user || user.is_activated || autoSentRef.current) return
+    autoSentRef.current = true
+    handleSendOTP()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   // If already activated, redirect to home
   if (user?.is_activated) {
@@ -109,7 +117,7 @@ export default function VerifyEmailPage() {
                 disabled={isSendingOTP}
                 className="w-full"
               >
-                {isSendingOTP ? 'Đang gửi...' : 'Gửi mã OTP'}
+                {isSendingOTP ? 'Đang gửi mã OTP...' : 'Gửi lại mã OTP'}
               </Button>
             </div>
           ) : (

@@ -36,15 +36,16 @@ func New(
 
 	r.Get("/health", healthCheck)
 
-	authLimits := newAuthRateLimiters(cfg.trustedProxies)
+	abuse := newAbuseMonitor(cfg.securityLogger, cfg.trustedProxies)
+	authLimits := newAuthRateLimiters(cfg.trustedProxies, abuse)
 
 	r.Route("/api/v1/auth", func(r chi.Router) {
-		r.With(authLimits.register).Post("/register", authHandler.Register)
+		r.With(authLimits.register, abuse.watchRegistrations).Post("/register", authHandler.Register)
 		r.With(authLimits.login).Post("/login", authHandler.Login)
 		r.Post("/token", authHandler.RefreshToken)
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
-			r.With(RateLimiter).Get("/verify-email", authHandler.CreateOTP)
+			r.With(userRateLimit(abuse)).Get("/verify-email", authHandler.CreateOTP)
 			r.With(authLimits.verifyOTP).Post("/verify-email/otp", authHandler.VerifyEmail)
 		})
 		r.With(authMiddleware(tokenProvider, cfg.trustedProxies)).Get("/me", authHandler.GetMe)

@@ -217,12 +217,12 @@ func (f *rotatingFile) rotate(now time.Time) error {
 
 	dir := filepath.Dir(f.basePath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("create slow api log dir: %w", err)
+		return fmt.Errorf("create log dir: %w", err)
 	}
 
 	file, err := os.OpenFile(f.dailyPath(day), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("open slow api log file: %w", err)
+		return fmt.Errorf("open log file: %w", err)
 	}
 
 	f.file = file
