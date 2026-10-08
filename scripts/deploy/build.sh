@@ -8,13 +8,16 @@ require_env SERVICE_NAME
 # Build frontend trước để có bản dist mới nhất, vì binary sẽ nhúng thư mục này.
 echo "Building frontend..."
 cd "$PROJECT_DIR/frontend"
+# Server ít RAM/swap: earlyoom sẽ SIGTERM (exit 143) tiến trình lớn nhất. Giới hạn heap
+# của Node khi lint để V8 GC sớm thay vì phình bộ nhớ.
+LINT_NODE_OPTIONS="${LINT_NODE_OPTIONS:---max-old-space-size=1536}"
 if command -v pnpm &> /dev/null; then
   pnpm install --frozen-lockfile
-  pnpm lint
+  NODE_OPTIONS="$LINT_NODE_OPTIONS" pnpm lint
   pnpm build
 else
   npm install
-  npm run lint
+  NODE_OPTIONS="$LINT_NODE_OPTIONS" npm run lint
   npm run build
 fi
 

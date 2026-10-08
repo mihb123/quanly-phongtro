@@ -7,7 +7,7 @@
     "dev": "vite",
     "assets:pwa": "node scripts/generate-pwa-assets.js",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit --ignoreDeprecations 5.0 && tsc -p tsconfig.node.json --noEmit --ignoreDeprecations 5.0",
     "test:frontend": "pnpm lint && pnpm typecheck",
