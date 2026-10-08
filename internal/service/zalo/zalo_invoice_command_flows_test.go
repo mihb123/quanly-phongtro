@@ -9,6 +9,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -137,7 +138,7 @@ func TestHandleSingleCommand_RoomResolutionError(t *testing.T) {
 
 	service := &zaloInvoiceCommandServiceImpl{userRepo: userRepository, roomRepo: roomRepository, zaloClient: zaloClient, encryptionKey: encryptionKey}
 	parsed := &ParsedCommand{Type: CommandUtilitySingle, UtilityType: "dien"}
-	err := service.handleSingleCommand(ctx, "manager-1", webhookMessageContext{chatID: "chat-group", isGroupChat: true}, parsed, "", false)
+	err := service.handleSingleCommand(ctx, "manager-1", zalobot.Update{ChatID: "chat-group", IsGroup: true}, parsed, "", false)
 	require.NoError(t, err)
 }
 
@@ -151,7 +152,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		roomRepository := mock_model.NewMockRoomRepository(ctrl)
 		roomRepository.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(nil, errors.New("nf"))
 		service := &zaloInvoiceCommandServiceImpl{roomRepo: roomRepository}
-		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{chatID: "g1", isGroupChat: true})
+		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{ChatID: "g1", IsGroup: true})
 		require.Error(t, err)
 	})
 
@@ -163,7 +164,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		roomRepository.EXPECT().GetRoomByGroupChatID(ctx, "g1").Return(&model.Room{ID: "r1", HouseID: "h1"}, nil)
 		houseRepository.EXPECT().GetByID(ctx, "h1", "manager-1").Return(nil, errors.New("nf"))
 		service := &zaloInvoiceCommandServiceImpl{roomRepo: roomRepository, houseRepo: houseRepository}
-		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{chatID: "g1", isGroupChat: true})
+		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{ChatID: "g1", IsGroup: true})
 		require.Error(t, err)
 	})
 
@@ -173,7 +174,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		userRepository := mock_model.NewMockUserRepository(ctrl)
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(nil, errors.New("nf"))
 		service := &zaloInvoiceCommandServiceImpl{userRepo: userRepository}
-		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender"})
+		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender"})
 		require.Error(t, err)
 	})
 
@@ -183,7 +184,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		userRepository := mock_model.NewMockUserRepository(ctrl)
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(&model.User{ID: "manager-1", Role: model.RoleManager}, nil)
 		service := &zaloInvoiceCommandServiceImpl{userRepo: userRepository}
-		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender"})
+		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender"})
 		require.Error(t, err)
 	})
 
@@ -195,7 +196,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(&model.User{ID: "user-1", Role: model.RoleTenant}, nil)
 		tenantRepository.EXPECT().GetFirstTenantByUserID(ctx, "manager-1", "user-1").Return(nil, errors.New("nf"))
 		service := &zaloInvoiceCommandServiceImpl{userRepo: userRepository, tenantRepo: tenantRepository}
-		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender"})
+		_, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender"})
 		require.Error(t, err)
 	})
 
@@ -209,7 +210,7 @@ func TestResolveSingleCommandRoom(t *testing.T) {
 		tenantRepository.EXPECT().GetFirstTenantByUserID(ctx, "manager-1", "user-1").Return(&model.FullInfoTenant{RoomID: "r1"}, nil)
 		roomRepository.EXPECT().GetRoomByIDOnly(ctx, "r1").Return(&model.Room{ID: "r1"}, nil)
 		service := &zaloInvoiceCommandServiceImpl{userRepo: userRepository, tenantRepo: tenantRepository, roomRepo: roomRepository}
-		room, err := service.resolveSingleCommandRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender"})
+		room, err := service.resolveSingleCommandRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender"})
 		require.NoError(t, err)
 		assert.Equal(t, "r1", room.ID)
 	})
@@ -267,28 +268,28 @@ func TestHandleBatchCommand_EarlyValidation(t *testing.T) {
 	t.Run("group chat rejected", func(t *testing.T) {
 		service, _, _, _ := newService(t)
 		parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1"}
-		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "chat-1", isGroupChat: true}, parsed, "", false))
+		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "chat-1", IsGroup: true}, parsed, "", false))
 	})
 
 	t.Run("sender not manager", func(t *testing.T) {
 		service, userRepository, _, _ := newService(t)
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(nil, errors.New("nf"))
 		parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1"}
-		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "", false))
+		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "", false))
 	})
 
 	t.Run("missing house code", func(t *testing.T) {
 		service, userRepository, _, _ := newService(t)
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(&model.User{ID: "manager-1", Role: model.RoleManager}, nil)
 		parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien"}
-		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "", false))
+		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "", false))
 	})
 
 	t.Run("no entries", func(t *testing.T) {
 		service, userRepository, _, _ := newService(t)
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(&model.User{ID: "manager-1", Role: model.RoleManager}, nil)
 		parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1"}
-		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "", false))
+		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "", false))
 	})
 
 	t.Run("house not found", func(t *testing.T) {
@@ -296,7 +297,7 @@ func TestHandleBatchCommand_EarlyValidation(t *testing.T) {
 		userRepository.EXPECT().GetByZaloUserID(ctx, "sender").Return(&model.User{ID: "manager-1", Role: model.RoleManager}, nil)
 		houseRepository.EXPECT().GetHouseByCode(ctx, "manager-1", "h1").Return(nil, errors.New("nf"))
 		parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1", Entries: []RoomUtilityEntry{{RoomName: "P101", NewIndex: 100, HasNewIndex: true}}}
-		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "", false))
+		require.NoError(t, service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "", false))
 	})
 }
 
@@ -333,7 +334,7 @@ func TestHandleBatchCommand_OverwriteConfirmation(t *testing.T) {
 		encryptionKey: encryptionKey,
 	}
 	parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1", Entries: []RoomUtilityEntry{{RoomName: "P101", NewIndex: 200, HasNewIndex: true}}}
-	err := service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "2026-05", false)
+	err := service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "2026-05", false)
 	require.NoError(t, err)
 	require.Len(t, pendingRepository.created, 1)
 	assert.Equal(t, model.PendingActionConfirmOverwrite, pendingRepository.created[0].ActionType)
@@ -390,7 +391,7 @@ func TestHandleBatchCommand_CompleteDelivers(t *testing.T) {
 		{RoomName: "P101", NewIndex: 200, HasNewIndex: true},
 		{RoomName: "P999", NewIndex: 300, HasNewIndex: true}, // unmatched -> failed line
 	}}
-	err := service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "2026-05", true)
+	err := service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "2026-05", true)
 	require.NoError(t, err)
 }
 
@@ -432,7 +433,7 @@ func TestHandleBatchCommand_MissingUtility(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 	parsed := &ParsedCommand{Type: CommandUtilityBatch, UtilityType: "dien", HouseCode: "h1", Entries: []RoomUtilityEntry{{RoomName: "P101", NewIndex: 200, HasNewIndex: true}}}
-	err := service.handleBatchCommand(ctx, "manager-1", webhookMessageContext{chatID: "sender", senderID: "sender"}, parsed, "2026-05", true)
+	err := service.handleBatchCommand(ctx, "manager-1", zalobot.Update{ChatID: "sender", SenderID: "sender"}, parsed, "2026-05", true)
 	require.NoError(t, err)
 	// incomplete batch result stores an await-utility pending state.
 	require.Len(t, pendingRepository.created, 1)

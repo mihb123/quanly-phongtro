@@ -42,6 +42,7 @@ import (
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/web"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 func main() {
@@ -102,7 +103,7 @@ func main() {
 	houseCostCron := housesvc.NewHouseCostCronService(houseCostService)
 	houseCostCron.Start()
 
-	zaloClient := zalosvc.NewZaloClient()
+	zaloClient := zalobot.NewClient(nil)
 	webhookBaseURL := "https://" + cfg.AppURL
 	if cfg.AppEnv == "dev" && cfg.AppURLDev != "" {
 		webhookBaseURL = "https://" + cfg.AppURLDev

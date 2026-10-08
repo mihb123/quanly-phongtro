@@ -8,6 +8,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -33,7 +34,7 @@ func TestApplyUtilityUpdateRequiresReading(t *testing.T) {
 	houseRepository.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(&model.House{ID: "house-1", ElectricityBillingType: "USAGE"}, nil)
 	service := &zaloInvoiceCommandServiceImpl{houseRepo: houseRepository}
 
-	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", webhookMessageContext{}, utilityUpdateRequest{
+	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", zalobot.Update{}, utilityUpdateRequest{
 		UtilityType:  "dien",
 		Room:         model.Room{ID: "room-1", HouseID: "house-1"},
 		ForcedPeriod: "2026-05",
@@ -58,7 +59,7 @@ func TestApplyUtilityUpdateReturnsPreviousInvoiceError(t *testing.T) {
 	invoiceRepository.EXPECT().GetPreviousInvoice(ctx, "room-1", "2026-05").Return(nil, dbErr)
 
 	service := &zaloInvoiceCommandServiceImpl{houseRepo: houseRepository, invoiceRepo: invoiceRepository}
-	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", webhookMessageContext{}, utilityUpdateRequest{
+	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", zalobot.Update{}, utilityUpdateRequest{
 		UtilityType:  "dien",
 		Room:         model.Room{ID: "room-1", HouseID: "house-1"},
 		NewIndex:     200,
@@ -98,7 +99,7 @@ func TestApplyUtilityUpdateCreatesRetryPendingOnInvalidIndex(t *testing.T) {
 		zaloClient:     zaloClient,
 		encryptionKey:  encryptionKey,
 	}
-	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", webhookMessageContext{chatID: "chat-1"}, utilityUpdateRequest{
+	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", zalobot.Update{ChatID: "chat-1"}, utilityUpdateRequest{
 		UtilityType:  "dien",
 		Room:         model.Room{ID: "room-1", HouseID: "house-1"},
 		NewIndex:     90,
@@ -139,7 +140,7 @@ func TestApplyUtilityUpdateCreatesOverwritePending(t *testing.T) {
 		zaloClient:    zaloClient,
 		encryptionKey: encryptionKey,
 	}
-	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", webhookMessageContext{chatID: "chat-1"}, utilityUpdateRequest{
+	_, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", zalobot.Update{ChatID: "chat-1"}, utilityUpdateRequest{
 		UtilityType:  "dien",
 		Room:         model.Room{ID: "room-1", HouseID: "house-1"},
 		NewIndex:     200,
@@ -171,7 +172,7 @@ func TestApplyUtilityUpdateCompleteResult(t *testing.T) {
 		invoiceRepo:    invoiceRepository,
 		houseRepo:      houseRepository,
 	}
-	result, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", webhookMessageContext{}, utilityUpdateRequest{
+	result, pendingCreated, err := service.applyUtilityUpdate(ctx, "manager-1", zalobot.Update{}, utilityUpdateRequest{
 		UtilityType:  "dien",
 		Room:         model.Room{ID: "room-1", HouseID: "house-1", Name: "P101"},
 		NewIndex:     150,

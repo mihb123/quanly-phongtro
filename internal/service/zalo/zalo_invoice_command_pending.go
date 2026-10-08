@@ -5,10 +5,11 @@ import (
 	"strconv"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 type ZaloInvoiceCommandService interface {
-	HandleInvoiceCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext) error
+	HandleInvoiceCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update) error
 	HasPendingState(ctx context.Context, managerID, chatID string) bool
 }
 
@@ -25,7 +26,7 @@ func (s *zaloInvoiceCommandServiceImpl) HasPendingState(ctx context.Context, man
 }
 
 // handlePendingCommand applies a chat reply to a saved confirmation or period selection.
-func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context, managerID, chatID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, pending *model.PendingInvoiceUpdate) (bool, error) {
+func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context, managerID, chatID string, webhookCtx zalobot.Update, parsed *ParsedCommand, pending *model.PendingInvoiceUpdate) (bool, error) {
 	if parsed.Type == CommandCancel {
 		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
 			return true, err
@@ -73,7 +74,7 @@ func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context
 }
 
 // handleAwaitUtilityCommand completes a saved single-room utility reminder with its original period.
-func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Context, managerID, chatID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, pending *model.PendingInvoiceUpdate) (bool, error) {
+func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Context, managerID, chatID string, webhookCtx zalobot.Update, parsed *ParsedCommand, pending *model.PendingInvoiceUpdate) (bool, error) {
 	expectedUtility := stringFromPending(pending.PendingData, "utility_type")
 	period := stringFromPending(pending.PendingData, "period")
 	if expectedUtility == "" {
@@ -104,7 +105,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Co
 }
 
 // processPendingData resumes a saved single or batch utility command.
-func (s *zaloInvoiceCommandServiceImpl) processPendingData(ctx context.Context, managerID string, webhookCtx webhookMessageContext, pendingData map[string]any, forcedPeriod string, allowOverwrite bool) error {
+func (s *zaloInvoiceCommandServiceImpl) processPendingData(ctx context.Context, managerID string, webhookCtx zalobot.Update, pendingData map[string]any, forcedPeriod string, allowOverwrite bool) error {
 	scope := stringFromPending(pendingData, "command_scope")
 	utilityType := stringFromPending(pendingData, "utility_type")
 	switch scope {
@@ -137,7 +138,7 @@ func (s *zaloInvoiceCommandServiceImpl) processPendingData(ctx context.Context, 
 }
 
 // createPeriodPending saves a command until the user chooses the invoice month.
-func (s *zaloInvoiceCommandServiceImpl) createPeriodPending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, req utilityUpdateRequest, options map[string]string) error {
+func (s *zaloInvoiceCommandServiceImpl) createPeriodPending(ctx context.Context, managerID string, webhookCtx zalobot.Update, req utilityUpdateRequest, options map[string]string) error {
 	data := map[string]any{
 		"command_scope":  "single",
 		"utility_type":   req.UtilityType,
@@ -150,7 +151,7 @@ func (s *zaloInvoiceCommandServiceImpl) createPeriodPending(ctx context.Context,
 }
 
 // createOverwritePending saves a command until the user confirms overwriting a reading.
-func (s *zaloInvoiceCommandServiceImpl) createOverwritePending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, req utilityUpdateRequest, period string, existingInvoice *model.Invoice) error {
+func (s *zaloInvoiceCommandServiceImpl) createOverwritePending(ctx context.Context, managerID string, webhookCtx zalobot.Update, req utilityUpdateRequest, period string, existingInvoice *model.Invoice) error {
 	data := map[string]any{
 		"command_scope": "single",
 		"utility_type":  req.UtilityType,
@@ -164,19 +165,19 @@ func (s *zaloInvoiceCommandServiceImpl) createOverwritePending(ctx context.Conte
 }
 
 // createBatchPeriodPending saves a batch command until the manager chooses a month.
-func (s *zaloInvoiceCommandServiceImpl) createBatchPeriodPending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, options map[string]string) error {
+func (s *zaloInvoiceCommandServiceImpl) createBatchPeriodPending(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, options map[string]string) error {
 	data := batchPendingData(parsed)
 	data["period_options"] = options
 	return s.replacePending(ctx, managerID, webhookCtx, "", model.PendingActionAwaitPeriod, data)
 }
 
 // createBatchOverwritePending saves a batch command until the manager confirms overwrites.
-func (s *zaloInvoiceCommandServiceImpl) createBatchOverwritePending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand) error {
+func (s *zaloInvoiceCommandServiceImpl) createBatchOverwritePending(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand) error {
 	return s.replacePending(ctx, managerID, webhookCtx, "", model.PendingActionConfirmOverwrite, batchPendingData(parsed))
 }
 
 // createAwaitUtilityPending saves a non-blocking reminder for a missing utility reading.
-func (s *zaloInvoiceCommandServiceImpl) createAwaitUtilityPending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, req utilityUpdateRequest, result utilityUpdateResult) error {
+func (s *zaloInvoiceCommandServiceImpl) createAwaitUtilityPending(ctx context.Context, managerID string, webhookCtx zalobot.Update, req utilityUpdateRequest, result utilityUpdateResult) error {
 	data := map[string]any{
 		"command_scope":     "single",
 		"utility_type":      result.MissingUtility,
@@ -189,7 +190,7 @@ func (s *zaloInvoiceCommandServiceImpl) createAwaitUtilityPending(ctx context.Co
 }
 
 // replacePending replaces the current chat pending state with one new state.
-func (s *zaloInvoiceCommandServiceImpl) replacePending(ctx context.Context, managerID string, webhookCtx webhookMessageContext, roomID string, actionType string, data map[string]any) error {
+func (s *zaloInvoiceCommandServiceImpl) replacePending(ctx context.Context, managerID string, webhookCtx zalobot.Update, roomID string, actionType string, data map[string]any) error {
 	chatID := commandChatID(webhookCtx)
 	if err := s.pendingRepo.DeleteByChatID(ctx, managerID, chatID); err != nil {
 		return err
@@ -201,7 +202,7 @@ func (s *zaloInvoiceCommandServiceImpl) replacePending(ctx context.Context, mana
 	pending := &model.PendingInvoiceUpdate{
 		ManagerID:   managerID,
 		ChatID:      chatID,
-		IsGroupChat: webhookCtx.isGroupChat,
+		IsGroupChat: webhookCtx.IsGroup,
 		RoomID:      roomIDPtr,
 		ActionType:  actionType,
 		PendingData: data,

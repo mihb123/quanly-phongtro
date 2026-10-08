@@ -7,6 +7,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 type zaloInvoiceCommandServiceImpl struct {
@@ -45,8 +46,8 @@ func NewZaloInvoiceCommandService(invoiceService invoiceCommands, invoiceRepo co
 }
 
 // HandleInvoiceCommand processes a parsed invoice command from a Zalo webhook message.
-func (s *zaloInvoiceCommandServiceImpl) HandleInvoiceCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext) error {
-	parsed := ParseCommand(webhookCtx.text)
+func (s *zaloInvoiceCommandServiceImpl) HandleInvoiceCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update) error {
+	parsed := ParseCommand(webhookCtx.Text)
 	chatID := commandChatID(webhookCtx)
 	if chatID == "" {
 		return nil

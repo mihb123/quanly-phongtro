@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -160,10 +161,10 @@ func TestHandleInvoiceCommand_AwaitUtilityUsesSavedPeriod(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#nuoc 120",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#nuoc 120",
 	})
 
 	require.NoError(t, err)
@@ -209,10 +210,10 @@ func TestHandleInvoiceCommand_AwaitUtilityRejectsWrongUtility(t *testing.T) {
 		encryptionKey: encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#dien 180",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#dien 180",
 	})
 
 	require.NoError(t, err)
@@ -267,10 +268,10 @@ func TestHandleInvoiceCommand_AwaitUtilityKeepsPendingOnRetryableError(t *testin
 		encryptionKey: encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#nuoc",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#nuoc",
 	})
 
 	require.NoError(t, err)

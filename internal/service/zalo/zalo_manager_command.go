@@ -8,11 +8,12 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 // handleUpdateTenantPhoneCommand applies "#update-tenant [<mã nhà>] [<phòng>] <số điện thoại>",
 // replacing whatever phone the room's tenant has today.
-func (s *zaloInvoiceCommandServiceImpl) handleUpdateTenantPhoneCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand) error {
+func (s *zaloInvoiceCommandServiceImpl) handleUpdateTenantPhoneCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand) error {
 	chatID := commandChatID(webhookCtx)
 	if parsed.Value == "" {
 		return s.sendTextMessage(ctx, managerID, chatID, "Số điện thoại không hợp lệ. Cú pháp: #update-tenant <mã nhà> <phòng> <số điện thoại>\nVí dụ: #update-tenant 679qt P201 0912345678")
@@ -67,15 +68,15 @@ func (s *zaloInvoiceCommandServiceImpl) handleUpdateTenantPhoneCommand(ctx conte
 // handleUpdateRoomGroupCommand applies "#update-room [<mã nhà>] [<phòng>] [<mã nhóm>]". Sent inside
 // a room's Zalo group without a group ID it connects that very group, which is the whole point: the
 // manager no longer has to copy the ID over to the web.
-func (s *zaloInvoiceCommandServiceImpl) handleUpdateRoomGroupCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand) error {
+func (s *zaloInvoiceCommandServiceImpl) handleUpdateRoomGroupCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand) error {
 	chatID := commandChatID(webhookCtx)
 
 	groupChatID := parsed.Value
 	if groupChatID == "" {
-		if !webhookCtx.isGroupChat {
+		if !webhookCtx.IsGroup {
 			return s.sendTextMessage(ctx, managerID, chatID, "Vui lòng nhập mã nhóm. Cú pháp: #update-room <mã nhà> <phòng> <mã nhóm>\nHoặc gửi #update-room <mã nhà> <phòng> ngay trong nhóm Zalo của phòng để kết nối nhóm đó.")
 		}
-		groupChatID = webhookCtx.chatID
+		groupChatID = webhookCtx.ChatID
 	}
 
 	room, err := s.resolveManagerCommandRoom(ctx, managerID, webhookCtx, parsed, "#update-room")
@@ -103,19 +104,19 @@ func (s *zaloInvoiceCommandServiceImpl) handleUpdateRoomGroupCommand(ctx context
 
 // resolveManagerCommandRoom resolves the room a manager update command targets: the room named in
 // the command, or the room already linked to the group chat the command was sent from.
-func (s *zaloInvoiceCommandServiceImpl) resolveManagerCommandRoom(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, commandName string) (*model.Room, error) {
-	if err := s.ensureManagerSender(ctx, managerID, webhookCtx.senderID); err != nil {
+func (s *zaloInvoiceCommandServiceImpl) resolveManagerCommandRoom(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, commandName string) (*model.Room, error) {
+	if err := s.ensureManagerSender(ctx, managerID, webhookCtx.SenderID); err != nil {
 		return nil, err
 	}
 
 	if parsed.RoomName == "" {
-		if !webhookCtx.isGroupChat {
+		if !webhookCtx.IsGroup {
 			return nil, fmt.Errorf("Vui lòng nhập phòng cần cập nhật. Ví dụ: %s 679qt P201 <giá trị mới>", commandName)
 		}
-		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.chatID)
+		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.ChatID)
 		if err != nil {
 			// Carry the group ID so this single reply replaces the "group not connected" notice.
-			return nil, fmt.Errorf("Nhóm này chưa được kết nối với phòng nào.\nMã nhóm (Group ID): %s\nVui lòng nhắn: %s <mã nhà> <phòng>", webhookCtx.chatID, commandName)
+			return nil, fmt.Errorf("Nhóm này chưa được kết nối với phòng nào.\nMã nhóm (Group ID): %s\nVui lòng nhắn: %s <mã nhà> <phòng>", webhookCtx.ChatID, commandName)
 		}
 		if _, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID); err != nil {
 			return nil, errors.New("Group chat này không thuộc quản lý hiện tại.")

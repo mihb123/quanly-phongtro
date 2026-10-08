@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 
@@ -36,33 +37,28 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
 // setupZaloImageDownloaderTest stubs network access for validated HTTPS image URLs.
 func setupZaloImageDownloaderTest(t *testing.T) {
 	t.Helper()
-	restoreResolver := zalosvc.SetZaloImageHostResolverForTest(func(context.Context, string) ([]netip.Addr, error) {
-		return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
+	restore := zalosvc.SetTransactionImageDownloaderForTest(&zalobot.ImageDownloader{
+		LookupIP: func(context.Context, string) ([]netip.Addr, error) {
+			return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
+		},
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if strings.Contains(req.URL.Host, "download-fails") {
+				return nil, errors.New("download failed")
+			}
+			statusCode := http.StatusOK
+			if strings.Contains(req.URL.Host, "bad-status") {
+				statusCode = http.StatusInternalServerError
+			}
+			return &http.Response{
+				StatusCode:    statusCode,
+				Header:        http.Header{"Content-Type": []string{"image/jpeg"}},
+				Body:          io.NopCloser(strings.NewReader("fake-img")),
+				ContentLength: int64(len("fake-img")),
+				Request:       req,
+			}, nil
+		}),
 	})
-	restoreClient := zalosvc.SetZaloImageHTTPClientFactoryForTest(func() *http.Client {
-		return &http.Client{
-			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				if strings.Contains(req.URL.Host, "download-fails") {
-					return nil, errors.New("download failed")
-				}
-				statusCode := http.StatusOK
-				if strings.Contains(req.URL.Host, "bad-status") {
-					statusCode = http.StatusInternalServerError
-				}
-				return &http.Response{
-					StatusCode:    statusCode,
-					Header:        http.Header{"Content-Type": []string{"image/jpeg"}},
-					Body:          io.NopCloser(strings.NewReader("fake-img")),
-					ContentLength: int64(len("fake-img")),
-					Request:       req,
-				}, nil
-			}),
-		}
-	})
-	t.Cleanup(func() {
-		restoreClient()
-		restoreResolver()
-	})
+	t.Cleanup(restore)
 }
 
 type zaloMocks struct {
@@ -142,7 +138,7 @@ func TestSaveZaloConfig(t *testing.T) {
 		{
 			name: "success",
 			setup: func() {
-				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalobot.BotInfo{}, nil)
 				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(nil)
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(&model.User{}, nil)
 			},
@@ -158,7 +154,7 @@ func TestSaveZaloConfig(t *testing.T) {
 		{
 			name: "set webhook error",
 			setup: func() {
-				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalobot.BotInfo{}, nil)
 				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(errors.New("err"))
 			},
 			wantErr: true,
@@ -166,7 +162,7 @@ func TestSaveZaloConfig(t *testing.T) {
 		{
 			name: "db error",
 			setup: func() {
-				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				m.zaloClient.EXPECT().GetMe(ctx, "token").Return(&zalobot.BotInfo{}, nil)
 				m.zaloClient.EXPECT().SetWebhook(ctx, "token", "webhook", "secret").Return(nil)
 				m.userRepo.EXPECT().UpdateUser(ctx, "m1", gomock.Any()).Return(nil, errors.New("db err"))
 			},
@@ -202,7 +198,7 @@ func TestGetZaloConfigStatus(t *testing.T) {
 			name: "success",
 			setup: func() {
 				m.userRepo.EXPECT().GetByUserID(ctx, "m1").Return(&model.User{ZaloBotToken: &encToken, IsZaloBotActive: true, ZaloUserID: ptr("z1")}, nil)
-				m.zaloClient.EXPECT().GetMe(ctx, "bot-token").Return(&zalosvc.ZaloAppInfo{AppID: "app1"}, nil)
+				m.zaloClient.EXPECT().GetMe(ctx, "bot-token").Return(&zalobot.BotInfo{ID: "app1"}, nil)
 			},
 			want:    zalosvc.ZaloBotStatus{HasConfig: true, IsActive: true, IsLinked: true, BotID: "app1", ManagerID: "m1"},
 			wantErr: false,
@@ -1023,14 +1019,6 @@ func TestHandleWebhook_Phone(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-}
-
-func TestIsZaloAuthError(t *testing.T) {
-	assert.False(t, zalosvc.IsZaloAuthError(nil))
-	assert.False(t, zalosvc.IsZaloAuthError(errors.New("random error")))
-	assert.True(t, zalosvc.IsZaloAuthError(errors.New("some error -216")))
-	assert.True(t, zalosvc.IsZaloAuthError(errors.New("INVALID ACCESS TOKEN")))
-	assert.True(t, zalosvc.IsZaloAuthError(errors.New("unauthorized request")))
 }
 
 func TestHandleWebhook_OtherBranches(t *testing.T) {

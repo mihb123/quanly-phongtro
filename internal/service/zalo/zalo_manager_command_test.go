@@ -7,6 +7,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -81,8 +82,8 @@ func (f *managerCommandFixture) expectSingleHouseRoom(ctx context.Context, room 
 }
 
 // privateManagerChat is the webhook context of the manager's private chat with the bot.
-func privateManagerChat(text string) webhookMessageContext {
-	return webhookMessageContext{chatID: "sender-1", replyChatID: "sender-1", senderID: "sender-1", text: text}
+func privateManagerChat(text string) zalobot.Update {
+	return zalobot.Update{ChatID: "sender-1", ReplyChatID: "sender-1", SenderID: "sender-1", Text: text}
 }
 
 // TestUpdateTenantPhone_ReplacesExistingNumber verifies the manager can overwrite a tenant phone.
@@ -122,12 +123,12 @@ func TestUpdateTenantPhone_UsesGroupChatRoom(t *testing.T) {
 		ListTenantByRoomID(ctx, "manager-1", "room-1").
 		Return([]model.FullInfoTenant{{TenantID: "tenant-1", FullName: "Nguyễn An"}}, nil)
 
-	err := f.service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "chat-group-1",
-		replyChatID: "chat-group-1",
-		senderID:    "sender-1",
-		isGroupChat: true,
-		text:        "#update-tenant 0912 345 678",
+	err := f.service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "chat-group-1",
+		ReplyChatID: "chat-group-1",
+		SenderID:    "sender-1",
+		IsGroup:     true,
+		Text:        "#update-tenant 0912 345 678",
 	})
 
 	require.NoError(t, err)
@@ -236,12 +237,12 @@ func TestUpdateRoomGroup_ConnectsCurrentGroup(t *testing.T) {
 			return &model.Room{ID: "room-1"}, nil
 		})
 
-	err := f.service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "9876543210",
-		replyChatID: "9876543210",
-		senderID:    "sender-1",
-		isGroupChat: true,
-		text:        "#update-room P201",
+	err := f.service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "9876543210",
+		ReplyChatID: "9876543210",
+		SenderID:    "sender-1",
+		IsGroup:     true,
+		Text:        "#update-room P201",
 	})
 
 	require.NoError(t, err)
@@ -302,12 +303,12 @@ func TestUpdateRoomGroup_UnlinkedGroupWithoutRoomShowsGroupID(t *testing.T) {
 	f.expectManagerSender(ctx)
 	f.rooms.EXPECT().GetRoomByGroupChatID(ctx, "9876543210").Return(nil, model.ErrRoomNotFound)
 
-	err := f.service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "9876543210",
-		replyChatID: "9876543210",
-		senderID:    "sender-1",
-		isGroupChat: true,
-		text:        "#update-room",
+	err := f.service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "9876543210",
+		ReplyChatID: "9876543210",
+		SenderID:    "sender-1",
+		IsGroup:     true,
+		Text:        "#update-room",
 	})
 
 	require.NoError(t, err)

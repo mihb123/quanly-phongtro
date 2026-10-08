@@ -14,7 +14,7 @@ Shared knowledge for every coding agent (Claude, Codex, Gemini/agy, subagents). 
 - Each integration is a self-contained, copy-pasteable module in `pkg/<name>/`: Go standard library only, a `guide.md`, an optional `sql/` schema and `web/` TypeScript.
 - The app keeps exactly **one** adapter file, `internal/service/<domain>/<name>_adapter.go` (+ test), that bridges the module to app types (provider registry, invoices, DB). No duplicated aliases/types elsewhere; handlers and `cmd/api/main.go` use `<name>.*` directly.
 - Frontend imports module web files through a Vite + tsconfig alias `@<name>/*` → `../pkg/<name>/web/*`. The module API client takes a transport; the app passes axios `apiClient` (adds DPoP).
-- Done: **SePay** (`pkg/sepay`). Planned, not started: **Zalo bot** (`internal/service/zalo` → `pkg/zalobot`), following the same layout.
+- Done: **SePay** (`pkg/sepay`), **Zalo bot** (`pkg/zalobot`, backend only: API client, webhook parse/secret check, safe image download). Zalo chat commands, reply texts and account/room linking stay in `internal/service/zalo`; app glue is `internal/service/zalo/zalobot_adapter.go`.
 
 ## SePay
 

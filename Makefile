@@ -88,7 +88,7 @@ mocks: ## Sinh lại mock cho model và service (mockgen)
 	mockgen -source=internal/service/invoice/invoice_service.go -destination=internal/mock/mock_service/invoice_service_mock.go -package=mock_service
 	mockgen -source=internal/service/room/room_service.go -destination=internal/mock/mock_service/room_service_mock.go -package=mock_service
 	mockgen -source=internal/service/tenant/tenant_service.go -destination=internal/mock/mock_service/tenant_service_mock.go -package=mock_service
-	mockgen -source=internal/service/zalo/zalo_client.go -destination=internal/mock/mock_service/zalo_client_mock.go -package=mock_service
+	mockgen -source=internal/service/zalo/zalobot_adapter.go -destination=internal/mock/mock_service/zalo_client_mock.go -package=mock_service
 	mockgen -source=internal/service/zalo/zalo_service.go -destination=internal/mock/mock_service/zalo_service_mock.go -package=mock_service
 	mockgen -source=internal/service/house/house_cost_service.go -destination=internal/mock/mock_service/house_cost_service_mock.go -package=mock_service
 	mockgen -source=internal/service/revenue/event_bus.go -destination=internal/mock/mock_service/event_bus_mock.go -package=mock_service

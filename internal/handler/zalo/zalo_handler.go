@@ -15,9 +15,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
-
-const maxZaloWebhookBodyBytes = 1 << 20
 
 type ZaloHandler struct {
 	zaloService zalosvc.ZaloService
@@ -130,9 +129,9 @@ func (h *ZaloHandler) GetConfigStatus(w http.ResponseWriter, r *http.Request) {
 
 func (h *ZaloHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	managerID := chi.URLParam(r, "managerID")
-	secretTokenHeader := r.Header.Get("X-Bot-Api-Secret-Token") // or X-Zalo-Signature depending on config
+	secretTokenHeader := r.Header.Get(zalobot.SecretTokenHeader)
 
-	r.Body = http.MaxBytesReader(w, r.Body, maxZaloWebhookBodyBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, zalobot.MaxWebhookBodyBytes)
 	defer r.Body.Close()
 
 	body, err := io.ReadAll(r.Body)

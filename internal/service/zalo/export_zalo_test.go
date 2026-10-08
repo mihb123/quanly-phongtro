@@ -2,8 +2,8 @@ package zalo
 
 import (
 	"context"
-	"net/http"
-	"net/netip"
+
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 // Export unexported methods and types for testing
@@ -31,28 +31,15 @@ func CastToTesting(s ZaloService) ZaloServiceTesting {
 	return s.(*zaloServiceImpl)
 }
 
-func IsZaloAuthError(err error) bool {
-	return isZaloAuthError(err)
-}
-
 func GetEncryptionKey(s ZaloService) []byte {
 	return s.(*zaloServiceImpl).encryptionKey
 }
 
-// SetZaloImageHTTPClientFactoryForTest replaces the image HTTP client factory during tests.
-func SetZaloImageHTTPClientFactoryForTest(factory func() *http.Client) func() {
-	previous := newZaloImageHTTPClient
-	newZaloImageHTTPClient = factory
+// SetTransactionImageDownloaderForTest replaces the transaction image downloader during tests.
+func SetTransactionImageDownloaderForTest(downloader *zalobot.ImageDownloader) func() {
+	previous := transactionImageDownloader
+	transactionImageDownloader = downloader
 	return func() {
-		newZaloImageHTTPClient = previous
-	}
-}
-
-// SetZaloImageHostResolverForTest replaces the image host resolver during tests.
-func SetZaloImageHostResolverForTest(resolver func(context.Context, string) ([]netip.Addr, error)) func() {
-	previous := resolveZaloImageHost
-	resolveZaloImageHost = resolver
-	return func() {
-		resolveZaloImageHost = previous
+		transactionImageDownloader = previous
 	}
 }

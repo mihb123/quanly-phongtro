@@ -129,7 +129,7 @@ func (s *zaloServiceImpl) GetZaloConfigStatus(ctx context.Context, managerID str
 		if err == nil {
 			botInfo, err := s.client.GetMe(ctx, botToken)
 			if err == nil && botInfo != nil {
-				status.BotID = botInfo.AppID
+				status.BotID = botInfo.ID
 			}
 		}
 	}

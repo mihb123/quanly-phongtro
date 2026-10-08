@@ -1,14 +1,14 @@
-package zalo_test
+package zalobot
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
-
-	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 )
 
 // mockRoundTripper intercepts HTTP requests and returns mock responses
@@ -20,7 +20,7 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	return m.roundTripFunc(req)
 }
 
-func TestZaloClient_GetMe(t *testing.T) {
+func TestClient_GetMe(t *testing.T) {
 	originalTransport := http.DefaultTransport
 	defer func() { http.DefaultTransport = originalTransport }()
 
@@ -86,7 +86,7 @@ func TestZaloClient_GetMe(t *testing.T) {
 		},
 	}
 
-	client := zalosvc.NewZaloClient()
+	client := NewClient(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			http.DefaultTransport = &mockRoundTripper{roundTripFunc: tt.roundTripFunc}
@@ -99,8 +99,8 @@ func TestZaloClient_GetMe(t *testing.T) {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
-				if info.AppID != tt.expectAppID {
-					t.Errorf("expected AppID %s, got %s", tt.expectAppID, info.AppID)
+				if info.ID != tt.expectAppID {
+					t.Errorf("expected ID %s, got %s", tt.expectAppID, info.ID)
 				}
 			}
 		})
@@ -113,7 +113,7 @@ func TestZaloClient_GetMe(t *testing.T) {
 	})
 }
 
-func TestZaloClient_SendMessage(t *testing.T) {
+func TestClient_SendMessage(t *testing.T) {
 	originalTransport := http.DefaultTransport
 	defer func() { http.DefaultTransport = originalTransport }()
 
@@ -154,7 +154,7 @@ func TestZaloClient_SendMessage(t *testing.T) {
 		},
 	}
 
-	client := zalosvc.NewZaloClient()
+	client := NewClient(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			http.DefaultTransport = &mockRoundTripper{roundTripFunc: tt.roundTripFunc}
@@ -211,7 +211,7 @@ func TestZaloClient_SendMessage(t *testing.T) {
 	})
 }
 
-func TestZaloClient_SendPhoto(t *testing.T) {
+func TestClient_SendPhoto(t *testing.T) {
 	originalTransport := http.DefaultTransport
 	defer func() { http.DefaultTransport = originalTransport }()
 
@@ -252,7 +252,7 @@ func TestZaloClient_SendPhoto(t *testing.T) {
 		},
 	}
 
-	client := zalosvc.NewZaloClient()
+	client := NewClient(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			http.DefaultTransport = &mockRoundTripper{roundTripFunc: tt.roundTripFunc}
@@ -335,7 +335,7 @@ func TestZaloClient_SendPhoto(t *testing.T) {
 	})
 }
 
-func TestZaloClient_SetWebhook(t *testing.T) {
+func TestClient_SetWebhook(t *testing.T) {
 	originalTransport := http.DefaultTransport
 	defer func() { http.DefaultTransport = originalTransport }()
 
@@ -366,7 +366,7 @@ func TestZaloClient_SetWebhook(t *testing.T) {
 		},
 	}
 
-	client := zalosvc.NewZaloClient()
+	client := NewClient(nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			http.DefaultTransport = &mockRoundTripper{roundTripFunc: tt.roundTripFunc}
@@ -421,4 +421,33 @@ func TestZaloClient_SetWebhook(t *testing.T) {
 			t.Errorf("expected error, got nil")
 		}
 	})
+}
+
+func TestClient_ErrorsDoNotLeakBotToken(t *testing.T) {
+	client := NewClient(&http.Client{Transport: &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+		return nil, context.DeadlineExceeded
+	}}})
+
+	err := client.SendMessage(context.Background(), "secret-bot-token", "chat-1", "hello")
+	if err == nil || strings.Contains(err.Error(), "secret-bot-token") {
+		t.Fatalf("expected error without bot token, got %v", err)
+	}
+}
+
+func TestClient_APIErrorFields(t *testing.T) {
+	client := NewClient(&http.Client{Transport: &mockRoundTripper{roundTripFunc: func(req *http.Request) (*http.Response, error) {
+		if req.URL.String() != "https://bot-api.zaloplatforms.com/bottoken/sendMessage" {
+			t.Errorf("unexpected URL %s", req.URL)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"ok":false,"error_code":401,"description":"Unauthorized"}`)),
+		}, nil
+	}}})
+
+	err := client.SendMessage(context.Background(), "token", "chat-1", "hello")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Code != 401 || apiErr.Description != "Unauthorized" || !IsAuthError(err) {
+		t.Fatalf("unexpected error %#v", err)
+	}
 }

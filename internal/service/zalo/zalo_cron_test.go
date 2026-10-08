@@ -6,6 +6,7 @@ import (
 	"time"
 
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_service"
@@ -40,7 +41,7 @@ func TestZaloCronService_RunNow(t *testing.T) {
 			},
 			buildStubs: func() {
 				userRepo.EXPECT().GetAllUsersWithZaloToken(gomock.Any()).Return([]model.User{{ID: "user-1", ZaloBotToken: &validToken, IsZaloBotActive: true}}, nil)
-				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalobot.BotInfo{}, nil)
 				// Since it is already active, no UpdateUser should be called
 			},
 		},
@@ -51,7 +52,7 @@ func TestZaloCronService_RunNow(t *testing.T) {
 			},
 			buildStubs: func() {
 				userRepo.EXPECT().GetAllUsersWithZaloToken(gomock.Any()).Return([]model.User{{ID: "user-2", ZaloBotToken: &validToken, IsZaloBotActive: false}}, nil)
-				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalobot.BotInfo{}, nil)
 				userRepo.EXPECT().UpdateUser(gomock.Any(), "user-2", gomock.Any()).Return(&model.User{}, nil)
 			},
 		},
@@ -99,7 +100,7 @@ func TestZaloCronService_RunNow(t *testing.T) {
 			},
 			buildStubs: func() {
 				userRepo.EXPECT().GetAllUsersWithZaloToken(gomock.Any()).Return([]model.User{{ID: "user-5", ZaloBotToken: &validToken, IsZaloBotActive: false}}, nil)
-				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalosvc.ZaloAppInfo{}, nil)
+				zaloClient.EXPECT().GetMe(gomock.Any(), "raw-token").Return(&zalobot.BotInfo{}, nil)
 				userRepo.EXPECT().UpdateUser(gomock.Any(), "user-5", gomock.Any()).Return(nil, errors.New("update error"))
 			},
 		},

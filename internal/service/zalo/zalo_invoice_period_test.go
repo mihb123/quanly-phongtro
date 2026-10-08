@@ -7,6 +7,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -230,11 +231,11 @@ func TestHandleRoomTargetCommand_ManagerSingleHouse(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "sender-1",
-		replyChatID: "sender-1",
-		senderID:    "sender-1",
-		text:        "#dien P201 661",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "sender-1",
+		ReplyChatID: "sender-1",
+		SenderID:    "sender-1",
+		Text:        "#dien P201 661",
 	})
 
 	require.NoError(t, err)
@@ -274,11 +275,11 @@ func TestHandleRoomTargetCommand_ManagerWithManyHousesNeedsCode(t *testing.T) {
 		encryptionKey: encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "sender-1",
-		replyChatID: "sender-1",
-		senderID:    "sender-1",
-		text:        "#dien P201 661",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "sender-1",
+		ReplyChatID: "sender-1",
+		SenderID:    "sender-1",
+		Text:        "#dien P201 661",
 	})
 
 	require.NoError(t, err)
@@ -313,7 +314,7 @@ func TestHandleRoomTargetCommand_UnknownHouseCodeFallsBackToRoomName(t *testing.
 		encryptionKey: encryptionKey,
 	}
 
-	room, err := service.resolveRoomTargetRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender-1"}, ParseCommand("#dien Phòng 201 661"))
+	room, err := service.resolveRoomTargetRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender-1"}, ParseCommand("#dien Phòng 201 661"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "room-1", room.ID)
@@ -339,7 +340,7 @@ func TestResolveRoomTargetRoom_TenantOtherRoomRejected(t *testing.T) {
 		tenantRepo: tenantRepository,
 	}
 
-	_, err := service.resolveRoomTargetRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender-1"}, ParseCommand("#dien P201 661"))
+	_, err := service.resolveRoomTargetRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender-1"}, ParseCommand("#dien P201 661"))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "P101")
@@ -365,7 +366,7 @@ func TestResolveRoomTargetRoom_TenantOwnRoomAccepted(t *testing.T) {
 		tenantRepo: tenantRepository,
 	}
 
-	room, err := service.resolveRoomTargetRoom(ctx, "manager-1", webhookMessageContext{senderID: "sender-1"}, ParseCommand("#dien P201 661"))
+	room, err := service.resolveRoomTargetRoom(ctx, "manager-1", zalobot.Update{SenderID: "sender-1"}, ParseCommand("#dien P201 661"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "room-1", room.ID)
@@ -391,7 +392,7 @@ func TestHandleAwaitUtilityCommand_RoomTargetSupersedesReminder(t *testing.T) {
 	}
 	service := &zaloInvoiceCommandServiceImpl{pendingRepo: pendingRepository}
 
-	handled, err := service.handleAwaitUtilityCommand(ctx, "manager-1", "chat-1", webhookMessageContext{senderID: "sender-1"}, ParseCommand("#nuoc 679qt P201 123"), pendingRepository.pending)
+	handled, err := service.handleAwaitUtilityCommand(ctx, "manager-1", "chat-1", zalobot.Update{SenderID: "sender-1"}, ParseCommand("#nuoc 679qt P201 123"), pendingRepository.pending)
 
 	require.NoError(t, err)
 	assert.False(t, handled)
@@ -450,12 +451,12 @@ func TestHandleInvoiceCommand_SupplementsOpenInvoiceWithoutPending(t *testing.T)
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "chat-group-1",
-		replyChatID: "chat-group-1",
-		senderID:    "sender-1",
-		isGroupChat: true,
-		text:        "#nuoc 123",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:      "chat-group-1",
+		ReplyChatID: "chat-group-1",
+		SenderID:    "sender-1",
+		IsGroup:     true,
+		Text:        "#nuoc 123",
 	})
 
 	require.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 // isHelpCommandText reports whether a message asks for the command list.
@@ -16,7 +17,7 @@ func isHelpCommandText(text string) bool {
 
 // handleHelpCommand answers "#help" with the commands the sender can actually use. It runs before
 // any account-linking or invoice logic so an unlinked user still gets an answer.
-func (s *zaloServiceImpl) handleHelpCommand(ctx context.Context, managerID string, manager *model.User, webhookCtx webhookMessageContext) {
+func (s *zaloServiceImpl) handleHelpCommand(ctx context.Context, managerID string, manager *model.User, webhookCtx zalobot.Update) {
 	chatID := commandChatID(webhookCtx)
 	if chatID == "" {
 		return
@@ -34,18 +35,18 @@ func (s *zaloServiceImpl) handleHelpCommand(ctx context.Context, managerID strin
 
 // buildHelpMessage picks the help text matching the sender's role and connection state. Anyone who
 // is not connected yet only gets the connection instructions, because no command works for them.
-func (s *zaloServiceImpl) buildHelpMessage(ctx context.Context, managerID string, manager *model.User, webhookCtx webhookMessageContext) string {
+func (s *zaloServiceImpl) buildHelpMessage(ctx context.Context, managerID string, manager *model.User, webhookCtx zalobot.Update) string {
 	managerLinked := manager.ZaloUserID != nil && *manager.ZaloUserID != ""
 
-	if webhookCtx.isGroupChat {
-		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.chatID)
+	if webhookCtx.IsGroup {
+		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.ChatID)
 		if err != nil || room == nil {
-			return helpGroupNotConnectedMessage(webhookCtx.chatID)
+			return helpGroupNotConnectedMessage(webhookCtx.ChatID)
 		}
 		return helpGroupMessage(room.Name)
 	}
 
-	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.SenderID)
 	if err != nil || linkedUser == nil {
 		return helpNotConnectedMessage(managerLinked)
 	}

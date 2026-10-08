@@ -1,14 +1,11 @@
 package zalo
 
 import (
-	"context"
-	"errors"
-	"net/http"
-	"net/netip"
 	"strings"
 	"testing"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 // TestIsInvoiceCommandText verifies command detection for known and unknown messages.
@@ -181,13 +178,13 @@ func TestAwaitUtilityPromptMessage(t *testing.T) {
 
 // TestCommandChatID covers reply, chat, and sender precedence.
 func TestCommandChatID(t *testing.T) {
-	if got := commandChatID(webhookMessageContext{replyChatID: "reply", chatID: "chat", senderID: "sender"}); got != "reply" {
+	if got := commandChatID(zalobot.Update{ReplyChatID: "reply", ChatID: "chat", SenderID: "sender"}); got != "reply" {
 		t.Errorf("expected reply, got %s", got)
 	}
-	if got := commandChatID(webhookMessageContext{chatID: "chat", senderID: "sender"}); got != "chat" {
+	if got := commandChatID(zalobot.Update{ChatID: "chat", SenderID: "sender"}); got != "chat" {
 		t.Errorf("expected chat, got %s", got)
 	}
-	if got := commandChatID(webhookMessageContext{senderID: "sender"}); got != "sender" {
+	if got := commandChatID(zalobot.Update{SenderID: "sender"}); got != "sender" {
 		t.Errorf("expected sender, got %s", got)
 	}
 }
@@ -221,118 +218,6 @@ func TestUtilityLabelFromMissing(t *testing.T) {
 	}
 	if got := utilityLabelFromMissing(utilityUpdateResult{MissingUtility: "nuoc"}); got != "điện" {
 		t.Errorf("expected điện, got %s", got)
-	}
-}
-
-// TestIsAllowedImageContentType covers accepted, rejected, and malformed content types.
-func TestIsAllowedImageContentType(t *testing.T) {
-	for _, ct := range []string{"image/jpeg", "image/png; charset=utf-8", "IMAGE/GIF", "image/webp"} {
-		if !isAllowedImageContentType(ct) {
-			t.Errorf("expected %q allowed", ct)
-		}
-	}
-	for _, ct := range []string{"text/plain", "application/json", "", "!!!bad"} {
-		if isAllowedImageContentType(ct) {
-			t.Errorf("expected %q rejected", ct)
-		}
-	}
-}
-
-// TestDefaultResolveURLHost covers IP literal parsing.
-func TestDefaultResolveURLHost(t *testing.T) {
-	addrs, err := defaultResolveURLHost(context.Background(), "8.8.8.8")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(addrs) != 1 || addrs[0].String() != "8.8.8.8" {
-		t.Errorf("unexpected addresses: %v", addrs)
-	}
-
-	addrs, err = defaultResolveURLHost(context.Background(), "localhost")
-	if err != nil {
-		t.Fatalf("unexpected localhost resolve error: %v", err)
-	}
-	if len(addrs) == 0 {
-		t.Error("expected localhost to resolve at least one address")
-	}
-
-	if _, err := defaultResolveURLHost(context.Background(), "invalid host name"); err == nil {
-		t.Error("expected resolver error for malformed host")
-	}
-}
-
-// TestValidateZaloTransactionImageURL_Errors covers parse, scheme, host, and resolver failures.
-func TestValidateZaloTransactionImageURL_Errors(t *testing.T) {
-	ctx := context.Background()
-
-	if err := validateZaloTransactionImageURL(ctx, "https://%zz"); err == nil {
-		t.Error("expected parse error")
-	}
-	if err := validateZaloTransactionImageURL(ctx, "http://host/x"); err == nil {
-		t.Error("expected scheme error")
-	}
-	if err := validateZaloTransactionImageURL(ctx, "https:///path"); err == nil {
-		t.Error("expected empty host error")
-	}
-
-	previous := resolveZaloImageHost
-	resolveZaloImageHost = func(context.Context, string) ([]netip.Addr, error) {
-		return nil, errors.New("resolve failed")
-	}
-	defer func() { resolveZaloImageHost = previous }()
-	if err := validateZaloTransactionImageURL(ctx, "https://zalo.test/x.jpg"); err == nil {
-		t.Error("expected resolver error")
-	}
-}
-
-// TestValidateZaloTransactionImageURL_PublicAllowed accepts a public routable target.
-func TestValidateZaloTransactionImageURL_PublicAllowed(t *testing.T) {
-	previous := resolveZaloImageHost
-	resolveZaloImageHost = func(context.Context, string) ([]netip.Addr, error) {
-		return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
-	}
-	defer func() { resolveZaloImageHost = previous }()
-	if err := validateZaloTransactionImageURL(context.Background(), "https://zalo.test/x.jpg"); err != nil {
-		t.Errorf("expected public target allowed, got %v", err)
-	}
-}
-
-// TestDefaultZaloImageHTTPClient exercises the redirect guard branches.
-func TestDefaultZaloImageHTTPClient(t *testing.T) {
-	client := defaultZaloImageHTTPClient()
-	if client.Timeout != zaloTransactionImageDownloadTimeout {
-		t.Errorf("unexpected timeout: %v", client.Timeout)
-	}
-
-	mustReq := func(rawURL string) *http.Request {
-		req, err := http.NewRequest(http.MethodGet, rawURL, nil)
-		if err != nil {
-			t.Fatalf("build request: %v", err)
-		}
-		return req
-	}
-
-	// Too many redirects.
-	via := []*http.Request{mustReq("https://a.test/1"), mustReq("https://a.test/2"), mustReq("https://a.test/3")}
-	if err := client.CheckRedirect(mustReq("https://a.test/4"), via); err == nil {
-		t.Error("expected too-many-redirects error")
-	}
-
-	// Redirect to a different host.
-	via = []*http.Request{mustReq("https://a.test/1")}
-	if err := client.CheckRedirect(mustReq("https://b.test/2"), via); err == nil {
-		t.Error("expected cross-host redirect error")
-	}
-
-	// Same-host redirect that passes host validation via stubbed resolver.
-	previous := resolveZaloImageHost
-	resolveZaloImageHost = func(context.Context, string) ([]netip.Addr, error) {
-		return []netip.Addr{netip.MustParseAddr("8.8.8.8")}, nil
-	}
-	defer func() { resolveZaloImageHost = previous }()
-	via = []*http.Request{mustReq("https://a.test/1")}
-	if err := client.CheckRedirect(mustReq("https://a.test/2"), via); err != nil {
-		t.Errorf("expected allowed same-host redirect, got %v", err)
 	}
 }
 

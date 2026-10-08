@@ -6,6 +6,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -34,7 +35,7 @@ func newPendingCommandTestService(t *testing.T, ctx context.Context) (*zaloInvoi
 // TestHandlePendingCommand_PromptBranches covers pending states that only reply with guidance.
 func TestHandlePendingCommand_PromptBranches(t *testing.T) {
 	ctx := context.Background()
-	webhookCtx := webhookMessageContext{chatID: "chat-1", senderID: "sender-1"}
+	webhookCtx := zalobot.Update{ChatID: "chat-1", SenderID: "sender-1"}
 
 	t.Run("overwrite requires confirm", func(t *testing.T) {
 		service, zaloClient := newPendingCommandTestService(t, ctx)
@@ -144,7 +145,7 @@ func TestCreateOverwritePending(t *testing.T) {
 		Room:        model.Room{ID: "room-1"},
 	}
 
-	err := service.createOverwritePending(context.Background(), "manager-1", webhookMessageContext{chatID: "chat-1", isGroupChat: true}, req, "2026-05", &model.Invoice{NewElectricityIndex: 150})
+	err := service.createOverwritePending(context.Background(), "manager-1", zalobot.Update{ChatID: "chat-1", IsGroup: true}, req, "2026-05", &model.Invoice{NewElectricityIndex: 150})
 
 	require.NoError(t, err)
 	require.Len(t, pendingRepository.created, 1)
@@ -157,6 +158,6 @@ func TestCreateOverwritePending(t *testing.T) {
 // TestProcessPendingDataUnknownScope verifies malformed pending data is ignored.
 func TestProcessPendingDataUnknownScope(t *testing.T) {
 	service := &zaloInvoiceCommandServiceImpl{}
-	err := service.processPendingData(context.Background(), "manager-1", webhookMessageContext{}, map[string]any{"command_scope": "bad"}, "", false)
+	err := service.processPendingData(context.Background(), "manager-1", zalobot.Update{}, map[string]any{"command_scope": "bad"}, "", false)
 	require.NoError(t, err)
 }

@@ -40,7 +40,8 @@ API chính:
 - `POST /api/v1/zalo/invoices/{id}/send`: Gửi hóa đơn (text và file ảnh) vào group Zalo của phòng tương ứng.
 
 Service layer (`internal/service/`):
-- `zalo_client.go`: Custom HTTP Client sử dụng `net/http` giao tiếp trực tiếp với Zalo API, không dùng SDK ngoài.
+- `pkg/zalobot`: Module độc lập (chỉ stdlib) gọi Zalo Bot API (`getMe`, `sendMessage`, `sendPhoto`, `setWebhook`), parse/xác thực webhook và tải ảnh an toàn. Hướng dẫn tái sử dụng: `pkg/zalobot/guide.md`.
+- `internal/service/zalo/zalobot_adapter.go`: Cầu nối duy nhất giữa module và app (interface `ZaloClient`, giải mã webhook secret đã lưu).
 - `zalo_service.go`: Xử lý business logic, giải mã token, xác thực webhook qua header `X-Bot-Api-Secret-Token`, auto-linking phòng.
 - `zalo_service_image.go`: Xử lý render HTML template thành ảnh (thông qua `wkhtmltoimage`), upload lên Zalo và đính kèm vào tin nhắn hóa đơn.
 

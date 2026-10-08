@@ -6,6 +6,7 @@ import (
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -56,11 +57,11 @@ func TestHandleInvoiceCommand_SingleCommandGroupChat(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "chat-group-1",
-		senderID:    "sender-1",
-		isGroupChat: true,
-		text:        "#dien 200",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-group-1",
+		SenderID: "sender-1",
+		IsGroup:  true,
+		Text:     "#dien 200",
 	})
 
 	require.NoError(t, err)
@@ -123,11 +124,11 @@ func TestHandleInvoiceCommand_SingleCommandPrivateChat(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "sender-1",
-		senderID:    "sender-1",
-		isGroupChat: false,
-		text:        "#nuoc 150",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "sender-1",
+		SenderID: "sender-1",
+		IsGroup:  false,
+		Text:     "#nuoc 150",
 	})
 
 	require.NoError(t, err)
@@ -192,11 +193,11 @@ func TestHandleInvoiceCommand_BatchCommand(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:      "sender-1",
-		senderID:    "sender-1",
-		isGroupChat: false,
-		text:        "#dien house1\np101 200",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "sender-1",
+		SenderID: "sender-1",
+		IsGroup:  false,
+		Text:     "#dien house1\np101 200",
 	})
 
 	require.NoError(t, err)
@@ -265,10 +266,10 @@ func TestHandleInvoiceCommand_PendingPeriodSelect(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#5",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#5",
 	})
 
 	require.NoError(t, err)
@@ -337,10 +338,10 @@ func TestHandleInvoiceCommand_PendingConfirmOverwrite(t *testing.T) {
 		encryptionKey:  encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#ok",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#ok",
 	})
 
 	require.NoError(t, err)
@@ -378,10 +379,10 @@ func TestHandleInvoiceCommand_PendingCancel(t *testing.T) {
 		encryptionKey: encryptionKey,
 	}
 
-	err := service.HandleInvoiceCommand(ctx, "manager-1", webhookMessageContext{
-		chatID:   "chat-1",
-		senderID: "sender-1",
-		text:     "#huy",
+	err := service.HandleInvoiceCommand(ctx, "manager-1", zalobot.Update{
+		ChatID:   "chat-1",
+		SenderID: "sender-1",
+		Text:     "#huy",
 	})
 
 	require.NoError(t, err)

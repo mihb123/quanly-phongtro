@@ -7,10 +7,11 @@ import (
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 // handleSingleCommand resolves a group or tenant private command to one room.
-func (s *zaloInvoiceCommandServiceImpl) handleSingleCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
+func (s *zaloInvoiceCommandServiceImpl) handleSingleCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
 	room, err := s.resolveSingleCommandRoom(ctx, managerID, webhookCtx)
 	if err != nil {
 		_ = s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
@@ -20,7 +21,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleSingleCommand(ctx context.Context,
 }
 
 // processSingleRoom applies a utility reading to one resolved room.
-func (s *zaloInvoiceCommandServiceImpl) processSingleRoom(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, room model.Room, forcedPeriod string, allowOverwrite bool) error {
+func (s *zaloInvoiceCommandServiceImpl) processSingleRoom(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, room model.Room, forcedPeriod string, allowOverwrite bool) error {
 	entry := RoomUtilityEntry{}
 	if len(parsed.Entries) > 0 {
 		entry = parsed.Entries[0]
@@ -57,7 +58,7 @@ func followUpRoomTarget(parsed *ParsedCommand) string {
 
 // handleRoomTargetCommand applies a reading to the room named inside the command text, e.g.
 // "#dien 679qt P201 661" or the short "#dien P201 661" when the sender manages a single house.
-func (s *zaloInvoiceCommandServiceImpl) handleRoomTargetCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
+func (s *zaloInvoiceCommandServiceImpl) handleRoomTargetCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
 	room, err := s.resolveRoomTargetRoom(ctx, managerID, webhookCtx, parsed)
 	if err != nil {
 		_ = s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
@@ -68,7 +69,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleRoomTargetCommand(ctx context.Cont
 
 // resolveRoomTargetRoom finds the room a named command addresses. Managers may address any room in
 // their houses; a tenant may only name their own room, so the name acts as a confirmation there.
-func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand) (*model.Room, error) {
+func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand) (*model.Room, error) {
 	roomName := ""
 	if len(parsed.Entries) > 0 {
 		roomName = parsed.Entries[0].RoomName
@@ -77,7 +78,7 @@ func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Contex
 		return nil, errors.New("Vui lòng nhập tên phòng. Ví dụ: #dien 679qt P201 661")
 	}
 
-	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.SenderID)
 	if err != nil {
 		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
 	}
@@ -163,7 +164,7 @@ func (s *zaloInvoiceCommandServiceImpl) singleManagedHouse(ctx context.Context, 
 }
 
 // processAwaitUtilitySingleCommand applies a missing utility without losing the saved period on retryable errors.
-func (s *zaloInvoiceCommandServiceImpl) processAwaitUtilitySingleCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, pendingID string, room model.Room, forcedPeriod string) error {
+func (s *zaloInvoiceCommandServiceImpl) processAwaitUtilitySingleCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, pendingID string, room model.Room, forcedPeriod string) error {
 	entry := RoomUtilityEntry{}
 	if len(parsed.Entries) > 0 {
 		entry = parsed.Entries[0]
@@ -191,12 +192,12 @@ func (s *zaloInvoiceCommandServiceImpl) processAwaitUtilitySingleCommand(ctx con
 }
 
 // handleBatchCommand processes manager private commands for many rooms in one house.
-func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, managerID string, webhookCtx webhookMessageContext, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
+func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, forcedPeriod string, allowOverwrite bool) error {
 	chatID := commandChatID(webhookCtx)
-	if webhookCtx.isGroupChat {
+	if webhookCtx.IsGroup {
 		return s.sendTextMessage(ctx, managerID, chatID, "Lệnh nhiều phòng chỉ dùng trong chat riêng với quản lý.")
 	}
-	if err := s.ensureManagerSender(ctx, managerID, webhookCtx.senderID); err != nil {
+	if err := s.ensureManagerSender(ctx, managerID, webhookCtx.SenderID); err != nil {
 		return s.sendTextMessage(ctx, managerID, chatID, err.Error())
 	}
 	if parsed.HouseCode == "" {
@@ -287,9 +288,9 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 }
 
 // resolveSingleCommandRoom maps a Zalo group or tenant private chat to one room.
-func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Context, managerID string, webhookCtx webhookMessageContext) (*model.Room, error) {
-	if webhookCtx.isGroupChat {
-		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.chatID)
+func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Context, managerID string, webhookCtx zalobot.Update) (*model.Room, error) {
+	if webhookCtx.IsGroup {
+		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.ChatID)
 		if err != nil {
 			return nil, errors.New("Không tìm thấy phòng liên kết với group chat này.")
 		}
@@ -299,7 +300,7 @@ func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Con
 		return room, nil
 	}
 
-	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.senderID)
+	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.SenderID)
 	if err != nil {
 		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
 	}

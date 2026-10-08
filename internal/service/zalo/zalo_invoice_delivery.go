@@ -17,6 +17,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
 type zaloInvoiceDeliveryDeps struct {
@@ -128,7 +129,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 
 	if room.GroupChatID != nil && *room.GroupChatID != "" {
 		if err := deps.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption); err != nil {
-			if isZaloAuthError(err) && deps.markTokenInactive != nil {
+			if zalobot.IsAuthError(err) && deps.markTokenInactive != nil {
 				deps.markTokenInactive(ctx, managerID)
 				return fmt.Errorf("zalo bot token is invalid or expired")
 			}
@@ -144,7 +145,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	var sendErrors []string
 	for _, recipientID := range recipients {
 		if err := deps.client.SendPhoto(ctx, botToken, recipientID, photoURL, caption); err != nil {
-			if isZaloAuthError(err) && deps.markTokenInactive != nil {
+			if zalobot.IsAuthError(err) && deps.markTokenInactive != nil {
 				deps.markTokenInactive(ctx, managerID)
 				return fmt.Errorf("zalo bot token is invalid or expired")
 			}

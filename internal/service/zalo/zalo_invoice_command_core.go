@@ -10,6 +10,7 @@ import (
 	"time"
 
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
+	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
@@ -55,7 +56,7 @@ type matchedBatchEntry struct {
 }
 
 // applyUtilityUpdate creates or updates one invoice reading and records pending state when needed.
-func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, managerID string, webhookCtx webhookMessageContext, req utilityUpdateRequest) (utilityUpdateResult, bool, error) {
+func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, managerID string, webhookCtx zalobot.Update, req utilityUpdateRequest) (utilityUpdateResult, bool, error) {
 	chatID := commandChatID(webhookCtx)
 	house, err := s.houseRepo.GetByID(ctx, req.Room.HouseID, managerID)
 	if err != nil {
@@ -370,7 +371,7 @@ func (s *zaloInvoiceCommandServiceImpl) sendTextMessage(ctx context.Context, man
 		return err
 	}
 	if err := s.zaloClient.SendMessage(ctx, botToken, chatID, text); err != nil {
-		if isZaloAuthError(err) {
+		if zalobot.IsAuthError(err) {
 			inactive := false
 			if _, updateErr := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{IsZaloBotActive: &inactive}); updateErr != nil {
 				return fmt.Errorf("mark zalo bot token inactive: %w", updateErr)
@@ -404,14 +405,14 @@ func (s *zaloInvoiceCommandServiceImpl) deliverInvoice(ctx context.Context, mana
 }
 
 // commandChatID returns the chat ID where command replies should be stored and sent.
-func commandChatID(webhookCtx webhookMessageContext) string {
-	if webhookCtx.replyChatID != "" {
-		return webhookCtx.replyChatID
+func commandChatID(webhookCtx zalobot.Update) string {
+	if webhookCtx.ReplyChatID != "" {
+		return webhookCtx.ReplyChatID
 	}
-	if webhookCtx.chatID != "" {
-		return webhookCtx.chatID
+	if webhookCtx.ChatID != "" {
+		return webhookCtx.ChatID
 	}
-	return webhookCtx.senderID
+	return webhookCtx.SenderID
 }
 
 // isInvoiceCommandText reports whether a message starts an invoice command flow. Help is excluded
