@@ -6,7 +6,7 @@ Shared knowledge for every coding agent (Claude, Codex, Gemini/agy, subagents). 
 
 - Go API (chi + bun, PostgreSQL) + React/Vite frontend (`frontend/`, shadcn base-luma); the frontend is built into `internal/web/dist` and embedded in one binary.
 - Production `https://quanly.ptro.site` runs on this machine: systemd `quanly-phongtro-api`, working dir `/home/dell/actions-runner/_work/quanly-phongtro/quanly-phongtro`, logs `journalctl -u quanly-phongtro-api`. DB DSN in `.env` (`POSTGRES_DSN`).
-- Deploy = push to `develop` → `.github/workflows/deploy.yml` on a self-hosted runner (lint/test → build → backup → migrate → restart). Pushing deploys production, so only push when the user asks. If the deploy fails, an auto-fix agent commits with an `[auto-fix]` marker.
+- Deploy = push to `develop` → `.github/workflows/deploy.yml` on a self-hosted runner (lint/test → build → backup → migrate → restart). Pushing deploys production, so only push when the user asks.
 - CI tests: `scripts/deploy/lint-test.sh` (`./internal/{service,handler,repository}/...` and `./pkg/...`).
 
 ## Architecture rule: third-party integrations live in `pkg/<name>`
