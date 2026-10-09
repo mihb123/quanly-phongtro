@@ -26,6 +26,9 @@ export function DataPagination({ page, pageSize, total, onPageChange, onPageSize
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1
   const to = Math.min(total, page * pageSize)
 
+  if (total <= PAGE_SIZE_OPTIONS[0] && page <= 1) return null
+  const showPageButtons = pageCount > 1 || page > 1
+
   return (
     <nav
       aria-label="Phân trang"
@@ -50,45 +53,47 @@ export function DataPagination({ page, pageSize, total, onPageChange, onPageSize
         </label>
       </div>
 
-      <div className="flex items-center justify-between gap-1 sm:justify-end">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onPageChange(page - 1)}
-          disabled={page <= 1}
-          aria-label="Trang trước"
-        >
-          <ChevronLeft />
-        </Button>
-        <div className="flex items-center gap-1">
-          {visiblePages(page, pageCount).map((p, i) =>
-            p === 'gap' ? (
-              <span key={`gap-${i}`} className="px-1 text-muted-foreground" aria-hidden>…</span>
-            ) : (
-              <Button
-                key={p}
-                variant={p === page ? 'secondary' : 'ghost'}
-                size="icon"
-                onClick={() => onPageChange(p)}
-                aria-label={`Trang ${p}`}
-                aria-current={p === page ? 'page' : undefined}
-                className="tabular-nums"
-              >
-                {p}
-              </Button>
-            ),
-          )}
+      {showPageButtons && (
+        <div className="flex items-center justify-between gap-1 sm:justify-end">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            aria-label="Trang trước"
+          >
+            <ChevronLeft />
+          </Button>
+          <div className="flex items-center gap-1">
+            {visiblePages(page, pageCount).map((p, i) =>
+              p === 'gap' ? (
+                <span key={`gap-${i}`} className="px-1 text-muted-foreground" aria-hidden>…</span>
+              ) : (
+                <Button
+                  key={p}
+                  variant={p === page ? 'secondary' : 'ghost'}
+                  size="icon"
+                  onClick={() => onPageChange(p)}
+                  aria-label={`Trang ${p}`}
+                  aria-current={p === page ? 'page' : undefined}
+                  className="tabular-nums"
+                >
+                  {p}
+                </Button>
+              ),
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= pageCount}
+            aria-label="Trang sau"
+          >
+            <ChevronRight />
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => onPageChange(page + 1)}
-          disabled={page >= pageCount}
-          aria-label="Trang sau"
-        >
-          <ChevronRight />
-        </Button>
-      </div>
+      )}
     </nav>
   )
 }

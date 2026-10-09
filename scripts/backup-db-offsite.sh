@@ -8,7 +8,23 @@ UPLOADS_DIR="${UPLOADS_DIR:-$PROJECT_DIR/uploads}"
 OFFSITE_HOST="${OFFSITE_HOST:-ocl}"
 OFFSITE_DIR="${OFFSITE_DIR:-backup-quanly-phongtro}"
 OFFSITE_MAX_BACKUPS="${OFFSITE_MAX_BACKUPS:-5}"
-SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15)
+OFFSITE_SSH_KEY="${OFFSITE_SSH_KEY:-$HOME/.ssh/qlpt_backup_ed25519}"
+OFFSITE_SSH_PASSFILE="${OFFSITE_SSH_PASSFILE:-$HOME/dotfile/qlpt/backup-ssh.pass}"
+SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15 -o IdentitiesOnly=yes -i "$OFFSITE_SSH_KEY")
+
+for f in "$OFFSITE_SSH_KEY" "$OFFSITE_SSH_PASSFILE"; do
+  if [[ ! -r "$f" ]]; then
+    echo "❌ Thiếu $f (key/passphrase SSH cho backup offsite)"
+    exit 1
+  fi
+done
+
+ASKPASS=$(mktemp)
+trap 'ssh-agent -k >/dev/null 2>&1 || true; rm -f "$ASKPASS"' EXIT
+printf '#!/bin/sh\nexec cat %q\n' "$OFFSITE_SSH_PASSFILE" > "$ASKPASS"
+chmod 700 "$ASKPASS"
+eval "$(ssh-agent -s)" >/dev/null
+SSH_ASKPASS="$ASKPASS" SSH_ASKPASS_REQUIRE=force ssh-add -q "$OFFSITE_SSH_KEY" </dev/null
 
 LATEST_BACKUP=$(find "$BACKUP_DIR" -maxdepth 1 -name "db_*.sql.gz" -type f -printf '%T@ %p\n' 2>/dev/null \
   | sort -n \

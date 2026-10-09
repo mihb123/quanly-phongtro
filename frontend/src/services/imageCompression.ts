@@ -17,7 +17,12 @@ const MIN_SAVING_RATIO = 0.9
 const PNG_START_QUALITY = 0.9
 
 /** Số ảnh được nén song song, giữ thấp để không ngốn RAM trên điện thoại. */
-const MAX_PARALLEL = 2
+const MAX_PARALLEL = (() => {
+  const nav = globalThis.navigator as (Navigator & { deviceMemory?: number }) | undefined
+  const cores = nav?.hardwareConcurrency ?? 2
+  const cap = nav?.deviceMemory !== undefined && nav.deviceMemory <= 2 ? 2 : 3
+  return Math.max(1, Math.min(cap, cores - 1))
+})()
 
 const WORKER_IDLE_MS = 15_000
 
@@ -39,9 +44,10 @@ export interface CompressedFile {
 interface PendingJob {
   resolve: (blob: Blob | null) => void
   reject: (error: Error) => void
+  worker: Worker
 }
 
-let worker: Worker | null = null
+let workers: Worker[] = []
 let jobSeq = 0
 const pendingJobs = new Map<number, PendingJob>()
 let idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -64,16 +70,17 @@ function failAllPending(message: string) {
 function scheduleWorkerShutdown() {
   if (idleTimer) clearTimeout(idleTimer)
   idleTimer = setTimeout(() => {
-    if (pendingJobs.size === 0) {
-      worker?.terminate()
-      worker = null
-    }
+    if (pendingJobs.size === 0) terminateWorkers()
   }, WORKER_IDLE_MS)
 }
 
-function getWorker(): Worker {
-  if (worker) return worker
-  worker = new Worker(new URL('./imageCompression.worker.ts', import.meta.url), { type: 'module' })
+function terminateWorkers() {
+  workers.forEach(item => item.terminate())
+  workers = []
+}
+
+function createWorker(): Worker {
+  const worker = new Worker(new URL('./imageCompression.worker.ts', import.meta.url), { type: 'module' })
   worker.onmessage = (event: MessageEvent<{ id: number; ok: boolean; blob?: Blob | null; error?: string }>) => {
     const { id, ok, blob, error } = event.data
     const job = pendingJobs.get(id)
@@ -88,19 +95,37 @@ function getWorker(): Worker {
   }
   worker.onerror = () => {
     failAllPending('worker nén ảnh gặp lỗi')
-    worker?.terminate()
-    worker = null
+    terminateWorkers()
   }
   return worker
+}
+
+function ensureWorkers(): Worker[] {
+  while (workers.length < MAX_PARALLEL) workers.push(createWorker())
+  return workers
+}
+
+function leastBusyWorker(): Worker {
+  const pool = ensureWorkers()
+  const load = new Map(pool.map(item => [item, 0]))
+  for (const job of pendingJobs.values()) load.set(job.worker, (load.get(job.worker) ?? 0) + 1)
+  return pool.reduce((best, item) => ((load.get(item) ?? 0) < (load.get(best) ?? 0) ? item : best))
 }
 
 function compressViaWorker(blob: Blob, options: CompressOptions): Promise<Blob | null> {
   return new Promise<Blob | null>((resolve, reject) => {
     const id = ++jobSeq
-    pendingJobs.set(id, { resolve, reject })
+    const target = leastBusyWorker()
+    pendingJobs.set(id, { resolve, reject, worker: target })
     if (idleTimer) clearTimeout(idleTimer)
-    getWorker().postMessage({ id, blob, options })
+    target.postMessage({ id, blob, options })
   })
+}
+
+export function prewarmImageCompression() {
+  if (!workerSupported()) return
+  ensureWorkers()
+  if (pendingJobs.size === 0) scheduleWorkerShutdown()
 }
 
 export function isCompressibleImage(file: File): boolean {

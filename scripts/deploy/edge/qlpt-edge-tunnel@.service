@@ -1,0 +1,13 @@
+[Unit]
+Description=Reverse SSH tunnel quanly-phongtro -> edge %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+EnvironmentFile=%h/.config/qlpt-edge/%i.env
+ExecStart=/usr/bin/ssh -N -i ${TUNNEL_KEY} -o IdentitiesOnly=yes -o BatchMode=yes -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new $FORWARDS ${TUNNEL_USER}@${EDGE_HOST}
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

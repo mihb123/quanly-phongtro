@@ -15,7 +15,7 @@ import { ProtectedFileImage } from './ProtectedFileImage'
 import { clearProtectedFileCache } from '@/api/files'
 import { ImageLightboxModal, type LightboxImageItem } from '@/components/shared/ImageLightboxModal'
 import { ConfirmModal } from './ConfirmModal'
-import { compressImagesForUpload } from '@/services/imageCompression'
+import { compressImagesForUpload, prewarmImageCompression } from '@/services/imageCompression'
 import { toast } from 'sonner'
 
 const tenantSchema = z.object({
@@ -297,6 +297,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
                     multiple
                     disabled={isUploadingCccd}
                     className="hidden"
+                    onClick={prewarmImageCompression}
                     onChange={e => {
                       void handleUploadCccd(e.target.files)
                       e.target.value = ''
