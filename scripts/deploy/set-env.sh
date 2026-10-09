@@ -10,6 +10,7 @@ DEPLOY_USER="${DEPLOY_USER:-$(id -un)}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-$(id -gn)}"
 # File .env thật được giữ lâu dài NGOÀI workspace (workspace bị checkout/agent xóa file untracked).
 ENV_FILE_SOURCE="${ENV_FILE_SOURCE:-$HOME/quanly-phongtro/.env}"
+UPLOADS_DIR_SOURCE="${UPLOADS_DIR_SOURCE:-$HOME/quanly-phongtro/uploads}"
 
 # link_env_file trỏ $PROJECT_DIR/.env sang file .env dùng chung để mỗi lần deploy
 # đều có .env, kể cả khi file trong workspace bị xóa. Idempotent; không tự-symlink.
@@ -31,7 +32,26 @@ link_env_file() {
   echo "Đã trỏ symlink .env: $env_link -> $ENV_FILE_SOURCE"
 }
 
+link_uploads_dir() {
+  local uploads_link="$PROJECT_DIR/uploads"
+
+  mkdir -p "$UPLOADS_DIR_SOURCE"
+
+  if [[ "$uploads_link" == "$UPLOADS_DIR_SOURCE" || "$uploads_link" -ef "$UPLOADS_DIR_SOURCE" ]]; then
+    return 0
+  fi
+
+  if [[ -d "$uploads_link" && ! -L "$uploads_link" ]]; then
+    cp -a --update=none "$uploads_link"/. "$UPLOADS_DIR_SOURCE"/
+    rm -rf "$uploads_link"
+  fi
+
+  ln -sfn "$UPLOADS_DIR_SOURCE" "$uploads_link"
+  echo "Đã trỏ symlink uploads: $uploads_link -> $UPLOADS_DIR_SOURCE"
+}
+
 link_env_file
+link_uploads_dir
 
 {
   echo "PROJECT_DIR=$PROJECT_DIR"

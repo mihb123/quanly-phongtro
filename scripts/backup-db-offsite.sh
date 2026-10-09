@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="$PROJECT_DIR/backup/database"
+UPLOADS_DIR="${UPLOADS_DIR:-$PROJECT_DIR/uploads}"
 OFFSITE_HOST="${OFFSITE_HOST:-ocl}"
 OFFSITE_DIR="${OFFSITE_DIR:-backup-quanly-phongtro}"
 OFFSITE_MAX_BACKUPS="${OFFSITE_MAX_BACKUPS:-5}"
@@ -29,3 +30,11 @@ echo "✅ Đã chuyển backup sang $OFFSITE_HOST"
 
 ssh "${SSH_OPTS[@]}" "$OFFSITE_HOST" \
   "cd $OFFSITE_DIR && ls -1t db_*.sql.gz | tail -n +$((OFFSITE_MAX_BACKUPS + 1)) | xargs -r rm -f && echo '📋 Backup trên $OFFSITE_HOST:' && ls -lh db_*.sql.gz"
+
+if [[ -d "$UPLOADS_DIR" ]]; then
+  echo "☁️  Đồng bộ ảnh upload sang $OFFSITE_HOST:~/$OFFSITE_DIR/uploads/ ..."
+  rsync -a --partial -e "ssh ${SSH_OPTS[*]}" "$UPLOADS_DIR"/ "$OFFSITE_HOST:$OFFSITE_DIR/uploads/"
+  echo "✅ Đã đồng bộ ảnh upload sang $OFFSITE_HOST"
+else
+  echo "⚠️  Không có thư mục upload $UPLOADS_DIR, bỏ qua"
+fi

@@ -14,6 +14,7 @@ if [[ "$PROJECT_DIR" != "$GITHUB_WORKSPACE" ]]; then
       --exclude='.git' \
       --exclude='.env' \
       --exclude='backup/' \
+      --exclude='/uploads' \
       --exclude="$SERVICE_NAME" \
       --exclude="${SERVICE_NAME}.new" \
       "$GITHUB_WORKSPACE"/ "$PROJECT_DIR"/
@@ -22,6 +23,7 @@ if [[ "$PROJECT_DIR" != "$GITHUB_WORKSPACE" ]]; then
       --exclude='./.git' \
       --exclude='./.env' \
       --exclude='./backup' \
+      --exclude='./uploads' \
       --exclude="./$SERVICE_NAME" \
       --exclude="./${SERVICE_NAME}.new" \
       -C "$GITHUB_WORKSPACE" -cf - . | tar -C "$PROJECT_DIR" -xf -

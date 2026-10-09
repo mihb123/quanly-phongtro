@@ -6,6 +6,7 @@ Shared knowledge for every coding agent (Claude, Codex, Gemini/agy, subagents). 
 
 - Go API (chi + bun, PostgreSQL) + React/Vite frontend (`frontend/`, shadcn base-luma); the frontend is built into `internal/web/dist` and embedded in one binary.
 - Production `https://quanly.ptro.site` runs on this machine: systemd `quanly-phongtro-api`, working dir `/home/dell/actions-runner/_work/quanly-phongtro/quanly-phongtro`, logs `journalctl -u quanly-phongtro-api`. DB DSN in `.env` (`POSTGRES_DSN`).
+- `.env` and `uploads/` live outside the runner workspace in `~/quanly-phongtro/` and are symlinked in by `scripts/deploy/set-env.sh`: `actions/checkout` can wipe the whole workspace (on 2026-10-08 it wiped all uploaded CCCD/contract images). `uploads/` is rsynced (no `--delete`) to the offsite host by `scripts/backup-db-offsite.sh`.
 - Deploy = push to `develop` → `.github/workflows/deploy.yml` on a self-hosted runner (lint/test → build → backup → migrate → restart). Pushing deploys production, so only push when the user asks.
 - CI tests: `scripts/deploy/lint-test.sh` (`./internal/{service,handler,repository}/...` and `./pkg/...`).
 
