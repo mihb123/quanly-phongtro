@@ -11,7 +11,7 @@ MIGRATE := $(LOAD_ENV) && migrate -path $(MIGRATIONS_DIR) -database "$$POSTGRES_
 
 .PHONY: help dev dev-fe run install build frontend clean \
 	test test-fe vet fmt check mocks \
-	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl
+	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl restore-db
 
 help: ## Hiển thị danh sách lệnh
 	@awk 'BEGIN {FS = ":.*?## "} \
@@ -121,3 +121,15 @@ backup-db: ## Backup PostgreSQL vào backup/database (giữ 5 bản gần nhất
 
 backup-db-ocl: backup-db ## Backup PostgreSQL rồi chuyển bản mới nhất sang ocl:~/backup-quanly-phongtro
 	./scripts/backup-db-offsite.sh
+
+restore-db: ## Khôi phục backup vào DB trống trong .env: make restore-db [file=backup/database/db_x.sql.gz]
+	@set -e; $(LOAD_ENV); \
+	file="$(or $(file),$(shell ls -t backup/database/db_*.sql.gz 2>/dev/null | head -n1))"; \
+	[ -f "$$file" ] || { echo "Không tìm thấy file backup: $$file"; exit 1; }; \
+	db=$$(psql "$$POSTGRES_DSN" -Atc "SELECT current_database()"); \
+	count_tables() { psql "$$POSTGRES_DSN" -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'"; }; \
+	tables=$$(count_tables); \
+	[ "$$tables" = 0 ] || { echo "DB '$$db' đã có $$tables bảng, chỉ restore vào DB trống"; exit 1; }; \
+	echo "Restore $$file -> $$db"; \
+	gunzip -c "$$file" | psql "$$POSTGRES_DSN" -q -v ON_ERROR_STOP=1 --single-transaction >/dev/null; \
+	echo "Restore xong: $$(count_tables) bảng"
