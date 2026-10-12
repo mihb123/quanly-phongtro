@@ -1,5 +1,6 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/utils/format'
+import { useMediaQuery } from '@/hooks/use-mobile'
 
 export interface BreakdownColumn {
   label: string
@@ -27,10 +28,11 @@ function formatCell(column: BreakdownColumn, value: number, deduction?: boolean)
 
 export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTableProps) {
   const [primary, ...secondary] = columns
+  const isDesktop = useMediaQuery('(min-width: 640px)')
 
-  return (
-    <>
-      <ul className="divide-y sm:hidden">
+  if (!isDesktop) {
+    return (
+      <ul className="divide-y">
         {total && (
           <li className="flex flex-col gap-0.5 bg-muted/50 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
@@ -72,39 +74,41 @@ export function BreakdownTable({ itemLabel, columns, rows, total }: BreakdownTab
           </li>
         ))}
       </ul>
+    )
+  }
 
-      <Table className="hidden sm:table">
-        <TableHeader className="bg-muted/50">
-          <TableRow>
-            <TableHead className="px-5 text-muted-foreground">{itemLabel}</TableHead>
-            {columns.map(column => (
-              <TableHead key={column.label} className="px-5 text-right text-muted-foreground">{column.label}</TableHead>
+  return (
+    <Table>
+      <TableHeader className="bg-muted/50">
+        <TableRow>
+          <TableHead className="px-5 text-muted-foreground">{itemLabel}</TableHead>
+          {columns.map(column => (
+            <TableHead key={column.label} className="px-5 text-right text-muted-foreground">{column.label}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {total && (
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableCell className="px-5 font-semibold text-foreground">{total.label}</TableCell>
+            {columns.map((column, i) => (
+              <TableCell key={column.label} className="px-5 text-right font-semibold tabular-nums text-foreground">
+                {formatCell(column, total.values[i])}
+              </TableCell>
             ))}
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {total && (
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
-              <TableCell className="px-5 font-semibold text-foreground">{total.label}</TableCell>
-              {columns.map((column, i) => (
-                <TableCell key={column.label} className="px-5 text-right font-semibold tabular-nums text-foreground">
-                  {formatCell(column, total.values[i])}
-                </TableCell>
-              ))}
-            </TableRow>
-          )}
-          {rows.map(row => (
-            <TableRow key={row.key}>
-              <TableCell className="px-5 font-medium text-foreground">{row.label}</TableCell>
-              {columns.map((column, i) => (
-                <TableCell key={column.label} className="px-5 text-right tabular-nums text-foreground">
-                  {formatCell(column, row.values[i], row.deduction)}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </>
+        )}
+        {rows.map(row => (
+          <TableRow key={row.key}>
+            <TableCell className="px-5 font-medium text-foreground">{row.label}</TableCell>
+            {columns.map((column, i) => (
+              <TableCell key={column.label} className="px-5 text-right tabular-nums text-foreground">
+                {formatCell(column, row.values[i], row.deduction)}
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

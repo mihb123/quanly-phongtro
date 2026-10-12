@@ -131,6 +131,7 @@ export function CreateInvoiceModal({ onClose }: Props) {
   }, [watchHouseId, fetchRooms])
 
   useEffect(() => {
+    let ignore = false
     async function fetchOldIndex() {
       if (!watchRoomId) {
         setValue('old_electricity_index', undefined)
@@ -138,7 +139,11 @@ export function CreateInvoiceModal({ onClose }: Props) {
         return
       }
       try {
-        const data = await getInvoices({ room_id: watchRoomId, limit: 1 })
+        const [data, tenantsRes] = await Promise.all([
+          getInvoices({ room_id: watchRoomId, limit: 1 }),
+          getTenantsByRoom(watchRoomId),
+        ])
+        if (ignore) return
         if (data && data.length > 0) {
           setValue('old_electricity_index', data[0].new_electricity_index)
           setValue('old_water_index', data[0].new_water_index)
@@ -147,7 +152,6 @@ export function CreateInvoiceModal({ onClose }: Props) {
           setValue('old_water_index', undefined)
         }
 
-        const tenantsRes = await getTenantsByRoom(watchRoomId)
         if (tenantsRes && tenantsRes.data) {
           setValue('tenant_count', tenantsRes.data.length)
         } else {
@@ -158,6 +162,9 @@ export function CreateInvoiceModal({ onClose }: Props) {
       }
     }
     fetchOldIndex()
+    return () => {
+      ignore = true
+    }
   }, [watchRoomId, setValue])
 
   const onSubmit = async (data: InvoiceFormValues) => {

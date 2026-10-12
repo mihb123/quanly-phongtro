@@ -146,7 +146,7 @@ export function TenantListModal({ room, onClose, onAdd, onEdit, onDataChange }: 
                             const isImg = isImagePath(item.path || '')
                             return (
                               <div
-                                key={`cccd-${fileIdx}`}
+                                key={item.path}
                                 className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border/80 bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
                                 onClick={() => handleOpenGallery(cccdList, fileIdx)}
                                 title={`Xem ảnh CCCD ${fileIdx + 1}: ${item.filename}`}

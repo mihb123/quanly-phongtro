@@ -27,8 +27,10 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [previewData, setPreviewData] = useState<{ url: string, filename: string } | null>(null)
-  const [transactionImageUrl, setTransactionImageUrl] = useState<string | null>(null)
-  const [transactionImageError, setTransactionImageError] = useState(false)
+  const [transactionImage, setTransactionImage] = useState<{ path: string; url: string | null; error: boolean } | null>(null)
+  const transactionImagePath = invoice.transaction_image_path
+  const transactionImageUrl = transactionImage && transactionImage.path === transactionImagePath ? transactionImage.url : null
+  const transactionImageError = !!transactionImage && transactionImage.path === transactionImagePath && transactionImage.error
   
   const printRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -37,31 +39,28 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     let isMounted = true
     let objectUrl: string | null = null
 
-    setTransactionImageUrl(null)
-    setTransactionImageError(false)
-
-    if (!invoice.transaction_image_path) {
+    if (!transactionImagePath) {
       return
     }
 
-    getProtectedFileObjectUrl(invoice.transaction_image_path)
+    getProtectedFileObjectUrl(transactionImagePath)
       .then((url) => {
         objectUrl = url
         if (isMounted) {
-          setTransactionImageUrl(url)
+          setTransactionImage({ path: transactionImagePath, url, error: false })
         } else {
           URL.revokeObjectURL(url)
         }
       })
       .catch(() => {
-        if (isMounted) setTransactionImageError(true)
+        if (isMounted) setTransactionImage({ path: transactionImagePath, url: null, error: true })
       })
 
     return () => {
       isMounted = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [invoice.transaction_image_path])
+  }, [transactionImagePath])
 
   const handlePay = async () => {
     setIsPaying(true)

@@ -29,6 +29,7 @@ import { DataPagination } from '@/components/shared/DataPagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useQuery } from '@/lib/queryCache'
 import { useStableCallback } from '@/hooks/useStableCallback'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
 const INVOICE_BREAKDOWN_ITEMS: { key: keyof InvoiceAmounts; label: string; alwaysShow?: boolean; deduction?: boolean }[] = [
@@ -55,6 +56,7 @@ const errorText = (error: unknown) =>
 export function InvoicesView() {
   const { houses } = useHouseStore()
   const { getRoomsByHouse } = useRoomStore()
+  const isMobile = useIsMobile()
   const selectedHouse = useSelectedStore(state => state.selectedHouse)
   const selectHouse = useSelectedStore(state => state.selectHouse)
 
@@ -106,7 +108,8 @@ export function InvoicesView() {
     clearInvoiceFilter();
   };
 
-  const [filterRooms, setFilterRooms] = useState<{ id: string; name: string }[]>([])
+  const [loadedFilterRooms, setLoadedFilterRooms] = useState<{ houseId: string; rooms: { id: string; name: string }[] } | null>(null)
+  const filterRooms = invoiceFilter.house_id && loadedFilterRooms?.houseId === invoiceFilter.house_id ? loadedFilterRooms.rooms : []
 
   const handleHouseFilterChange = (houseId: string) => {
     setInvoiceFilter({ house_id: houseId, room_id: '' });
@@ -114,11 +117,9 @@ export function InvoicesView() {
   };
 
   useEffect(() => {
-    if (invoiceFilter.house_id) {
-      getRoomsByHouse(invoiceFilter.house_id).then(res => setFilterRooms(res)).catch(console.error)
-    } else {
-      setFilterRooms([])
-    }
+    const houseId = invoiceFilter.house_id
+    if (!houseId) return
+    getRoomsByHouse(houseId).then(rooms => setLoadedFilterRooms({ houseId, rooms })).catch(console.error)
   }, [invoiceFilter.house_id, getRoomsByHouse])
 
   const houseNames = useMemo(() => new Map(houses.map(h => [h.id, h.name])), [houses])
@@ -502,81 +503,81 @@ export function InvoicesView() {
         </Card>
       ) : (
         <div className={cn('flex flex-col gap-3 transition-opacity', listQuery.isPlaceholder && 'opacity-60')}>
-          {/* Mobile Card View */}
-          <div className="flex flex-col gap-2 md:hidden">
-            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm">
-              <span className="font-semibold text-foreground">Tổng {total.toLocaleString('vi-VN')} hóa đơn</span>
-              <span className="font-semibold tabular-nums text-foreground">{money(stats?.expectedRevenue)}</span>
+          {isMobile ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                <span className="font-semibold text-foreground">Tổng {total.toLocaleString('vi-VN')} hóa đơn</span>
+                <span className="font-semibold tabular-nums text-foreground">{money(stats?.expectedRevenue)}</span>
+              </div>
+              {invoices.map(invoice => (
+                <InvoiceMobileCard
+                  key={invoice.id}
+                  invoice={invoice}
+                  houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ nhà trọ'}
+                  onOpen={openInvoice}
+                  onEdit={editInvoice}
+                  onDownload={handleDownload}
+                  onSendZalo={handleSendZalo}
+                  onDelete={handleDelete}
+                />
+              ))}
             </div>
-            {invoices.map(invoice => (
-              <InvoiceMobileCard
-                key={invoice.id}
-                invoice={invoice}
-                houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ nhà trọ'}
-                onOpen={openInvoice}
-                onEdit={editInvoice}
-                onDownload={handleDownload}
-                onSendZalo={handleSendZalo}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-
-          {/* Desktop Table View */}
-          <Card className="hidden gap-0 overflow-hidden p-0 md:flex">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-secondary/30">
-                  <TableHead className="px-6">Kỳ</TableHead>
-                  <TableHead className="px-6">Phòng</TableHead>
-                  <TableHead className="px-6 text-right">Tổng tiền</TableHead>
-                  <TableHead className="px-6 text-center">Trạng thái</TableHead>
-                  <TableHead className="px-6">Ngày tạo</TableHead>
-                  <TableHead className="px-6 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      Hành động
-                      <Button
-                        onClick={handleDownloadAll}
-                        disabled={total === 0 || isDownloadingAll}
-                        variant="ghost"
-                        size="icon"
-                        className="text-muted-foreground"
-                        aria-label="Tải tất cả hóa đơn theo bộ lọc"
-                        title="Tải tất cả hóa đơn (Mẫu 1)"
-                      >
-                        {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-                      </Button>
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableCell colSpan={2} className="px-6 py-2.5 font-semibold text-foreground">
-                    Tổng ({total.toLocaleString('vi-VN')} hóa đơn)
-                  </TableCell>
-                  <TableCell className="px-6 py-2.5 text-right font-semibold tabular-nums text-foreground">
-                    {money(stats?.expectedRevenue)}
-                  </TableCell>
-                  <TableCell colSpan={3} className="px-6 py-2.5 text-xs text-muted-foreground">
-                    {stats ? `Đã thu ${formatCurrency(stats.collectedRevenue)} · Chưa thu ${formatCurrency(stats.unpaidRevenue)}` : null}
-                  </TableCell>
-                </TableRow>
-                {invoices.map(invoice => (
-                  <InvoiceRow
-                    key={invoice.id}
-                    invoice={invoice}
-                    houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ'}
-                    onOpen={openInvoice}
-                    onEdit={editInvoice}
-                    onDownload={handleDownload}
-                    onSendZalo={handleSendZalo}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          ) : (
+            <Card className="gap-0 overflow-hidden p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-secondary/30">
+                    <TableHead className="px-6">Kỳ</TableHead>
+                    <TableHead className="px-6">Phòng</TableHead>
+                    <TableHead className="px-6 text-right">Tổng tiền</TableHead>
+                    <TableHead className="px-6 text-center">Trạng thái</TableHead>
+                    <TableHead className="px-6">Ngày tạo</TableHead>
+                    <TableHead className="px-6 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        Hành động
+                        <Button
+                          onClick={handleDownloadAll}
+                          disabled={total === 0 || isDownloadingAll}
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground"
+                          aria-label="Tải tất cả hóa đơn theo bộ lọc"
+                          title="Tải tất cả hóa đơn (Mẫu 1)"
+                        >
+                          {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                        </Button>
+                      </div>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-muted/50 hover:bg-muted/50">
+                    <TableCell colSpan={2} className="px-6 py-2.5 font-semibold text-foreground">
+                      Tổng ({total.toLocaleString('vi-VN')} hóa đơn)
+                    </TableCell>
+                    <TableCell className="px-6 py-2.5 text-right font-semibold tabular-nums text-foreground">
+                      {money(stats?.expectedRevenue)}
+                    </TableCell>
+                    <TableCell colSpan={3} className="px-6 py-2.5 text-xs text-muted-foreground">
+                      {stats ? `Đã thu ${formatCurrency(stats.collectedRevenue)} · Chưa thu ${formatCurrency(stats.unpaidRevenue)}` : null}
+                    </TableCell>
+                  </TableRow>
+                  {invoices.map(invoice => (
+                    <InvoiceRow
+                      key={invoice.id}
+                      invoice={invoice}
+                      houseName={invoiceFilter.house_id ? undefined : houseNames.get(invoice.house_id) || 'Không rõ'}
+                      onOpen={openInvoice}
+                      onEdit={editInvoice}
+                      onDownload={handleDownload}
+                      onSendZalo={handleSendZalo}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          )}
 
           <DataPagination
             page={invoiceFilter.page}

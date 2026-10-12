@@ -337,7 +337,7 @@ export function EditRoomModal({ room, onClose }: { room: Room, onClose: () => vo
                 const fileName = getFileName(path)
                 return (
                   <div
-                    key={`exist-contract-${idx}`}
+                    key={path}
                     className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
                     onClick={() => handleOpenGallery(contractGallery, idx)}
                     title={`Hợp đồng ${idx + 1}: ${fileName}`}

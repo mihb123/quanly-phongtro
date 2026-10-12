@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,11 +37,18 @@ interface TenantEditModalProps {
 }
 
 // Modal sửa thông tin người thuê. Tải ảnh CCCD tự động lưu ngay, xóa có xác nhận.
+const parseCccdPaths = (tenant: Tenant) => (tenant.cccd_path ? tenant.cccd_path.split(',').filter(Boolean) : [])
+
 export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange }: TenantEditModalProps) {
   const updateTenant = useTenantStore(state => state.updateTenant)
 
   const [gallery, setGallery] = useState<{ items: LightboxImageItem[]; initialIndex: number } | null>(null)
-  const [existingCccdPaths, setExistingCccdPaths] = useState<string[]>([])
+  const [existingCccdPaths, setExistingCccdPaths] = useState<string[]>(() => parseCccdPaths(tenant))
+  const [syncedTenant, setSyncedTenant] = useState(tenant)
+  if (syncedTenant !== tenant) {
+    setSyncedTenant(tenant)
+    setExistingCccdPaths(parseCccdPaths(tenant))
+  }
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingCccd, setIsUploadingCccd] = useState(false)
   const [cccdToDelete, setCccdToDelete] = useState<string | null>(null)
@@ -57,10 +64,6 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
       startDate: tenant.start_date.split('T')[0]
     }
   })
-
-  useEffect(() => {
-    setExistingCccdPaths(tenant.cccd_path ? tenant.cccd_path.split(',').filter(Boolean) : [])
-  }, [tenant])
 
   const handleOpenGallery = (items: LightboxImageItem[], initialIndex: number) => {
     setGallery({ items, initialIndex })
@@ -227,7 +230,7 @@ export function TenantEditModal({ room, tenant, onClose, onSuccess, onDataChange
                   const fileName = getFileName(path)
                   return (
                     <div
-                      key={`exist-cccd-${idx}`}
+                      key={path}
                       className="relative group w-[100px] h-[100px] rounded-lg overflow-hidden border border-border bg-muted/40 cursor-pointer shadow-xs hover:border-primary/60 transition-all flex items-center justify-center shrink-0"
                       onClick={() => handleOpenGallery(cccdGallery, idx)}
                       title={`Ảnh CCCD ${idx + 1}: ${fileName}`}

@@ -40,11 +40,9 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const [latestInvoices, setLatestInvoices] = useState<Record<string, Invoice>>({})
   const [periodInvoices, setPeriodInvoices] = useState<Record<string, Invoice>>({})
 
-  useEffect(() => {
-    if (recommendedHouseId && !selectedHouseId) {
-      setSelectedHouseId(recommendedHouseId)
-    }
-  }, [recommendedHouseId, selectedHouseId])
+  if (recommendedHouseId && !selectedHouseId) {
+    setSelectedHouseId(recommendedHouseId)
+  }
 
   const handleHouseChange = (id: string) => {
     setSelectedHouseId(id)
@@ -68,21 +66,20 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
   const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
   useEffect(() => {
-    if (!selectedHouseId) {
-      setRooms([])
-      setLatestInvoices({})
-      setInvoiceData({})
-      return
-    }
+    if (!selectedHouseId) return
 
+    let ignore = false
     const fetchData = async () => {
       setIsFetchingData(true)
       try {
-        const fetchedRooms = await getRoomsByHouse(selectedHouseId)
+        const [fetchedRooms, allInvoices] = await Promise.all([
+          getRoomsByHouse(selectedHouseId),
+          getAllHouseInvoices(selectedHouseId),
+        ])
+        if (ignore) return
         const occupiedRooms = fetchedRooms.filter(r => r.status === 'OCCUPIED')
         setRooms(occupiedRooms.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })))
         
-        const allInvoices = await getAllHouseInvoices(selectedHouseId)
         const sortedInvoices = [...allInvoices].sort((a, b) => b.period.localeCompare(a.period))
         
         const latest: Record<string, Invoice> = {}
@@ -128,10 +125,13 @@ export function QuickCreateInvoiceModal({ onClose }: { onClose: () => void }) {
       } catch (err) {
         console.error("Lỗi khi tải dữ liệu", err)
       } finally {
-        setIsFetchingData(false)
+        if (!ignore) setIsFetchingData(false)
       }
     }
     fetchData()
+    return () => {
+      ignore = true
+    }
   }, [selectedHouseId, period, getRoomsByHouse])
 
   const handleInputChange = (id: string, field: 'new_electricity' | 'new_water' | 'vehicle_count', value: string) => {

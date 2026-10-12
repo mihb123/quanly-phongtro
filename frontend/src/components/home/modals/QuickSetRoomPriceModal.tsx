@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { AppModal } from '@/components/shared/AppModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,13 +8,21 @@ import { useRoomStore } from '@/data/roomData'
 import { formatNumber, parseNumber } from '@/utils/format'
 import { useDirtyConfirm } from '@/hooks/useDirtyConfirm'
 
+type RoomFields = { name: string, price: string, max_tenants: string }
+
+const toRoomFields = (room: Room): RoomFields => ({
+  name: room.name,
+  price: room.price?.toString() || '0',
+  max_tenants: room.max_tenants?.toString() || '2'
+})
+
 // Modal sửa nhanh giá & sức chứa nhiều phòng cùng lúc (kèm nhân bản/xóa qua nhấn giữ). Vỏ dùng AppModal, giữ nguyên state cục bộ + xác nhận khi dirty.
 export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
   const rooms = useRoomStore(state => state.rooms)
   const deleteRoomStore = useRoomStore(state => state.deleteRoom)
   const createRoomStore = useRoomStore(state => state.createRoom)
   const updateRoomStore = useRoomStore(state => state.updateRoom)
-  const [roomData, setRoomData] = useState<Record<string, { name: string, price: string, max_tenants: string }>>({})
+  const [roomData, setRoomData] = useState<Record<string, RoomFields>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [editingNameId, setEditingNameId] = useState<string | null>(null)
   const [showActionsFor, setShowActionsFor] = useState<string | null>(null)
@@ -37,24 +45,14 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
 
   const { handleClose, confirmModal } = useDirtyConfirm(isDirty, onClose, isLoading)
 
-  useEffect(() => {
-    const initialData: Record<string, { name: string, price: string, max_tenants: string }> = {}
-    rooms.forEach(room => {
-      initialData[room.id] = {
-        name: room.name,
-        price: room.price?.toString() || '0',
-        max_tenants: room.max_tenants?.toString() || '2'
-      }
-    })
-    setRoomData(initialData)
-  }, [rooms])
+  const fieldsOf = (room: Room) => roomData[room.id] ?? toRoomFields(room)
 
-  const handleInputChange = (id: string, field: 'name' | 'price' | 'max_tenants', value: string) => {
+  const handleInputChange = (room: Room, field: keyof RoomFields, value: string) => {
     setIsDirty(true)
     setRoomData(prev => ({
       ...prev,
-      [id]: {
-        ...prev[id],
+      [room.id]: {
+        ...(prev[room.id] ?? toRoomFields(room)),
         [field]: value
       }
     }))
@@ -214,31 +212,31 @@ export function QuickSetRoomPriceModal({ onClose }: { onClose: () => void }) {
                       <Input
                         autoFocus
                         type="text"
-                        value={roomData[room.id]?.name || ''}
-                        onChange={e => handleInputChange(room.id, 'name', e.target.value)}
+                        value={fieldsOf(room).name}
+                        onChange={e => handleInputChange(room, 'name', e.target.value)}
                         onBlur={() => setEditingNameId(null)}
                         onKeyDown={e => e.key === 'Enter' && setEditingNameId(null)}
                         className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm"
                       />
                     ) : (
                       <div className="cursor-pointer hover:text-primary truncate py-1.5" title="Nhấn để sửa tên, nhấn giữ để hiện thao tác">
-                        {roomData[room.id]?.name || room.name}
+                        {fieldsOf(room).name || room.name}
                       </div>
                     )}
                   </div>
                   <div className="col-span-5">
                     <Input
                       type="text"
-                      value={formatNumber(roomData[room.id]?.price || '')}
-                      onChange={e => handleInputChange(room.id, 'price', e.target.value.replace(/\D/g, ''))}
+                      value={formatNumber(fieldsOf(room).price)}
+                      onChange={e => handleInputChange(room, 'price', e.target.value.replace(/\D/g, ''))}
                       className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm font-semibold"
                     />
                   </div>
                   <div className="col-span-3">
                     <Input
                       type="number"
-                      value={roomData[room.id]?.max_tenants || ''}
-                      onChange={e => handleInputChange(room.id, 'max_tenants', e.target.value)}
+                      value={fieldsOf(room).max_tenants}
+                      onChange={e => handleInputChange(room, 'max_tenants', e.target.value)}
                       className="h-9 border-border focus:border-primary focus:ring-primary/20 bg-background text-sm text-center"
                     />
                   </div>

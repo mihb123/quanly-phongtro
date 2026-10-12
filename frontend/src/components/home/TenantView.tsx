@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { AlertTriangle, Building, DoorOpen, FilterX, Plus, Shield, Users } from '@/components/icons'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import { type Room } from '@/api/room'
 import { searchTenants, type Tenant } from '@/api/tenant'
 import { useQuery, queryKey } from '@/lib/queryCache'
 import { useStableCallback } from '@/hooks/useStableCallback'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { FILTER_TTL, readPageSize, readStorage, removeStorage, writeStorage } from '@/lib/storage'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -56,6 +57,7 @@ const formatCount = (value?: number) => (value === undefined ? '—' : value.toL
 export function TenantsView() {
   const { houses } = useHouseStore()
   const getRoomsByHouse = useRoomStore(state => state.getRoomsByHouse)
+  const isMobile = useIsMobile()
 
   const [filters, setFilters] = useState<TenantFilters>(restoreFilters)
   const [page, setPage] = useState(1)
@@ -70,11 +72,10 @@ export function TenantsView() {
   const activeFilterCount = [houseId, filters.q].filter(Boolean).length
   const showHouse = !houseId && houses.length > 1
 
-  useEffect(() => {
-    if (!query.data || query.isPlaceholder || query.error !== undefined) return
+  if (query.data && !query.isPlaceholder && query.error === undefined) {
     const lastPage = Math.max(1, Math.ceil(query.data.total / pageSize))
     if (page > lastPage) setPage(lastPage)
-  }, [query.data, query.isPlaceholder, query.error, page, pageSize])
+  }
 
   const updateFilters = (patch: Partial<TenantFilters>) => {
     setFilters(prev => {
@@ -248,45 +249,47 @@ export function TenantsView() {
           />
         ) : (
           <div className={cn('flex flex-col gap-3 transition-opacity', query.isPlaceholder && 'opacity-60')}>
-            <ul className="flex flex-col gap-2 md:hidden">
-              {tenants.map(tenant => (
-                <TenantMobileCard
-                  key={tenant.id}
-                  tenant={tenant}
-                  showHouse={showHouse}
-                  onEdit={handleTenantClick}
-                  onOpenRoom={handleRoomClick}
-                  onCopyPhone={handlePhoneClick}
-                />
-              ))}
-            </ul>
-
-            <div className="hidden overflow-x-auto rounded-lg border md:block">
-              <Table className="whitespace-nowrap">
-                <TableHeader>
-                  <TableRow className="bg-secondary/30">
-                    <TableHead>Tên khách thuê</TableHead>
-                    {showHouse && <TableHead>Nhà trọ</TableHead>}
-                    <TableHead>Phòng đang ở</TableHead>
-                    <TableHead>Số điện thoại</TableHead>
-                    <TableHead>Ngày bắt đầu ở</TableHead>
-                    <TableHead>Tình trạng</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {tenants.map(t => (
-                    <TenantRow
-                      key={t.id}
-                      tenant={t}
-                      showHouse={showHouse}
-                      onEdit={handleTenantClick}
-                      onOpenRoom={handleRoomClick}
-                      onCopyPhone={handlePhoneClick}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            {isMobile ? (
+              <ul className="flex flex-col gap-2">
+                {tenants.map(tenant => (
+                  <TenantMobileCard
+                    key={tenant.id}
+                    tenant={tenant}
+                    showHouse={showHouse}
+                    onEdit={handleTenantClick}
+                    onOpenRoom={handleRoomClick}
+                    onCopyPhone={handlePhoneClick}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border">
+                <Table className="whitespace-nowrap">
+                  <TableHeader>
+                    <TableRow className="bg-secondary/30">
+                      <TableHead>Tên khách thuê</TableHead>
+                      {showHouse && <TableHead>Nhà trọ</TableHead>}
+                      <TableHead>Phòng đang ở</TableHead>
+                      <TableHead>Số điện thoại</TableHead>
+                      <TableHead>Ngày bắt đầu ở</TableHead>
+                      <TableHead>Tình trạng</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tenants.map(t => (
+                      <TenantRow
+                        key={t.id}
+                        tenant={t}
+                        showHouse={showHouse}
+                        onEdit={handleTenantClick}
+                        onOpenRoom={handleRoomClick}
+                        onCopyPhone={handlePhoneClick}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
 
             <DataPagination
               page={page}
