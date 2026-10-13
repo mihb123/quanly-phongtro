@@ -40,7 +40,7 @@ export const InvoiceMobileCard = memo(function InvoiceMobileCard({
           variant="ghost"
           size="lg"
           onClick={() => onOpen(invoice)}
-          className="h-auto w-full cursor-pointer justify-start whitespace-normal rounded-none p-3 text-left"
+          className="h-auto w-full cursor-pointer justify-start pointer-coarse:h-auto whitespace-normal rounded-none p-3 text-left"
           aria-label={`Xem hóa đơn phòng ${invoice.room_name}, kỳ ${invoice.period}`}
         >
           <span className="flex w-full min-w-0 flex-col gap-2">

@@ -27,6 +27,14 @@ import { BreakdownTable, type BreakdownRow } from '@/components/shared/Breakdown
 import { useInvoiceBreakdown } from '@/hooks/useInvoiceBreakdown';
 import type { InvoiceAmounts } from '@/api/invoice';
 
+const FIXED_COST_ITEMS: { key: keyof HouseCost; label: string; type: string }[] = [
+  { key: 'rent', label: 'Tiền thuê nhà', type: 'Cố định' },
+  { key: 'electricity', label: 'Tiền điện', type: 'Biến đổi' },
+  { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
+  { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
+  { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
+];
+
 type CostField = 'rent' | 'electricity' | 'water' | 'wifi' | 'cleaning'
 
 const COMPARISON_ITEMS: { key: string; label: string; revenue: (keyof InvoiceAmounts)[]; cost?: CostField; alwaysShow?: boolean }[] = [
@@ -273,6 +281,10 @@ export function RevenueView() {
     }
   };
 
+  const getActiveTotalCost = (houseId: string) =>
+    FIXED_COST_ITEMS.reduce((acc, item) => acc + (getActiveCostValue(houseId, item.key) as number), 0) +
+    getActiveExtraCosts(houseId).reduce((acc, curr) => acc + curr.amount, 0);
+
   return (
     <div className="space-y-8 safe-fade-in pb-12">
       {/* Header & Filters */}
@@ -366,7 +378,7 @@ export function RevenueView() {
         }
         action={
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto md:gap-3">
-            <div className="min-w-0 flex-1 sm:flex-none">
+            <div className="min-w-0 basis-full sm:basis-auto">
               {houses.length <= HOUSE_BUTTON_LIMIT ? (
                 <HouseButtonGroup
                   houses={houses}
@@ -408,7 +420,8 @@ export function RevenueView() {
             )}
           </div>
         }
-        bodyClassName="p-6"
+        headerClassName="flex-wrap"
+        bodyClassName="p-3 sm:p-6"
       >
         {selectedHouseIds.length === 1 ? (
           isLoadingCosts ? (
@@ -426,7 +439,73 @@ export function RevenueView() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-lg border">
+            <>
+            <div className="flex flex-col divide-y rounded-lg border md:hidden">
+              {FIXED_COST_ITEMS.map((item) => (
+                <div key={item.key} className="flex items-center justify-between gap-3 p-3">
+                  <div className="flex min-w-0 flex-col items-start gap-1">
+                    <span className="text-sm font-semibold text-foreground">{item.label}</span>
+                    <Badge variant={item.type === 'Cố định' ? 'secondary' : 'outline'}>{item.type}</Badge>
+                  </div>
+                  <CurrencyInput
+                    value={getActiveCostValue(selectedHouseIds[0], item.key) as number}
+                    onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key, val)}
+                    className="h-9 w-36 shrink-0 tabular-nums"
+                  />
+                </div>
+              ))}
+              {getActiveExtraCosts(selectedHouseIds[0]).map((extra, index) => (
+                <div key={`extra-m-${index}`} className="flex flex-col gap-2 p-3">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={extra.name}
+                      onChange={(e) => handleExtraCostChange(selectedHouseIds[0], index, 'name', e.target.value)}
+                      placeholder="Tên chi phí..."
+                      className="h-9 min-w-0 flex-1"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveExtraCost(selectedHouseIds[0], index)}
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      aria-label="Xóa chi phí"
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant="outline">Tùy chỉnh</Badge>
+                    <CurrencyInput
+                      value={extra.amount}
+                      onChange={(val) => handleExtraCostChange(selectedHouseIds[0], index, 'amount', val)}
+                      className="h-9 w-36 shrink-0 tabular-nums"
+                    />
+                  </div>
+                  <div
+                    onClick={() => setEditingNoteFor({ houseId: selectedHouseIds[0], index })}
+                    className={`min-h-8 w-full cursor-pointer whitespace-pre-wrap rounded-md bg-secondary/30 p-2 text-sm leading-relaxed transition-colors hover:bg-secondary/50 ${extra.note ? 'text-foreground' : 'italic text-muted-foreground'}`}
+                  >
+                    {extra.note || 'Bấm để thêm ghi chú...'}
+                  </div>
+                </div>
+              ))}
+              <div className="p-1">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleAddExtraCost(selectedHouseIds[0])}
+                  className="text-muted-foreground"
+                >
+                  <Plus data-icon="inline-start" /> Thêm chi phí khác
+                </Button>
+              </div>
+              <div className="flex items-center justify-between gap-3 bg-muted/50 p-3">
+                <span className="text-sm font-medium text-muted-foreground">Tổng cộng chi phí</span>
+                <span className="text-lg font-semibold tabular-nums text-foreground">
+                  {formatCurrency(getActiveTotalCost(selectedHouseIds[0]))}
+                </span>
+              </div>
+            </div>
+            <div className="hidden overflow-hidden rounded-lg border md:block">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -439,13 +518,7 @@ export function RevenueView() {
                 </TableHeader>
                 <TableBody>
                   {/* Fixed Layout Costs */}
-                  {[
-                    { key: 'rent', label: 'Tiền thuê nhà', type: 'Cố định' },
-                    { key: 'electricity', label: 'Tiền điện', type: 'Biến đổi' },
-                    { key: 'water', label: 'Tiền nước', type: 'Biến đổi' },
-                    { key: 'wifi', label: 'Tiền Internet', type: 'Cố định' },
-                    { key: 'cleaning', label: 'Tiền vệ sinh, rác', type: 'Cố định' },
-                  ].map((item) => (
+                  {FIXED_COST_ITEMS.map((item) => (
                     <TableRow key={item.key} className="group">
                       <TableCell className="font-semibold text-foreground">{item.label}</TableCell>
                       <TableCell>
@@ -455,8 +528,8 @@ export function RevenueView() {
                       </TableCell>
                       <TableCell>
                         <CurrencyInput
-                          value={getActiveCostValue(selectedHouseIds[0], item.key as keyof HouseCost) as number}
-                          onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key as keyof HouseCost, val)}
+                          value={getActiveCostValue(selectedHouseIds[0], item.key) as number}
+                          onChange={(val) => handleFieldChange(selectedHouseIds[0], item.key, val)}
                           className="h-8 w-40 tabular-nums"
                         />
                       </TableCell>
@@ -522,19 +595,13 @@ export function RevenueView() {
                   <TableRow className="hover:bg-transparent">
                     <TableCell colSpan={2} className="py-4 text-right font-medium text-muted-foreground">Tổng cộng chi phí:</TableCell>
                     <TableCell colSpan={3} className="py-4 text-lg font-semibold tabular-nums text-foreground">
-                      {formatCurrency(
-                        (getActiveCostValue(selectedHouseIds[0], 'rent') as number) +
-                        (getActiveCostValue(selectedHouseIds[0], 'electricity') as number) +
-                        (getActiveCostValue(selectedHouseIds[0], 'water') as number) +
-                        (getActiveCostValue(selectedHouseIds[0], 'wifi') as number) +
-                        (getActiveCostValue(selectedHouseIds[0], 'cleaning') as number) +
-                        getActiveExtraCosts(selectedHouseIds[0]).reduce((acc, curr) => acc + curr.amount, 0)
-                      )}
+                      {formatCurrency(getActiveTotalCost(selectedHouseIds[0]))}
                     </TableCell>
                   </TableRow>
                 </TableFooter>
               </Table>
             </div>
+            </>
           )
         ) : selectedHouseIds.length > 1 ? (
           <EmptyState

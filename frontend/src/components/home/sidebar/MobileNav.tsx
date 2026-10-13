@@ -29,7 +29,7 @@ export function MobileNav() {
               aria-current={isActive ? 'page' : undefined}
               className={cn(
                 'flex min-h-14 min-w-0 cursor-pointer touch-manipulation flex-col items-center justify-center gap-1 rounded-md px-1 transition-colors active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none',
-                isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+                isActive ? 'text-primary dark:text-sidebar-primary' : 'text-muted-foreground hover:text-foreground',
               )}
             >
               <tab.icon className="size-5" aria-hidden />

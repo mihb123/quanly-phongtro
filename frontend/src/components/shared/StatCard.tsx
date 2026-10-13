@@ -48,7 +48,7 @@ export function StatCard({ label, value, icon: Icon, tone = 'default', sub, onCl
         <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', iconChipClass[tone])}>
           <Icon className="size-4" />
         </span>
-        <h3 className="line-clamp-1 text-xs font-medium text-muted-foreground">
+        <h3 className="line-clamp-2 text-xs font-medium text-muted-foreground">
           {label}
         </h3>
       </div>

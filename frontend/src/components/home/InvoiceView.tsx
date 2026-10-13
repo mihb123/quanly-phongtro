@@ -360,7 +360,7 @@ export function InvoicesView() {
             )}
           </div>
 
-          <div className="w-full lg:w-[160px]">
+          <div className="order-2 w-full lg:order-none lg:w-[160px]">
             <label htmlFor="invoice-filter-room" className="mb-1.5 block text-xs font-medium text-muted-foreground">Phòng</label>
             <select
               id="invoice-filter-room"
@@ -376,7 +376,7 @@ export function InvoicesView() {
             </select>
           </div>
 
-          <div className="w-full lg:w-[160px]">
+          <div className="order-1 col-span-2 w-full lg:order-none lg:w-[160px]">
             <label htmlFor="invoice-filter-period" className="mb-1.5 block text-xs font-medium text-muted-foreground">Kỳ hóa đơn</label>
             <input
               id="invoice-filter-period"
@@ -387,7 +387,7 @@ export function InvoicesView() {
             />
           </div>
 
-          <div className="w-full lg:w-[160px]">
+          <div className="order-3 w-full lg:order-none lg:w-[160px]">
             <label htmlFor="invoice-filter-status" className="mb-1.5 block text-xs font-medium text-muted-foreground">Trạng thái</label>
             <select
               id="invoice-filter-status"
@@ -407,7 +407,7 @@ export function InvoicesView() {
             size="lg"
             onClick={handleClearFilter}
             disabled={activeFilterCount === 0}
-            className="w-full cursor-pointer text-muted-foreground lg:w-auto"
+            className="order-4 col-span-2 w-full cursor-pointer text-muted-foreground lg:order-none lg:w-auto"
           >
             <FilterX data-icon="inline-start" />
             Xóa lọc{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}

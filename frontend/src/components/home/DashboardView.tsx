@@ -105,9 +105,9 @@ export function DashboardView() {
           icon={TrendingUp}
           tone="info"
           sub={
-            <span className="flex items-center gap-1">
-              <CheckCircle2 className="size-3 shrink-0 text-success" />
-              <span className="truncate">Đã thu: {formatCurrency(collectedRevenue)} · Kỳ {period}</span>
+            <span className="flex items-start gap-1">
+              <CheckCircle2 className="mt-0.5 size-3 shrink-0 text-success" />
+              <span>Đã thu: {formatCurrency(collectedRevenue)} · Kỳ {period}</span>
             </span>
           }
         />
@@ -208,7 +208,7 @@ export function DashboardView() {
         </div>
 
         {/* Right Column: Available Rooms (Span 1) */}
-        <div className="lg:col-span-1 relative min-h-[400px]">
+        <div className="lg:col-span-1 relative lg:min-h-[400px]">
           <SectionCard
             icon={DoorOpen}
             title={`Phòng đang trống (${availableTotal})`}

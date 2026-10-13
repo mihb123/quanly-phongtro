@@ -1,0 +1,25 @@
+{
+  "name": "quanly-phongtro",
+  "frontendDir": "frontend",
+  "baseUrl": "http://127.0.0.1:5173",
+  "devCommand": ["pnpm", "exec", "vite", "--host", "127.0.0.1", "--port", "{port}", "--strictPort"],
+  "defaultTargets": ["tab:dashboard"],
+  "themeStorageKey": "color-mode",
+  "apiPrefix": "/api/",
+  "allowedWrites": ["/api/v1/auth/login$", "/api/v1/auth/token$"],
+  "tabs": {
+    "path": "/",
+    "storageKey": "home_active_tab",
+    "names": ["dashboard", "house_rooms", "tenants", "invoices", "revenue", "settings"]
+  },
+  "login": {
+    "path": "/login",
+    "email": "#email",
+    "password": "#password",
+    "submit": "button[type=\"submit\"]"
+  },
+  "credentials": [
+    { "file": "~/.config/quanly-phongtro/ui-shot.env", "email": "UI_SHOT_EMAIL", "password": "UI_SHOT_PASSWORD" },
+    { "file": "~/.config/quanly-phongtro/sepay-test.env", "email": "APP_MANAGER_EMAIL", "password": "APP_MANAGER_PASSWORD" }
+  ]
+}

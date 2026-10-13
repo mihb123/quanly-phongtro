@@ -52,13 +52,13 @@ export const TenantMobileCard = memo(function TenantMobileCard({ tenant, showHou
 
       <Separator />
 
-      <div className="grid grid-cols-2 gap-2 p-2">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-2 p-2">
         <Button
           type="button"
           variant="outline"
           size="lg"
           onClick={() => onOpenRoom(tenant)}
-          className="min-w-0 cursor-pointer justify-start"
+          className="min-w-0 cursor-pointer justify-start gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5"
           aria-label={`Xem phòng ${tenant.room_name || 'chưa xác định'}`}
         >
           <DoorOpen data-icon="inline-start" />
@@ -70,12 +70,12 @@ export const TenantMobileCard = memo(function TenantMobileCard({ tenant, showHou
             variant="outline"
             size="lg"
             onClick={() => onCopyPhone(tenant)}
-            className="min-w-0 cursor-pointer justify-start"
+            className="min-w-0 cursor-pointer justify-start gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5"
             aria-label={`Sao chép số điện thoại ${phone}`}
           >
             <Phone data-icon="inline-start" />
             <span className="truncate tabular-nums">{phone}</span>
-            <Copy data-icon="inline-end" />
+            <Copy data-icon="inline-end" className="ml-auto" />
           </Button>
         ) : (
           <Button type="button" variant="outline" size="lg" disabled className="min-w-0 justify-start">
