@@ -6,12 +6,15 @@ GO_TEST_PKGS := ./internal/service/... ./internal/handler/... ./internal/reposit
 
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
+USER_UNIT_DIR := $(HOME)/.config/systemd/user
+
 LOAD_ENV := set -a && . ./.env && set +a
 MIGRATE := $(LOAD_ENV) && migrate -path $(MIGRATIONS_DIR) -database "$$POSTGRES_DSN"
 
 .PHONY: help dev dev-fe run install build frontend clean \
 	test test-fe vet fmt check mocks \
-	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl restore-db
+	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl restore-db \
+	deploy-local
 
 help: ## Hiển thị danh sách lệnh
 	@awk 'BEGIN {FS = ":.*?## "} \
@@ -133,3 +136,20 @@ restore-db: ## Khôi phục backup vào DB trống trong .env: make restore-db [
 	echo "Restore $$file -> $$db"; \
 	gunzip -c "$$file" | psql "$$POSTGRES_DSN" -q -v ON_ERROR_STOP=1 --single-transaction >/dev/null; \
 	echo "Restore xong: $$(count_tables) bảng"
+
+##@ Deploy
+
+deploy-local: ## Deploy trên máy này bằng systemd --user: install, build, migrate, seed, cài service (không backup, không Telegram)
+	@test -f .env || { echo "Thiếu file .env"; exit 1; }
+	$(MAKE) install
+	$(MAKE) build BINARY=$(BINARY).new
+	$(MAKE) migrate-up
+	$(MAKE) seed
+	mv $(BINARY).new $(BINARY)
+	mkdir -p $(USER_UNIT_DIR)
+	sed "s|__PROJECT_DIR__|$(CURDIR)|g" .github/systemd/$(BINARY).user.service > $(USER_UNIT_DIR)/$(BINARY).service
+	systemctl --user daemon-reload
+	systemctl --user enable $(BINARY)
+	systemctl --user restart $(BINARY)
+	sleep 2
+	systemctl --user status $(BINARY) --no-pager

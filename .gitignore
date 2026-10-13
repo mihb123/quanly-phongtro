@@ -45,3 +45,4 @@ internal/web/dist/*
 !internal/web/dist/.gitkeep
 SECURITY_REPORT.md
 SECURITY_REVIEW.md
+.github/systemd/
