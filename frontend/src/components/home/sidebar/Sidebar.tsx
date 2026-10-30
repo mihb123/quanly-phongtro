@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MoreHorizontal,
   Plus,
+  Puzzle,
   Receipt,
   Settings,
   Trash2,
@@ -62,6 +63,7 @@ const NAV_ITEMS: { tab: TabType; label: string; icon: typeof Home }[] = [
   { tab: 'tenants', label: 'Khách thuê', icon: Users },
   { tab: 'invoices', label: 'Hóa đơn', icon: Receipt },
   { tab: 'revenue', label: 'Doanh thu', icon: Wallet },
+  { tab: 'plugins', label: 'Tiện ích', icon: Puzzle },
   { tab: 'settings', label: 'Cài đặt', icon: Settings },
 ]
 

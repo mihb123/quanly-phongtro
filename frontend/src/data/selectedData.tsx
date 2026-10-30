@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { type House } from '@/api/house'
 import { readStorageRaw, writeStorageRaw } from '@/lib/storage'
 
-export const TABS = ['dashboard', 'house_rooms', 'tenants', 'invoices', 'revenue', 'settings'] as const
+export const TABS = ['dashboard', 'house_rooms', 'tenants', 'invoices', 'revenue', 'plugins', 'settings'] as const
 export type TabType = (typeof TABS)[number]
 
 const TAB_KEY = 'home_active_tab'

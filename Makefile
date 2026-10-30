@@ -14,7 +14,7 @@ MIGRATE := $(LOAD_ENV) && migrate -path $(MIGRATIONS_DIR) -database "$$POSTGRES_
 .PHONY: help dev dev-fe run install build frontend clean \
 	test test-fe vet fmt check mocks \
 	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl restore-db \
-	deploy-local
+	deploy-local plugins
 
 help: ## Hiển thị danh sách lệnh
 	@awk 'BEGIN {FS = ":.*?## "} \
@@ -48,6 +48,9 @@ build: frontend ## Build frontend rồi nhúng vào API thành một binary duy 
 	touch internal/web/dist/.gitkeep
 	CGO_ENABLED=0 go build -o $(BINARY) ./cmd/api
 	@echo "Built single binary: ./$(BINARY)"
+
+plugins: ## Sinh lại plugins/plugins.go từ các thư mục plugin
+	bash scripts/gen-plugins.sh
 
 frontend: ## Build bản tĩnh React (Vite) vào frontend/dist
 	cd frontend && pnpm install --frozen-lockfile && pnpm build

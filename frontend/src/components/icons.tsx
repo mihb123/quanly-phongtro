@@ -62,6 +62,8 @@ import {
   Sun03Icon,
   Moon02Icon,
   ComputerIcon,
+  PuzzleIcon,
+  FileUploadIcon,
 } from '@hugeicons/core-free-icons'
 
 // Props của 1 icon: giống lucide (nhận className/size/onClick...), trừ `icon` đã bind sẵn.
@@ -155,3 +157,5 @@ export const ZoomIn = makeIcon(ZoomInAreaIcon)
 export const Sun = makeIcon(Sun03Icon)
 export const Moon = makeIcon(Moon02Icon)
 export const Monitor = makeIcon(ComputerIcon)
+export const Puzzle = makeIcon(PuzzleIcon)
+export const FileUp = makeIcon(FileUploadIcon)

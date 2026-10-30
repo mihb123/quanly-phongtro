@@ -13,6 +13,7 @@ import { TenantsView } from '@/components/home/TenantView'
 import { InvoicesView } from '@/components/home/InvoiceView'
 import { RevenueView } from '@/components/home/RevenueView'
 import { SettingsView } from '@/components/home/SettingsView'
+import { PluginsView } from '@/components/home/PluginsView'
 
 // Tiêu đề hiển thị trên thanh header desktop theo tab đang mở.
 const TAB_TITLES: Record<TabType, string> = {
@@ -21,6 +22,7 @@ const TAB_TITLES: Record<TabType, string> = {
   tenants: 'Khách thuê',
   invoices: 'Hóa đơn',
   revenue: 'Doanh thu',
+  plugins: 'Tiện ích',
   settings: 'Cài đặt',
 }
 
@@ -137,6 +139,10 @@ export default function HomePage() {
 
             {activeTab === 'revenue' && (
               <RevenueView />
+            )}
+
+            {activeTab === 'plugins' && (
+              <PluginsView />
             )}
 
             {activeTab === 'settings' && (

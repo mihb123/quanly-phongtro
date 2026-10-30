@@ -15,10 +15,11 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, './src'),
         '@sepay': path.resolve(__dirname, '../pkg/sepay/web'),
       },
+      dedupe: ['react', 'react-dom'],
     },
     server: {
       fs: {
-        allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(__dirname, '../pkg/sepay/web')],
+        allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(__dirname, '../pkg/sepay/web'), path.resolve(__dirname, '../plugins')],
       },
       allowedHosts: [
         environment.APP_URL,

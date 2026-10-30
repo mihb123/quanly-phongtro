@@ -155,6 +155,14 @@ func New(
 		r.Get("/", houseCostHandler.GetRevenueSummaries)
 	})
 
+	if cfg.pluginRoutes != nil {
+		r.Route("/api/v1/plugins", func(r chi.Router) {
+			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
+			r.Use(requireRole("MANAGER"))
+			cfg.pluginRoutes(r)
+		})
+	}
+
 	r.Route("/api/v1/uploads/transactions", func(r chi.Router) {
 		r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
 		r.Use(requireRole("MANAGER"))

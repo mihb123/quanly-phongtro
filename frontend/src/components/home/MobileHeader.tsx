@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Home, Settings } from '@/components/icons'
+import { Home, Puzzle, Settings } from '@/components/icons'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,6 +30,15 @@ export function MobileHeader() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setActiveTab('plugins')}
+            className="text-muted-foreground"
+          >
+            <Puzzle />
+            <span className="sr-only">Tiện ích</span>
+          </Button>
           <Button
             variant="ghost"
             size="icon"

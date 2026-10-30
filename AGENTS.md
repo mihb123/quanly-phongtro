@@ -18,6 +18,13 @@ Shared knowledge for every coding agent (Claude, Codex, Gemini/agy, subagents). 
 - Frontend imports module web files through a Vite + tsconfig alias `@<name>/*` → `../pkg/<name>/web/*`. The module API client takes a transport; the app passes axios `apiClient` (adds DPoP).
 - Done: **SePay** (`pkg/sepay`), **Zalo bot** (`pkg/zalobot`, backend only: API client, webhook parse/secret check, safe image download). Zalo chat commands, reply texts and account/room linking stay in `internal/service/zalo`; app glue is `internal/service/zalo/zalobot_adapter.go`.
 
+## Plugin system
+
+- Plugin = one folder `plugins/<name>/` (Go `init()` → `plugin.Register`, optional `web/index.tsx`); guide: `plugins/README.md`. `make plugins` regenerates `plugins/plugins.go` (blank imports); the frontend auto-discovers `plugins/*/web/index.tsx` via `import.meta.glob` (lazy chunk).
+- Host: `internal/plugin` (Manifest, Host API: invoices + encrypted per-manager storage; routes `/api/v1/plugins/<id>/*` behind auth + enabled check, `PUT /api/v1/plugins/<id>/enabled`). Storage: table `plugin_settings`, repo `internal/repository/plugin`. UI tab "Tiện ích" (`PluginsView`, SDK `frontend/src/plugins/sdk.ts`).
+- Plugin web code may import only `react` and `@/...` (Vite `dedupe`, tsconfig `paths` for react types).
+- `bank-statement`: TPBank statement zip (ZipCrypto via `pkg/zipcrypto`) / PDF (`pkg/pdftext`, stdlib PDF text extractor handling /Rotate pages) → credits → exact-amount match against UNPAID/PENDING_VERIFICATION invoices (hints: room number, tenant name, month); tenants often round the amount, so a gap under 1.000 ₫ is accepted only when the transfer names the tenant (full name or given name + one more part, e.g. "Phap Huynh") or the room and that picks exactly one invoice (`AMOUNT_NEAR_HINT`) → `payment_events` provider `bank-statement`, `payment_method = BANK_STATEMENT`; re-import is idempotent by bank reference.
+
 ## SePay
 
 - Module + integration guide: `pkg/sepay/guide.md`. App glue: `internal/service/payment/sepay_adapter.go`. Feature doc: `Documents/feature/sepay_integration.md`.

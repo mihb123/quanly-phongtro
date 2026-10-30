@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"net/netip"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
@@ -15,6 +16,7 @@ type options struct {
 	staticFS            fs.FS
 	slowAPILogger       *logger.SlowAPILogger
 	securityLogger      *logger.SecurityLogger
+	pluginRoutes        func(chi.Router)
 }
 
 // WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
@@ -48,6 +50,12 @@ func WithSlowAPILogger(slowLogger *logger.SlowAPILogger) Option {
 func WithSecurityLogger(securityLogger *logger.SecurityLogger) Option {
 	return func(o *options) {
 		o.securityLogger = securityLogger
+	}
+}
+
+func WithPluginRoutes(routes func(chi.Router)) Option {
+	return func(o *options) {
+		o.pluginRoutes = routes
 	}
 }
 

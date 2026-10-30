@@ -19,10 +19,12 @@ import (
 	roomhandler "github.com/mihb123/quanly-phongtro/internal/handler/room"
 	tenanthandler "github.com/mihb123/quanly-phongtro/internal/handler/tenant"
 	zalohandler "github.com/mihb123/quanly-phongtro/internal/handler/zalo"
+	"github.com/mihb123/quanly-phongtro/internal/plugin"
 	authrepo "github.com/mihb123/quanly-phongtro/internal/repository/auth"
 	houserepo "github.com/mihb123/quanly-phongtro/internal/repository/house"
 	invoicerepo "github.com/mihb123/quanly-phongtro/internal/repository/invoice"
 	jobrepo "github.com/mihb123/quanly-phongtro/internal/repository/jobs"
+	pluginrepo "github.com/mihb123/quanly-phongtro/internal/repository/plugin"
 	revenuerepo "github.com/mihb123/quanly-phongtro/internal/repository/revenue"
 	roomrepo "github.com/mihb123/quanly-phongtro/internal/repository/room"
 	tenantrepo "github.com/mihb123/quanly-phongtro/internal/repository/tenant"
@@ -43,6 +45,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/web"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
+	_ "github.com/mihb123/quanly-phongtro/plugins"
 )
 
 func main() {
@@ -161,6 +164,8 @@ func main() {
 	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(sepay.NewClient(nil), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
+	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
+
 	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
 		Threshold: cfg.SlowAPIThreshold,
 		FilePath:  cfg.SlowAPILogFile,
@@ -197,6 +202,7 @@ func main() {
 		httpRouter.WithStaticFS(frontendFS),
 		httpRouter.WithSlowAPILogger(slowAPILogger),
 		httpRouter.WithSecurityLogger(securityLogger),
+		httpRouter.WithPluginRoutes(pluginManager.Routes),
 	)
 	server := &http.Server{
 		Addr:              ":" + listenPort,

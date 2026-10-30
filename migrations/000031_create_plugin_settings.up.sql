@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS plugin_settings (
+    manager_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plugin_id VARCHAR(64) NOT NULL,
+    enabled BOOLEAN,
+    encrypted_data TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (manager_id, plugin_id)
+);
