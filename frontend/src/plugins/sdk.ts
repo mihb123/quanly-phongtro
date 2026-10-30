@@ -26,6 +26,7 @@ export function createPluginApi(pluginId: string) {
     get: <T,>(path: string) => pluginRequest<T>(pluginId, 'GET', path),
     post: <T,>(path: string, body?: unknown) => pluginRequest<T>(pluginId, 'POST', path, body),
     put: <T,>(path: string, body?: unknown) => pluginRequest<T>(pluginId, 'PUT', path, body),
+    patch: <T,>(path: string, body?: unknown) => pluginRequest<T>(pluginId, 'PATCH', path, body),
     delete: <T,>(path: string) => pluginRequest<T>(pluginId, 'DELETE', path),
     errorMessage: apiErrorMessage,
   }

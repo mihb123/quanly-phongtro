@@ -16,6 +16,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.9.0
+	github.com/tetratelabs/wazero v1.11.0
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	go.uber.org/mock v0.6.0

@@ -13,13 +13,23 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
+const APIVersion = 1
+
+const (
+	PermInvoicesRead  = "invoices:read"
+	PermInvoicesWrite = "invoices:write"
+)
+
 type Manifest struct {
+	API            int            `json:"api,omitempty"`
 	ID             string         `json:"id"`
 	Name           string         `json:"name"`
 	Version        string         `json:"version"`
 	Description    string         `json:"description"`
 	Author         string         `json:"author"`
+	Homepage       string         `json:"homepage,omitempty"`
 	DefaultEnabled bool           `json:"default_enabled"`
+	Permissions    []string       `json:"permissions,omitempty"`
 	Settings       []SettingField `json:"settings,omitempty"`
 }
 

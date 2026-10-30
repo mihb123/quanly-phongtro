@@ -1,0 +1,31 @@
+{
+  "api": 1,
+  "id": "debt-reminder",
+  "name": "Nhắc công nợ",
+  "version": "1.0.0",
+  "description": "Liệt kê hóa đơn chưa thanh toán theo kỳ, đánh dấu đã nhắc khách và báo cần nhắc lại sau số ngày cài đặt.",
+  "author": "Quản lý phòng trọ",
+  "default_enabled": false,
+  "permissions": ["invoices:read"],
+  "settings": [
+    {
+      "key": "min_amount",
+      "type": "number",
+      "group": "Hiển thị",
+      "label": "Chỉ hiện hóa đơn từ (₫)",
+      "description": "Bỏ qua các hóa đơn nhỏ hơn số tiền này.",
+      "default": 0,
+      "min": 0
+    },
+    {
+      "key": "remind_after_days",
+      "type": "number",
+      "group": "Nhắc lại",
+      "label": "Nhắc lại sau (ngày)",
+      "description": "Hóa đơn đã nhắc quá số ngày này được đánh dấu cần nhắc lại.",
+      "default": 3,
+      "min": 1,
+      "max": 30
+    }
+  ]
+}

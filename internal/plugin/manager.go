@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -30,42 +31,100 @@ type Store interface {
 
 type PluginInfo struct {
 	Manifest
-	Enabled bool `json:"enabled"`
+	Enabled bool   `json:"enabled"`
+	Source  string `json:"source"`
+	Web     bool   `json:"web"`
+	Style   bool   `json:"style"`
+}
+
+const (
+	SourceBuiltin   = "builtin"
+	SourceInstalled = "installed"
+)
+
+type entry struct {
+	plugin    Plugin
+	host      *host
+	router    chi.Router
+	installed *installedPlugin
 }
 
 type Manager struct {
-	store   Store
-	key     []byte
-	plugins map[string]Plugin
-	hosts   map[string]*host
-	routers map[string]chi.Router
-	order   []string
+	store     Store
+	key       []byte
+	mu        sync.RWMutex
+	entries   map[string]*entry
+	order     []string
+	installer *installer
 }
 
 func NewManager(store Store, encryptionKey []byte, plugins []Plugin) *Manager {
-	m := &Manager{store: store, key: encryptionKey, plugins: map[string]Plugin{}, hosts: map[string]*host{}, routers: map[string]chi.Router{}}
+	m := &Manager{store: store, key: encryptionKey, entries: map[string]*entry{}}
 	for _, p := range plugins {
-		manifest := p.Manifest()
-		h := &host{store: store, key: encryptionKey, pluginID: manifest.ID, fields: manifest.Settings}
-		if err := p.Init(h); err != nil {
-			log.Printf("plugin %s: init failed, skipped: %v", manifest.ID, err)
-			continue
+		if err := m.add(p); err != nil {
+			log.Printf("plugin %s: init failed, skipped: %v", p.Manifest().ID, err)
 		}
-		router := chi.NewRouter()
-		p.Routes(router)
-		m.plugins[manifest.ID] = p
-		m.hosts[manifest.ID] = h
-		m.routers[manifest.ID] = router
-		m.order = append(m.order, manifest.ID)
 	}
 	return m
 }
 
+func (m *Manager) add(p Plugin) error {
+	manifest := p.Manifest()
+	h := &host{store: m.store, key: m.key, pluginID: manifest.ID, fields: manifest.Settings}
+	if err := p.Init(h); err != nil {
+		return err
+	}
+	router := chi.NewRouter()
+	p.Routes(router)
+	installed, _ := p.(*installedPlugin)
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if old, exists := m.entries[manifest.ID]; exists {
+		if old.installed != nil {
+			go old.installed.close()
+		}
+	} else {
+		m.order = append(m.order, manifest.ID)
+		slices.Sort(m.order)
+	}
+	m.entries[manifest.ID] = &entry{plugin: p, host: h, router: router, installed: installed}
+	return nil
+}
+
+func (m *Manager) remove(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.entries, id)
+	m.order = slices.DeleteFunc(m.order, func(v string) bool { return v == id })
+}
+
+func (m *Manager) get(id string) (*entry, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	e, ok := m.entries[id]
+	return e, ok
+}
+
+func (m *Manager) snapshot() []*entry {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	entries := make([]*entry, 0, len(m.order))
+	for _, id := range m.order {
+		entries = append(entries, m.entries[id])
+	}
+	return entries
+}
+
 func (m *Manager) Routes(r chi.Router) {
 	r.Get("/", m.handleList)
+	r.Get("/install", m.handleInstallInfo)
+	r.Post("/install", m.handleInstall)
+	r.Delete("/{pluginID}", m.handleUninstall)
 	r.Put("/{pluginID}/enabled", m.handleSetEnabled)
 	r.Get("/{pluginID}/config", m.handleGetConfig)
 	r.Put("/{pluginID}/config", m.handleSetConfig)
+	r.Get("/{pluginID}/assets/{file}", m.handleAsset)
 	r.HandleFunc("/{pluginID}/*", m.handlePluginRequest)
 }
 
@@ -80,25 +139,36 @@ func (m *Manager) List(ctx context.Context, managerID string) ([]PluginInfo, err
 			enabled[s.PluginID] = *s.Enabled
 		}
 	}
-	infos := make([]PluginInfo, 0, len(m.order))
-	for _, id := range m.order {
-		manifest := m.plugins[id].Manifest()
-		state, ok := enabled[id]
+	entries := m.snapshot()
+	infos := make([]PluginInfo, 0, len(entries))
+	for _, e := range entries {
+		manifest := e.plugin.Manifest()
+		state, ok := enabled[manifest.ID]
 		if !ok {
 			state = manifest.DefaultEnabled
 		}
-		infos = append(infos, PluginInfo{Manifest: manifest, Enabled: state})
+		infos = append(infos, e.info(state))
 	}
 	return infos, nil
 }
 
-func (m *Manager) isEnabled(ctx context.Context, managerID, pluginID string) (bool, error) {
-	setting, err := m.store.GetPluginSetting(ctx, managerID, pluginID)
+func (e *entry) info(enabled bool) PluginInfo {
+	info := PluginInfo{Manifest: e.plugin.Manifest(), Enabled: enabled, Source: SourceBuiltin}
+	if e.installed != nil {
+		info.Source = SourceInstalled
+		info.Web = e.installed.hasWeb
+		info.Style = e.installed.hasStyle
+	}
+	return info
+}
+
+func (m *Manager) isEnabled(ctx context.Context, managerID string, e *entry) (bool, error) {
+	setting, err := m.store.GetPluginSetting(ctx, managerID, e.host.pluginID)
 	if err != nil {
 		return false, err
 	}
 	if setting == nil || setting.Enabled == nil {
-		return m.plugins[pluginID].Manifest().DefaultEnabled, nil
+		return e.plugin.Manifest().DefaultEnabled, nil
 	}
 	return *setting.Enabled, nil
 }
@@ -122,7 +192,7 @@ func (m *Manager) handleSetEnabled(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	pluginID := chi.URLParam(r, "pluginID")
-	if _, exists := m.plugins[pluginID]; !exists {
+	if _, exists := m.get(pluginID); !exists {
 		WriteError(w, http.StatusNotFound, model.ErrPluginNotFound.Error())
 		return
 	}
@@ -150,12 +220,12 @@ func (m *Manager) configHost(w http.ResponseWriter, r *http.Request) (*host, str
 	if !ok {
 		return nil, "", false
 	}
-	h, exists := m.hosts[chi.URLParam(r, "pluginID")]
+	e, exists := m.get(chi.URLParam(r, "pluginID"))
 	if !exists {
 		WriteError(w, http.StatusNotFound, model.ErrPluginNotFound.Error())
 		return nil, "", false
 	}
-	return h, managerID, true
+	return e.host, managerID, true
 }
 
 func (m *Manager) writeConfig(w http.ResponseWriter, r *http.Request, h *host, managerID string) {
@@ -268,13 +338,12 @@ func (m *Manager) handlePluginRequest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	pluginID := chi.URLParam(r, "pluginID")
-	router, exists := m.routers[pluginID]
+	e, exists := m.get(chi.URLParam(r, "pluginID"))
 	if !exists {
 		WriteError(w, http.StatusNotFound, model.ErrPluginNotFound.Error())
 		return
 	}
-	enabled, err := m.isEnabled(r.Context(), managerID, pluginID)
+	enabled, err := m.isEnabled(r.Context(), managerID, e)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, "Không kiểm tra được trạng thái plugin")
 		return
@@ -285,7 +354,7 @@ func (m *Manager) handlePluginRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	rctx := chi.RouteContext(r.Context())
 	rctx.RoutePath = "/" + chi.URLParam(r, "*")
-	router.ServeHTTP(w, r)
+	e.router.ServeHTTP(w, r)
 }
 
 type host struct {

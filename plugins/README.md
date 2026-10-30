@@ -1,5 +1,7 @@
 # Plugin
 
+> Plugin của bên thứ ba **cài bằng gói .zip/.tar.gz** (không build lại app) theo chuẩn riêng: [`plugin-sdk/README.md`](../plugin-sdk/README.md). Tài liệu dưới đây dành cho plugin có sẵn biên dịch cùng app.
+
 Mỗi plugin là **một thư mục** trong `plugins/<tên>/`, gồm phần backend Go và (tuỳ chọn) giao diện React. Thả thư mục vào, chạy `make plugins`, build lại là dùng được — không phải sửa code lõi.
 
 ```

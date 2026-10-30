@@ -15,15 +15,29 @@ export interface PluginSettingField {
   max?: number
 }
 
+export type PluginSource = 'builtin' | 'installed'
+
 export interface PluginInfo {
   id: string
   name: string
   version: string
   description: string
   author: string
+  homepage?: string
   default_enabled: boolean
   enabled: boolean
+  permissions?: string[]
   settings?: PluginSettingField[]
+  source: PluginSource
+  web: boolean
+  style: boolean
+}
+
+export interface PluginInstaller {
+  allowed: boolean
+  api_version: number
+  max_size: number
+  permissions: string[]
 }
 
 export interface PluginConfig {
@@ -49,6 +63,27 @@ export const getPluginConfig = async (id: string) => {
 export const updatePluginConfig = async (id: string, values: Record<string, unknown>) => {
   const { data } = await apiClient.put(`/plugins/${id}/config`, { values })
   return data.data as PluginConfig
+}
+
+export const getPluginInstaller = async () => {
+  const { data } = await apiClient.get('/plugins/install')
+  return data.data as PluginInstaller
+}
+
+export const installPlugin = async (file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await apiClient.post('/plugins/install', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data.data as PluginInfo
+}
+
+export const uninstallPlugin = async (id: string) => {
+  await apiClient.delete(`/plugins/${id}`)
+}
+
+export const getPluginAsset = async (id: string, file: 'index.js' | 'index.css') => {
+  const { data } = await apiClient.get(`/plugins/${id}/assets/${file}`, { responseType: 'text' })
+  return data as string
 }
 
 export const pluginRequest = async <T,>(pluginId: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown) => {

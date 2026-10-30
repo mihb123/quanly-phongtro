@@ -165,6 +165,10 @@ func main() {
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
 	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
+	if err := pluginManager.EnableInstall(context.Background(), cfg.PluginDir, cfg.PluginAdminEmails); err != nil {
+		log.Printf("plugin install disabled: %v", err)
+	}
+	defer pluginManager.Close(context.Background())
 
 	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
 		Threshold: cfg.SlowAPIThreshold,

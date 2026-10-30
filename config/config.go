@@ -48,6 +48,8 @@ type Config struct {
 	SlowAPIThreshold       time.Duration
 	SlowAPILogFile         string
 	SlowAPILogMaxDays      int
+	PluginDir              string
+	PluginAdminEmails      []string
 }
 
 func Load() (*Config, error) {
@@ -136,6 +138,13 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	var pluginAdminEmails []string
+	for _, email := range strings.Split(os.Getenv("PLUGIN_ADMIN_EMAILS"), ",") {
+		if email = strings.TrimSpace(email); email != "" {
+			pluginAdminEmails = append(pluginAdminEmails, email)
+		}
+	}
+
 	return &Config{
 		AppPort:                appPort,
 		AppEnv:                 appEnv,
@@ -165,6 +174,8 @@ func Load() (*Config, error) {
 		SlowAPIThreshold:       slowAPI.threshold,
 		SlowAPILogFile:         slowAPI.logFile,
 		SlowAPILogMaxDays:      slowAPI.logMaxDays,
+		PluginDir:              getOrDefault("PLUGIN_DIR", "uploads/plugins"),
+		PluginAdminEmails:      pluginAdminEmails,
 	}, nil
 }
 

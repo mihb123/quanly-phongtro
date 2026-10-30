@@ -1,12 +1,13 @@
+import type { PluginInfo } from '@/api/plugins'
 import type { FrontendPlugin } from './sdk'
 
 const modules = import.meta.glob<{ default: FrontendPlugin }>('../../../plugins/*/web/index.tsx')
 
-let loaded: Promise<Map<string, FrontendPlugin>> | null = null
+let builtins: Promise<(FrontendPlugin | null)[]> | null = null
 
-export function loadFrontendPlugins() {
-  if (!loaded) {
-    loaded = Promise.all(
+function loadBuiltinPlugins() {
+  if (!builtins) {
+    builtins = Promise.all(
       Object.entries(modules).map(([path, load]) =>
         load()
           .then((mod) => mod.default)
@@ -15,13 +16,33 @@ export function loadFrontendPlugins() {
             return null
           }),
       ),
-    ).then((plugins) => {
-      const byId = new Map<string, FrontendPlugin>()
-      for (const plugin of plugins) {
-        if (plugin?.id) byId.set(plugin.id, plugin)
-      }
-      return byId
-    })
+    )
   }
-  return loaded
+  return builtins
+}
+
+export async function loadInstalledFrontend(plugin: PluginInfo) {
+  try {
+    const { loadInstalledPlugin } = await import('./runtime')
+    return await loadInstalledPlugin(plugin)
+  } catch (error) {
+    console.error(`Không tải được giao diện tiện ích ${plugin.id}`, error)
+    return null
+  }
+}
+
+export async function loadFrontendPlugins(plugins: PluginInfo[]) {
+  const installed = plugins.filter((p) => p.source === 'installed' && p.web && p.enabled)
+  const [builtin, external] = await Promise.all([loadBuiltinPlugins(), Promise.all(installed.map(loadInstalledFrontend))])
+  const byId = new Map<string, FrontendPlugin>()
+  for (const plugin of [...builtin, ...external]) {
+    if (plugin?.id) byId.set(plugin.id, plugin)
+  }
+  return byId
+}
+
+export function unloadInstalledFrontend(id: string) {
+  import('./runtime')
+    .then(({ unloadInstalledPlugin }) => unloadInstalledPlugin(id))
+    .catch(() => {})
 }

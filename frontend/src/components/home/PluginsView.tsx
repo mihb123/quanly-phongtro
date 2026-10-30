@@ -1,6 +1,7 @@
-import { memo, useCallback, useEffect, useMemo, useState, type ComponentType } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ComponentType } from 'react'
 import { toast } from 'sonner'
-import { ChevronLeft, Loader2, Puzzle, Settings } from '@/components/icons'
+import { ChevronLeft, Loader2, Puzzle, Settings, Shield, Trash2, Upload } from '@/components/icons'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { SearchInput } from '@/components/shared/SearchInput'
@@ -11,21 +12,36 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { PluginSettingsPanel } from '@/components/home/plugins/PluginSettingsPanel'
-import { apiErrorMessage, listPlugins, setPluginEnabled, type PluginInfo } from '@/api/plugins'
+import {
+  apiErrorMessage,
+  getPluginInstaller,
+  installPlugin,
+  listPlugins,
+  setPluginEnabled,
+  uninstallPlugin,
+  type PluginInfo,
+  type PluginInstaller,
+} from '@/api/plugins'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { readStorageRaw, writeStorageRaw } from '@/lib/storage'
 import { cn } from '@/lib/utils'
-import { loadFrontendPlugins } from '@/plugins/registry'
+import { loadFrontendPlugins, loadInstalledFrontend, unloadInstalledFrontend } from '@/plugins/registry'
 import type { FrontendPlugin } from '@/plugins/sdk'
 
 const OPEN_PLUGIN_KEY = 'plugins:open'
 const pageKey = (id: string) => `plugins:${id}:tab`
 const SEARCH_MIN_PLUGINS = 5
+const PACKAGE_ACCEPT = '.zip,.tar.gz,.tgz,.tar,.gz'
+const PERMISSION_LABELS: Record<string, string> = {
+  'invoices:read': 'Đọc hóa đơn',
+  'invoices:write': 'Đánh dấu hóa đơn đã thanh toán',
+}
 
 type PluginPageTab = 'use' | 'settings'
 
 let cachedPlugins: PluginInfo[] | null = null
 let cachedFrontends = new Map<string, FrontendPlugin>()
+let cachedInstaller: PluginInstaller | null = null
 
 type IconType = ComponentType<{ className?: string }>
 
@@ -49,12 +65,14 @@ interface PluginRowProps {
   plugin: PluginInfo
   icon: IconType
   canOpen: boolean
+  canUninstall: boolean
   toggling: boolean
   onToggle: (plugin: PluginInfo, enabled: boolean) => void
   onOpen: (id: string, tab?: PluginPageTab) => void
+  onUninstall: (plugin: PluginInfo) => void
 }
 
-const PluginRow = memo(function PluginRow({ plugin, icon, canOpen, toggling, onToggle, onOpen }: PluginRowProps) {
+const PluginRow = memo(function PluginRow({ plugin, icon, canOpen, canUninstall, toggling, onToggle, onOpen, onUninstall }: PluginRowProps) {
   const openable = plugin.enabled && canOpen
   return (
     <div className="flex items-start gap-3 px-4 py-4 sm:px-5">
@@ -69,11 +87,24 @@ const PluginRow = memo(function PluginRow({ plugin, icon, canOpen, toggling, onT
             <span className={cn('font-semibold', plugin.enabled ? 'text-foreground' : 'text-muted-foreground')}>{plugin.name}</span>
           )}
           <Badge variant="secondary" className="font-normal">v{plugin.version}</Badge>
+          {plugin.source === 'installed' ? <Badge variant="outline" className="font-normal">Bên thứ ba</Badge> : null}
         </div>
         <p className="text-sm text-muted-foreground">{plugin.description}</p>
         {plugin.author ? <p className="text-xs text-muted-foreground">Tác giả: {plugin.author}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        {canUninstall && plugin.source === 'installed' ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button variant="ghost" size="icon-sm" aria-label={`Gỡ ${plugin.name}`} onClick={() => onUninstall(plugin)}>
+                  <Trash2 />
+                </Button>
+              }
+            />
+            <TooltipContent>Gỡ cài đặt</TooltipContent>
+          </Tooltip>
+        ) : null}
         {plugin.enabled && hasSettings(plugin) ? (
           <Tooltip>
             <TooltipTrigger
@@ -102,17 +133,27 @@ const PluginRow = memo(function PluginRow({ plugin, icon, canOpen, toggling, onT
 function PluginManager({
   plugins,
   frontends,
+  installer,
+  installing,
   togglingId,
   onToggle,
   onOpen,
+  onInstall,
+  onUninstall,
 }: {
   plugins: PluginInfo[]
   frontends: Map<string, FrontendPlugin>
+  installer: PluginInstaller | null
+  installing: boolean
   togglingId: string | null
   onToggle: (plugin: PluginInfo, enabled: boolean) => void
   onOpen: (id: string, tab?: PluginPageTab) => void
+  onInstall: (file: File) => void
+  onUninstall: (plugin: PluginInfo) => void
 }) {
+  const fileInput = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
+  const canInstall = !!installer?.allowed
   const enabledCount = plugins.filter((p) => p.enabled).length
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -126,13 +167,38 @@ function PluginManager({
         <p className="text-sm text-muted-foreground">
           Đang bật <span className="font-medium text-foreground tabular-nums">{enabledCount}</span> / {plugins.length} tiện ích. Tắt tiện ích sẽ ẩn nó và chặn mọi thao tác của nó; cài đặt vẫn được giữ.
         </p>
-        {plugins.length >= SEARCH_MIN_PLUGINS ? (
-          <SearchInput value={search} onSearch={setSearch} label="Tìm tiện ích" placeholder="Tìm tiện ích..." className="sm:w-64" />
-        ) : null}
+        <div className="flex items-center gap-2">
+          {plugins.length >= SEARCH_MIN_PLUGINS ? (
+            <SearchInput value={search} onSearch={setSearch} label="Tìm tiện ích" placeholder="Tìm tiện ích..." className="min-w-0 flex-1 sm:w-64" />
+          ) : null}
+          {canInstall ? (
+            <>
+              <input
+                ref={fileInput}
+                type="file"
+                accept={PACKAGE_ACCEPT}
+                className="hidden"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) onInstall(file)
+                }}
+              />
+              <Button variant="outline" className="shrink-0" disabled={installing} onClick={() => fileInput.current?.click()}>
+                {installing ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Upload data-icon="inline-start" />}
+                Cài từ tệp
+              </Button>
+            </>
+          ) : null}
+        </div>
       </div>
       <Card className="gap-0 divide-y p-0">
         {visible.length === 0 ? (
-          <EmptyState icon={Puzzle} title="Không có tiện ích phù hợp" description="Thử từ khóa khác." />
+          plugins.length === 0 ? (
+            <EmptyState icon={Puzzle} title="Chưa cài tiện ích nào" description={canInstall ? 'Bấm "Cài từ tệp" để cài tiện ích từ gói .zip hoặc .tar.gz.' : undefined} />
+          ) : (
+            <EmptyState icon={Puzzle} title="Không có tiện ích phù hợp" description="Thử từ khóa khác." />
+          )
         ) : (
           visible.map((plugin) => {
             const frontend = frontends.get(plugin.id)
@@ -142,9 +208,11 @@ function PluginManager({
                 plugin={plugin}
                 icon={frontend?.icon ?? Puzzle}
                 canOpen={!!frontend || hasSettings(plugin)}
+                canUninstall={canInstall}
                 toggling={togglingId === plugin.id}
                 onToggle={onToggle}
                 onOpen={onOpen}
+                onUninstall={onUninstall}
               />
             )
           })
@@ -193,6 +261,12 @@ function PluginPage({
             <Badge variant="secondary" className="font-normal">v{plugin.version}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">{plugin.description}</p>
+          {plugin.permissions?.length ? (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Shield className="size-3.5 shrink-0" />
+              Quyền: {plugin.permissions.map((p) => PERMISSION_LABELS[p] ?? p).join(' · ')}
+            </p>
+          ) : null}
         </div>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-muted-foreground">
           <span className="hidden sm:inline">{plugin.enabled ? 'Đang bật' : 'Đang tắt'}</span>
@@ -286,10 +360,24 @@ export function PluginsView() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  const [installer, setInstaller] = useState<PluginInstaller | null>(cachedInstaller)
+  const [installing, setInstalling] = useState(false)
+  const [removing, setRemoving] = useState<PluginInfo | null>(null)
+  const [removeBusy, setRemoveBusy] = useState(false)
+
+  useEffect(() => {
+    getPluginInstaller()
+      .then((info) => {
+        cachedInstaller = info
+        setInstaller(info)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     let active = true
-    Promise.all([listPlugins(), loadFrontendPlugins()])
+    listPlugins()
+      .then((list) => loadFrontendPlugins(list).then((modules) => [list, modules] as const))
       .then(([list, modules]) => {
         if (!active) return
         cachedPlugins = list
@@ -322,6 +410,18 @@ export function PluginsView() {
         return next
       })
       setKeepDisabledId(enabled ? null : plugin.id)
+      if (enabled && plugin.source === 'installed' && plugin.web) {
+        const frontend = await loadInstalledFrontend({ ...plugin, enabled })
+        if (frontend) {
+          setFrontends((prev) => {
+            const next = new Map(prev).set(frontend.id, frontend)
+            cachedFrontends = next
+            return next
+          })
+        } else {
+          toast.error(`Không tải được giao diện của ${plugin.name}`)
+        }
+      }
       if (enabled) {
         toast.success(`Đã bật ${plugin.name}`, { action: { label: 'Mở', onClick: () => openPlugin(plugin.id) } })
       } else {
@@ -333,6 +433,50 @@ export function PluginsView() {
       setTogglingId(null)
     }
   }, [openPlugin])
+
+  const install = useCallback(async (file: File) => {
+    if (installer && file.size > installer.max_size) {
+      toast.error(`Gói tiện ích tối đa ${Math.round(installer.max_size / 1024 / 1024)} MB`)
+      return
+    }
+    setInstalling(true)
+    try {
+      const plugin = await installPlugin(file)
+      toast.success(`Đã cài ${plugin.name} v${plugin.version}`, plugin.enabled ? undefined : { description: 'Bật công tắc để dùng tiện ích.' })
+      setReloadKey((k) => k + 1)
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Không cài được tiện ích'))
+    } finally {
+      setInstalling(false)
+    }
+  }, [installer])
+
+  const confirmUninstall = useCallback(async () => {
+    if (!removing) return
+    setRemoveBusy(true)
+    try {
+      await uninstallPlugin(removing.id)
+      unloadInstalledFrontend(removing.id)
+      setPlugins((prev) => {
+        const next = (prev || []).filter((p) => p.id !== removing.id)
+        cachedPlugins = next
+        return next
+      })
+      setFrontends((prev) => {
+        const next = new Map(prev)
+        next.delete(removing.id)
+        cachedFrontends = next
+        return next
+      })
+      if (openId === removing.id) openPlugin(null)
+      toast.success(`Đã gỡ ${removing.name}`)
+      setRemoving(null)
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Không gỡ được tiện ích'))
+    } finally {
+      setRemoveBusy(false)
+    }
+  }, [removing, openId, openPlugin])
 
   if (!plugins) {
     return (
@@ -368,18 +512,42 @@ export function PluginsView() {
     />
   ) : null
 
-  const manager = plugins.length === 0 ? (
-    <Card><EmptyState icon={Puzzle} title="Chưa cài tiện ích nào" /></Card>
-  ) : (
-    <PluginManager plugins={plugins} frontends={frontends} togglingId={togglingId} onToggle={toggle} onOpen={openPlugin} />
+  const manager = (
+    <PluginManager
+      plugins={plugins}
+      frontends={frontends}
+      installer={installer}
+      installing={installing}
+      togglingId={togglingId}
+      onToggle={toggle}
+      onOpen={openPlugin}
+      onInstall={install}
+      onUninstall={setRemoving}
+    />
   )
 
+  const removeDialog = removing ? (
+    <ConfirmDialog
+      title={`Gỡ ${removing.name}?`}
+      message="Tệp của tiện ích sẽ bị xoá khỏi hệ thống. Cài đặt và dữ liệu của từng chủ trọ được giữ lại để dùng khi cài lại."
+      confirmText="Gỡ cài đặt"
+      isLoading={removeBusy}
+      onConfirm={confirmUninstall}
+      onCancel={() => setRemoving(null)}
+    />
+  ) : null
+
   if (isMobile) {
-    return page ?? (
-      <div className="space-y-6">
-        <PageHeader title="Tiện ích" description="Bật, tắt và cài đặt các tiện ích mở rộng" />
-        {manager}
-      </div>
+    return (
+      <>
+        {page ?? (
+          <div className="space-y-6">
+            <PageHeader title="Tiện ích" description="Bật, tắt và cài đặt các tiện ích mở rộng" />
+            {manager}
+          </div>
+        )}
+        {removeDialog}
+      </>
     )
   }
 
@@ -390,6 +558,7 @@ export function PluginsView() {
         <PluginNav plugins={plugins} frontends={frontends} openId={page ? openId : null} onSelect={openPlugin} />
         {page ?? manager}
       </div>
+      {removeDialog}
     </div>
   )
 }
