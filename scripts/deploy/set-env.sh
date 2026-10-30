@@ -9,7 +9,7 @@ PROJECT_DIR="${PROJECT_DIR:-$GITHUB_WORKSPACE}"
 DEPLOY_USER="${DEPLOY_USER:-$(id -un)}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-$(id -gn)}"
 # File .env thật được giữ lâu dài NGOÀI workspace (workspace bị checkout/agent xóa file untracked).
-ENV_FILE_SOURCE="${ENV_FILE_SOURCE:-$HOME/quanly-phongtro/.env}"
+ENV_FILE_SOURCE="${ENV_FILE_SOURCE:-$HOME/.config/quanly-phongtro/.env}"
 UPLOADS_DIR_SOURCE="${UPLOADS_DIR_SOURCE:-$HOME/quanly-phongtro/uploads}"
 
 # link_env_file trỏ $PROJECT_DIR/.env sang file .env dùng chung để mỗi lần deploy

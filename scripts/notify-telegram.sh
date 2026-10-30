@@ -6,9 +6,9 @@ if [ -f "$PROJECT_DIR/.env" ]; then
   set -a
   source "$PROJECT_DIR/.env"
   set +a
-elif [ -f "$HOME/quanly-phongtro/.env" ]; then
+elif [ -f "$HOME/.config/quanly-phongtro/.env" ]; then
   set -a
-  source "$HOME/quanly-phongtro/.env"
+  source "$HOME/.config/quanly-phongtro/.env"
   set +a
 fi
 
