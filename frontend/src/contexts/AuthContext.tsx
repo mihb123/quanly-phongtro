@@ -7,6 +7,7 @@ import { useInvoiceStore } from '@/data/invoiceData'
 import { useRoomStore } from '@/data/roomData'
 import { useSelectedStore } from '@/data/selectedData'
 import { clearQueryCache } from '@/lib/queryCache'
+import { clearPluginConfigCache } from '@/plugins/configStore'
 import { writeStorageRaw } from '@/lib/storage'
 import type { AuthOutput } from '@/types/auth'
 
@@ -23,6 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 function clearUserData() {
   clearQueryCache()
   clearProtectedFileCache()
+  clearPluginConfigCache()
   useHouseStore.setState({ houses: [] })
   useRoomStore.setState({ rooms: [], roomsHouseId: null, roomTotal: 0, roomPage: 1, roomSearch: '', roomsLoading: false, roomsError: null })
   useSelectedStore.getState().selectHouse(null)

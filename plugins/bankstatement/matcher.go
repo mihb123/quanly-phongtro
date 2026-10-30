@@ -16,10 +16,7 @@ const (
 	MatchAmountNearHinted = "AMOUNT_NEAR_HINT"
 )
 
-const (
-	maxAmountDiff   = 1000
-	minIdentityHint = 2
-)
+const minIdentityHint = 2
 
 type matchResult struct {
 	Transaction Transaction
@@ -33,7 +30,7 @@ type scoredInvoice struct {
 	score int
 }
 
-func matchTransactions(txs []Transaction, invoices []model.OutstandingInvoice) []matchResult {
+func matchTransactions(txs []Transaction, invoices []model.OutstandingInvoice, maxAmountDiff int64) []matchResult {
 	results := make([]matchResult, len(txs))
 	assigned := make([]bool, len(invoices))
 	resolved := make([]bool, len(txs))
@@ -45,7 +42,7 @@ func matchTransactions(txs []Transaction, invoices []model.OutstandingInvoice) [
 		var out []int
 		month := tx.Date.Format("2006-01")
 		for i, inv := range invoices {
-			if !assigned[i] && int64(math.Round(inv.TotalAmount)) == tx.Amount && inv.Period <= month {
+			if !assigned[i] && int64(math.Round(inv.TotalAmount)) == tx.Amount && inv.Period == month {
 				out = append(out, i)
 			}
 		}
@@ -99,7 +96,7 @@ func matchTransactions(txs []Transaction, invoices []model.OutstandingInvoice) [
 		month := tx.Date.Format("2006-01")
 		for i, inv := range invoices {
 			diff := tx.Amount - int64(math.Round(inv.TotalAmount))
-			if !assigned[i] && diff != 0 && diff > -maxAmountDiff && diff < maxAmountDiff && inv.Period <= month {
+			if !assigned[i] && diff != 0 && diff > -maxAmountDiff && diff < maxAmountDiff && inv.Period == month {
 				out = append(out, i)
 			}
 		}

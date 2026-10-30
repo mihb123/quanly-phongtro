@@ -1,5 +1,20 @@
 import { apiClient } from './client'
 
+export type PluginSettingType = 'toggle' | 'text' | 'textarea' | 'password' | 'number' | 'select'
+
+export interface PluginSettingField {
+  key: string
+  type: PluginSettingType
+  label: string
+  description?: string
+  group?: string
+  placeholder?: string
+  default?: unknown
+  options?: { value: string; label: string }[]
+  min?: number
+  max?: number
+}
+
 export interface PluginInfo {
   id: string
   name: string
@@ -8,6 +23,12 @@ export interface PluginInfo {
   author: string
   default_enabled: boolean
   enabled: boolean
+  settings?: PluginSettingField[]
+}
+
+export interface PluginConfig {
+  values: Record<string, unknown>
+  secrets: Record<string, boolean>
 }
 
 export const listPlugins = async () => {
@@ -18,6 +39,16 @@ export const listPlugins = async () => {
 export const setPluginEnabled = async (id: string, enabled: boolean) => {
   const { data } = await apiClient.put(`/plugins/${id}/enabled`, { enabled })
   return data.data as { enabled: boolean }
+}
+
+export const getPluginConfig = async (id: string) => {
+  const { data } = await apiClient.get(`/plugins/${id}/config`)
+  return data.data as PluginConfig
+}
+
+export const updatePluginConfig = async (id: string, values: Record<string, unknown>) => {
+  const { data } = await apiClient.put(`/plugins/${id}/config`, { values })
+  return data.data as PluginConfig
 }
 
 export const pluginRequest = async <T,>(pluginId: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown) => {

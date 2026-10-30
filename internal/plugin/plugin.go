@@ -14,12 +14,42 @@ import (
 )
 
 type Manifest struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Version        string `json:"version"`
-	Description    string `json:"description"`
-	Author         string `json:"author"`
-	DefaultEnabled bool   `json:"default_enabled"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Version        string         `json:"version"`
+	Description    string         `json:"description"`
+	Author         string         `json:"author"`
+	DefaultEnabled bool           `json:"default_enabled"`
+	Settings       []SettingField `json:"settings,omitempty"`
+}
+
+type SettingType string
+
+const (
+	SettingToggle   SettingType = "toggle"
+	SettingText     SettingType = "text"
+	SettingTextarea SettingType = "textarea"
+	SettingPassword SettingType = "password"
+	SettingNumber   SettingType = "number"
+	SettingSelect   SettingType = "select"
+)
+
+type SettingOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+type SettingField struct {
+	Key         string          `json:"key"`
+	Type        SettingType     `json:"type"`
+	Label       string          `json:"label"`
+	Description string          `json:"description,omitempty"`
+	Group       string          `json:"group,omitempty"`
+	Placeholder string          `json:"placeholder,omitempty"`
+	Default     any             `json:"default,omitempty"`
+	Options     []SettingOption `json:"options,omitempty"`
+	Min         *float64        `json:"min,omitempty"`
+	Max         *float64        `json:"max,omitempty"`
 }
 
 type Plugin interface {
@@ -30,19 +60,36 @@ type Plugin interface {
 
 type Host interface {
 	Invoices() InvoiceAPI
-	Storage() Storage
+	Config() Config
 }
 
 type InvoiceAPI interface {
-	ListOutstanding(ctx context.Context, managerID string) ([]model.OutstandingInvoice, error)
-	PaymentRecorded(ctx context.Context, source, accountRef, transactionRef string) (bool, error)
+	ListOutstanding(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error)
+	ListPaid(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error)
+	RecordedPayment(ctx context.Context, source, accountRef, transactionRef string) (invoiceID string, recorded bool, err error)
 	MarkPaid(ctx context.Context, managerID string, payment model.PluginPayment) error
 }
 
-type Storage interface {
-	Load(ctx context.Context, managerID string, out any) (bool, error)
-	Save(ctx context.Context, managerID string, value any) error
-	Clear(ctx context.Context, managerID string) error
+type Config interface {
+	Get(ctx context.Context, managerID string) (Values, error)
+	Set(ctx context.Context, managerID string, values map[string]any) error
+}
+
+type Values map[string]any
+
+func (v Values) String(key string) string {
+	s, _ := v[key].(string)
+	return s
+}
+
+func (v Values) Bool(key string) bool {
+	b, _ := v[key].(bool)
+	return b
+}
+
+func (v Values) Number(key string) float64 {
+	n, _ := v[key].(float64)
+	return n
 }
 
 var (

@@ -18,10 +18,11 @@ interface Props {
   invoice: Invoice
   onClose: () => void
   onEdit?: () => void
+  onChanged?: () => void
 }
 
 // Modal xem chi tiết hóa đơn (chỉ đọc). Vỏ dùng AppModal; giữ nguyên printRef/contentRef cho việc xuất ảnh hóa đơn.
-export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
+export function InvoiceDetailModal({ invoice, onClose, onEdit, onChanged }: Props) {
   const { payInvoice, unpayInvoice } = useInvoiceStore()
   const [isPaying, setIsPaying] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
@@ -68,6 +69,8 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     setIsPaying(false)
     if (!res.success) {
       alert(res.message)
+    } else {
+      onChanged?.()
     }
   }
 
@@ -132,6 +135,8 @@ export function InvoiceDetailModal({ invoice, onClose, onEdit }: Props) {
     setIsPaying(false)
     if (!res.success) {
       alert(res.message)
+    } else {
+      onChanged?.()
     }
   }
 

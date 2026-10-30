@@ -4,9 +4,11 @@ import { invalidateQueries } from '@/lib/queryCache'
 
 export type { PluginInfo }
 export { toast } from 'sonner'
+export { usePluginConfig } from './configStore'
 
 export interface PluginViewProps {
   plugin: PluginInfo
+  openSettings: () => void
 }
 
 export interface FrontendPlugin {

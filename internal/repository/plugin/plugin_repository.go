@@ -77,9 +77,25 @@ func (r *PluginRepository) SavePluginData(ctx context.Context, managerID, plugin
 	return nil
 }
 
-func (r *PluginRepository) ListOutstandingInvoices(ctx context.Context, managerID string) ([]model.OutstandingInvoice, error) {
+func (r *PluginRepository) ListOutstandingInvoices(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error) {
+	invoices, err := r.listInvoices(ctx, managerID, []string{model.InvoiceStatusUnpaid, model.InvoiceStatusPendingVerification}, periods)
+	if err != nil {
+		return nil, fmt.Errorf("list outstanding invoices: %w", err)
+	}
+	return invoices, nil
+}
+
+func (r *PluginRepository) ListPaidInvoices(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error) {
+	invoices, err := r.listInvoices(ctx, managerID, []string{model.InvoiceStatusPaid}, periods)
+	if err != nil {
+		return nil, fmt.Errorf("list paid invoices: %w", err)
+	}
+	return invoices, nil
+}
+
+func (r *PluginRepository) listInvoices(ctx context.Context, managerID string, statuses, periods []string) ([]model.OutstandingInvoice, error) {
 	invoices := []model.OutstandingInvoice{}
-	err := database.Executor(ctx, r.db).NewSelect().
+	q := database.Executor(ctx, r.db).NewSelect().
 		TableExpr("invoices AS invoice").
 		ColumnExpr("invoice.id, invoice.room_id, invoice.period, invoice.total_amount, invoice.status").
 		ColumnExpr("r.name AS room_name, h.id AS house_id, h.name AS house_name").
@@ -87,13 +103,34 @@ func (r *PluginRepository) ListOutstandingInvoices(ctx context.Context, managerI
 		Join("JOIN rooms AS r ON invoice.room_id = r.id").
 		Join("JOIN houses AS h ON r.house_id = h.id").
 		Where("h.manager_id = ?", managerID).
-		Where("invoice.status IN (?)", bun.In([]string{model.InvoiceStatusUnpaid, model.InvoiceStatusPendingVerification})).
-		Order("invoice.period ASC", "r.name ASC").
-		Scan(ctx, &invoices)
-	if err != nil {
-		return nil, fmt.Errorf("list outstanding invoices: %w", err)
+		Where("invoice.status IN (?)", bun.In(statuses))
+	if len(periods) > 0 {
+		q = q.Where("invoice.period IN (?)", bun.In(periods))
 	}
-	return invoices, nil
+	err := q.Order("invoice.period ASC", "r.name ASC").Scan(ctx, &invoices)
+	return invoices, err
+}
+
+func (r *PluginRepository) RecordedPayment(ctx context.Context, source, accountRef, transactionRef string) (string, bool, error) {
+	var invoiceIDs []*string
+	err := database.Executor(ctx, r.db).NewSelect().
+		Model((*model.PaymentEvent)(nil)).
+		Column("invoice_id").
+		Where("provider = ?", source).
+		Where("provider_order_ref = ?", accountRef).
+		Where("transaction_reference = ?", transactionRef).
+		Limit(1).
+		Scan(ctx, &invoiceIDs)
+	if err != nil {
+		return "", false, fmt.Errorf("find plugin payment: %w", err)
+	}
+	if len(invoiceIDs) == 0 {
+		return "", false, nil
+	}
+	if invoiceIDs[0] == nil {
+		return "", true, nil
+	}
+	return *invoiceIDs[0], true, nil
 }
 
 func (r *PluginRepository) PaymentRecorded(ctx context.Context, source, accountRef, transactionRef string) (bool, error) {

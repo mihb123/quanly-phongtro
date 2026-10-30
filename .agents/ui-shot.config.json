@@ -10,7 +10,7 @@
   "tabs": {
     "path": "/",
     "storageKey": "home_active_tab",
-    "names": ["dashboard", "house_rooms", "tenants", "invoices", "revenue", "settings"]
+    "names": ["dashboard", "house_rooms", "tenants", "invoices", "revenue", "plugins", "settings"]
   },
   "login": {
     "path": "/login",
