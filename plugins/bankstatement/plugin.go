@@ -180,7 +180,15 @@ func (p *Plugin) importStatement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := p.reconcile(r, managerID, credits, dryRun)
+	var selected map[string]bool
+	if refs := r.MultipartForm.Value["references"]; len(refs) > 0 {
+		selected = make(map[string]bool, len(refs))
+		for _, ref := range refs {
+			selected[ref] = true
+		}
+	}
+
+	result, err := p.reconcile(r, managerID, credits, dryRun, selected)
 	if err != nil {
 		plugin.WriteError(w, http.StatusInternalServerError, "Không đối soát được sao kê, vui lòng thử lại")
 		return
@@ -241,7 +249,7 @@ func readStatementFiles(name string, data []byte, password string, usedSavedPass
 	return files, 0, ""
 }
 
-func (p *Plugin) reconcile(r *http.Request, managerID string, credits []Transaction, dryRun bool) (*importResult, error) {
+func (p *Plugin) reconcile(r *http.Request, managerID string, credits []Transaction, dryRun bool, selected map[string]bool) (*importResult, error) {
 	ctx := r.Context()
 	invoices := p.host.Invoices()
 	result := &importResult{DryRun: dryRun, Items: make([]importItem, 0, len(credits))}
@@ -282,7 +290,7 @@ func (p *Plugin) reconcile(r *http.Request, managerID string, credits []Transact
 			item.Invoice = summarize(*m.Invoice)
 			item.Method = m.Method
 			item.Status = StatusMatched
-			if !dryRun {
+			if !dryRun && (selected == nil || selected[tx.Reference]) {
 				item.Status, item.Message = p.settle(r, managerID, tx, m)
 			}
 		case len(m.Candidates) > 0:

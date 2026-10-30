@@ -20,6 +20,7 @@ apiClient.interceptors.request.use(async (config) => {
   try {
     const proof = await getDPoPProof(method, url, currentAccessToken)
     config.headers['DPoP'] = proof
+    if (currentAccessToken) config.headers['Authorization'] = `DPoP ${currentAccessToken}`
   } catch (err) {
     console.error('Failed to generate DPoP proof', err)
   }

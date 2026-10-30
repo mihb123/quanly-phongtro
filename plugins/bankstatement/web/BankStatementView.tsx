@@ -1,5 +1,5 @@
-import { memo, useEffect, useState, type FormEvent } from 'react'
-import { AlertTriangle, CheckCircle2, FileUp, Loader2, Receipt, Trash2, Wallet } from '@/components/icons'
+import { memo, useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
+import { AlertTriangle, Check, CheckCircle2, FileUp, Loader2, Receipt, Trash2, Wallet } from '@/components/icons'
 import { SectionCard } from '@/components/shared/SectionCard'
 import { StatCard } from '@/components/shared/StatCard'
 import { Badge } from '@/components/ui/badge'
@@ -92,9 +92,22 @@ function ItemOutcome({ item }: { item: ImportItem }) {
   )
 }
 
-const ResultRow = memo(function ResultRow({ item }: { item: ImportItem }) {
+interface SelectableProps {
+  item: ImportItem
+  selectable: boolean
+  checked: boolean
+  onToggle: (reference: string) => void
+}
+
+function SelectCheckbox({ item, checked, onToggle }: Omit<SelectableProps, 'selectable'>) {
+  if (item.status !== 'matched') return null
+  return <Checkbox checked={checked} onCheckedChange={() => onToggle(item.reference)} aria-label={`Chọn giao dịch ${item.reference}`} />
+}
+
+const ResultRow = memo(function ResultRow({ item, selectable, checked, onToggle }: SelectableProps) {
   return (
     <TableRow>
+      {selectable ? <TableCell className="align-top"><SelectCheckbox item={item} checked={checked} onToggle={onToggle} /></TableCell> : null}
       <TableCell className="align-top tabular-nums">{formatDate(item.date)}</TableCell>
       <TableCell className="text-right align-top font-medium tabular-nums">{formatCurrency(item.amount)}</TableCell>
       <TableCell className="align-top whitespace-normal">
@@ -106,11 +119,14 @@ const ResultRow = memo(function ResultRow({ item }: { item: ImportItem }) {
   )
 })
 
-const ResultCard = memo(function ResultCard({ item }: { item: ImportItem }) {
+const ResultCard = memo(function ResultCard({ item, selectable, checked, onToggle }: SelectableProps) {
   return (
     <div className="space-y-2 border-b px-4 py-3 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-semibold tabular-nums">{formatCurrency(item.amount)}</span>
+        <span className="flex items-center gap-3 font-semibold tabular-nums">
+          {selectable ? <SelectCheckbox item={item} checked={checked} onToggle={onToggle} /> : null}
+          {formatCurrency(item.amount)}
+        </span>
         <span className="text-xs text-muted-foreground tabular-nums">{formatDate(item.date)}</span>
       </div>
       <p className="text-sm break-words text-muted-foreground">{item.description || '—'}</p>
@@ -119,10 +135,24 @@ const ResultCard = memo(function ResultCard({ item }: { item: ImportItem }) {
   )
 })
 
-function ResultSection({ result }: { result: ImportResult }) {
+interface ResultSectionProps {
+  result: ImportResult
+  canApply: boolean
+  applying: boolean
+  selected: Set<string>
+  onToggle: (reference: string) => void
+  onToggleAll: (references: string[]) => void
+  onApply: (references: string[]) => void
+}
+
+function ResultSection({ result, canApply, applying, selected, onToggle, onToggleAll, onApply }: ResultSectionProps) {
   const isMobile = useIsMobile()
   const s = result.summary
   const settled = result.dry_run ? s.matched : s.paid
+  const matchedRefs = useMemo(() => result.items.filter((i) => i.status === 'matched').map((i) => i.reference), [result.items])
+  const selectable = canApply && matchedRefs.length > 0
+  const selectedRefs = matchedRefs.filter((ref) => selected.has(ref))
+  const allSelected = selectedRefs.length === matchedRefs.length
   return (
     <>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
@@ -146,7 +176,21 @@ function ResultSection({ result }: { result: ImportResult }) {
       <SectionCard
         title={result.dry_run ? 'Kết quả xem trước' : 'Kết quả đối soát'}
         icon={FileUp}
-        action={<span className="hidden truncate text-xs text-muted-foreground sm:inline">{result.files.join(', ')}</span>}
+        headerClassName="flex-wrap"
+        action={selectable ? (
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" disabled={applying || selectedRefs.length === 0} onClick={() => onApply(selectedRefs)}>
+              <Check data-icon="inline-start" />
+              Cập nhật đã chọn ({selectedRefs.length})
+            </Button>
+            <Button type="button" size="sm" disabled={applying} onClick={() => onApply(matchedRefs)}>
+              {applying ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <CheckCircle2 data-icon="inline-start" />}
+              Cập nhật tất cả ({matchedRefs.length})
+            </Button>
+          </div>
+        ) : (
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">{result.files.join(', ')}</span>
+        )}
       >
         {isMobile ? (
           <div>
@@ -154,11 +198,14 @@ function ResultSection({ result }: { result: ImportResult }) {
               <span>Tổng {s.credits} giao dịch</span>
               <span className="tabular-nums">{formatCurrency(s.total_credit)}</span>
             </div>
-            {result.items.map((item) => <ResultCard key={item.reference} item={item} />)}
+            {result.items.map((item) => (
+              <ResultCard key={item.reference} item={item} selectable={selectable} checked={selected.has(item.reference)} onToggle={onToggle} />
+            ))}
           </div>
         ) : (
           <Table className="table-fixed">
             <colgroup>
+              {selectable ? <col className="w-10" /> : null}
               <col className="w-[12%]" />
               <col className="w-[16%]" />
               <col className="w-[40%]" />
@@ -166,6 +213,11 @@ function ResultSection({ result }: { result: ImportResult }) {
             </colgroup>
             <TableHeader>
               <TableRow>
+                {selectable ? (
+                  <TableHead>
+                    <Checkbox checked={allSelected} onCheckedChange={() => onToggleAll(allSelected ? [] : matchedRefs)} aria-label="Chọn tất cả giao dịch khớp" />
+                  </TableHead>
+                ) : null}
                 <TableHead>Ngày</TableHead>
                 <TableHead className="text-right">Số tiền</TableHead>
                 <TableHead>Nội dung chuyển khoản</TableHead>
@@ -174,11 +226,14 @@ function ResultSection({ result }: { result: ImportResult }) {
             </TableHeader>
             <TableBody>
               <TableRow className="bg-muted/40 font-medium hover:bg-muted/40">
+                {selectable ? <TableCell /> : null}
                 <TableCell>Tổng</TableCell>
                 <TableCell className="text-right tabular-nums">{formatCurrency(s.total_credit)}</TableCell>
                 <TableCell colSpan={2} className="text-muted-foreground">{s.credits} giao dịch ghi có</TableCell>
               </TableRow>
-              {result.items.map((item) => <ResultRow key={item.reference} item={item} />)}
+              {result.items.map((item) => (
+                <ResultRow key={item.reference} item={item} selectable={selectable} checked={selected.has(item.reference)} onToggle={onToggle} />
+              ))}
             </TableBody>
           </Table>
         )}
@@ -197,6 +252,19 @@ export function BankStatementView() {
   const [submitting, setSubmitting] = useState(false)
   const [forgetting, setForgetting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
+  const [source, setSource] = useState<{ file: File; password: string } | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [applying, setApplying] = useState(false)
+
+  const toggleSelected = useCallback((reference: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(reference)) next.delete(reference)
+      else next.add(reference)
+      return next
+    })
+  }, [])
+  const toggleAll = useCallback((references: string[]) => setSelected(new Set(references)), [])
 
   useEffect(() => {
     let active = true
@@ -222,6 +290,8 @@ export function BankStatementView() {
     try {
       const data = await api.post<ImportResult>('/import', form)
       setResult(data)
+      setSource({ file, password })
+      setSelected(new Set())
       if (remember && password) setHasSavedPassword(true)
       setPassword('')
       setFile(null)
@@ -238,6 +308,31 @@ export function BankStatementView() {
       toast.error(api.errorMessage(error, 'Không đối soát được file sao kê'))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const apply = async (references: string[]) => {
+    if (!source || applying || references.length === 0) return
+    const form = new FormData()
+    form.append('file', source.file)
+    form.append('password', source.password)
+    form.append('dry_run', 'false')
+    references.forEach((ref) => form.append('references', ref))
+    setApplying(true)
+    try {
+      const data = await api.post<ImportResult>('/import', form)
+      setResult(data)
+      setSelected(new Set())
+      if (data.summary.paid > 0) {
+        refreshAppData()
+        toast.success(`Đã đánh dấu ${data.summary.paid} hóa đơn là đã thanh toán`)
+      } else {
+        toast.info('Không có hóa đơn nào được cập nhật')
+      }
+    } catch (error) {
+      toast.error(api.errorMessage(error, 'Không cập nhật được hóa đơn'))
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -314,7 +409,17 @@ export function BankStatementView() {
         </form>
       </SectionCard>
 
-      {result ? <ResultSection result={result} /> : null}
+      {result ? (
+        <ResultSection
+          result={result}
+          canApply={source !== null}
+          applying={applying}
+          selected={selected}
+          onToggle={toggleSelected}
+          onToggleAll={toggleAll}
+          onApply={apply}
+        />
+      ) : null}
     </div>
   )
 }
