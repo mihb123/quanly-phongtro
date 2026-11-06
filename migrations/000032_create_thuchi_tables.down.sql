@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS thuchi_telegram_messages;
+DROP TABLE IF EXISTS thuchi_telegram_links;
+DROP TABLE IF EXISTS thuchi_recurrences;
+DROP TABLE IF EXISTS thuchi_ingest_tokens;
+DROP TABLE IF EXISTS thuchi_raw_events;
+DROP TABLE IF EXISTS thuchi_budgets;
+DROP TABLE IF EXISTS thuchi_rules;
+DROP TABLE IF EXISTS thuchi_tx_sources;
+DROP TABLE IF EXISTS thuchi_transactions;
+DROP TABLE IF EXISTS thuchi_categories;
+DROP TABLE IF EXISTS thuchi_accounts;
+DROP TABLE IF EXISTS thuchi_sync_state;

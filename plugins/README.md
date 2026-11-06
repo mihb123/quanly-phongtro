@@ -75,6 +75,15 @@ func (p *Plugin) Routes(r chi.Router) {
 | `host.Invoices().MarkPaid(ctx, managerID, model.PluginPayment{...})` | Đánh dấu đã thanh toán + ghi `payment_events` trong 1 transaction, idempotent theo `(source, accountRef, txRef)` |
 | `host.Config().Get(ctx, managerID)` | Cài đặt của chủ trọ (`plugin.Values`, đã điền `Default`), đọc bằng `.String/.Bool/.Number(key)` |
 | `host.Config().Set(ctx, managerID, map[string]any{...})` | Gộp giá trị vào cài đặt (`nil` = xoá key). Key ngoài `Settings` vẫn lưu được — dùng làm dữ liệu riêng, API không trả ra ngoài |
+| `host.Enabled(ctx, managerID)` | Chủ trọ đang bật plugin chưa (đã tính `DefaultEnabled`) — dùng cho việc chạy nền ngoài request (bot, worker) |
+
+### Route công khai (webhook)
+
+Plugin cài thêm `plugin.PublicRouter` (`PublicRoutes(r chi.Router)`) thì host mount `/api/v1/plugins/<ID>/public/{managerID}/*` **không qua đăng nhập**, giới hạn 5 req/s (burst 60) theo IP. Host chỉ gọi plugin khi `managerID` là UUID và chủ trọ đó đang bật plugin, ngược lại trả 404; `plugin.PublicManagerID(r)` lấy `managerID`. Plugin tự xác thực request (HMAC, token thiết bị…).
+
+### Plugin built-in cần hạ tầng của app
+
+Plugin không import `internal/...`. Khi cần DB/mã hoá/worker (như `thuchi`), adapter `internal/service/<tên>/<tên>_adapter.go` dựng module rồi `cmd/api/main.go` gọi hàm `Use(...)` của plugin **trước** `plugin.NewManager`; `Init` báo lỗi nếu chưa được nối.
 
 ### Cài đặt (`Manifest.Settings`)
 
@@ -116,7 +125,7 @@ export default definePlugin({ id: 'hello', icon: Puzzle, View: HelloView })
 ```
 
 - `id` phải trùng `Manifest().ID`.
-- Chỉ import `react` và các module `@/...` của app (UI shadcn `@/components/ui/*`, icon `@/components/icons`, `@/plugins/sdk`). Thư viện khác chưa được dedupe sẽ không resolve được từ ngoài `frontend/`.
+- Chỉ import `react` và các module `@/...` của app (ngoại lệ: alias của module `pkg/<tên>/web` như `@thuchi/*`, đã khai trong Vite + tsconfig; thư viện riêng của module như `dexie` phải có trong `frontend/package.json` và `dedupe`) (UI shadcn `@/components/ui/*`, icon `@/components/icons`, `@/plugins/sdk`). Thư viện khác chưa được dedupe sẽ không resolve được từ ngoài `frontend/`.
 - `View` nhận `plugin` và `openSettings()` (chuyển sang tab Cài đặt). Plugin không có `View` nhưng có `Settings` vẫn mở được (chỉ có trang Cài đặt).
 - `usePluginConfig(id)` trả `{ config, error, save, reload }` (`config.values`, `config.secrets`), dùng chung cache với trang Cài đặt nên đổi ở đâu cũng cập nhật ngay.
 - Class Tailwind trong `plugins/*/web` được quét nhờ `@source` trong `frontend/src/index.css`.
@@ -130,5 +139,7 @@ export default definePlugin({ id: 'hello', icon: Puzzle, View: HelloView })
 4. Build/deploy như thường lệ.
 
 ## Plugin có sẵn
+
+- `thuchi` (`thu-chi`): sổ thu chi cá nhân local-first của từng chủ trọ (dữ liệu riêng, owner = managerID), tắt mặc định. Lõi `pkg/thuchi` copy từ repo `~/thu-chi` bằng `make sync-thuchi` (đổi import path); sửa lõi ở `~/thu-chi` trước. Adapter `internal/service/thuchi/thuchi_adapter.go` (PGStore trên `*sql.DB`, AES-GCM bằng `APP_SECRET_ENCRYPTION_KEY`, worker raw event + định kỳ + dọn tombstone). Route đã đăng nhập `/api/v1/plugins/thu-chi/{sync,ingest,telegram}/...`, ingest công khai `/api/v1/plugins/thu-chi/public/{managerID}/ingest/{sepay|notify|email}`, bảng `thuchi_*` (migration `000032` = `pkg/thuchi/sql/schema.sql`). Web: `plugins/thuchi/web` mount `ThuChiApp` (`@thuchi/App`, chế độ `embedded`: tab ở trên, không nav cố định) với transport axios tự refresh token khi 401; đăng xuất xoá IndexedDB `thuchi_*`. Bot Telegram bật khi có `THUCHI_TELEGRAM_BOT_TOKEN` (bot riêng, long polling; `THUCHI_TELEGRAM_CHAT_ID` giới hạn nhóm), bot bỏ qua chủ trọ đã tắt tiện ích. E2E: `frontend/e2e/thuchi/` (`make e2e-thuchi`).
 
 - `bankstatement` (`bank-statement`): tải sao kê ngân hàng (.zip có/không mật khẩu hoặc .pdf), đọc các khoản ghi có, khớp với hóa đơn chưa thanh toán theo đúng số tiền (ưu tiên số phòng / tên khách / tháng trong nội dung chuyển khoản); lệch dưới 1.000 ₫ (khách làm tròn) chỉ được nhận khi nội dung ghi tên khách hoặc số phòng và chỉ đúng 1 hóa đơn khớp, đánh dấu đã thanh toán (`payment_method = BANK_STATEMENT`). Cài đặt: luôn xem trước, mức lệch làm tròn chấp nhận (0 / 1.000 / 5.000 / 10.000 ₫), mật khẩu giải nén. Sau khi xem trước có thể cập nhật từng giao dịch đã chọn hoặc tất cả. Hiện hỗ trợ TPBank (phiếu báo có, fallback sổ phụ tài khoản); thêm ngân hàng khác bằng cách cài `StatementParser` trong `statement.go`.

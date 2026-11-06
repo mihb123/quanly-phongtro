@@ -14,7 +14,7 @@ MIGRATE := $(LOAD_ENV) && migrate -path $(MIGRATIONS_DIR) -database "$$POSTGRES_
 .PHONY: help dev dev-fe run install build frontend clean \
 	test test-fe vet fmt check mocks \
 	migrate-up migrate-down migrate-create migrate-version migrate-force seed backup-db backup-db-ocl restore-db \
-	deploy-local plugins
+	deploy-local plugins sync-thuchi e2e-thuchi
 
 help: ## Hiển thị danh sách lệnh
 	@awk 'BEGIN {FS = ":.*?## "} \
@@ -51,6 +51,12 @@ build: frontend ## Build frontend rồi nhúng vào API thành một binary duy 
 
 plugins: ## Sinh lại plugins/plugins.go từ các thư mục plugin
 	bash scripts/gen-plugins.sh
+
+sync-thuchi: ## Copy pkg/thuchi từ ~/thu-chi (THUCHI_SRC=...) và đổi import path
+	bash scripts/sync-thuchi.sh
+
+e2e-thuchi: ## E2E tiện ích Thu chi (Puppeteer, DB qlpt_thuchi_e2e trên :5440, server :9192): make e2e-thuchi T=07
+	cd frontend && node e2e/thuchi/run.mjs $(T)
 
 frontend: ## Build bản tĩnh React (Vite) vào frontend/dist
 	cd frontend && pnpm install --frozen-lockfile && pnpm build

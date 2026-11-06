@@ -41,11 +41,13 @@ import (
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	thuchisvc "github.com/mihb123/quanly-phongtro/internal/service/thuchi"
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/web"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	_ "github.com/mihb123/quanly-phongtro/plugins"
+	thuchiplugin "github.com/mihb123/quanly-phongtro/plugins/thuchi"
 )
 
 func main() {
@@ -164,11 +166,17 @@ func main() {
 	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(sepay.NewClient(nil), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
+	thuchiModule := thuchisvc.New(sqlDB.DB, appSecretKeyBytes, webhookBaseURL, thuchisvc.TelegramConfig{BotToken: cfg.ThuChiTelegramToken, ChatIDs: cfg.ThuChiTelegramChatIDs, APIBase: cfg.ThuChiTelegramAPIBase})
+	thuchiplugin.Use(thuchiModule.API, thuchiModule.Public, thuchiModule.Telegram)
+
 	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
 	if err := pluginManager.EnableInstall(context.Background(), cfg.PluginDir, cfg.PluginAdminEmails); err != nil {
 		log.Printf("plugin install disabled: %v", err)
 	}
 	defer pluginManager.Close(context.Background())
+	thuchiCtx, stopThuchi := context.WithCancel(context.Background())
+	defer stopThuchi()
+	thuchiModule.Start(thuchiCtx)
 
 	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
 		Threshold: cfg.SlowAPIThreshold,
@@ -207,6 +215,7 @@ func main() {
 		httpRouter.WithSlowAPILogger(slowAPILogger),
 		httpRouter.WithSecurityLogger(securityLogger),
 		httpRouter.WithPluginRoutes(pluginManager.Routes),
+		httpRouter.WithPluginPublicRoutes(pluginManager.PublicRoutes),
 	)
 	server := &http.Server{
 		Addr:              ":" + listenPort,
@@ -232,6 +241,7 @@ func main() {
 		log.Printf("shutdown error: %v", err)
 	}
 
+	stopThuchi()
 	notificationWorker.Stop()
 	revenueWorker.Stop()
 	zaloCron.Stop()

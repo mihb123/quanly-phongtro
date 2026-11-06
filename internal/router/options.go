@@ -17,6 +17,7 @@ type options struct {
 	slowAPILogger       *logger.SlowAPILogger
 	securityLogger      *logger.SecurityLogger
 	pluginRoutes        func(chi.Router)
+	pluginPublicRoutes  func(chi.Router)
 }
 
 // WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
@@ -56,6 +57,12 @@ func WithSecurityLogger(securityLogger *logger.SecurityLogger) Option {
 func WithPluginRoutes(routes func(chi.Router)) Option {
 	return func(o *options) {
 		o.pluginRoutes = routes
+	}
+}
+
+func WithPluginPublicRoutes(routes func(chi.Router)) Option {
+	return func(o *options) {
+		o.pluginPublicRoutes = routes
 	}
 }
 

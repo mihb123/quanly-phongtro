@@ -64,6 +64,38 @@ import {
   ComputerIcon,
   PuzzleIcon,
   FileUploadIcon,
+  BankIcon,
+  Cash01Icon,
+  CloudUploadIcon,
+  CreditCardIcon,
+  InboxIcon,
+  LeftToRightListBulletIcon,
+  Location01Icon,
+  PieChartIcon,
+  Tag01Icon,
+  ArrowDataTransferHorizontalIcon,
+  WifiDisconnected01Icon,
+  Invoice03Icon,
+  Book01Icon,
+  Car01Icon,
+  CloudIcon,
+  Coffee01Icon,
+  FileExportIcon,
+  FuelStationIcon,
+  GameController01Icon,
+  Home01Icon,
+  Medicine01Icon,
+  Money01Icon,
+  MoneyReceive01Icon,
+  MoreHorizontalIcon,
+  PerfumeIcon,
+  SmartPhone01Icon,
+  Restaurant02Icon,
+  SentIcon,
+  ShoppingBag01Icon,
+  SparklesIcon,
+  Target01Icon,
+  Restaurant01Icon,
 } from '@hugeicons/core-free-icons'
 
 // Props của 1 icon: giống lucide (nhận className/size/onClick...), trừ `icon` đã bind sẵn.
@@ -159,3 +191,35 @@ export const Moon = makeIcon(Moon02Icon)
 export const Monitor = makeIcon(ComputerIcon)
 export const Puzzle = makeIcon(PuzzleIcon)
 export const FileUp = makeIcon(FileUploadIcon)
+export const Bank = makeIcon(BankIcon)
+export const Cash = makeIcon(Cash01Icon)
+export const CloudUpload = makeIcon(CloudUploadIcon)
+export const CreditCard = makeIcon(CreditCardIcon)
+export const Inbox = makeIcon(InboxIcon)
+export const ListIcon = makeIcon(LeftToRightListBulletIcon)
+export const MapPin = makeIcon(Location01Icon)
+export const PieChart = makeIcon(PieChartIcon)
+export const Tag = makeIcon(Tag01Icon)
+export const TransferIcon = makeIcon(ArrowDataTransferHorizontalIcon)
+export const WifiOff = makeIcon(WifiDisconnected01Icon)
+export const Bill = makeIcon(Invoice03Icon)
+export const Book = makeIcon(Book01Icon)
+export const Car = makeIcon(Car01Icon)
+export const Cloud = makeIcon(CloudIcon)
+export const Coffee = makeIcon(Coffee01Icon)
+export const FileExport = makeIcon(FileExportIcon)
+export const Fuel = makeIcon(FuelStationIcon)
+export const Game = makeIcon(GameController01Icon)
+export const House = makeIcon(Home01Icon)
+export const Medicine = makeIcon(Medicine01Icon)
+export const Money = makeIcon(Money01Icon)
+export const MoneyIn = makeIcon(MoneyReceive01Icon)
+export const MoreDots = makeIcon(MoreHorizontalIcon)
+export const Perfume = makeIcon(PerfumeIcon)
+export const Phone2 = makeIcon(SmartPhone01Icon)
+export const Restaurant = makeIcon(Restaurant02Icon)
+export const SendMoney = makeIcon(SentIcon)
+export const ShoppingBag = makeIcon(ShoppingBag01Icon)
+export const Sparkles = makeIcon(SparklesIcon)
+export const Target = makeIcon(Target01Icon)
+export const Utensils = makeIcon(Restaurant01Icon)
