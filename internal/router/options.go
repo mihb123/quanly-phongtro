@@ -18,6 +18,7 @@ type options struct {
 	slowAPILogger       *filelog.SlowAPILogger
 	securityLogger      *filelog.SecurityLogger
 	pluginRoutes        func(chi.Router)
+	pluginPublicRoutes  func(chi.Router)
 	logger              *zap.Logger
 }
 
