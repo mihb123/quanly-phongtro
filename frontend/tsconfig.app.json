@@ -3,8 +3,13 @@
     "paths": {
       "@/*": ["./src/*"],
       "@sepay/*": ["../pkg/sepay/web/*"],
+      "@thuchi/*": ["../pkg/thuchi/web/*"],
       "react": ["./node_modules/@types/react"],
-      "react/*": ["./node_modules/@types/react/*"]
+      "react/*": ["./node_modules/@types/react/*"],
+      "dexie": ["./node_modules/dexie"],
+      "dexie-react-hooks": ["./node_modules/dexie-react-hooks"],
+      "recharts": ["./node_modules/recharts"],
+      "sonner": ["./node_modules/sonner"]
     },
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2023",
@@ -30,5 +35,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "../pkg/sepay/web", "../plugins/*/web"]
+  "include": ["src", "../pkg/sepay/web", "../pkg/thuchi/web", "../plugins/*/web"]
 }

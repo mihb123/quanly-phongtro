@@ -41,11 +41,13 @@ import (
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	thuchisvc "github.com/mihb123/quanly-phongtro/internal/service/thuchi"
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/web"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	_ "github.com/mihb123/quanly-phongtro/plugins"
+	thuchiplugin "github.com/mihb123/quanly-phongtro/plugins/thuchi"
 	"go.uber.org/zap"
 )
 
@@ -176,11 +178,21 @@ func main() {
 	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(sepay.NewClient(nil), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
+	thuchiTelegram := thuchisvc.TelegramConfig{BotToken: cfg.ThuChiTelegramToken, ChatIDs: cfg.ThuChiTelegramChatIDs, APIBase: cfg.ThuChiTelegramAPIBase}
+	if cfg.ThuChiTelegramWebhook {
+		thuchiTelegram.WebhookURL = webhookBaseURL + thuchisvc.TelegramWebhookURL
+	}
+	thuchiModule := thuchisvc.New(sqlDB.DB, appSecretKeyBytes, webhookBaseURL, thuchiTelegram)
+	thuchiplugin.Use(thuchiModule.API, thuchiModule.Public, thuchiModule.Hook, thuchiModule.Telegram)
+
 	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
 	if err := pluginManager.EnableInstall(context.Background(), cfg.PluginDir, cfg.PluginAdminEmails); err != nil {
 		zl.Warn("plugin install disabled", zap.Error(err))
 	}
 	defer pluginManager.Close(context.Background())
+	thuchiCtx, stopThuchi := context.WithCancel(context.Background())
+	defer stopThuchi()
+	thuchiModule.Start(thuchiCtx)
 
 	slowAPILogger, err := filelog.NewSlowAPILogger(filelog.SlowAPIConfig{
 		Threshold: cfg.SlowAPIThreshold,
@@ -220,6 +232,7 @@ func main() {
 		httpRouter.WithSlowAPILogger(slowAPILogger),
 		httpRouter.WithSecurityLogger(securityLogger),
 		httpRouter.WithPluginRoutes(pluginManager.Routes),
+		httpRouter.WithPluginPublicRoutes(pluginManager.PublicRoutes),
 	)
 	server := &http.Server{
 		Addr:              ":" + listenPort,
@@ -245,6 +258,7 @@ func main() {
 		zl.Error("shutdown error", zap.Error(err))
 	}
 
+	stopThuchi()
 	notificationWorker.Stop()
 	revenueWorker.Stop()
 	zaloCron.Stop()

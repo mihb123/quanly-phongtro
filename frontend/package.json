@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --noEmit --ignoreDeprecations 5.0 && tsc -p tsconfig.node.json --noEmit --ignoreDeprecations 5.0",
     "test:frontend": "pnpm lint && pnpm typecheck",
-    "test:e2e:sepay": "node --test e2e/sepay.e2e.mjs"
+    "test:e2e:sepay": "node --test e2e/sepay.e2e.mjs",
+    "e2e:thuchi": "node e2e/thuchi/run.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
@@ -23,6 +24,8 @@
     "axios": "^1.13.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "dexie": "^4.4.7",
+    "dexie-react-hooks": "^4.4.0",
     "html-to-image": "^1.11.13",
     "idb-keyval": "^6.2.5",
     "jose": "^6.2.3",

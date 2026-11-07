@@ -68,6 +68,12 @@ func WithPluginRoutes(routes func(chi.Router)) Option {
 	}
 }
 
+func WithPluginPublicRoutes(routes func(chi.Router)) Option {
+	return func(o *options) {
+		o.pluginPublicRoutes = routes
+	}
+}
+
 // newOptions applies router option defaults.
 func newOptions(opts ...Option) options {
 	var cfg options

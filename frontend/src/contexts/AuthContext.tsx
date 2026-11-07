@@ -65,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to logout:', error)
     } finally {
       clearUserData()
+      await import('@thuchi/db').then((m) => m.deleteLocalData()).catch(() => undefined)
       setUser(null)
     }
   }

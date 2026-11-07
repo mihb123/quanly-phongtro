@@ -69,9 +69,18 @@ type Plugin interface {
 	Routes(r chi.Router)
 }
 
+type PublicRouter interface {
+	PublicRoutes(r chi.Router)
+}
+
+type HookRouter interface {
+	HookRoutes(r chi.Router)
+}
+
 type Host interface {
 	Invoices() InvoiceAPI
 	Config() Config
+	Enabled(ctx context.Context, managerID string) (bool, error)
 }
 
 type InvoiceAPI interface {
@@ -135,6 +144,10 @@ func Registered() []Plugin {
 
 func ManagerID(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return httpx.GetManagerID(r, w)
+}
+
+func PublicManagerID(r *http.Request) string {
+	return chi.URLParam(r, "managerID")
 }
 
 func WriteJSON(w http.ResponseWriter, status int, data any, message string) {

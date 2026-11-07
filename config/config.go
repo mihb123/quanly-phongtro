@@ -51,6 +51,10 @@ type Config struct {
 	SlowAPILogMaxDays      int
 	PluginDir              string
 	PluginAdminEmails      []string
+	ThuChiTelegramToken    string
+	ThuChiTelegramChatIDs  []int64
+	ThuChiTelegramAPIBase  string
+	ThuChiTelegramWebhook  bool
 }
 
 func Load() (*Config, error) {
@@ -146,6 +150,15 @@ func Load() (*Config, error) {
 		}
 	}
 
+	thuChiTelegramChatIDs, err := parseInt64List(os.Getenv("THUCHI_TELEGRAM_CHAT_ID"))
+	if err != nil {
+		return nil, errors.New("THUCHI_TELEGRAM_CHAT_ID must be a comma-separated list of chat IDs")
+	}
+	thuChiTelegramMode := strings.ToLower(strings.TrimSpace(getOrDefault("THUCHI_TELEGRAM_MODE", "polling")))
+	if thuChiTelegramMode != "polling" && thuChiTelegramMode != "webhook" {
+		return nil, errors.New("THUCHI_TELEGRAM_MODE must be polling or webhook")
+	}
+
 	return &Config{
 		AppPort:                appPort,
 		AppEnv:                 appEnv,
@@ -178,7 +191,27 @@ func Load() (*Config, error) {
 		SlowAPILogMaxDays:      slowAPI.logMaxDays,
 		PluginDir:              getOrDefault("PLUGIN_DIR", "uploads/plugins"),
 		PluginAdminEmails:      pluginAdminEmails,
+		ThuChiTelegramToken:    strings.TrimSpace(os.Getenv("THUCHI_TELEGRAM_BOT_TOKEN")),
+		ThuChiTelegramChatIDs:  thuChiTelegramChatIDs,
+		ThuChiTelegramAPIBase:  strings.TrimSpace(os.Getenv("THUCHI_TELEGRAM_API_BASE")),
+		ThuChiTelegramWebhook:  thuChiTelegramMode == "webhook",
 	}, nil
+}
+
+func parseInt64List(value string) ([]int64, error) {
+	var out []int64
+	for _, part := range strings.Split(value, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, nil
 }
 
 // getCookieSecure resolves the cookie Secure flag from env or app environment.

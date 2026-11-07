@@ -14,6 +14,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/handler/tenant"
 	"github.com/mihb123/quanly-phongtro/internal/handler/zalo"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"golang.org/x/time/rate"
 )
 
 func New(
@@ -155,11 +156,21 @@ func New(
 		r.Get("/", houseCostHandler.GetRevenueSummaries)
 	})
 
-	if cfg.pluginRoutes != nil {
+	if cfg.pluginRoutes != nil || cfg.pluginPublicRoutes != nil {
 		r.Route("/api/v1/plugins", func(r chi.Router) {
-			r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
-			r.Use(requireRole("MANAGER"))
-			cfg.pluginRoutes(r)
+			if cfg.pluginPublicRoutes != nil {
+				r.Group(func(r chi.Router) {
+					r.Use(ipRateLimiter(newLimiterStore(rate.Limit(5), 60), cfg.trustedProxies, "1", abuse))
+					cfg.pluginPublicRoutes(r)
+				})
+			}
+			if cfg.pluginRoutes != nil {
+				r.Group(func(r chi.Router) {
+					r.Use(authMiddleware(tokenProvider, cfg.trustedProxies))
+					r.Use(requireRole("MANAGER"))
+					cfg.pluginRoutes(r)
+				})
+			}
 		})
 	}
 

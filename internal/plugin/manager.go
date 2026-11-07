@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -47,6 +48,8 @@ type entry struct {
 	plugin    Plugin
 	host      *host
 	router    chi.Router
+	public    chi.Router
+	hook      chi.Router
 	installed *installedPlugin
 }
 
@@ -71,12 +74,22 @@ func NewManager(store Store, encryptionKey []byte, plugins []Plugin) *Manager {
 
 func (m *Manager) add(p Plugin) error {
 	manifest := p.Manifest()
-	h := &host{store: m.store, key: m.key, pluginID: manifest.ID, fields: manifest.Settings}
+	h := &host{store: m.store, key: m.key, pluginID: manifest.ID, fields: manifest.Settings, defaultEnabled: manifest.DefaultEnabled}
 	if err := p.Init(h); err != nil {
 		return err
 	}
 	router := chi.NewRouter()
 	p.Routes(router)
+	var public chi.Router
+	if pr, ok := p.(PublicRouter); ok {
+		public = chi.NewRouter()
+		pr.PublicRoutes(public)
+	}
+	var hook chi.Router
+	if hr, ok := p.(HookRouter); ok {
+		hook = chi.NewRouter()
+		hr.HookRoutes(hook)
+	}
 	installed, _ := p.(*installedPlugin)
 
 	m.mu.Lock()
@@ -89,7 +102,7 @@ func (m *Manager) add(p Plugin) error {
 		m.order = append(m.order, manifest.ID)
 		slices.Sort(m.order)
 	}
-	m.entries[manifest.ID] = &entry{plugin: p, host: h, router: router, installed: installed}
+	m.entries[manifest.ID] = &entry{plugin: p, host: h, router: router, public: public, hook: hook, installed: installed}
 	return nil
 }
 
@@ -129,6 +142,11 @@ func (m *Manager) Routes(r chi.Router) {
 	r.HandleFunc("/{pluginID}/*", m.handlePluginRequest)
 }
 
+func (m *Manager) PublicRoutes(r chi.Router) {
+	r.HandleFunc("/{pluginID}/public/{managerID}/*", m.handlePublicRequest)
+	r.HandleFunc("/{pluginID}/hook/*", m.handleHookRequest)
+}
+
 func (m *Manager) List(ctx context.Context, managerID string) ([]PluginInfo, error) {
 	settings, err := m.store.ListPluginSettings(ctx, managerID)
 	if err != nil {
@@ -164,14 +182,7 @@ func (e *entry) info(enabled bool) PluginInfo {
 }
 
 func (m *Manager) isEnabled(ctx context.Context, managerID string, e *entry) (bool, error) {
-	setting, err := m.store.GetPluginSetting(ctx, managerID, e.host.pluginID)
-	if err != nil {
-		return false, err
-	}
-	if setting == nil || setting.Enabled == nil {
-		return e.plugin.Manifest().DefaultEnabled, nil
-	}
-	return *setting.Enabled, nil
+	return e.host.Enabled(ctx, managerID)
 }
 
 func (m *Manager) handleList(w http.ResponseWriter, r *http.Request) {
@@ -358,14 +369,58 @@ func (m *Manager) handlePluginRequest(w http.ResponseWriter, r *http.Request) {
 	e.router.ServeHTTP(w, r)
 }
 
+func (m *Manager) handlePublicRequest(w http.ResponseWriter, r *http.Request) {
+	e, exists := m.get(chi.URLParam(r, "pluginID"))
+	managerID := chi.URLParam(r, "managerID")
+	if !exists || e.public == nil || uuid.Validate(managerID) != nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	enabled, err := m.isEnabled(r.Context(), managerID, e)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "Không kiểm tra được trạng thái plugin")
+		return
+	}
+	if !enabled {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	rctx := chi.RouteContext(r.Context())
+	rctx.RoutePath = "/" + chi.URLParam(r, "*")
+	e.public.ServeHTTP(w, r)
+}
+
+func (m *Manager) handleHookRequest(w http.ResponseWriter, r *http.Request) {
+	e, exists := m.get(chi.URLParam(r, "pluginID"))
+	if !exists || e.hook == nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	rctx := chi.RouteContext(r.Context())
+	rctx.RoutePath = "/" + chi.URLParam(r, "*")
+	e.hook.ServeHTTP(w, r)
+}
+
 type host struct {
-	store    Store
-	key      []byte
-	pluginID string
-	fields   []SettingField
+	store          Store
+	key            []byte
+	pluginID       string
+	fields         []SettingField
+	defaultEnabled bool
 }
 
 func (h *host) Invoices() InvoiceAPI { return invoiceAPI{store: h.store} }
+
+func (h *host) Enabled(ctx context.Context, managerID string) (bool, error) {
+	setting, err := h.store.GetPluginSetting(ctx, managerID, h.pluginID)
+	if err != nil {
+		return false, err
+	}
+	if setting == nil || setting.Enabled == nil {
+		return h.defaultEnabled, nil
+	}
+	return *setting.Enabled, nil
+}
 
 func (h *host) Config() Config { return h }
 

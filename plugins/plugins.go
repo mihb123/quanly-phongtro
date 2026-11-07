@@ -4,4 +4,5 @@ package plugins
 
 import (
 	_ "github.com/mihb123/quanly-phongtro/plugins/bankstatement"
+	_ "github.com/mihb123/quanly-phongtro/plugins/thuchi"
 )

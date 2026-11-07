@@ -14,12 +14,13 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src'),
         '@sepay': path.resolve(__dirname, '../pkg/sepay/web'),
+        '@thuchi': path.resolve(__dirname, '../pkg/thuchi/web'),
       },
-      dedupe: ['react', 'react-dom'],
+      dedupe: ['react', 'react-dom', 'dexie', 'dexie-react-hooks', 'recharts', 'sonner'],
     },
     server: {
       fs: {
-        allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(__dirname, '../pkg/sepay/web'), path.resolve(__dirname, '../plugins')],
+        allow: [searchForWorkspaceRoot(process.cwd()), path.resolve(__dirname, '../pkg/sepay/web'), path.resolve(__dirname, '../pkg/thuchi/web'), path.resolve(__dirname, '../plugins')],
       },
       allowedHosts: [
         environment.APP_URL,
