@@ -2,6 +2,7 @@ package house
 
 import (
 	"context"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"mime/multipart"
 	"strings"
 	"time"
@@ -89,7 +90,7 @@ type UpdateHouseDocumentsInput struct {
 func (h *HouseServiceImpl) IsHouseCodeAvailable(ctx context.Context, houseCode, excludeHouseID string) (bool, error) {
 	taken, err := h.houseRepo.IsHouseCodeTaken(ctx, houseCode, excludeHouseID)
 	if err != nil {
-		return false, err
+		return false, apperr.Service("IsHouseCodeAvailable", err)
 	}
 	return !taken, nil
 }
@@ -98,22 +99,22 @@ func (h *HouseServiceImpl) IsHouseCodeAvailable(ctx context.Context, houseCode, 
 func (h *HouseServiceImpl) ensureHouseCodeUnique(ctx context.Context, houseCode, excludeID string) error {
 	available, err := h.IsHouseCodeAvailable(ctx, houseCode, excludeID)
 	if err != nil {
-		return err
+		return apperr.Service("ensureHouseCodeUnique", err)
 	}
 	if !available {
-		return model.ErrHouseCodeExists
+		return apperr.Service("ensureHouseCodeUnique", model.ErrHouseCodeExists)
 	}
 	return nil
 }
 
 func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) error {
 	if err := h.ensureHouseCodeUnique(ctx, house.HouseCode, ""); err != nil {
-		return err
+		return apperr.Service("CreateHouse", err)
 	}
 
 	err := h.houseRepo.CreateHouse(ctx, house)
 	if err != nil {
-		return err
+		return apperr.Service("CreateHouse", err)
 	}
 	if h.houseCostRepo == nil {
 		return nil
@@ -130,7 +131,7 @@ func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) 
 		UpdatedAt:  now,
 	}
 	if err := h.houseCostRepo.Create(ctx, cost); err != nil {
-		return err
+		return apperr.Service("CreateHouse", err)
 	}
 	return nil
 }
@@ -138,17 +139,17 @@ func (h *HouseServiceImpl) CreateHouse(ctx context.Context, house *model.House) 
 func (h *HouseServiceImpl) GetHouseByID(ctx context.Context, id, managerID string) (*model.House, error) {
 	houseID := strings.TrimSpace(id)
 	if houseID == "" {
-		return nil, shared.ErrInvalidHouseID
+		return nil, apperr.Service("GetHouseByID", shared.ErrInvalidHouseID)
 	}
 
 	ownerID := strings.TrimSpace(managerID)
 	if ownerID == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("GetHouseByID", shared.ErrInvalidManagerID)
 	}
 
 	house, err := h.houseRepo.GetByID(ctx, houseID, ownerID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("GetHouseByID", err)
 	}
 
 	return house, nil
@@ -161,7 +162,7 @@ func (h *HouseServiceImpl) ListHouseByManagerID(ctx context.Context, managerID s
 
 func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string, input UpdateHouseInput) (*model.House, error) {
 	if err := h.ensureHouseCodeUnique(ctx, input.HouseCode, id); err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateHouse", err)
 	}
 
 	updateHouseParams := model.UpdateHouseParams{
@@ -193,7 +194,7 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 		var err error
 		house, err = h.houseRepo.UpdateHouse(ctx, id, managerID, updateHouseParams)
 		if err != nil {
-			return err
+			return apperr.Service("UpdateHouse", err)
 		}
 		if h.invoices != nil {
 			return h.invoices.RecalculateUnpaidInvoicesByHouse(ctx, managerID, id)
@@ -207,7 +208,7 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 		err = update(ctx)
 	}
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateHouse", err)
 	}
 	return house, nil
 }
@@ -216,25 +217,25 @@ func (h *HouseServiceImpl) UpdateHouse(ctx context.Context, id, managerID string
 func (h *HouseServiceImpl) UpdateHouseDocuments(ctx context.Context, id, managerID string, input UpdateHouseDocumentsInput) (*model.House, error) {
 	houseID := strings.TrimSpace(id)
 	if houseID == "" {
-		return nil, shared.ErrInvalidHouseID
+		return nil, apperr.Service("UpdateHouseDocuments", shared.ErrInvalidHouseID)
 	}
 	ownerID := strings.TrimSpace(managerID)
 	if ownerID == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("UpdateHouseDocuments", shared.ErrInvalidManagerID)
 	}
 
 	existing, err := h.houseRepo.GetByID(ctx, houseID, ownerID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateHouseDocuments", err)
 	}
 
 	cccdPath, err := mergeUploadPaths(existing.OwnerCCCDPath, input.KeptCCCDPaths, input.CCCDFiles)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateHouseDocuments", err)
 	}
 	contractPath, err := mergeUploadPaths(existing.OwnerContractPath, input.KeptContractPaths, input.ContractFiles)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateHouseDocuments", err)
 	}
 
 	return h.houseRepo.UpdateHouseDocuments(ctx, houseID, ownerID, cccdPath, contractPath)
@@ -252,7 +253,7 @@ func mergeUploadPaths(current string, kept *string, files []*multipart.FileHeade
 
 	newPaths, err := shared.SaveUploadedFiles(shared.OwnerUploadDir, files)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("mergeUploadPaths", err)
 	}
 	if paths == "" {
 		return newPaths, nil
@@ -263,11 +264,11 @@ func mergeUploadPaths(current string, kept *string, files []*multipart.FileHeade
 func (h *HouseServiceImpl) DeleteHouse(ctx context.Context, id, managerID string) error {
 	houseID := strings.TrimSpace(id)
 	if houseID == "" {
-		return shared.ErrInvalidHouseID
+		return apperr.Service("DeleteHouse", shared.ErrInvalidHouseID)
 	}
 	ownerID := strings.TrimSpace(managerID)
 	if ownerID == "" {
-		return shared.ErrInvalidManagerID
+		return apperr.Service("DeleteHouse", shared.ErrInvalidManagerID)
 	}
 	return h.houseRepo.DeleteHouse(ctx, houseID, ownerID)
 }

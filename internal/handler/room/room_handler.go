@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 )
 
 type RoomHandler struct {
@@ -65,17 +65,13 @@ var validRoomStatuses = map[string]bool{"AVAILABLE": true, "OCCUPIED": true, "MA
 func handleRoomError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, sharedsvc.ErrInvalidRoomID), errors.Is(err, sharedsvc.ErrInvalidHouseID):
-		logger.Warn(r, http.StatusBadRequest, "invalid room or house ID", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 	case errors.Is(err, model.ErrRoomNotFound):
-		logger.Warn(r, http.StatusNotFound, "room or house not found", err)
-		httpx.WriteError(w, http.StatusNotFound, "room or house not found")
+		httpx.FailWith(w, r, http.StatusNotFound, "room or house not found", err)
 	case errors.Is(err, model.ErrHouseNotFound):
-		logger.Warn(r, http.StatusNotFound, "house not found", err)
-		httpx.WriteError(w, http.StatusNotFound, "house not found")
+		httpx.FailWith(w, r, http.StatusNotFound, "house not found", err)
 	default:
-		logger.Error(r, http.StatusInternalServerError, "room operation failed", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 	}
 }
 
@@ -88,13 +84,11 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
 	var req createRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -238,13 +232,11 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
 
 	var req updateRoomRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -303,8 +295,7 @@ func (h *RoomHandler) UpdateRoomContract(w http.ResponseWriter, r *http.Request)
 	id := chi.URLParam(r, "id")
 
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid multipart form", err)
 		return
 	}
 

@@ -3,6 +3,7 @@ package zalo
 import (
 	"context"
 	"errors"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -63,12 +64,12 @@ func (s *zaloInvoiceCommandServiceImpl) HandleInvoiceCommand(ctx context.Context
 
 	pending, err := s.pendingRepo.GetByChatID(ctx, managerID, chatID)
 	if err != nil && !errors.Is(err, model.ErrPendingInvoiceUpdateNotFound) {
-		return err
+		return apperr.Service("HandleInvoiceCommand", err)
 	}
 	if pending != nil {
 		handled, err := s.handlePendingCommand(ctx, managerID, chatID, webhookCtx, parsed, pending)
 		if handled || err != nil {
-			return err
+			return apperr.Service("HandleInvoiceCommand", err)
 		}
 	}
 

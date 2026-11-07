@@ -2,10 +2,10 @@ package bankstatement
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"path"
 	"strconv"
@@ -167,7 +167,7 @@ func (p *Plugin) importStatement(w http.ResponseWriter, r *http.Request) {
 	dryRun := r.FormValue("dry_run") == "true"
 	config, err := p.host.Config().Get(ctx, managerID)
 	if err != nil {
-		log.Printf("bank-statement: load config for %s: %v", managerID, err)
+		plugin.Warn(ctx, "bank-statement: load config", err)
 		config = plugin.Values{}
 	}
 	usedSavedPassword := false
@@ -176,14 +176,14 @@ func (p *Plugin) importStatement(w http.ResponseWriter, r *http.Request) {
 		usedSavedPassword = true
 	}
 
-	files, status, message := readStatementFiles(header.Filename, data, password, usedSavedPassword)
+	files, status, message := readStatementFiles(ctx, header.Filename, data, password, usedSavedPassword)
 	if message != "" {
 		plugin.WriteError(w, status, message)
 		return
 	}
 	if remember && !usedSavedPassword && password != "" && bytes.HasPrefix(data, []byte("PK")) {
 		if err := p.host.Config().Set(ctx, managerID, map[string]any{SettingZipPassword: password}); err != nil {
-			log.Printf("bank-statement: save password for %s: %v", managerID, err)
+			plugin.Warn(ctx, "bank-statement: save password", err)
 		}
 	}
 
@@ -213,7 +213,7 @@ func (p *Plugin) importStatement(w http.ResponseWriter, r *http.Request) {
 	plugin.WriteJSON(w, http.StatusOK, result, "")
 }
 
-func readStatementFiles(name string, data []byte, password string, usedSavedPassword bool) ([]StatementFile, int, string) {
+func readStatementFiles(ctx context.Context, name string, data []byte, password string, usedSavedPassword bool) ([]StatementFile, int, string) {
 	type rawFile struct {
 		name string
 		data []byte
@@ -252,7 +252,7 @@ func readStatementFiles(name string, data []byte, password string, usedSavedPass
 		}
 		pages, err := pdftext.Extract(raw.data)
 		if err != nil {
-			log.Printf("bank-statement: skip %s: %v", raw.name, err)
+			plugin.Warn(ctx, "bank-statement: skip "+raw.name, err)
 			continue
 		}
 		files = append(files, StatementFile{Name: raw.name, Pages: pages})
@@ -382,7 +382,7 @@ func (p *Plugin) settle(r *http.Request, managerID string, tx Transaction, m mat
 	case errors.Is(err, model.ErrPluginInvoiceNotPayable):
 		return StatusFailed, model.ErrPluginInvoiceNotPayable.Error()
 	default:
-		log.Printf("bank-statement: settle invoice %s with %s: %v", m.Invoice.ID, tx.Reference, err)
+		plugin.Warn(r.Context(), "bank-statement: settle invoice "+m.Invoice.ID+" with "+tx.Reference, err)
 		return StatusFailed, "Không cập nhật được hóa đơn"
 	}
 }

@@ -3,6 +3,7 @@ package house_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestHouseRepository_GetByID(t *testing.T) {
 	// Not found path
 	mock.ExpectQuery(`SELECT .* FROM "houses"`).WillReturnError(sql.ErrNoRows)
 	_, err = repo.GetByID(ctx, "house-1", "manager-1")
-	if err != model.ErrHouseNotFound {
+	if !errors.Is(err, model.ErrHouseNotFound) {
 		t.Errorf("expected ErrHouseNotFound, got %v", err)
 	}
 }
@@ -188,7 +189,7 @@ func TestHouseRepository_DeleteHouse(t *testing.T) {
 	// Not found path
 	mock.ExpectExec(`DELETE FROM "houses"`).WillReturnResult(sqlmock.NewResult(0, 0))
 	err = repo.DeleteHouse(ctx, "house-not-found", "manager-1")
-	if err != model.ErrHouseNotFound {
+	if !errors.Is(err, model.ErrHouseNotFound) {
 		t.Errorf("expected ErrHouseNotFound, got %v", err)
 	}
 }

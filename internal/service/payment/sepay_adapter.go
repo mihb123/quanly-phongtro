@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
@@ -43,8 +46,12 @@ func (p *SePayProvider) CancelPaymentLink(ctx context.Context, input PaymentCanc
 }
 
 // VerifyWebhook authenticates the SePay webhook then maps an incoming transfer into a neutral event.
-func (p *SePayProvider) VerifyWebhook(_ context.Context, input PaymentWebhookInput) (*VerifiedPaymentEvent, error) {
-	transfer, err := sepay.VerifyWebhook(input.Headers, input.Body, sepay.CredentialsFromMap(input.Credentials), time.Now())
+func (p *SePayProvider) VerifyWebhook(ctx context.Context, input PaymentWebhookInput) (*VerifiedPaymentEvent, error) {
+	credentials := sepay.CredentialsFromMap(input.Credentials)
+	if sepay.IsUnauthenticated(credentials) {
+		logging.RecordWarning(ctx, "sepay webhook accepted without authentication (webhook_auth_method not set)", nil)
+	}
+	transfer, err := sepay.VerifyWebhook(input.Headers, input.Body, credentials, time.Now())
 	if err != nil {
 		return nil, mapSePayError(err)
 	}
@@ -70,8 +77,12 @@ type SePayReconciliationService struct {
 
 // NewSePayReconciliationService wires API-v2 reconciliation for a manager's SePay account.
 func NewSePayReconciliationService(client sepay.TransactionLister, credentialService reconciliationCredentialReader, processor verifiedTransactionProcessor) *SePayReconciliationService {
+	reconciler := sepay.NewReconciler(client)
+	reconciler.OnSkip = func(ctx context.Context, transactionID string, err error) {
+		logging.RecordWarning(ctx, "sepay reconciliation skipped transaction "+transactionID, err)
+	}
 	return &SePayReconciliationService{
-		reconciler:        sepay.NewReconciler(client),
+		reconciler:        reconciler,
 		credentialService: credentialService,
 		processor:         processor,
 	}
@@ -82,16 +93,19 @@ func NewSePayReconciliationService(client sepay.TransactionLister, credentialSer
 func (s *SePayReconciliationService) ReconcileManager(ctx context.Context, managerID, dateFrom, dateTo string) (sepay.ReconcileResult, error) {
 	credentials, err := s.credentialService.GetCredentials(ctx, managerID, model.PaymentProviderSePay)
 	if err != nil {
-		return sepay.ReconcileResult{}, err
+		return sepay.ReconcileResult{}, apperr.Service("ReconcileManager", err)
 	}
 
 	result, err := s.reconciler.Reconcile(ctx, sepay.CredentialsFromMap(credentials), dateFrom, dateTo, func(ctx context.Context, transfer sepay.IncomingTransfer) error {
 		if err := s.processor.ProcessVerifiedTransaction(ctx, model.PaymentProviderSePay, managerID, sePayTransferEvent(transfer)); err != nil {
-			return fmt.Errorf("process reconciled transaction %s for manager %s: %w", transfer.TransactionReference, managerID, err)
+			return apperr.Service("ReconcileManager", fmt.Errorf("process reconciled transaction %s for manager %s: %w", transfer.TransactionReference, managerID, err))
 		}
 		return nil
 	})
-	return result, mapSePayError(err)
+	if result.Truncated {
+		logging.RecordWarning(ctx, "sepay reconciliation hit the page cap; remaining transactions not pulled", nil)
+	}
+	return result, apperr.Service("ReconcileManager", mapSePayError(err))
 }
 
 func sePayTransferEvent(transfer sepay.IncomingTransfer) *VerifiedPaymentEvent {
@@ -110,12 +124,12 @@ func sePayTransferEvent(transfer sepay.IncomingTransfer) *VerifiedPaymentEvent {
 func mapSePayError(err error) error {
 	switch {
 	case errors.Is(err, sepay.ErrIgnoredWebhook):
-		return ErrPaymentWebhookIgnored
+		return apperr.Service("mapSePayError", ErrPaymentWebhookIgnored)
 	case errors.Is(err, sepay.ErrInvalidWebhook):
-		return fmt.Errorf("%w: %w", ErrPaymentWebhookInvalid, err)
+		return apperr.Service("mapSePayError", fmt.Errorf("%w: %w", ErrPaymentWebhookInvalid, err))
 	case errors.Is(err, sepay.ErrMissingCredentials):
-		return fmt.Errorf("%w: %w", ErrPaymentCredentialsNotFound, err)
+		return apperr.Service("mapSePayError", fmt.Errorf("%w: %w", ErrPaymentCredentialsNotFound, err))
 	default:
-		return err
+		return apperr.Service("mapSePayError", err)
 	}
 }

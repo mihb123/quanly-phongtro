@@ -18,6 +18,13 @@ Shared knowledge for every coding agent (Claude, Codex, Gemini/agy, subagents). 
 - Frontend imports module web files through a Vite + tsconfig alias `@<name>/*` → `../pkg/<name>/web/*`. The module API client takes a transport; the app passes axios `apiClient` (adds DPoP).
 - Done: **SePay** (`pkg/sepay`), **Zalo bot** (`pkg/zalobot`, backend only: API client, webhook parse/secret check, safe image download). Zalo chat commands, reply texts and account/room linking stay in `internal/service/zalo`; app glue is `internal/service/zalo/zalobot_adapter.go`.
 
+## Logging & errors ("log once, wrap everywhere")
+
+- Full convention: `Documents/feature/logging.md` (spec: `Documents/specs/logging-spec.md`). zap via `internal/logging` (`APP_ENV=dev` → console, otherwise JSON; `LOG_LEVEL`), errors via `pkg/apperr`.
+- Only `loggingMiddleware` (`internal/router/logging.go`, outermost) logs a request: exactly one line with `trace_id` (`X-Trace-ID`), `failed_layer`/`origin`, and `stack` on 5xx. Repository/service never log; they wrap every returned error with `apperr.Repo/Service("<Func>", err)` (keep `%w`, compare with `errors.Is`). `go test ./internal/lint` fails on bare returns.
+- Handlers: `httpx.Fail(w, r, err)` (sentinel → status via `errRules`, otherwise a generic 500), `httpx.FailWith` for custom 4xx text, `httpx.NoteError` for webhooks that must answer 200. Never send `err.Error()` of a service error. User-facing service errors: `sharedsvc.Invalid/InvalidCause`.
+- Non-fatal errors: `logging.RecordWarning`; business fields on the request line: `logging.Annotate`; goroutines: `logging.Go`; cron/jobs: `logging.TaskContext` + `LogTaskError`. `pkg/*` modules report via return values/hooks, plugins via `plugin.Warn`.
+
 ## Plugin system
 
 - Plugin = one folder `plugins/<name>/` (Go `init()` → `plugin.Register`, optional `web/index.tsx`); guide: `plugins/README.md`. `make plugins` regenerates `plugins/plugins.go` (blank imports); the frontend auto-discovers `plugins/*/web/index.tsx` via `import.meta.glob` (lazy chunk).

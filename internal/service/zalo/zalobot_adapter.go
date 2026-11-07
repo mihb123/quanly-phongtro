@@ -3,6 +3,7 @@ package zalo
 import (
 	"context"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -21,14 +22,14 @@ var transactionImageDownloader = &zalobot.ImageDownloader{}
 // verifyWebhookSecret validates configured Zalo webhook secrets and permits legacy configs without a saved secret.
 func (s *zaloServiceImpl) verifyWebhookSecret(user *model.User, secretTokenHeader string) error {
 	if secretTokenHeader == "" {
-		return zalobot.ErrMissingSecretToken
+		return apperr.Service("verifyWebhookSecret", zalobot.ErrMissingSecretToken)
 	}
 	if user.ZaloWebhookSecret == nil || *user.ZaloWebhookSecret == "" {
 		return nil
 	}
 	plainSecret, err := security.Decrypt(*user.ZaloWebhookSecret, s.encryptionKey)
 	if err != nil {
-		return fmt.Errorf("decrypt webhook secret failed: %w", err)
+		return apperr.Service("verifyWebhookSecret", fmt.Errorf("decrypt webhook secret failed: %w", err))
 	}
 	return zalobot.VerifySecretToken(secretTokenHeader, plainSecret)
 }

@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+	"go.uber.org/zap"
+
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 )
@@ -95,22 +98,22 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 	provider = normalizePaymentProvider(provider)
 	providerAdapter, err := s.provider(provider)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePaymentLinkForInvoice", err)
 	}
 
 	credentials, err := s.credentialService.GetCredentials(ctx, managerID, provider)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePaymentLinkForInvoice", err)
 	}
 
 	activeLink, err := s.paymentRepo.GetActivePaymentLinkByProvider(ctx, invoice.ID, provider)
 	if err != nil {
-		return nil, fmt.Errorf("get active payment link: %w", err)
+		return nil, apperr.Service("CreatePaymentLinkForInvoice", fmt.Errorf("get active payment link: %w", err))
 	}
 	if activeLink != nil {
 		if activeLink.Amount != int(invoice.TotalAmount) {
 			if err := s.paymentRepo.UpdatePaymentLinkStatus(ctx, activeLink.ID, model.PaymentLinkStatusStale); err != nil {
-				return nil, fmt.Errorf("mark stale payment link: %w", err)
+				return nil, apperr.Service("CreatePaymentLinkForInvoice", fmt.Errorf("mark stale payment link: %w", err))
 			}
 		} else {
 			return activeLink, nil
@@ -125,11 +128,11 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 		Credentials: credentials,
 		ProviderOrderRefExists: func(ctx context.Context, providerOrderRef string) (bool, error) {
 			link, err := s.paymentRepo.GetPaymentLinkByProviderOrderRef(ctx, provider, providerOrderRef)
-			return link != nil, err
+			return link != nil, apperr.Service("CreatePaymentLinkForInvoice", err)
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePaymentLinkForInvoice", err)
 	}
 
 	paymentLink := &model.InvoicePaymentLink{
@@ -144,7 +147,7 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 		Status:           model.PaymentLinkStatusActive,
 	}
 	if err := s.paymentRepo.CreatePaymentLink(ctx, paymentLink); err != nil {
-		return nil, fmt.Errorf("save payment link to DB: %w", err)
+		return nil, apperr.Service("CreatePaymentLinkForInvoice", fmt.Errorf("save payment link to DB: %w", err))
 	}
 	return paymentLink, nil
 }
@@ -153,7 +156,7 @@ func (s *paymentService) CreatePaymentLinkForInvoice(ctx context.Context, manage
 func (s *paymentService) CreatePreferredPaymentLinkForInvoice(ctx context.Context, managerID string, invoice *model.InvoiceWithRoom, tenantName string) (*model.InvoicePaymentLink, error) {
 	provider, err := s.credentialService.ResolvePreferredProvider(ctx, managerID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePreferredPaymentLinkForInvoice", err)
 	}
 	return s.CreatePaymentLinkForInvoice(ctx, managerID, provider, invoice, tenantName)
 }
@@ -163,29 +166,29 @@ func (s *paymentService) CancelPaymentLink(ctx context.Context, managerID, provi
 	provider = normalizePaymentProvider(provider)
 	providerAdapter, err := s.provider(provider)
 	if err != nil {
-		return err
+		return apperr.Service("CancelPaymentLink", err)
 	}
 	credentials, err := s.credentialService.GetCredentials(ctx, managerID, provider)
 	if err != nil {
-		return err
+		return apperr.Service("CancelPaymentLink", err)
 	}
 	if err := providerAdapter.CancelPaymentLink(ctx, PaymentCancelInput{
 		Credentials:      credentials,
 		ProviderOrderRef: providerOrderRef,
 		Reason:           reason,
 	}); err != nil {
-		return err
+		return apperr.Service("CancelPaymentLink", err)
 	}
 
 	link, err := s.paymentRepo.GetPaymentLinkByProviderOrderRefForManager(ctx, managerID, provider, providerOrderRef)
 	if err != nil {
-		return err
+		return apperr.Service("CancelPaymentLink", err)
 	}
 	if link == nil {
 		return nil
 	}
 	if err := s.paymentRepo.UpdatePaymentLinkStatus(ctx, link.ID, model.PaymentLinkStatusCancelled); err != nil {
-		return fmt.Errorf("update cancelled payment link status: %w", err)
+		return apperr.Service("CancelPaymentLink", fmt.Errorf("update cancelled payment link status: %w", err))
 	}
 	return nil
 }
@@ -195,11 +198,11 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 	provider = normalizePaymentProvider(provider)
 	providerAdapter, err := s.provider(provider)
 	if err != nil {
-		return err
+		return apperr.Service("HandleWebhook", err)
 	}
 	credentials, err := s.credentialService.GetCredentials(ctx, managerID, provider)
 	if err != nil {
-		return err
+		return apperr.Service("HandleWebhook", err)
 	}
 	verifiedEvent, err := providerAdapter.VerifyWebhook(ctx, PaymentWebhookInput{
 		Body:        body,
@@ -210,11 +213,10 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 		return nil
 	}
 	if err != nil {
-		log.Printf("Invalid %s webhook signature: %v", provider, err)
-		return err
+		return apperr.Service("HandleWebhook", fmt.Errorf("verify %s webhook: %w", provider, err))
 	}
 	if verifiedEvent == nil {
-		return ErrPayOSVerifiedDataNil
+		return apperr.Service("HandleWebhook", ErrPayOSVerifiedDataNil)
 	}
 
 	return s.ProcessVerifiedTransaction(ctx, provider, managerID, verifiedEvent)
@@ -225,7 +227,7 @@ func (s *paymentService) HandleWebhook(ctx context.Context, provider, managerID 
 // reconciliation, so it must stay source-agnostic.
 func (s *paymentService) ProcessVerifiedTransaction(ctx context.Context, provider, managerID string, verifiedEvent *VerifiedPaymentEvent) error {
 	if verifiedEvent == nil {
-		return ErrPayOSVerifiedDataNil
+		return apperr.Service("ProcessVerifiedTransaction", ErrPayOSVerifiedDataNil)
 	}
 	provider = normalizePaymentProvider(provider)
 	return s.paymentRepo.WithinPaymentTransaction(ctx, provider+":"+verifiedEvent.ProviderOrderRef, func(ctx context.Context) error {
@@ -236,7 +238,7 @@ func (s *paymentService) ProcessVerifiedTransaction(ctx context.Context, provide
 func (s *paymentService) settleVerifiedTransaction(ctx context.Context, provider, managerID string, verifiedEvent *VerifiedPaymentEvent) error {
 	exists, err := s.paymentRepo.CheckProviderEventExists(ctx, provider, verifiedEvent.ProviderOrderRef, verifiedEvent.TransactionReference)
 	if err != nil {
-		return fmt.Errorf("check event exists: %w", err)
+		return apperr.Service("settleVerifiedTransaction", fmt.Errorf("check event exists: %w", err))
 	}
 	if exists {
 		return nil
@@ -244,15 +246,15 @@ func (s *paymentService) settleVerifiedTransaction(ctx context.Context, provider
 
 	paymentLink, err := s.paymentRepo.GetPaymentLinkByProviderOrderRefForManager(ctx, managerID, provider, verifiedEvent.ProviderOrderRef)
 	if err != nil {
-		return fmt.Errorf("get payment link: %w", err)
+		return apperr.Service("settleVerifiedTransaction", fmt.Errorf("get payment link: %w", err))
 	}
 	invoiceID, matchingMethod := matchedPaymentInvoice(paymentLink)
 	event := newPaymentEvent(provider, managerID, invoiceID, verifiedEvent, matchingMethod)
 	if err := s.paymentRepo.CreatePaymentEvent(ctx, event); err != nil {
-		return fmt.Errorf("create payment event: %w", err)
+		return apperr.Service("settleVerifiedTransaction", fmt.Errorf("create payment event: %w", err))
 	}
 	if invoiceID == "" {
-		log.Printf("Unmatched %s transaction: %s", provider, verifiedEvent.ProviderOrderRef)
+		annotatePayment(ctx, "unmatched", provider, "", verifiedEvent)
 		return nil
 	}
 
@@ -261,13 +263,13 @@ func (s *paymentService) settleVerifiedTransaction(ctx context.Context, provider
 	// transaction carry different transaction references, so the link status — not the id — is what
 	// prevents reconciliation from re-notifying an invoice a webhook already paid.
 	if paymentLink != nil && paymentLink.Status == model.PaymentLinkStatusPaid {
-		log.Printf("Already settled %s invoice %s; recorded transaction %s for audit only", provider, invoiceID, verifiedEvent.TransactionReference)
+		annotatePayment(ctx, "already_settled", provider, invoiceID, verifiedEvent)
 		return nil
 	}
 
 	// Underpaid transactions are recorded for audit but must not settle the invoice.
 	if paymentLink != nil && verifiedEvent.Amount < paymentLink.Amount {
-		log.Printf("Underpaid %s transaction for invoice %s: received %d, expected %d", provider, invoiceID, verifiedEvent.Amount, paymentLink.Amount)
+		annotatePayment(ctx, "underpaid", provider, invoiceID, verifiedEvent, zap.Int("expected_amount", paymentLink.Amount))
 		return nil
 	}
 
@@ -278,7 +280,7 @@ func (s *paymentService) settleVerifiedTransaction(ctx context.Context, provider
 func (s *paymentService) provider(provider string) (PaymentProvider, error) {
 	providerAdapter, ok := s.registry.Get(provider)
 	if !ok {
-		return nil, ErrPaymentProviderNotFound
+		return nil, apperr.Service("provider", ErrPaymentProviderNotFound)
 	}
 	return providerAdapter, nil
 }
@@ -289,19 +291,19 @@ func (s *paymentService) processInvoicePayment(ctx context.Context, provider, in
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("system update invoice status: %w", err)
+		return apperr.Service("processInvoicePayment", fmt.Errorf("system update invoice status: %w", err))
 	}
 
 	managerID := invoiceWithRoom.ManagerID
 	if paymentLink != nil {
 		if err := s.paymentRepo.UpdatePaymentLinkStatus(ctx, paymentLink.ID, model.PaymentLinkStatusPaid); err != nil {
-			return fmt.Errorf("mark payment link paid: %w", err)
+			return apperr.Service("processInvoicePayment", fmt.Errorf("mark payment link paid: %w", err))
 		}
 	}
 
 	tenants, err := s.tenantRepo.ListTenantByRoomID(ctx, managerID, invoiceWithRoom.RoomID)
 	if err != nil {
-		return fmt.Errorf("list payment notification recipients: %w", err)
+		return apperr.Service("processInvoicePayment", fmt.Errorf("list payment notification recipients: %w", err))
 	}
 	tenantName := defaultTenantName
 	if len(tenants) > 0 {
@@ -315,7 +317,7 @@ func (s *paymentService) processInvoicePayment(ctx context.Context, provider, in
 			continue
 		}
 		if err := s.paymentRepo.QueueNotification(ctx, invoiceID, managerID, tenant.ZaloUserID, tenantMsg); err != nil {
-			return err
+			return apperr.Service("processInvoicePayment", err)
 		}
 	}
 
@@ -326,10 +328,26 @@ func (s *paymentService) processInvoicePayment(ctx context.Context, provider, in
 		return s.paymentRepo.QueueNotification(ctx, invoiceID, managerID, *managerUser.ZaloUserID, managerMsg)
 	}
 	if err != nil {
-		return fmt.Errorf("get payment notification manager: %w", err)
+		return apperr.Service("processInvoicePayment", fmt.Errorf("get payment notification manager: %w", err))
 	}
-	log.Printf("Manager Notification: %s", managerMsg)
+	// Manager chưa liên kết Zalo: không có kênh gửi thông báo. Không log nội dung (có tên khách thuê).
+	logging.Annotate(ctx, zap.String("payment_notification", "manager_not_linked"), zap.String("invoice_id", invoiceID))
 	return nil
+}
+
+// annotatePayment gắn kết quả đối soát giao dịch vào dòng log của request (không tự log).
+func annotatePayment(ctx context.Context, outcome, provider, invoiceID string, ev *VerifiedPaymentEvent, extra ...zap.Field) {
+	fields := append([]zap.Field{
+		zap.String("payment_outcome", outcome),
+		zap.String("payment_provider", provider),
+		zap.String("provider_order_ref", ev.ProviderOrderRef),
+		zap.String("transaction_ref", ev.TransactionReference),
+		zap.Int("amount", ev.Amount),
+	}, extra...)
+	if invoiceID != "" {
+		fields = append(fields, zap.String("invoice_id", invoiceID))
+	}
+	logging.Annotate(ctx, fields...)
 }
 
 func (s *paymentService) DeliverNotification(ctx context.Context, payload json.RawMessage) error {
@@ -339,13 +357,13 @@ func (s *paymentService) DeliverNotification(ctx context.Context, payload json.R
 		Message   string `json:"message"`
 	}
 	if err := json.Unmarshal(payload, &message); err != nil {
-		return err
+		return apperr.Service("DeliverNotification", err)
 	}
 	if message.ManagerID == "" || message.ChatID == "" || message.Message == "" {
-		return fmt.Errorf("invalid payment notification")
+		return apperr.Service("DeliverNotification", fmt.Errorf("invalid payment notification"))
 	}
 	if s.zaloService == nil {
-		return fmt.Errorf("payment notification messenger unavailable")
+		return apperr.Service("DeliverNotification", fmt.Errorf("payment notification messenger unavailable"))
 	}
 	return s.zaloService.SendTextMessage(ctx, message.ManagerID, message.ChatID, message.Message)
 }

@@ -2,6 +2,7 @@ package zalo
 
 import (
 	"context"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strconv"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -29,7 +30,7 @@ func (s *zaloInvoiceCommandServiceImpl) HasPendingState(ctx context.Context, man
 func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context, managerID, chatID string, webhookCtx zalobot.Update, parsed *ParsedCommand, pending *model.PendingInvoiceUpdate) (bool, error) {
 	if parsed.Type == CommandCancel {
 		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
-			return true, err
+			return true, apperr.Service("handlePendingCommand", err)
 		}
 		return true, s.sendTextMessage(ctx, managerID, chatID, "Đã hủy thao tác hóa đơn đang chờ.")
 	}
@@ -44,14 +45,14 @@ func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context
 			return true, s.sendTextMessage(ctx, managerID, chatID, "Vui lòng nhắn '#ok' để xác nhận hoặc '#huy' để hủy.")
 		}
 		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
-			return true, err
+			return true, apperr.Service("handlePendingCommand", err)
 		}
 		return true, s.processPendingData(ctx, managerID, webhookCtx, pending.PendingData, stringFromPending(pending.PendingData, "period"), true)
 	case model.PendingActionAwaitPeriod:
 		if parsed.Type == CommandConfirm {
 			if period := onlyPeriodFromPendingOptions(pending.PendingData); period != "" {
 				if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
-					return true, err
+					return true, apperr.Service("handlePendingCommand", err)
 				}
 				return true, s.processPendingData(ctx, managerID, webhookCtx, pending.PendingData, period, false)
 			}
@@ -65,7 +66,7 @@ func (s *zaloInvoiceCommandServiceImpl) handlePendingCommand(ctx context.Context
 			return true, s.sendTextMessage(ctx, managerID, chatID, "Tháng bạn chọn không nằm trong các lựa chọn hiện tại.")
 		}
 		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
-			return true, err
+			return true, apperr.Service("handlePendingCommand", err)
 		}
 		return true, s.processPendingData(ctx, managerID, webhookCtx, pending.PendingData, period, false)
 	default:
@@ -88,7 +89,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Co
 	// period resolution finds the open invoice on its own.
 	if parsed.Type == CommandUtilityRoom {
 		if err := s.pendingRepo.DeleteByID(ctx, pending.ID); err != nil {
-			return true, err
+			return true, apperr.Service("handleAwaitUtilityCommand", err)
 		}
 		return false, nil
 	}
@@ -99,7 +100,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleAwaitUtilityCommand(ctx context.Co
 	roomID := stringFromPending(pending.PendingData, "room_id")
 	room, err := s.roomRepo.GetRoomByIDOnly(ctx, roomID)
 	if err != nil {
-		return true, err
+		return true, apperr.Service("handleAwaitUtilityCommand", err)
 	}
 	return true, s.processAwaitUtilitySingleCommand(ctx, managerID, webhookCtx, parsed, pending.ID, *room, period)
 }
@@ -113,7 +114,7 @@ func (s *zaloInvoiceCommandServiceImpl) processPendingData(ctx context.Context, 
 		roomID := stringFromPending(pendingData, "room_id")
 		room, err := s.roomRepo.GetRoomByIDOnly(ctx, roomID)
 		if err != nil {
-			return err
+			return apperr.Service("processPendingData", err)
 		}
 		parsed := &ParsedCommand{
 			Type:        CommandUtilitySingle,
@@ -193,7 +194,7 @@ func (s *zaloInvoiceCommandServiceImpl) createAwaitUtilityPending(ctx context.Co
 func (s *zaloInvoiceCommandServiceImpl) replacePending(ctx context.Context, managerID string, webhookCtx zalobot.Update, roomID string, actionType string, data map[string]any) error {
 	chatID := commandChatID(webhookCtx)
 	if err := s.pendingRepo.DeleteByChatID(ctx, managerID, chatID); err != nil {
-		return err
+		return apperr.Service("replacePending", err)
 	}
 	var roomIDPtr *string
 	if roomID != "" {

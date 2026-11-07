@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
@@ -51,9 +52,9 @@ func (r *InvoiceRepository) CreateInvoice(ctx context.Context, invoice *model.In
 
 	if err != nil {
 		if strings.Contains(err.Error(), "uq_invoices_room_period") || strings.Contains(err.Error(), "duplicate key value") {
-			return model.ErrDuplicateInvoice
+			return apperr.Repo("CreateInvoice", model.ErrDuplicateInvoice)
 		}
-		return fmt.Errorf("create invoice: %w", err)
+		return apperr.Repo("CreateInvoice", fmt.Errorf("create invoice: %w", err))
 	}
 	return nil
 }
@@ -68,9 +69,9 @@ func (r *InvoiceRepository) GetInvoiceByID(ctx context.Context, managerID, id st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetInvoiceByID", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get invoice by id: %w", err)
+		return nil, apperr.Repo("GetInvoiceByID", fmt.Errorf("get invoice by id: %w", err))
 	}
 	return &invoice, nil
 }
@@ -101,7 +102,7 @@ func (r *InvoiceRepository) ListInvoices(ctx context.Context, managerID string, 
 		ScanAndCount(ctx)
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("list invoices: %w", err)
+		return nil, 0, apperr.Repo("ListInvoices", fmt.Errorf("list invoices: %w", err))
 	}
 
 	return invoices, total, nil
@@ -143,7 +144,7 @@ func (r *InvoiceRepository) SumInvoicesByStatus(ctx context.Context, managerID s
 	}
 
 	if err := q.GroupExpr("invoice.status").Scan(ctx, &totals); err != nil {
-		return nil, fmt.Errorf("sum invoices by status: %w", err)
+		return nil, apperr.Repo("SumInvoicesByStatus", fmt.Errorf("sum invoices by status: %w", err))
 	}
 
 	return totals, nil
@@ -163,9 +164,9 @@ func (r *InvoiceRepository) UpdateInvoiceStatusAndMethod(ctx context.Context, ma
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("UpdateInvoiceStatusAndMethod", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("update invoice status and method: %w", err)
+		return nil, apperr.Repo("UpdateInvoiceStatusAndMethod", fmt.Errorf("update invoice status and method: %w", err))
 	}
 
 	return &invoice, nil
@@ -186,9 +187,9 @@ func (r *InvoiceRepository) SystemUpdateInvoiceStatusAndMethod(ctx context.Conte
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceAlreadyPaid
+			return nil, apperr.Repo("SystemUpdateInvoiceStatusAndMethod", model.ErrInvoiceAlreadyPaid)
 		}
-		return nil, fmt.Errorf("system update invoice status and method: %w", err)
+		return nil, apperr.Repo("SystemUpdateInvoiceStatusAndMethod", fmt.Errorf("system update invoice status and method: %w", err))
 	}
 
 	// We also want to return InvoiceWithRoom so we can find the managerID to send Zalo notification
@@ -198,7 +199,7 @@ func (r *InvoiceRepository) SystemUpdateInvoiceStatusAndMethod(ctx context.Conte
 		Where("invoice.id = ?", id).Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("get invoice with room after update: %w", err)
+		return nil, apperr.Repo("SystemUpdateInvoiceStatusAndMethod", fmt.Errorf("get invoice with room after update: %w", err))
 	}
 
 	return &invoiceWithRoom, nil
@@ -217,9 +218,9 @@ func (r *InvoiceRepository) UpdateInvoiceStatus(ctx context.Context, managerID, 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("UpdateInvoiceStatus", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("update invoice status: %w", err)
+		return nil, apperr.Repo("UpdateInvoiceStatus", fmt.Errorf("update invoice status: %w", err))
 	}
 
 	return &invoice, nil
@@ -237,9 +238,9 @@ func (r *InvoiceRepository) GetLatestInvoiceByRoomID(ctx context.Context, roomID
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetLatestInvoiceByRoomID", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get latest invoice: %w", err)
+		return nil, apperr.Repo("GetLatestInvoiceByRoomID", fmt.Errorf("get latest invoice: %w", err))
 	}
 	return &invoice, nil
 }
@@ -255,9 +256,9 @@ func (r *InvoiceRepository) GetInvoiceByRoomAndPeriod(ctx context.Context, roomI
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetInvoiceByRoomAndPeriod", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get invoice by room and period: %w", err)
+		return nil, apperr.Repo("GetInvoiceByRoomAndPeriod", fmt.Errorf("get invoice by room and period: %w", err))
 	}
 	return &invoice, nil
 }
@@ -275,9 +276,9 @@ func (r *InvoiceRepository) GetPreviousInvoice(ctx context.Context, roomID, peri
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetPreviousInvoice", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get previous invoice: %w", err)
+		return nil, apperr.Repo("GetPreviousInvoice", fmt.Errorf("get previous invoice: %w", err))
 	}
 	return &invoice, nil
 }
@@ -292,7 +293,7 @@ func (r *InvoiceRepository) GetUnpaidInvoicesByRoomID(ctx context.Context, roomI
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("get unpaid invoices by room: %w", err)
+		return nil, apperr.Repo("GetUnpaidInvoicesByRoomID", fmt.Errorf("get unpaid invoices by room: %w", err))
 	}
 	return invoices, nil
 }
@@ -310,9 +311,9 @@ func (r *InvoiceRepository) GetLatestUnpaidInvoiceByRoomID(ctx context.Context, 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetLatestUnpaidInvoiceByRoomID", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get latest unpaid invoice by room: %w", err)
+		return nil, apperr.Repo("GetLatestUnpaidInvoiceByRoomID", fmt.Errorf("get latest unpaid invoice by room: %w", err))
 	}
 	return &invoice, nil
 }
@@ -328,14 +329,14 @@ func (r *InvoiceRepository) UpdateInvoice(ctx context.Context, managerID string,
 			Exec(ctx)
 
 		if err != nil {
-			return fmt.Errorf("update invoice: %w", err)
+			return apperr.Repo("UpdateInvoice", fmt.Errorf("update invoice: %w", err))
 		}
 		rows, err := res.RowsAffected()
 		if err != nil {
-			return fmt.Errorf("update invoice rows affected: %w", err)
+			return apperr.Repo("UpdateInvoice", fmt.Errorf("update invoice rows affected: %w", err))
 		}
 		if rows == 0 {
-			return model.ErrInvoiceNotFound
+			return apperr.Repo("UpdateInvoice", model.ErrInvoiceNotFound)
 		}
 		return r.markActivePaymentLinksStaleByInvoiceAmount(ctx, invoice.ID, int(invoice.TotalAmount))
 	})
@@ -352,7 +353,7 @@ func (r *InvoiceRepository) markActivePaymentLinksStaleByInvoiceAmount(ctx conte
 		Where("amount <> ?", amount).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("mark invoice payment links stale: %w", err)
+		return apperr.Repo("markActivePaymentLinksStaleByInvoiceAmount", fmt.Errorf("mark invoice payment links stale: %w", err))
 	}
 	return nil
 }
@@ -366,12 +367,12 @@ func (r *InvoiceRepository) DeleteInvoice(ctx context.Context, managerID, id str
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("delete invoice: %w", err)
+		return apperr.Repo("DeleteInvoice", fmt.Errorf("delete invoice: %w", err))
 	}
 
 	rows, err := res.RowsAffected()
 	if err == nil && rows == 0 {
-		return model.ErrInvoiceNotFound
+		return apperr.Repo("DeleteInvoice", model.ErrInvoiceNotFound)
 	}
 	return nil
 }
@@ -394,9 +395,9 @@ func (r *InvoiceRepository) GetInvoiceByTransactionImagePath(ctx context.Context
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrInvoiceNotFound
+			return nil, apperr.Repo("GetInvoiceByTransactionImagePath", model.ErrInvoiceNotFound)
 		}
-		return nil, fmt.Errorf("get invoice by transaction image path: %w", err)
+		return nil, apperr.Repo("GetInvoiceByTransactionImagePath", fmt.Errorf("get invoice by transaction image path: %w", err))
 	}
 	return &invoice, nil
 }
@@ -408,5 +409,5 @@ func (r *InvoiceRepository) GetUnpaidInvoicesByHouseID(ctx context.Context, mana
 		Join("JOIN houses AS h ON h.id = r.house_id").
 		Where("h.manager_id = ?", managerID).Where("h.id = ?", houseID).
 		Where("invoice.status = ?", model.InvoiceStatusUnpaid).Order("invoice.id ASC").Scan(ctx)
-	return invoices, err
+	return invoices, apperr.Repo("GetUnpaidInvoicesByHouseID", err)
 }

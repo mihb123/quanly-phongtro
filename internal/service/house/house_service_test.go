@@ -44,7 +44,7 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	mockRepo.EXPECT().CreateHouse(ctx, house).Return(expectedErr)
 
 	err = houseService.CreateHouse(ctx, house)
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected %v, got %v", expectedErr, err)
 	}
 
@@ -54,7 +54,7 @@ func TestHouseService_CreateHouse(t *testing.T) {
 	mockCostRepo.EXPECT().Create(ctx, gomock.Any()).Return(expectedErr)
 
 	err = houseService.CreateHouse(ctx, house)
-	if err != expectedErr {
+	if !errors.Is(err, expectedErr) {
 		t.Errorf("expected %v, got %v", expectedErr, err)
 	}
 
@@ -90,14 +90,14 @@ func TestHouseService_GetHouseByID(t *testing.T) {
 
 	t.Run("Empty ID", func(t *testing.T) {
 		_, err := houseService.GetHouseByID(ctx, "", "manager-1")
-		if err != sharedsvc.ErrInvalidHouseID {
+		if !errors.Is(err, sharedsvc.ErrInvalidHouseID) {
 			t.Errorf("expected sharedsvc.ErrInvalidHouseID, got %v", err)
 		}
 	})
 
 	t.Run("Empty Manager ID", func(t *testing.T) {
 		_, err := houseService.GetHouseByID(ctx, "house-1", "  ")
-		if err != sharedsvc.ErrInvalidManagerID {
+		if !errors.Is(err, sharedsvc.ErrInvalidManagerID) {
 			t.Errorf("expected sharedsvc.ErrInvalidManagerID, got %v", err)
 		}
 	})
@@ -107,7 +107,7 @@ func TestHouseService_GetHouseByID(t *testing.T) {
 		mockRepo.EXPECT().GetByID(ctx, "house-1", "manager-1").Return(nil, expectedErr)
 
 		_, err := houseService.GetHouseByID(ctx, "house-1", "manager-1")
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("expected %v, got %v", expectedErr, err)
 		}
 	})
@@ -141,7 +141,7 @@ func TestHouseService_ListHouseByManagerID(t *testing.T) {
 		mockRepo.EXPECT().ListHouseByManagerID(ctx, "manager-1", 10, 0, "search").Return(nil, expectedErr)
 
 		_, err := houseService.ListHouseByManagerID(ctx, "manager-1", 1, 10, "search")
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("expected %v, got %v", expectedErr, err)
 		}
 	})
@@ -187,7 +187,7 @@ func TestHouseService_UpdateHouse(t *testing.T) {
 		mockRepo.EXPECT().UpdateHouse(ctx, "house-1", "manager-1", params).Return(nil, expectedErr)
 
 		_, err := houseService.UpdateHouse(ctx, "house-1", "manager-1", input)
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("expected %v, got %v", expectedErr, err)
 		}
 	})
@@ -288,14 +288,14 @@ func TestHouseService_DeleteHouse(t *testing.T) {
 
 	t.Run("Empty ID", func(t *testing.T) {
 		err := houseService.DeleteHouse(ctx, "", "manager-1")
-		if err != sharedsvc.ErrInvalidHouseID {
+		if !errors.Is(err, sharedsvc.ErrInvalidHouseID) {
 			t.Errorf("expected sharedsvc.ErrInvalidHouseID, got %v", err)
 		}
 	})
 
 	t.Run("Empty Manager ID", func(t *testing.T) {
 		err := houseService.DeleteHouse(ctx, "house-1", "")
-		if err != sharedsvc.ErrInvalidManagerID {
+		if !errors.Is(err, sharedsvc.ErrInvalidManagerID) {
 			t.Errorf("expected sharedsvc.ErrInvalidManagerID, got %v", err)
 		}
 	})
@@ -305,7 +305,7 @@ func TestHouseService_DeleteHouse(t *testing.T) {
 		mockRepo.EXPECT().DeleteHouse(ctx, "house-1", "manager-1").Return(expectedErr)
 
 		err := houseService.DeleteHouse(ctx, "house-1", "manager-1")
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("expected %v, got %v", expectedErr, err)
 		}
 	})

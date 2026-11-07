@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"slices"
@@ -14,8 +13,10 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
+	"go.uber.org/zap"
 )
 
 type Store interface {
@@ -62,7 +63,7 @@ func NewManager(store Store, encryptionKey []byte, plugins []Plugin) *Manager {
 	m := &Manager{store: store, key: encryptionKey, entries: map[string]*entry{}}
 	for _, p := range plugins {
 		if err := m.add(p); err != nil {
-			log.Printf("plugin %s: init failed, skipped: %v", p.Manifest().ID, err)
+			zap.L().Warn("plugin init failed, skipped", zap.String("plugin_id", p.Manifest().ID), zap.Error(err))
 		}
 	}
 	return m
@@ -231,7 +232,7 @@ func (m *Manager) configHost(w http.ResponseWriter, r *http.Request) (*host, str
 func (m *Manager) writeConfig(w http.ResponseWriter, r *http.Request, h *host, managerID string) {
 	values, err := h.Get(r.Context(), managerID)
 	if err != nil {
-		log.Printf("plugin %s: load config: %v", h.pluginID, err)
+		logging.RecordError(r.Context(), fmt.Errorf("plugin %s: load config: %w", h.pluginID, err))
 		WriteError(w, http.StatusInternalServerError, "Không đọc được cài đặt plugin")
 		return
 	}
@@ -283,7 +284,7 @@ func (m *Manager) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		updates[key] = clean
 	}
 	if err := h.Set(r.Context(), managerID, updates); err != nil {
-		log.Printf("plugin %s: save config: %v", h.pluginID, err)
+		logging.RecordError(r.Context(), fmt.Errorf("plugin %s: save config: %w", h.pluginID, err))
 		WriteError(w, http.StatusInternalServerError, "Không lưu được cài đặt plugin")
 		return
 	}

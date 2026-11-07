@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"image/png"
 
 	"github.com/fogleman/gg"
@@ -36,12 +37,12 @@ func loadFont(dc *gg.Context, fontName string, points float64) error {
 	} else if fontName == "Roboto-Regular.ttf" {
 		fontBytes = assets.RobotoRegular
 	} else {
-		return fmt.Errorf("unknown font: %s", fontName)
+		return apperr.Service("loadFont", fmt.Errorf("unknown font: %s", fontName))
 	}
 
 	f, err := truetype.Parse(fontBytes)
 	if err != nil {
-		return fmt.Errorf("failed to parse font: %w", err)
+		return apperr.Service("loadFont", fmt.Errorf("failed to parse font: %w", err))
 	}
 
 	face := truetype.NewFace(f, &truetype.Options{
@@ -310,7 +311,7 @@ func (s *imageServiceImpl) GenerateInvoiceImage(ctx context.Context, invoice *mo
 
 	buf := new(bytes.Buffer)
 	if err := png.Encode(buf, dc.Image()); err != nil {
-		return nil, fmt.Errorf("failed to encode image: %w", err)
+		return nil, apperr.Service("GenerateInvoiceImage", fmt.Errorf("failed to encode image: %w", err))
 	}
 
 	return buf.Bytes(), nil

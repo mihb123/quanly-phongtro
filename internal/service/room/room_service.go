@@ -2,6 +2,7 @@ package room
 
 import (
 	"context"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"mime/multipart"
 	"strings"
 
@@ -82,52 +83,52 @@ func NewRoomService(roomRepo model.RoomRepository, houseRepo model.HouseReposito
 func (s *RoomServiceImpl) checkOwnership(ctx context.Context, houseID, managerID string) error {
 	owned, err := s.houseRepo.IsHouseOwnedBy(ctx, houseID, managerID)
 	if err != nil {
-		return err
+		return apperr.Service("checkOwnership", err)
 	}
 	if !owned {
-		return model.ErrHouseNotFound
+		return apperr.Service("checkOwnership", model.ErrHouseNotFound)
 	}
 	return nil
 }
 
 func (s *RoomServiceImpl) CreateRoom(ctx context.Context, room *model.Room, managerID string) error {
 	if strings.TrimSpace(room.HouseID) == "" {
-		return shared.ErrInvalidHouseID
+		return apperr.Service("CreateRoom", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return shared.ErrInvalidManagerID
+		return apperr.Service("CreateRoom", shared.ErrInvalidManagerID)
 	}
 	if _, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID); err != nil {
-		return err
+		return apperr.Service("CreateRoom", err)
 	}
 	return s.roomRepo.CreateRoom(ctx, room)
 }
 
 func (s *RoomServiceImpl) GetRoom(ctx context.Context, id, houseID, managerID string) (*model.Room, error) {
 	if strings.TrimSpace(id) == "" {
-		return nil, shared.ErrInvalidRoomID
+		return nil, apperr.Service("GetRoom", shared.ErrInvalidRoomID)
 	}
 	if strings.TrimSpace(houseID) == "" {
-		return nil, shared.ErrInvalidHouseID
+		return nil, apperr.Service("GetRoom", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("GetRoom", shared.ErrInvalidManagerID)
 	}
 	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-		return nil, err
+		return nil, apperr.Service("GetRoom", err)
 	}
 	return s.roomRepo.GetRoomByID(ctx, id, houseID)
 }
 
 func (s *RoomServiceImpl) ListRoomsByHouseID(ctx context.Context, managerID string, query ListRoomsQuery) ([]model.Room, int, error) {
 	if strings.TrimSpace(query.HouseID) == "" {
-		return nil, 0, shared.ErrInvalidHouseID
+		return nil, 0, apperr.Service("ListRoomsByHouseID", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return nil, 0, shared.ErrInvalidManagerID
+		return nil, 0, apperr.Service("ListRoomsByHouseID", shared.ErrInvalidManagerID)
 	}
 	if err := s.checkOwnership(ctx, query.HouseID, managerID); err != nil {
-		return nil, 0, err
+		return nil, 0, apperr.Service("ListRoomsByHouseID", err)
 	}
 	return s.roomRepo.ListRoomsByHouseID(ctx, model.RoomListFilter{
 		HouseID: query.HouseID,
@@ -140,11 +141,11 @@ func (s *RoomServiceImpl) ListRoomsByHouseID(ctx context.Context, managerID stri
 
 func (s *RoomServiceImpl) GetRoomStats(ctx context.Context, managerID, houseID string) (*model.RoomStats, error) {
 	if strings.TrimSpace(managerID) == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("GetRoomStats", shared.ErrInvalidManagerID)
 	}
 	if houseID != "" {
 		if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-			return nil, err
+			return nil, apperr.Service("GetRoomStats", err)
 		}
 	}
 	return s.roomRepo.GetRoomStats(ctx, managerID, houseID)
@@ -152,23 +153,23 @@ func (s *RoomServiceImpl) GetRoomStats(ctx context.Context, managerID, houseID s
 
 func (s *RoomServiceImpl) ListAvailableRooms(ctx context.Context, managerID string, limit int) ([]model.Room, int, error) {
 	if strings.TrimSpace(managerID) == "" {
-		return nil, 0, shared.ErrInvalidManagerID
+		return nil, 0, apperr.Service("ListAvailableRooms", shared.ErrInvalidManagerID)
 	}
 	return s.roomRepo.ListAvailableRooms(ctx, managerID, limit)
 }
 
 func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID string, input UpdateRoomInput) (*model.Room, error) {
 	if strings.TrimSpace(id) == "" {
-		return nil, shared.ErrInvalidRoomID
+		return nil, apperr.Service("UpdateRoom", shared.ErrInvalidRoomID)
 	}
 	if strings.TrimSpace(houseID) == "" {
-		return nil, shared.ErrInvalidHouseID
+		return nil, apperr.Service("UpdateRoom", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("UpdateRoom", shared.ErrInvalidManagerID)
 	}
 	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateRoom", err)
 	}
 	params := model.UpdateRoomParams{
 		Name:                  input.Name,
@@ -192,7 +193,7 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		var err error
 		room, err = s.roomRepo.UpdateRoom(ctx, id, houseID, params)
 		if err != nil {
-			return err
+			return apperr.Service("UpdateRoom", err)
 		}
 		if s.invoices != nil {
 			return s.invoices.RecalculateUnpaidInvoicesByRoom(ctx, managerID, id)
@@ -206,7 +207,7 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 		err = update(ctx)
 	}
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateRoom", err)
 	}
 	return room, nil
 }
@@ -214,21 +215,21 @@ func (s *RoomServiceImpl) UpdateRoom(ctx context.Context, id, houseID, managerID
 // UpdateRoomContract lưu hợp đồng thuê của phòng: giữ lại các file cũ được chọn và nối thêm file mới.
 func (s *RoomServiceImpl) UpdateRoomContract(ctx context.Context, id, houseID, managerID string, input UpdateRoomContractInput) (*model.Room, error) {
 	if strings.TrimSpace(id) == "" {
-		return nil, shared.ErrInvalidRoomID
+		return nil, apperr.Service("UpdateRoomContract", shared.ErrInvalidRoomID)
 	}
 	if strings.TrimSpace(houseID) == "" {
-		return nil, shared.ErrInvalidHouseID
+		return nil, apperr.Service("UpdateRoomContract", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return nil, shared.ErrInvalidManagerID
+		return nil, apperr.Service("UpdateRoomContract", shared.ErrInvalidManagerID)
 	}
 	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateRoomContract", err)
 	}
 
 	existing, err := s.roomRepo.GetRoomByID(ctx, id, houseID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateRoomContract", err)
 	}
 
 	contractPath := existing.ContractPath
@@ -238,7 +239,7 @@ func (s *RoomServiceImpl) UpdateRoomContract(ctx context.Context, id, houseID, m
 	if len(input.ContractFiles) > 0 {
 		newPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, input.ContractFiles)
 		if err != nil {
-			return nil, err
+			return nil, apperr.Service("UpdateRoomContract", err)
 		}
 		if contractPath != "" {
 			contractPath += "," + newPaths
@@ -252,16 +253,16 @@ func (s *RoomServiceImpl) UpdateRoomContract(ctx context.Context, id, houseID, m
 
 func (s *RoomServiceImpl) DeleteRoom(ctx context.Context, id, houseID, managerID string) error {
 	if strings.TrimSpace(id) == "" {
-		return shared.ErrInvalidRoomID
+		return apperr.Service("DeleteRoom", shared.ErrInvalidRoomID)
 	}
 	if strings.TrimSpace(houseID) == "" {
-		return shared.ErrInvalidHouseID
+		return apperr.Service("DeleteRoom", shared.ErrInvalidHouseID)
 	}
 	if strings.TrimSpace(managerID) == "" {
-		return shared.ErrInvalidManagerID
+		return apperr.Service("DeleteRoom", shared.ErrInvalidManagerID)
 	}
 	if err := s.checkOwnership(ctx, houseID, managerID); err != nil {
-		return err
+		return apperr.Service("DeleteRoom", err)
 	}
 	return s.roomRepo.DeleteRoom(ctx, id, houseID)
 }

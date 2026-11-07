@@ -107,7 +107,7 @@ func TestNewPaymentCredentialServiceFallbackDetection(t *testing.T) {
 	})
 	t.Run("without fallback", func(t *testing.T) {
 		s := NewPaymentCredentialService(repo, key, PayOSCredentials{})
-		if _, err := s.GetCredentials(context.Background(), "", model.PaymentProviderPayOS); err != ErrPaymentCredentialsNotFound {
+		if _, err := s.GetCredentials(context.Background(), "", model.PaymentProviderPayOS); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 			t.Fatalf("expected ErrPaymentCredentialsNotFound, got %v", err)
 		}
 	})
@@ -145,7 +145,7 @@ func TestGetCredentialsPayOS(t *testing.T) {
 	t.Run("manager credential nil without fallback", func(t *testing.T) {
 		repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{}}
 		s := NewPaymentCredentialService(repo, key, PayOSCredentials{})
-		if _, err := s.GetCredentials(context.Background(), "mgr", model.PaymentProviderPayOS); err != ErrPaymentCredentialsNotFound {
+		if _, err := s.GetCredentials(context.Background(), "mgr", model.PaymentProviderPayOS); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 			t.Fatalf("expected ErrPaymentCredentialsNotFound, got %v", err)
 		}
 	})
@@ -205,14 +205,14 @@ func TestGetCredentialsSePay(t *testing.T) {
 	t.Run("manager empty returns not found", func(t *testing.T) {
 		repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{}}
 		s := NewPaymentCredentialService(repo, key, PayOSCredentials{})
-		if _, err := s.GetCredentials(context.Background(), "", model.PaymentProviderSePay); err != ErrPaymentCredentialsNotFound {
+		if _, err := s.GetCredentials(context.Background(), "", model.PaymentProviderSePay); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 			t.Fatalf("expected ErrPaymentCredentialsNotFound, got %v", err)
 		}
 	})
 	t.Run("manager credential nil returns not found", func(t *testing.T) {
 		repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{}}
 		s := NewPaymentCredentialService(repo, key, PayOSCredentials{})
-		if _, err := s.GetCredentials(context.Background(), "mgr", model.PaymentProviderSePay); err != ErrPaymentCredentialsNotFound {
+		if _, err := s.GetCredentials(context.Background(), "mgr", model.PaymentProviderSePay); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 			t.Fatalf("expected ErrPaymentCredentialsNotFound, got %v", err)
 		}
 	})
@@ -252,7 +252,7 @@ func TestGetCredentialsSePay(t *testing.T) {
 func TestGetCredentialsUnknownProvider(t *testing.T) {
 	repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{}}
 	s := NewPaymentCredentialService(repo, testEncryptionKey(), PayOSCredentials{})
-	if _, err := s.GetCredentials(context.Background(), "mgr", "unknown"); err != ErrPaymentProviderNotFound {
+	if _, err := s.GetCredentials(context.Background(), "mgr", "unknown"); !errors.Is(err, ErrPaymentProviderNotFound) {
 		t.Fatalf("expected ErrPaymentProviderNotFound, got %v", err)
 	}
 }
@@ -597,7 +597,7 @@ func TestResolvePreferredProvider(t *testing.T) {
 	t.Run("not found when nothing configured", func(t *testing.T) {
 		repo := &fakePaymentCredentialRepo{byProvider: map[string]*model.PaymentProviderCredential{}}
 		s := NewPaymentCredentialService(repo, key, PayOSCredentials{})
-		if _, err := s.ResolvePreferredProvider(context.Background(), "mgr"); err != ErrPaymentCredentialsNotFound {
+		if _, err := s.ResolvePreferredProvider(context.Background(), "mgr"); !errors.Is(err, ErrPaymentCredentialsNotFound) {
 			t.Fatalf("expected ErrPaymentCredentialsNotFound, got %v", err)
 		}
 	})

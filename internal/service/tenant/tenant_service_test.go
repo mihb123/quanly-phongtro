@@ -13,6 +13,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"go.uber.org/mock/gomock"
 )
 
@@ -183,7 +184,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 		svcWithErr := tenantsvc.NewTenantServiceImpl(userRepo, tenantRepo, roomRepo, nil, hasherErr)
 		expectTenantRoomOwnership()
 		_, err := svcWithErr.RegisterTenant(ctx, tenantsvc.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
-		if err == nil || err.Error() != "hash err" {
+		if err == nil || apperr.Message(err) != "hash err" {
 			t.Errorf("expected hash err, got %v", err)
 		}
 	})
@@ -192,7 +193,7 @@ func TestTenantService_RegisterTenant(t *testing.T) {
 		expectTenantRoomOwnership()
 		tenantRepo.EXPECT().CreateTenantWithAccount(ctx, gomock.Any(), gomock.Any()).Return(errors.New("db error"))
 		_, err := svc.RegisterTenant(ctx, tenantsvc.RegisterTenantInput{Email: "test@example.com", Password: "pass", RoomID: "r1"})
-		if err == nil || err.Error() != "db error" {
+		if err == nil || apperr.Message(err) != "db error" {
 			t.Errorf("expected db error, got %v", err)
 		}
 	})
@@ -420,7 +421,7 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 		userRepo.EXPECT().UpdateUser(ctx, "u1", gomock.Any()).Return(&model.User{}, nil)
 		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(nil, errors.New("db error"))
 		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", tenantsvc.UpdateTenantInput{FullName: ptr("Name")})
-		if err == nil || err.Error() != "db error" {
+		if err == nil || apperr.Message(err) != "db error" {
 			t.Errorf("expected db error, got %v", err)
 		}
 	})
@@ -431,7 +432,7 @@ func TestTenantService_UpdateTenantInfo(t *testing.T) {
 		tenantRepo.EXPECT().UpdateTenant(ctx, "t1", gomock.Any()).Return(&model.Tenant{}, nil)
 		tenantRepo.EXPECT().GetTenantByID(ctx, "m1", "t1").Return(nil, errors.New("db error 2"))
 		_, err := svc.UpdateTenantInfo(ctx, "m1", "t1", tenantsvc.UpdateTenantInput{FullName: ptr("Name")})
-		if err == nil || err.Error() != "db error 2" {
+		if err == nil || apperr.Message(err) != "db error 2" {
 			t.Errorf("expected db error 2, got %v", err)
 		}
 	})
@@ -521,7 +522,7 @@ func TestTenantService_DeleteTenant(t *testing.T) {
 		tenantRepo.EXPECT().DeleteTenant(ctx, "t1").Return("r1", nil)
 		userRepo.EXPECT().DeactivateUser(ctx, "u1").Return(errors.New("db error"))
 		err := svc.DeleteTenant(ctx, "m1", "t1")
-		if err == nil || err.Error() != "db error" {
+		if err == nil || apperr.Message(err) != "db error" {
 			t.Errorf("expected db error, got %v", err)
 		}
 	})
@@ -532,7 +533,7 @@ func TestTenantService_DeleteTenant(t *testing.T) {
 		userRepo.EXPECT().DeactivateUser(ctx, "u1").Return(nil)
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(0), errors.New("db error 2"))
 		err := svc.DeleteTenant(ctx, "m1", "t1")
-		if err == nil || err.Error() != "db error 2" {
+		if err == nil || apperr.Message(err) != "db error 2" {
 			t.Errorf("expected db error 2, got %v", err)
 		}
 	})
@@ -544,7 +545,7 @@ func TestTenantService_DeleteTenant(t *testing.T) {
 		tenantRepo.EXPECT().GetCurrentNumTenantInRoom(ctx, "r1").Return(int64(0), nil)
 		roomRepo.EXPECT().UpdateRoomStatus(ctx, "r1", "AVAILABLE").Return(errors.New("db error 3"))
 		err := svc.DeleteTenant(ctx, "m1", "t1")
-		if err == nil || err.Error() != "db error 3" {
+		if err == nil || apperr.Message(err) != "db error 3" {
 			t.Errorf("expected db error 3, got %v", err)
 		}
 	})

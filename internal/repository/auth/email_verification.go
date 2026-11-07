@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
@@ -22,7 +23,7 @@ func (r *EmailVerificationRepository) CreateOTP(ctx context.Context, emailVeri *
 		Model(emailVeri).
 		Column("email", "otp", "expires").
 		Exec(ctx)
-	return err
+	return apperr.Repo("CreateOTP", err)
 }
 
 func (r *EmailVerificationRepository) GetOTP(ctx context.Context, emailVeri *model.EmailVerification) error {
@@ -39,7 +40,7 @@ func (r *EmailVerificationRepository) UpdateUsedOTP(ctx context.Context, emailVe
 		Set("is_used = ?", true).
 		Where("otp = ? and email = ?", emailVeri.OTP, emailVeri.Email).
 		Exec(ctx)
-	return err
+	return apperr.Repo("UpdateUsedOTP", err)
 }
 
 type OTPCheckRepository struct {
@@ -59,7 +60,7 @@ func (r *OTPCheckRepository) GetOTPCheck(ctx context.Context, email string) (mod
 		Column("email", "otp_fails", "block_time").
 		Where("email = ?", email). // Note: original code missed WHERE clause which would return random row
 		Scan(ctx)
-	return otpCheck, err
+	return otpCheck, apperr.Repo("GetOTPCheck", err)
 }
 
 func (r *OTPCheckRepository) BlockOTP(ctx context.Context, email string) error {
@@ -68,7 +69,7 @@ func (r *OTPCheckRepository) BlockOTP(ctx context.Context, email string) error {
 		Set("block_time = NOW()").
 		Where("email = ?", email).
 		Exec(ctx)
-	return err
+	return apperr.Repo("BlockOTP", err)
 }
 
 func (r *OTPCheckRepository) ResetOTP(ctx context.Context, email string) error {
@@ -77,7 +78,7 @@ func (r *OTPCheckRepository) ResetOTP(ctx context.Context, email string) error {
 		Set("otp_fails = 0").
 		Where("email = ?", email).
 		Exec(ctx)
-	return err
+	return apperr.Repo("ResetOTP", err)
 }
 
 func (r *OTPCheckRepository) CreateOTPCheck(ctx context.Context, email string) error {
@@ -87,7 +88,7 @@ func (r *OTPCheckRepository) CreateOTPCheck(ctx context.Context, email string) e
 		Value("otp_fails", "?", 1).
 		Value("block_time", "NOW()").
 		Exec(ctx)
-	return err
+	return apperr.Repo("CreateOTPCheck", err)
 }
 
 func (r *OTPCheckRepository) IncrementOTPCheck(ctx context.Context, email string, num int64) error {
@@ -100,5 +101,5 @@ func (r *OTPCheckRepository) IncrementOTPCheck(ctx context.Context, email string
 		q = q.Set("block_time = NOW()")
 	}
 	_, err := q.Exec(ctx)
-	return err
+	return apperr.Repo("IncrementOTPCheck", err)
 }

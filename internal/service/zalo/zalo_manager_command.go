@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -31,7 +32,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleUpdateTenantPhoneCommand(ctx conte
 	// The command has no way to name one tenant, so a shared room is reported instead of guessed.
 	tenants, err := s.tenantRepo.ListTenantByRoomID(ctx, managerID, room.ID)
 	if err != nil {
-		return err
+		return apperr.Service("handleUpdateTenantPhoneCommand", err)
 	}
 	if len(tenants) == 0 {
 		return s.sendTextMessage(ctx, managerID, chatID, fmt.Sprintf("Phòng %s chưa có khách thuê nào.", room.Name))
@@ -106,38 +107,38 @@ func (s *zaloInvoiceCommandServiceImpl) handleUpdateRoomGroupCommand(ctx context
 // the command, or the room already linked to the group chat the command was sent from.
 func (s *zaloInvoiceCommandServiceImpl) resolveManagerCommandRoom(ctx context.Context, managerID string, webhookCtx zalobot.Update, parsed *ParsedCommand, commandName string) (*model.Room, error) {
 	if err := s.ensureManagerSender(ctx, managerID, webhookCtx.SenderID); err != nil {
-		return nil, err
+		return nil, apperr.Service("resolveManagerCommandRoom", err)
 	}
 
 	if parsed.RoomName == "" {
 		if !webhookCtx.IsGroup {
-			return nil, fmt.Errorf("Vui lòng nhập phòng cần cập nhật. Ví dụ: %s 679qt P201 <giá trị mới>", commandName)
+			return nil, apperr.Service("resolveManagerCommandRoom", fmt.Errorf("Vui lòng nhập phòng cần cập nhật. Ví dụ: %s 679qt P201 <giá trị mới>", commandName))
 		}
 		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.ChatID)
 		if err != nil {
 			// Carry the group ID so this single reply replaces the "group not connected" notice.
-			return nil, fmt.Errorf("Nhóm này chưa được kết nối với phòng nào.\nMã nhóm (Group ID): %s\nVui lòng nhắn: %s <mã nhà> <phòng>", webhookCtx.ChatID, commandName)
+			return nil, apperr.Service("resolveManagerCommandRoom", fmt.Errorf("Nhóm này chưa được kết nối với phòng nào.\nMã nhóm (Group ID): %s\nVui lòng nhắn: %s <mã nhà> <phòng>", webhookCtx.ChatID, commandName))
 		}
 		if _, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID); err != nil {
-			return nil, errors.New("Group chat này không thuộc quản lý hiện tại.")
+			return nil, apperr.Service("resolveManagerCommandRoom", errors.New("Group chat này không thuộc quản lý hiện tại."))
 		}
 		return room, nil
 	}
 
 	house, roomName, err := s.resolveCommandHouse(ctx, managerID, parsed.HouseCode, parsed.RoomName)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("resolveManagerCommandRoom", err)
 	}
 	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, house.ID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("resolveManagerCommandRoom", err)
 	}
 	room, err := MatchRoom(roomName, rooms)
 	if err != nil {
 		if errors.Is(err, ErrAmbiguousRoomName) {
-			return nil, fmt.Errorf("Nhà %s có nhiều phòng trùng tên %s. Vui lòng nhập tên phòng đầy đủ.", house.Name, roomName)
+			return nil, apperr.Service("resolveManagerCommandRoom", fmt.Errorf("Nhà %s có nhiều phòng trùng tên %s. Vui lòng nhập tên phòng đầy đủ.", house.Name, roomName))
 		}
-		return nil, fmt.Errorf("Không tìm thấy phòng %s trong nhà %s.", roomName, house.Name)
+		return nil, apperr.Service("resolveManagerCommandRoom", fmt.Errorf("Không tìm thấy phòng %s trong nhà %s.", roomName, house.Name))
 	}
 	return room, nil
 }
@@ -164,7 +165,7 @@ func linkRoomToGroupChat(ctx context.Context, roomRepo interface {
 		GroupChatID:           &groupChatID,
 	}
 	_, err := roomRepo.UpdateRoom(ctx, room.ID, houseID, params)
-	return err
+	return apperr.Service("linkRoomToGroupChat", err)
 }
 
 // manyTenantsMessage lists the tenants of a shared room, which a chat command cannot disambiguate.

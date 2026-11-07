@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/internal/logging/filelog"
 )
 
 func TestSlowAPILoggerLogsOnlySlowRequests(t *testing.T) {
 	dir := t.TempDir()
 	base := filepath.Join(dir, "slow_api.log")
-	slowLogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
+	slowLogger, err := filelog.NewSlowAPILogger(filelog.SlowAPIConfig{
 		Threshold: 20 * time.Millisecond,
 		FilePath:  base,
 		MaxDays:   7,

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
@@ -31,7 +32,7 @@ func (r *RevenueSummaryRepository) Upsert(ctx context.Context, summary *model.Ho
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("upsert revenue summary: %w", err)
+		return apperr.Repo("Upsert", fmt.Errorf("upsert revenue summary: %w", err))
 	}
 	return nil
 }
@@ -47,9 +48,9 @@ func (r *RevenueSummaryRepository) GetByHouseAndPeriod(ctx context.Context, hous
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("revenue summary not found")
+			return nil, apperr.Repo("GetByHouseAndPeriod", errors.New("revenue summary not found"))
 		}
-		return nil, fmt.Errorf("get revenue summary: %w", err)
+		return nil, apperr.Repo("GetByHouseAndPeriod", fmt.Errorf("get revenue summary: %w", err))
 	}
 	return &summary, nil
 }
@@ -68,7 +69,7 @@ func (r *RevenueSummaryRepository) ListByHouseIDs(ctx context.Context, houseIDs 
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list revenue summaries: %w", err)
+		return nil, apperr.Repo("ListByHouseIDs", fmt.Errorf("list revenue summaries: %w", err))
 	}
 	return summaries, nil
 }
@@ -88,7 +89,7 @@ func (r *RevenueSummaryRepository) ListForManagerPeriods(ctx context.Context, ma
 		Order("house_revenue_summary.period ASC").
 		Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list revenue summaries for periods: %w", err)
+		return nil, apperr.Repo("ListForManagerPeriods", fmt.Errorf("list revenue summaries for periods: %w", err))
 	}
 	return summaries, nil
 }
@@ -109,7 +110,7 @@ func (r *RevenueSummaryRepository) CalculateRevenue(ctx context.Context, houseID
 		Scan(ctx, &totalRevenue)
 
 	if err != nil {
-		return 0, fmt.Errorf("calculate total revenue: %w", err)
+		return 0, apperr.Repo("CalculateRevenue", fmt.Errorf("calculate total revenue: %w", err))
 	}
 
 	if totalRevenue.Valid {

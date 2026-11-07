@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 )
 
@@ -143,3 +144,7 @@ func WriteJSON(w http.ResponseWriter, status int, data any, message string) {
 func WriteError(w http.ResponseWriter, status int, message string) {
 	httpx.WriteError(w, status, message)
 }
+
+// Warn ghi một lỗi không làm hỏng request của plugin vào dòng log của request
+// (plugin không gọi logger trực tiếp; xem "log once" trong Documents/feature/logging.md).
+func Warn(ctx context.Context, msg string, err error) { logging.RecordWarning(ctx, msg, err) }

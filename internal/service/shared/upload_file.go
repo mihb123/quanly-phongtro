@@ -2,6 +2,7 @@ package shared
 
 import (
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"io"
 	"mime/multipart"
 	"os"
@@ -28,20 +29,20 @@ func SaveUploadedFiles(dir string, headers []*multipart.FileHeader) (string, err
 	for _, header := range headers {
 		file, err := header.Open()
 		if err != nil {
-			return "", err
+			return "", apperr.Service("SaveUploadedFiles", err)
 		}
 
 		ext := strings.ToLower(filepath.Ext(header.Filename))
 		if !allowedUploadExts[ext] {
 			file.Close()
-			return "", fmt.Errorf("unsupported file extension: %s", ext)
+			return "", apperr.Service("SaveUploadedFiles", Invalid(fmt.Sprintf("unsupported file extension: %s", ext)))
 		}
 
 		fileName := uuid.Must(uuid.NewV7()).String() + ext
 		filePath := filepath.Join(dir, fileName)
 		if err := saveFile(file, filePath); err != nil {
 			file.Close()
-			return "", err
+			return "", apperr.Service("SaveUploadedFiles", err)
 		}
 		file.Close()
 		paths = append(paths, TenantFileURLPrefix+fileName)
@@ -51,16 +52,16 @@ func SaveUploadedFiles(dir string, headers []*multipart.FileHeader) (string, err
 
 func saveFile(file io.Reader, path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return fmt.Errorf("cannot create upload dir: %w", err)
+		return apperr.Service("saveFile", fmt.Errorf("cannot create upload dir: %w", err))
 	}
 	// 0600 vì CCCD và hợp đồng là dữ liệu cá nhân nhạy cảm.
 	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
-		return fmt.Errorf("cannot create path %v", err)
+		return apperr.Service("saveFile", fmt.Errorf("cannot create path: %w", err))
 	}
 	defer dst.Close()
 	if _, err := io.Copy(dst, file); err != nil {
-		return fmt.Errorf("cannot save file :%v", err)
+		return apperr.Service("saveFile", fmt.Errorf("cannot save file: %w", err))
 	}
 	return nil
 }

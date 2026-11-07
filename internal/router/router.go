@@ -30,8 +30,8 @@ func New(
 ) *chi.Mux {
 	cfg := newOptions(options...)
 	r := chi.NewRouter()
+	r.Use(loggingMiddleware(cfg.logger, cfg.trustedProxies)) // ngoài cùng
 	r.Use(recoverMiddleware)
-	r.Use(requestLogger(cfg.trustedProxies))
 	r.Use(slowAPILogger(cfg.slowAPILogger))
 
 	r.Get("/health", healthCheck)

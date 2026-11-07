@@ -2,14 +2,16 @@ package zalo
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/robfig/cron/v3"
+	"go.uber.org/zap"
 )
+
+const zaloCronTask = "zalo_token_check"
 
 // ZaloCronService runs periodic background jobs for Zalo integration.
 // Currently it checks whether each manager's Zalo bot token is still valid every 4 hours.
@@ -36,7 +38,7 @@ func NewZaloCronService(client ZaloClient, userRepo model.UserRepository, encryp
 		svc.checkAllTokens()
 	})
 	if err != nil {
-		log.Printf("[ZaloCron] Failed to schedule token health check: %v", err)
+		zap.L().Error("schedule token health check failed", zap.String("task", zaloCronTask), zap.Error(err))
 	}
 
 	return svc
@@ -45,23 +47,23 @@ func NewZaloCronService(client ZaloClient, userRepo model.UserRepository, encryp
 // Start begins the cron scheduler in a background goroutine.
 func (s *ZaloCronService) Start() {
 	s.cron.Start()
-	log.Println("[ZaloCron] Started Zalo token health check scheduler (every 4 hours).")
+	zap.L().Info("cron started", zap.String("task", zaloCronTask), zap.String("schedule", TokenCheckCronSchedule))
 }
 
 // Stop gracefully shuts down the cron scheduler.
 func (s *ZaloCronService) Stop() {
 	s.cron.Stop()
-	log.Println("[ZaloCron] Stopped Zalo token health check scheduler.")
+	zap.L().Info("cron stopped", zap.String("task", zaloCronTask))
 }
 
 // checkAllTokens fetches all users with a Zalo token and verifies each one is still valid.
 func (s *ZaloCronService) checkAllTokens() {
-	ctx := context.Background()
-	log.Println("[ZaloCron] Running Zalo token health check...")
+	ctx := logging.TaskContext(context.Background(), zaloCronTask)
+	logging.FromCtx(ctx).Info("token health check started")
 
 	users, err := s.userRepo.GetAllUsersWithZaloToken(ctx)
 	if err != nil {
-		log.Printf("[ZaloCron] Failed to fetch users with Zalo token: %v", err)
+		logging.LogTaskError(ctx, "fetch users with zalo token failed", err)
 		return
 	}
 
@@ -69,7 +71,7 @@ func (s *ZaloCronService) checkAllTokens() {
 		s.checkUserToken(ctx, u)
 	}
 
-	log.Printf("[ZaloCron] Token health check completed for %d users.", len(users))
+	logging.FromCtx(ctx).Info("token health check completed", zap.Int("users", len(users)))
 }
 
 // checkUserToken decrypts and validates a single user's Zalo bot token.
@@ -81,14 +83,14 @@ func (s *ZaloCronService) checkUserToken(ctx context.Context, u model.User) {
 
 	rawToken, err := security.Decrypt(*u.ZaloBotToken, s.encryptionKey)
 	if err != nil {
-		log.Printf("[ZaloCron] Failed to decrypt token for user %s: %v", u.ID, err)
+		logging.FromCtx(ctx).Warn("decrypt zalo token failed", zap.String("user_id", u.ID), zap.Error(err))
 		s.markInactive(ctx, u.ID)
 		return
 	}
 
 	_, err = s.client.GetMe(ctx, rawToken)
 	if err != nil {
-		log.Printf("[ZaloCron] Token invalid for user %s (%s): %v", u.ID, u.Email, err)
+		logging.FromCtx(ctx).Warn("zalo token invalid", zap.String("user_id", u.ID), zap.Error(err))
 		s.markInactive(ctx, u.ID)
 		return
 	}
@@ -96,7 +98,7 @@ func (s *ZaloCronService) checkUserToken(ctx context.Context, u model.User) {
 	// Token is alive — ensure it is marked active if it was previously inactive
 	if !u.IsZaloBotActive {
 		s.markActive(ctx, u.ID)
-		log.Printf("[ZaloCron] Token restored to active for user %s (%s)", u.ID, u.Email)
+		logging.FromCtx(ctx).Info("zalo token restored to active", zap.String("user_id", u.ID))
 	}
 }
 
@@ -104,7 +106,7 @@ func (s *ZaloCronService) checkUserToken(ctx context.Context, u model.User) {
 func (s *ZaloCronService) markInactive(ctx context.Context, userID string) {
 	inactive := false
 	if _, err := s.userRepo.UpdateUser(ctx, userID, model.UpdateUserInput{IsZaloBotActive: &inactive}); err != nil {
-		log.Printf("[ZaloCron] Failed to mark token inactive for user %s: %v", userID, err)
+		logging.LogTaskError(ctx, "mark zalo token inactive failed", err, zap.String("user_id", userID))
 	}
 }
 
@@ -112,13 +114,12 @@ func (s *ZaloCronService) markInactive(ctx context.Context, userID string) {
 func (s *ZaloCronService) markActive(ctx context.Context, userID string) {
 	active := true
 	if _, err := s.userRepo.UpdateUser(ctx, userID, model.UpdateUserInput{IsZaloBotActive: &active}); err != nil {
-		log.Printf("[ZaloCron] Failed to mark token active for user %s: %v", userID, err)
+		logging.LogTaskError(ctx, "mark zalo token active failed", err, zap.String("user_id", userID))
 	}
 }
 
 // RunNow immediately executes the token health check, bypassing the schedule.
 // Useful for testing or triggering a manual check.
 func (s *ZaloCronService) RunNow() {
-	fmt.Println("[ZaloCron] Manual token check triggered.")
 	s.checkAllTokens()
 }

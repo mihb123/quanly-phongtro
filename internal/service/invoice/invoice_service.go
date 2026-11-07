@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/google/uuid"
@@ -61,20 +62,20 @@ func NewInvoiceService(invoiceRepo model.InvoiceRepository, roomRepo model.RoomR
 func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string, input CreateInvoiceInput) (*model.InvoiceWithRoom, error) {
 	room, err := s.roomRepo.GetRoomByIDOnly(ctx, input.RoomID)
 	if err != nil {
-		return nil, fmt.Errorf("get room for invoice: %w", err)
+		return nil, apperr.Service("CreateInvoice", fmt.Errorf("get room for invoice: %w", err))
 	}
 
 	owned, err := s.houseRepo.IsHouseOwnedBy(ctx, room.HouseID, managerID)
 	if err != nil {
-		return nil, fmt.Errorf("check house ownership: %w", err)
+		return nil, apperr.Service("CreateInvoice", fmt.Errorf("check house ownership: %w", err))
 	}
 	if !owned {
-		return nil, model.ErrRoomNotFound
+		return nil, apperr.Service("CreateInvoice", model.ErrRoomNotFound)
 	}
 
 	house, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID)
 	if err != nil {
-		return nil, fmt.Errorf("get house for invoice: %w", err)
+		return nil, apperr.Service("CreateInvoice", fmt.Errorf("get house for invoice: %w", err))
 	}
 
 	oldElecIndex := 0
@@ -84,7 +85,7 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 	prevInvoice, err := s.invoiceRepo.GetPreviousInvoice(ctx, input.RoomID, input.Period)
 	if err != nil {
 		if !errors.Is(err, model.ErrInvoiceNotFound) {
-			return nil, fmt.Errorf("get previous invoice: %w", err)
+			return nil, apperr.Service("CreateInvoice", fmt.Errorf("get previous invoice: %w", err))
 		}
 	} else {
 		oldElecIndex = prevInvoice.NewElectricityIndex
@@ -104,36 +105,36 @@ func (s *InvoiceServiceImpl) CreateInvoice(ctx context.Context, managerID string
 	} else {
 		tenantCount, err := s.tenantRepo.GetCurrentNumTenantInRoom(ctx, input.RoomID)
 		if err != nil {
-			return nil, fmt.Errorf("get tenant count for extra fee: %w", err)
+			return nil, apperr.Service("CreateInvoice", fmt.Errorf("get tenant count for extra fee: %w", err))
 		}
 		tenantCountInt = int(tenantCount)
 	}
 
 	invoice, err := s.calculateInvoice(room, house, input, oldElecIndex, oldWaterIndex, tenantCountInt)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreateInvoice", err)
 	}
 
 	// Check if invoice for this period already exists
 	existingInvoice, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, input.RoomID, input.Period)
 	if err != nil && !errors.Is(err, model.ErrInvoiceNotFound) {
-		return nil, fmt.Errorf("check existing invoice: %w", err)
+		return nil, apperr.Service("CreateInvoice", fmt.Errorf("check existing invoice: %w", err))
 	}
 
 	if existingInvoice != nil {
 		if existingInvoice.Status == "PAID" {
-			return nil, model.ErrPaidInvoiceImmutable
+			return nil, apperr.Service("CreateInvoice", model.ErrPaidInvoiceImmutable)
 		}
 		invoice.ID = existingInvoice.ID
 		invoice.CreatedAt = existingInvoice.CreatedAt
 		err = s.invoiceRepo.UpdateInvoice(ctx, managerID, invoice)
 		if err != nil {
-			return nil, err
+			return nil, apperr.Service("CreateInvoice", err)
 		}
 	} else {
 		err = s.invoiceRepo.CreateInvoice(ctx, invoice)
 		if err != nil {
-			return nil, err
+			return nil, apperr.Service("CreateInvoice", err)
 		}
 	}
 
@@ -182,11 +183,11 @@ func (s *InvoiceServiceImpl) SumInvoicesByStatus(ctx context.Context, managerID 
 func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error) {
 	invoice, err := s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("PayInvoice", err)
 	}
 
 	if invoice.Status == "PAID" {
-		return nil, model.ErrInvoiceAlreadyPaid
+		return nil, apperr.Service("PayInvoice", model.ErrInvoiceAlreadyPaid)
 	}
 
 	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "PAID")
@@ -196,17 +197,17 @@ func (s *InvoiceServiceImpl) PayInvoice(ctx context.Context, managerID, invoiceI
 			Period:  invoice.Period,
 		})
 	}
-	return res, err
+	return res, apperr.Service("PayInvoice", err)
 }
 
 func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoiceID string) (*model.Invoice, error) {
 	invoice, err := s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UnpayInvoice", err)
 	}
 
 	if invoice.Status == "UNPAID" {
-		return nil, model.ErrInvoiceAlreadyUnpaid
+		return nil, apperr.Service("UnpayInvoice", model.ErrInvoiceAlreadyUnpaid)
 	}
 
 	res, err := s.invoiceRepo.UpdateInvoiceStatus(ctx, managerID, invoiceID, "UNPAID")
@@ -216,17 +217,17 @@ func (s *InvoiceServiceImpl) UnpayInvoice(ctx context.Context, managerID, invoic
 			Period:  invoice.Period,
 		})
 	}
-	return res, err
+	return res, apperr.Service("UnpayInvoice", err)
 }
 
 func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoiceID string) error {
 	invoice, err := s.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 	if err != nil {
-		return err
+		return apperr.Service("DeleteInvoice", err)
 	}
 
 	if invoice.Status == "PAID" {
-		return model.ErrPaidInvoiceDelete
+		return apperr.Service("DeleteInvoice", model.ErrPaidInvoiceDelete)
 	}
 
 	err = s.invoiceRepo.DeleteInvoice(ctx, managerID, invoiceID)
@@ -236,24 +237,24 @@ func (s *InvoiceServiceImpl) DeleteInvoice(ctx context.Context, managerID, invoi
 			Period:  invoice.Period,
 		})
 	}
-	return err
+	return apperr.Service("DeleteInvoice", err)
 }
 
 // ResolveTransactionImagePath verifies invoice ownership before returning a local upload path.
 func (s *InvoiceServiceImpl) ResolveTransactionImagePath(ctx context.Context, managerID, requestPath string) (string, error) {
 	fileName, ok := shared.UploadFileName(requestPath)
 	if !ok {
-		return "", shared.ErrInvalidInput
+		return "", apperr.Service("ResolveTransactionImagePath", shared.ErrInvalidInput)
 	}
 
 	storedPath := "/uploads/transactions/" + fileName
 	if _, err := s.invoiceRepo.GetInvoiceByTransactionImagePath(ctx, managerID, storedPath); err != nil {
-		return "", err
+		return "", apperr.Service("ResolveTransactionImagePath", err)
 	}
 
 	filePath, ok := shared.UploadFilePath("uploads/transactions", fileName)
 	if !ok {
-		return "", shared.ErrInvalidInput
+		return "", apperr.Service("ResolveTransactionImagePath", shared.ErrInvalidInput)
 	}
 	return filePath, nil
 }
@@ -286,15 +287,15 @@ func (e *RecalculationError) Unwrap() error { return e.Cause }
 func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context, managerID, roomID string) error {
 	room, err := s.roomRepo.GetRoomByIDForManager(ctx, managerID, roomID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByRoom", err)
 	}
 	house, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByRoom", err)
 	}
 	invoices, err := s.invoiceRepo.GetUnpaidInvoicesByRoomID(ctx, roomID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByRoom", err)
 	}
 	return s.recalculateInvoices(ctx, managerID, house, map[string]*model.Room{room.ID: room}, invoices)
 }
@@ -302,15 +303,15 @@ func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByRoom(ctx context.Context
 func (s *InvoiceServiceImpl) RecalculateUnpaidInvoicesByHouse(ctx context.Context, managerID, houseID string) error {
 	house, err := s.houseRepo.GetByID(ctx, houseID, managerID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByHouse", err)
 	}
 	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, houseID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByHouse", err)
 	}
 	invoices, err := s.invoiceRepo.GetUnpaidInvoicesByHouseID(ctx, managerID, houseID)
 	if err != nil {
-		return err
+		return apperr.Service("RecalculateUnpaidInvoicesByHouse", err)
 	}
 	byID := make(map[string]*model.Room, len(rooms))
 	for i := range rooms {
@@ -390,25 +391,25 @@ func (s *InvoiceServiceImpl) calculateInvoice(room *model.Room, house *model.Hou
 	// Calculate electricity fee based on billing type
 	elecFee, err := s.calculateUtilityFee(house.ElectricityBillingType, house.ElectricityBillingUnit, elecPrice, input.NewElectricityIndex, oldElecIndex, tenantCountInt)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("calculateInvoice", err)
 	}
 
 	// Calculate water fee based on billing type
 	waterFee, err := s.calculateUtilityFee(house.WaterBillingType, house.WaterBillingUnit, waterPrice, input.NewWaterIndex, oldWaterIndex, tenantCountInt)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("calculateInvoice", err)
 	}
 
 	if house.ElectricityBillingType == "FIXED" {
 		input.NewElectricityIndex = oldElecIndex
 	} else if input.NewElectricityIndex < oldElecIndex {
-		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex)
+		return nil, apperr.Service("calculateInvoice", fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidElectricityIndex, oldElecIndex))
 	}
 
 	if house.WaterBillingType == "FIXED" {
 		input.NewWaterIndex = oldWaterIndex
 	} else if input.NewWaterIndex < oldWaterIndex {
-		return nil, fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex)
+		return nil, apperr.Service("calculateInvoice", fmt.Errorf("%w (số cũ: %d)", model.ErrInvalidWaterIndex, oldWaterIndex))
 	}
 
 	roomFee := float64(room.Price)

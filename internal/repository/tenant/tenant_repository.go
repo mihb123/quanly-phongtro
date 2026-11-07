@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/lib/pq"
@@ -25,7 +26,7 @@ func NewTenantRepository(db *bun.DB) *TenantRepository {
 func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *model.User, tenant *model.Tenant) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tenant registration transaction: %w", err)
+		return apperr.Repo("CreateTenantWithAccount", fmt.Errorf("begin tenant registration transaction: %w", err))
 	}
 
 	_, err = tx.NewInsert().
@@ -68,7 +69,7 @@ func (r *TenantRepository) CreateTenantWithAccount(ctx context.Context, user *mo
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit tenant registration transaction: %w", err)
+		return apperr.Repo("CreateTenantWithAccount", fmt.Errorf("commit tenant registration transaction: %w", err))
 	}
 	return nil
 }
@@ -82,7 +83,7 @@ func (r *TenantRepository) AssignRoom(ctx context.Context, tenant *model.Tenant)
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("assign room: %w", err)
+		return apperr.Repo("AssignRoom", fmt.Errorf("assign room: %w", err))
 	}
 	return nil
 }
@@ -95,7 +96,7 @@ func (r *TenantRepository) GetCurrentNumTenantInRoom(ctx context.Context, roomID
 		Count(ctx)
 
 	if err != nil {
-		return 0, fmt.Errorf("get current num tenant in room: %w", err)
+		return 0, apperr.Repo("GetCurrentNumTenantInRoom", fmt.Errorf("get current num tenant in room: %w", err))
 	}
 	return int64(count), nil
 }
@@ -118,7 +119,7 @@ func (r *TenantRepository) ListTenantByRoomID(ctx context.Context, managerID, ro
 		Scan(ctx, &tenants)
 
 	if err != nil {
-		return nil, fmt.Errorf("list tenant by room id: %w", err)
+		return nil, apperr.Repo("ListTenantByRoomID", fmt.Errorf("list tenant by room id: %w", err))
 	}
 
 	for i := range tenants {
@@ -154,7 +155,7 @@ func (r *TenantRepository) ListTenantByHouseID(ctx context.Context, managerID, h
 		Scan(ctx, &tenants)
 
 	if err != nil {
-		return nil, fmt.Errorf("list tenant by house id: %w", err)
+		return nil, apperr.Repo("ListTenantByHouseID", fmt.Errorf("list tenant by house id: %w", err))
 	}
 
 	for i := range tenants {
@@ -204,7 +205,7 @@ func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, 
 		ColumnExpr("COUNT(DISTINCT rm.house_id) AS houses").
 		Scan(ctx, &summary)
 	if err != nil {
-		return nil, nil, fmt.Errorf("summarize tenants: %w", err)
+		return nil, nil, apperr.Repo("SearchTenants", fmt.Errorf("summarize tenants: %w", err))
 	}
 
 	tenants := []model.FullInfoTenant{}
@@ -224,7 +225,7 @@ func (r *TenantRepository) SearchTenants(ctx context.Context, managerID string, 
 		Offset(filter.Offset).
 		Scan(ctx, &tenants)
 	if err != nil {
-		return nil, nil, fmt.Errorf("search tenants: %w", err)
+		return nil, nil, apperr.Repo("SearchTenants", fmt.Errorf("search tenants: %w", err))
 	}
 
 	for i := range tenants {
@@ -254,12 +255,12 @@ func (r *TenantRepository) GetTenantByID(ctx context.Context, managerID, tenantI
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("GetTenantByID", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("get tenant by id: %w", err)
+		return nil, apperr.Repo("GetTenantByID", fmt.Errorf("get tenant by id: %w", err))
 	}
 	if ft.ManagerID != managerID {
-		return nil, model.ErrUnauthorized
+		return nil, apperr.Repo("GetTenantByID", model.ErrUnauthorized)
 	}
 
 	if ft.StartDate != "" {
@@ -302,9 +303,9 @@ func (r *TenantRepository) UpdateTenant(ctx context.Context, tenantID string, in
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("UpdateTenant", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("update tenant: %w", err)
+		return nil, apperr.Repo("UpdateTenant", fmt.Errorf("update tenant: %w", err))
 	}
 	return &tenant, nil
 }
@@ -320,12 +321,12 @@ func (r *TenantRepository) VerifyTenantOwnership(ctx context.Context, managerID,
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.ErrTenantNotFound
+			return apperr.Repo("VerifyTenantOwnership", model.ErrTenantNotFound)
 		}
-		return fmt.Errorf("verify tenant ownership: %w", err)
+		return apperr.Repo("VerifyTenantOwnership", fmt.Errorf("verify tenant ownership: %w", err))
 	}
 	if storedManagerID != managerID {
-		return model.ErrUnauthorized
+		return apperr.Repo("VerifyTenantOwnership", model.ErrUnauthorized)
 	}
 	return nil
 }
@@ -344,9 +345,9 @@ func (r *TenantRepository) DeleteTenant(ctx context.Context, tenantID string) (s
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", model.ErrTenantNotFound
+			return "", apperr.Repo("DeleteTenant", model.ErrTenantNotFound)
 		}
-		return "", fmt.Errorf("delete tenant: %w", err)
+		return "", apperr.Repo("DeleteTenant", fmt.Errorf("delete tenant: %w", err))
 	}
 	return roomID, nil
 }
@@ -361,9 +362,9 @@ func (r *TenantRepository) getTenantRecordByID(ctx context.Context, tenantID str
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("getTenantRecordByID", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("get tenant record by id: %w", err)
+		return nil, apperr.Repo("getTenantRecordByID", fmt.Errorf("get tenant record by id: %w", err))
 	}
 	return &tenant, nil
 }
@@ -382,9 +383,9 @@ func (r *TenantRepository) GetTenantByPhoneAndManager(ctx context.Context, manag
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("GetTenantByPhoneAndManager", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("get tenant by phone: %w", err)
+		return nil, apperr.Repo("GetTenantByPhoneAndManager", fmt.Errorf("get tenant by phone: %w", err))
 	}
 	return &tenant, nil
 }
@@ -410,9 +411,9 @@ func (r *TenantRepository) GetFirstTenantByUserID(ctx context.Context, managerID
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("GetFirstTenantByUserID", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("get first tenant by user id: %w", err)
+		return nil, apperr.Repo("GetFirstTenantByUserID", fmt.Errorf("get first tenant by user id: %w", err))
 	}
 
 	if ft.StartDate != "" {
@@ -447,9 +448,9 @@ func (r *TenantRepository) GetTenantByFilePath(ctx context.Context, managerID, f
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrTenantNotFound
+			return nil, apperr.Repo("GetTenantByFilePath", model.ErrTenantNotFound)
 		}
-		return nil, fmt.Errorf("get tenant by file path: %w", err)
+		return nil, apperr.Repo("GetTenantByFilePath", fmt.Errorf("get tenant by file path: %w", err))
 	}
 
 	return &ft, nil
@@ -458,15 +459,15 @@ func (r *TenantRepository) GetTenantByFilePath(ctx context.Context, managerID, f
 // rollbackTenantTx rolls back a tenant transaction and preserves the original cause.
 func rollbackTenantTx(tx bun.Tx, cause error, operation string) error {
 	if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-		return fmt.Errorf("%s: %w; rollback tenant transaction: %v", operation, cause, err)
+		return apperr.Repo("rollbackTenantTx", fmt.Errorf("%s: %w; rollback tenant transaction: %w", operation, cause, err))
 	}
-	return fmt.Errorf("%s: %w", operation, cause)
+	return apperr.Repo("rollbackTenantTx", fmt.Errorf("%s: %w", operation, cause))
 }
 
 // translateCreateUserError maps database user insert errors to domain errors.
 func translateCreateUserError(err error) error {
 	if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" && strings.Contains(pqErr.Constraint, "users_email") {
-		return model.ErrAlreadyExists
+		return apperr.Repo("translateCreateUserError", model.ErrAlreadyExists)
 	}
-	return err
+	return apperr.Repo("translateCreateUserError", err)
 }

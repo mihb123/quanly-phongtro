@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 const (
@@ -60,32 +62,32 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 	chatID := commandChatID(webhookCtx)
 	house, err := s.houseRepo.GetByID(ctx, req.Room.HouseID, managerID)
 	if err != nil {
-		return utilityUpdateResult{}, false, err
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 	}
 
 	if utilityNeedsReading(req.UtilityType, house) && !req.HasNewIndex {
-		return utilityUpdateResult{}, false, fmt.Errorf("vui lòng nhập chỉ số %s mới", utilityLabel(req.UtilityType))
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", fmt.Errorf("vui lòng nhập chỉ số %s mới", utilityLabel(req.UtilityType)))
 	}
 
 	resolution, err := s.resolvePeriod(ctx, req.Room.ID, req.UtilityType, house, req.ForcedPeriod)
 	if err != nil {
-		return utilityUpdateResult{}, false, err
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 	}
 	if resolution.NeedsSelection {
 		if err := s.createPeriodPending(ctx, managerID, webhookCtx, req, resolution.Options); err != nil {
-			return utilityUpdateResult{}, false, err
+			return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 		}
 		return utilityUpdateResult{}, true, s.sendTextMessage(ctx, managerID, chatID, periodSelectionMessage(req.Room.Name, resolution.Options))
 	}
 
 	existingInvoice, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, req.Room.ID, resolution.Period)
 	if err != nil && !errors.Is(err, model.ErrInvoiceNotFound) {
-		return utilityUpdateResult{}, false, err
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 	}
 	if existingInvoice != nil && shouldConfirmOverwrite(existingInvoice, house, req) {
 		if !req.AllowOverwrite {
 			if err := s.createOverwritePending(ctx, managerID, webhookCtx, req, resolution.Period, existingInvoice); err != nil {
-				return utilityUpdateResult{}, false, err
+				return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 			}
 			message := overwriteConfirmMessage(resolution.Period, req.UtilityType, existingUtilityValue(existingInvoice, req.UtilityType), req.NewIndex)
 			return utilityUpdateResult{}, true, s.sendTextMessage(ctx, managerID, chatID, message)
@@ -94,7 +96,7 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 
 	input, oldIndex, err := s.buildInvoiceInput(ctx, req, resolution.Period, existingInvoice)
 	if err != nil {
-		return utilityUpdateResult{}, false, err
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 	}
 	invoice, err := s.invoiceService.CreateInvoice(ctx, managerID, input)
 	if err != nil {
@@ -111,7 +113,7 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 			msg := fmt.Sprintf("%s\nVui lòng nhập lại bằng cú pháp: #%s <số đúng> hoặc #huy để hủy.", err.Error(), req.UtilityType)
 			return utilityUpdateResult{}, true, s.sendTextMessage(ctx, managerID, chatID, msg)
 		}
-		return utilityUpdateResult{}, false, err
+		return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 	}
 
 	result := utilityUpdateResult{
@@ -126,7 +128,7 @@ func (s *zaloInvoiceCommandServiceImpl) applyUtilityUpdate(ctx context.Context, 
 
 	if !result.Complete {
 		if err := s.createAwaitUtilityPending(ctx, managerID, webhookCtx, req, result); err != nil {
-			return utilityUpdateResult{}, false, err
+			return utilityUpdateResult{}, false, apperr.Service("applyUtilityUpdate", err)
 		}
 	}
 
@@ -151,7 +153,7 @@ func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType st
 		month := shiftMonth(now, offset)
 		invoice, err := lookup(month.Format(invoicePeriodLayout))
 		if err != nil {
-			return periodResolution{}, err
+			return periodResolution{}, apperr.Service("resolvePeriodAt", err)
 		}
 		if invoice != nil && invoice.Status != model.InvoiceStatusPaid && invoiceMissesUtility(invoice, utilityType, house) {
 			return periodResolution{Period: invoice.Period}, nil
@@ -160,7 +162,7 @@ func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType st
 
 	current, err := lookup(shiftMonth(now, 0).Format(invoicePeriodLayout))
 	if err != nil {
-		return periodResolution{}, err
+		return periodResolution{}, apperr.Service("resolvePeriodAt", err)
 	}
 	if current != nil && now.Day() >= lateMonthStartDay {
 		return periodResolution{Period: shiftMonth(now, 1).Format(invoicePeriodLayout)}, nil
@@ -168,7 +170,7 @@ func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType st
 	if current == nil {
 		previous, err := lookup(shiftMonth(now, -1).Format(invoicePeriodLayout))
 		if err != nil {
-			return periodResolution{}, err
+			return periodResolution{}, apperr.Service("resolvePeriodAt", err)
 		}
 		if previous != nil {
 			return periodResolution{Period: shiftMonth(now, 0).Format(invoicePeriodLayout)}, nil
@@ -178,7 +180,7 @@ func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType st
 	// --- 2. FOLLOW A KNOWN MONTHLY CADENCE ---
 	regular, err := hasRegularInvoiceHistory(lookup, now)
 	if err != nil {
-		return periodResolution{}, err
+		return periodResolution{}, apperr.Service("resolvePeriodAt", err)
 	}
 	if regular {
 		return periodResolution{Period: shiftMonth(now, 0).Format(invoicePeriodLayout)}, nil
@@ -190,7 +192,7 @@ func resolvePeriodAt(lookup func(string) (*model.Invoice, error), utilityType st
 		month := shiftMonth(now, offset)
 		invoice, err := lookup(month.Format(invoicePeriodLayout))
 		if err != nil {
-			return periodResolution{}, err
+			return periodResolution{}, apperr.Service("resolvePeriodAt", err)
 		}
 		if invoice == nil {
 			options[strconv.Itoa(int(month.Month()))] = month.Format(invoicePeriodLayout)
@@ -215,7 +217,7 @@ func (s *zaloInvoiceCommandServiceImpl) invoiceLookup(ctx context.Context, roomI
 		invoice, err := s.invoiceRepo.GetInvoiceByRoomAndPeriod(ctx, roomID, period)
 		if err != nil {
 			if !errors.Is(err, model.ErrInvoiceNotFound) {
-				return nil, err
+				return nil, apperr.Service("invoiceLookup", err)
 			}
 			invoice = nil
 		}
@@ -230,7 +232,7 @@ func hasRegularInvoiceHistory(lookup func(string) (*model.Invoice, error), now t
 	for offset := 1; offset <= regularInvoiceHistoryMonths; offset++ {
 		invoice, err := lookup(shiftMonth(now, -offset).Format(invoicePeriodLayout))
 		if err != nil {
-			return false, err
+			return false, apperr.Service("hasRegularInvoiceHistory", err)
 		}
 		if invoice == nil {
 			return false, nil
@@ -257,7 +259,7 @@ func invoiceMissesUtility(invoice *model.Invoice, utilityType string, house *mod
 func (s *zaloInvoiceCommandServiceImpl) buildInvoiceInput(ctx context.Context, req utilityUpdateRequest, period string, existingInvoice *model.Invoice) (invoicesvc.CreateInvoiceInput, int, error) {
 	previousInvoice, err := s.invoiceRepo.GetPreviousInvoice(ctx, req.Room.ID, period)
 	if err != nil && !errors.Is(err, model.ErrInvoiceNotFound) {
-		return invoicesvc.CreateInvoiceInput{}, 0, err
+		return invoicesvc.CreateInvoiceInput{}, 0, apperr.Service("buildInvoiceInput", err)
 	}
 
 	oldElectricityIndex := 0
@@ -368,17 +370,17 @@ func (s *zaloInvoiceCommandServiceImpl) respondAfterBatchUpdate(ctx context.Cont
 func (s *zaloInvoiceCommandServiceImpl) sendTextMessage(ctx context.Context, managerID, chatID, text string) error {
 	_, botToken, err := getDecryptedZaloToken(ctx, s.userRepo, managerID, s.encryptionKey)
 	if err != nil {
-		return err
+		return apperr.Service("sendTextMessage", err)
 	}
 	if err := s.zaloClient.SendMessage(ctx, botToken, chatID, text); err != nil {
 		if zalobot.IsAuthError(err) {
 			inactive := false
 			if _, updateErr := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{IsZaloBotActive: &inactive}); updateErr != nil {
-				return fmt.Errorf("mark zalo bot token inactive: %w", updateErr)
+				return apperr.Service("sendTextMessage", fmt.Errorf("mark zalo bot token inactive: %w", updateErr))
 			}
-			return fmt.Errorf("zalo bot token is invalid or expired")
+			return apperr.Service("sendTextMessage", fmt.Errorf("zalo bot token is invalid or expired"))
 		}
-		return err
+		return apperr.Service("sendTextMessage", err)
 	}
 	return nil
 }
@@ -398,7 +400,7 @@ func (s *zaloInvoiceCommandServiceImpl) deliverInvoice(ctx context.Context, mana
 		markTokenInactive: func(ctx context.Context, managerID string) {
 			inactive := false
 			if _, err := s.userRepo.UpdateUser(ctx, managerID, model.UpdateUserInput{IsZaloBotActive: &inactive}); err != nil {
-				logger.Error(nil, 0, "mark zalo bot token inactive failed", err)
+				logging.RecordWarning(ctx, "mark zalo bot token inactive failed", err)
 			}
 		},
 	}, managerID, invoiceID)
@@ -511,7 +513,7 @@ func oppositeUtility(utilityType string) string {
 func addMonthToPeriod(period string) (string, error) {
 	parsed, err := time.Parse("2006-01", period)
 	if err != nil {
-		return "", fmt.Errorf("invalid invoice period %q: %w", period, err)
+		return "", apperr.Service("addMonthToPeriod", fmt.Errorf("invalid invoice period %q: %w", period, err))
 	}
 	return parsed.AddDate(0, 1, 0).Format("2006-01"), nil
 }

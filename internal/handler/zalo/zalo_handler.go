@@ -7,12 +7,13 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	zalosvc "github.com/mihb123/quanly-phongtro/internal/service/zalo"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
@@ -29,7 +30,7 @@ func NewZaloHandler(zaloService zalosvc.ZaloService, appURL string) *ZaloHandler
 	// Generate RSA key pair for frontend transport encryption
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Fatalf("failed to generate RSA key for ZaloHandler: %v", err)
+		panic(fmt.Sprintf("generate RSA key for ZaloHandler: %v", err))
 	}
 
 	return &ZaloHandler{
@@ -90,7 +91,7 @@ func (h *ZaloHandler) SaveConfig(w http.ResponseWriter, r *http.Request) {
 	webhookURL := h.appURL + "/api/v1/zalo/webhooks/" + managerID
 
 	if err := h.zaloService.SaveZaloConfig(r.Context(), managerID, botToken, webhookURL, secretToken); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -110,7 +111,7 @@ func (h *ZaloHandler) GetConfigStatus(w http.ResponseWriter, r *http.Request) {
 
 	hasConfig, err := h.zaloService.GetZaloConfigStatus(r.Context(), managerID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -141,8 +142,8 @@ func (h *ZaloHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.zaloService.HandleWebhook(r.Context(), managerID, body, secretTokenHeader); err != nil {
-		// Log the error but return 200 OK to Zalo so it doesn't retry
-		log.Printf("Webhook error for manager %s: %v", managerID, err)
+		// Trả 200 để Zalo không gửi lại; lỗi chỉ gắn vào dòng log của request.
+		httpx.NoteError(r, err)
 		w.WriteHeader(http.StatusOK)
 		return
 	}
@@ -168,7 +169,7 @@ func (h *ZaloHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.zaloService.SendTextMessage(r.Context(), managerID, req.ChatID, req.Text); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -190,7 +191,7 @@ func (h *ZaloHandler) SendInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.zaloService.SendInvoiceToZalo(r.Context(), managerID, invoiceID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpx.Fail(w, r, err)
 		return
 	}
 

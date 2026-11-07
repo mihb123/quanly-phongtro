@@ -11,14 +11,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 )
 
@@ -71,7 +73,7 @@ type sePayConfigRequest struct {
 func NewPaymentHandler(paymentService paymentsvc.PaymentService, credentialService paymentsvc.PaymentCredentialService, appURL string) *PaymentHandler {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		log.Fatalf("failed to generate RSA key for PaymentHandler: %v", err)
+		panic(fmt.Sprintf("generate RSA key for PaymentHandler: %v", err))
 	}
 
 	return &PaymentHandler{
@@ -115,7 +117,7 @@ func (h *PaymentHandler) GetPayOSConfig(w http.ResponseWriter, r *http.Request) 
 
 	status, err := h.credentialService.GetPayOSConfig(r.Context(), managerID, h.appURL)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeJSONOK(w, status)
@@ -134,7 +136,7 @@ func (h *PaymentHandler) SavePayOSConfig(w http.ResponseWriter, r *http.Request)
 	}
 	credentials, err := h.decryptPayOSConfig(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		failText(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 	if credentials.ClientID == "" || credentials.APIKey == "" || credentials.ChecksumKey == "" {
@@ -143,7 +145,7 @@ func (h *PaymentHandler) SavePayOSConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.credentialService.SavePayOSConfig(r.Context(), managerID, credentials); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeConfigSuccess(w)
@@ -156,7 +158,7 @@ func (h *PaymentHandler) DeletePayOSConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := h.credentialService.DeletePayOSConfig(r.Context(), managerID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeConfigSuccess(w)
@@ -171,7 +173,7 @@ func (h *PaymentHandler) GetSePayConfig(w http.ResponseWriter, r *http.Request) 
 
 	status, err := h.credentialService.GetSePayConfig(r.Context(), managerID, h.appURL)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeJSONOK(w, status)
@@ -191,13 +193,12 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 
 	credentials, err := h.decryptSePayConfig(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		failText(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 	existing, err := h.credentialService.GetSePayCredentials(r.Context(), managerID)
 	if err != nil {
-		log.Printf("GetSePayCredentials error: %v", err)
-		http.Error(w, "failed to load existing SePay config", http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, "failed to load existing SePay config", err)
 		return
 	}
 	if existing != nil {
@@ -205,13 +206,13 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 	}
 	credentials.Environment = sepay.NormalizeEnvironment(credentials.Environment)
 	if err := credentials.Validate(); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		failText(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
 	verifiedAccount, err := h.verifySePayBankAccount(r.Context(), credentials)
 	if err != nil {
-		log.Printf("VerifySePayBankAccount error: %v", err)
+		logging.RecordError(r.Context(), err)
 		writeJSONError(w, http.StatusBadRequest, "Không thể xác thực tài khoản trong danh sách đã liên kết với SePay")
 		return
 	}
@@ -222,8 +223,7 @@ func (h *PaymentHandler) SaveSePayConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.credentialService.SaveSePayConfig(r.Context(), managerID, credentials); err != nil {
-		log.Printf("SaveSePayConfig error: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	response := map[string]any{"success": true, "bank_account_verified": verifiedAccount != nil}
@@ -240,7 +240,7 @@ func (h *PaymentHandler) DeleteSePayConfig(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := h.credentialService.DeleteSePayConfig(r.Context(), managerID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeConfigSuccess(w)
@@ -278,10 +278,10 @@ func (h *PaymentHandler) ReconcileSePay(w http.ResponseWriter, r *http.Request) 
 	result, err := h.reconciler.ReconcileManager(r.Context(), managerID, dateFrom, dateTo)
 	if err != nil {
 		if errors.Is(err, paymentsvc.ErrPaymentCredentialsNotFound) {
-			http.Error(w, "sepay credentials not found", http.StatusBadRequest)
+			failText(w, r, http.StatusBadRequest, "sepay credentials not found", err)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		failText(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, err)
 		return
 	}
 	writeJSONOK(w, result)
@@ -326,12 +326,11 @@ func (h *PaymentHandler) handleWebhook(w http.ResponseWriter, r *http.Request, p
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("Failed to read payment webhook body: %v", err)
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		failText(w, r, http.StatusBadRequest, "invalid body", err)
 		return
 	}
 	if err := h.paymentService.HandleWebhook(r.Context(), provider, managerID, body, r.Header); err != nil {
-		log.Printf("Error processing %s webhook: %v", provider, err)
+		logging.RecordError(r.Context(), err)
 		switch {
 		case errors.Is(err, paymentsvc.ErrPayOSVerifiedDataNil), errors.Is(err, paymentsvc.ErrPaymentWebhookInvalid):
 			http.Error(w, "invalid webhook", http.StatusBadRequest)
@@ -460,9 +459,8 @@ func writeJSONOK(w http.ResponseWriter, v any) {
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(map[string]string{"message": message}); err != nil {
-		log.Printf("Failed to write JSON error response: %v", err)
-	}
+	// Lỗi ghi response = client đã ngắt kết nối, không còn gì để xử lý.
+	_ = json.NewEncoder(w).Encode(map[string]string{"message": message})
 }
 
 // writeConfigSuccess writes the {"success": true} acknowledgement used by config save/delete handlers.
@@ -484,9 +482,7 @@ func authenticatedManagerID(w http.ResponseWriter, r *http.Request) (string, boo
 func writePaymentWebhookSuccess(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(`{"success": true}`)); err != nil {
-		log.Printf("Failed to write payment webhook response: %v", err)
-	}
+	_, _ = w.Write([]byte(`{"success": true}`)) // lỗi ghi = client đã ngắt kết nối
 }
 
 // writePaymentRedirectText renders provider redirect data without updating payment state.
@@ -502,9 +498,7 @@ func writePaymentRedirectText(w http.ResponseWriter, r *http.Request, message st
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	if _, err := w.Write([]byte(strings.Join(lines, "\n") + "\n")); err != nil {
-		log.Printf("Failed to write payment redirect response: %v", err)
-	}
+	_, _ = w.Write([]byte(strings.Join(lines, "\n") + "\n")) // lỗi ghi = client đã ngắt kết nối
 }
 
 // appendPaymentRedirectParam adds a returned provider query param when it is present.
@@ -513,4 +507,11 @@ func appendPaymentRedirectParam(lines []string, label, value string) []string {
 		return lines
 	}
 	return append(lines, label+": "+value)
+}
+
+// failText trả lỗi dạng text/plain (format cũ mà frontend Settings đang đọc) và ghi err
+// vào dòng log của request. Lỗi 5xx luôn dùng thông điệp chung.
+func failText(w http.ResponseWriter, r *http.Request, status int, message string, err error) {
+	logging.RecordError(r.Context(), err)
+	http.Error(w, message, status)
 }

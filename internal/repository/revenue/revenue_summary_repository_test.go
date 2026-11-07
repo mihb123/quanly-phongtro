@@ -10,6 +10,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/repository/repotest"
 	"github.com/mihb123/quanly-phongtro/internal/repository/revenue"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 )
 
 func TestRevenueSummaryRepository_Upsert(t *testing.T) {
@@ -67,7 +68,7 @@ func TestRevenueSummaryRepository_GetByHouseAndPeriod(t *testing.T) {
 
 	mock.ExpectQuery(`SELECT .* FROM "house_revenue_summaries"`).WillReturnError(sql.ErrNoRows)
 	_, err = repo.GetByHouseAndPeriod(ctx, "house-1", "2023-11")
-	if err == nil || err.Error() != "revenue summary not found" {
+	if err == nil || apperr.Message(err) != "revenue summary not found" {
 		t.Errorf("expected revenue summary not found, got %v", err)
 	}
 

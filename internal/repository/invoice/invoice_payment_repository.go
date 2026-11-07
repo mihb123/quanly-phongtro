@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -29,7 +30,7 @@ func (r *InvoicePaymentRepository) CreatePaymentLink(ctx context.Context, link *
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("create payment link: %w", err)
+		return apperr.Repo("CreatePaymentLink", fmt.Errorf("create payment link: %w", err))
 	}
 	return nil
 }
@@ -55,7 +56,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentLinkByProvider(ctx context.Co
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("get active payment link: %w", err)
+		return nil, apperr.Repo("GetActivePaymentLinkByProvider", fmt.Errorf("get active payment link: %w", err))
 	}
 	return &link, nil
 }
@@ -69,7 +70,7 @@ func (r *InvoicePaymentRepository) UpdatePaymentLinkStatus(ctx context.Context, 
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("update payment link status: %w", err)
+		return apperr.Repo("UpdatePaymentLinkStatus", fmt.Errorf("update payment link status: %w", err))
 	}
 	return nil
 }
@@ -87,7 +88,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByOrderCode(ctx context.Context
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("get payment link by order code: %w", err)
+		return nil, apperr.Repo("GetPaymentLinkByOrderCode", fmt.Errorf("get payment link by order code: %w", err))
 	}
 	return &link, nil
 }
@@ -104,7 +105,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRef(ctx context.
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("get payment link by provider order ref: %w", err)
+		return nil, apperr.Repo("GetPaymentLinkByProviderOrderRef", fmt.Errorf("get payment link by provider order ref: %w", err))
 	}
 	return &link, nil
 }
@@ -126,7 +127,7 @@ func (r *InvoicePaymentRepository) GetPaymentLinkByProviderOrderRefForManager(ct
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("get manager payment link by provider order ref: %w", err)
+		return nil, apperr.Repo("GetPaymentLinkByProviderOrderRefForManager", fmt.Errorf("get manager payment link by provider order ref: %w", err))
 	}
 	return &link, nil
 }
@@ -149,7 +150,7 @@ func (r *InvoicePaymentRepository) MarkActivePaymentLinksStaleByManager(ctx cont
 		).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("mark active payment links stale by manager: %w", err)
+		return apperr.Repo("MarkActivePaymentLinksStaleByManager", fmt.Errorf("mark active payment links stale by manager: %w", err))
 	}
 	return nil
 }
@@ -163,7 +164,7 @@ func (r *InvoicePaymentRepository) CreatePaymentEvent(ctx context.Context, event
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("create payment event: %w", err)
+		return apperr.Repo("CreatePaymentEvent", fmt.Errorf("create payment event: %w", err))
 	}
 	return nil
 }
@@ -183,7 +184,7 @@ func (r *InvoicePaymentRepository) CheckProviderEventExists(ctx context.Context,
 		Exists(ctx)
 
 	if err != nil {
-		return false, fmt.Errorf("check event exists: %w", err)
+		return false, apperr.Repo("CheckProviderEventExists", fmt.Errorf("check event exists: %w", err))
 	}
 	return exists, nil
 }
@@ -202,7 +203,7 @@ func (r *InvoicePaymentRepository) GetActivePaymentProviderCredential(ctx contex
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("get payment provider credential: %w", err)
+		return nil, apperr.Repo("GetActivePaymentProviderCredential", fmt.Errorf("get payment provider credential: %w", err))
 	}
 	return &credential, nil
 }
@@ -220,7 +221,7 @@ func (r *InvoicePaymentRepository) UpsertPaymentProviderCredential(ctx context.C
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("upsert payment provider credential: %w", err)
+		return apperr.Repo("UpsertPaymentProviderCredential", fmt.Errorf("upsert payment provider credential: %w", err))
 	}
 	return nil
 }
@@ -236,7 +237,7 @@ func (r *InvoicePaymentRepository) DeletePaymentProviderCredential(ctx context.C
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("delete payment provider credential: %w", err)
+		return apperr.Repo("DeletePaymentProviderCredential", fmt.Errorf("delete payment provider credential: %w", err))
 	}
 	return nil
 }
@@ -244,7 +245,7 @@ func (r *InvoicePaymentRepository) DeletePaymentProviderCredential(ctx context.C
 func (r *InvoicePaymentRepository) WithinPaymentTransaction(ctx context.Context, key string, fn func(context.Context) error) error {
 	return database.WithinTransaction(ctx, r.db, func(ctx context.Context) error {
 		if _, err := database.Executor(ctx, r.db).ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key); err != nil {
-			return err
+			return apperr.Repo("WithinPaymentTransaction", err)
 		}
 		return fn(ctx)
 	})

@@ -8,13 +8,13 @@ import (
 	"time"
 
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	tenantsvc "github.com/mihb123/quanly-phongtro/internal/service/tenant"
 )
 
@@ -97,22 +97,19 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 	// Prevent DoS: Limit total request body size to 15MB
 	r.Body = http.MaxBytesReader(w, r.Body, 15<<20)
 	err = r.ParseMultipartForm(10 << 20) // 10MB limit for files in RAM
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid multipart form", err)
 		return
 	}
 
@@ -139,16 +136,14 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
 	var startDate time.Time
 	startDate, err = time.Parse("2006-01-02", startDateStr)
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid start date", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 	cccdFiles := r.MultipartForm.File["cccd_file"]
@@ -173,17 +168,13 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrMaxTenans):
-			logger.Warn(r, http.StatusBadRequest, "room is full", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, sharedsvc.ErrInvalidInput):
-			logger.Warn(r, http.StatusBadRequest, "invalid input", err)
-			httpx.WriteError(w, http.StatusBadRequest, "invalid input")
+			httpx.FailWith(w, r, http.StatusBadRequest, "invalid input", err)
 		case errors.Is(err, model.ErrPhoneAlreadyExists):
-			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to register tenant", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -195,21 +186,18 @@ func (h *TenantHandler) RegisterTenant(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	managerID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 	roomID := chi.URLParam(r, "id")
 	listTenant, err := h.tenantService.ListTenantByRoomID(r.Context(), managerID, roomID)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to get list of tenants by room ID", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
@@ -218,21 +206,18 @@ func (h *TenantHandler) ListTenantByRoomID(w http.ResponseWriter, r *http.Reques
 func (h *TenantHandler) ListTenantByHouseID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	managerID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 	houseID := chi.URLParam(r, "id")
 	listTenant, err := h.tenantService.ListTenantByHouseID(r.Context(), managerID, houseID)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to get list of tenants by house ID", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, newTenantResponses(listTenant), "")
@@ -274,8 +259,7 @@ func (h *TenantHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusNotFound, "house not found")
 			return
 		}
-		logger.Error(r, http.StatusInternalServerError, "failed to search tenants", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -292,14 +276,12 @@ func (h *TenantHandler) ListTenants(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	managerID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -308,8 +290,7 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	// Prevent DoS: Limit total request body size to 15MB
 	r.Body = http.MaxBytesReader(w, r.Body, 15<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid multipart form", err)
 		return
 	}
 
@@ -339,8 +320,7 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "update validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -361,17 +341,13 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrTenantNotFound):
-			logger.Warn(r, http.StatusNotFound, "tenant not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "tenant not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "tenant not found", err)
 		case errors.Is(err, model.ErrUnauthorized):
-			logger.Warn(r, http.StatusForbidden, "manager does not own tenant", err)
-			httpx.WriteError(w, http.StatusForbidden, "forbidden: you do not manage this tenant")
+			httpx.FailWith(w, r, http.StatusForbidden, "forbidden: you do not manage this tenant", err)
 		case errors.Is(err, model.ErrPhoneAlreadyExists):
-			logger.Warn(r, http.StatusBadRequest, "phone already exists", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to update tenant", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -382,14 +358,12 @@ func (h *TenantHandler) UpdateTenantInfo(w http.ResponseWriter, r *http.Request)
 func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	managerID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -398,14 +372,11 @@ func (h *TenantHandler) DeleteTenant(w http.ResponseWriter, r *http.Request) {
 	if err := h.tenantService.DeleteTenant(r.Context(), managerID, tenantID); err != nil {
 		switch {
 		case errors.Is(err, model.ErrTenantNotFound):
-			logger.Warn(r, http.StatusNotFound, "tenant not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "tenant not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "tenant not found", err)
 		case errors.Is(err, model.ErrUnauthorized):
-			logger.Warn(r, http.StatusForbidden, "manager does not own tenant", err)
-			httpx.WriteError(w, http.StatusForbidden, "forbidden: you do not manage this tenant")
+			httpx.FailWith(w, r, http.StatusForbidden, "forbidden: you do not manage this tenant", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to delete tenant", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -429,14 +400,11 @@ func (h *TenantHandler) CheckoutRoom(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrRoomNotFound):
-			logger.Warn(r, http.StatusNotFound, "room not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "room not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "room not found", err)
 		case errors.Is(err, model.ErrTenantNotFound):
-			logger.Warn(r, http.StatusNotFound, "tenant not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "tenant not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "tenant not found", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to checkout room", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -448,15 +416,13 @@ func (h *TenantHandler) CheckoutRoom(w http.ResponseWriter, r *http.Request) {
 func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 
 	managerID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -469,8 +435,7 @@ func (h *TenantHandler) DownloadTenantFile(w http.ResponseWriter, r *http.Reques
 		case errors.Is(err, model.ErrTenantNotFound), errors.Is(err, model.ErrUnauthorized):
 			httpx.WriteError(w, http.StatusNotFound, "file not found")
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to resolve tenant file", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}

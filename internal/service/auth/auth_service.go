@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/service/geo"
 	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 var (
@@ -152,20 +154,20 @@ func (s *AuthServiceImpl) resolveInitialLocation(ipAddress string) string {
 
 // refineSessionLocation reverse-geocodes GPS coordinates and updates the stored
 // session location. It runs in a background goroutine off the login critical
-// path, so a failure simply leaves the faster GeoIP location in place. It uses
-// its own context because the originating request context is already done.
-func (s *AuthServiceImpl) refineSessionLocation(refreshToken, userID string, lat, lng float64) {
+// path (via logging.Go, which detaches the request context and logs failures),
+// so a failure simply leaves the faster GeoIP location in place.
+func (s *AuthServiceImpl) refineSessionLocation(ctx context.Context, refreshToken, userID string, lat, lng float64) error {
 	if s.geocoding == nil {
-		return
+		return nil
 	}
 	addr, source, err := s.geocoding.ReverseGeocode(lat, lng)
 	if err != nil {
-		logger.Warn(nil, 0, "background reverse geocode failed", err)
-		return
+		return apperr.Service("refineSessionLocation", fmt.Errorf("reverse geocode: %w", err))
 	}
-	if err := s.tokens.UpdateSessionLocation(context.Background(), refreshToken, userID, addr, &source); err != nil {
-		logger.Error(nil, 0, "failed to update session location", err)
+	if err := s.tokens.UpdateSessionLocation(ctx, refreshToken, userID, addr, &source); err != nil {
+		return apperr.Service("refineSessionLocation", fmt.Errorf("update session location: %w", err))
 	}
+	return nil
 }
 
 // issueSession mints an access + refresh token pair for an authenticated user and kicks off
@@ -174,19 +176,22 @@ func (s *AuthServiceImpl) refineSessionLocation(refreshToken, userID string, lat
 func (s *AuthServiceImpl) issueSession(ctx context.Context, user *model.User, ipAddress, userAgent, jkt string, latitude, longitude *float64) (*LoginOutput, error) {
 	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, user.IsActivated, jkt)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("issueSession", err)
 	}
 
 	location := s.resolveInitialLocation(ipAddress)
 
 	refreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt, latitude, longitude, nil)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("issueSession", err)
 	}
 
 	// Reverse-geocode precise GPS coordinates off the critical path.
 	if latitude != nil && longitude != nil {
-		go s.refineSessionLocation(refreshToken, user.ID, *latitude, *longitude)
+		lat, lng, userID := *latitude, *longitude, user.ID
+		logging.Go(ctx, "refine_session_location", 15*time.Second, func(bg context.Context) error {
+			return s.refineSessionLocation(bg, refreshToken, userID, lat, lng)
+		})
 	}
 
 	ttl := s.tokens.GetAccessTokenTTL()
@@ -203,21 +208,21 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 	email := strings.TrimSpace(strings.ToLower(in.Email))
 
 	if !IsValidEmail(email) {
-		return nil, shared.ErrInvalidInput
+		return nil, apperr.Service("Register", shared.ErrInvalidInput)
 	}
 
 	_, err := s.users.GetByEmail(ctx, email)
 	if err == nil {
-		return nil, ErrEmailAlreadyExists
+		return nil, apperr.Service("Register", ErrEmailAlreadyExists)
 	}
 
 	if !errors.Is(err, model.ErrNotFound) {
-		return nil, err
+		return nil, apperr.Service("Register", err)
 	}
 
 	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("Register", err)
 	}
 
 	newUser := &model.User{
@@ -231,10 +236,10 @@ func (s *AuthServiceImpl) Register(ctx context.Context, in RegisterInput, ipAddr
 
 	if err := s.users.Create(ctx, newUser); err != nil {
 		if errors.Is(err, model.ErrAlreadyExists) {
-			return nil, ErrEmailAlreadyExists
+			return nil, apperr.Service("Register", ErrEmailAlreadyExists)
 		}
 
-		return nil, err
+		return nil, apperr.Service("Register", err)
 	}
 
 	return s.issueSession(ctx, newUser, ipAddress, userAgent, jkt, in.Latitude, in.Longitude)
@@ -245,20 +250,20 @@ func (s *AuthServiceImpl) Login(ctx context.Context, in LoginInput, ipAddress, u
 	password := strings.TrimSpace(in.Password)
 
 	if !IsValidEmail(email) || password == "" {
-		return nil, shared.ErrInvalidInput
+		return nil, apperr.Service("Login", shared.ErrInvalidInput)
 	}
 
 	existingUser, err := s.users.GetAuthUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			return nil, ErrInvalidCredentials
+			return nil, apperr.Service("Login", ErrInvalidCredentials)
 		}
 
-		return nil, err
+		return nil, apperr.Service("Login", err)
 	}
 
 	if err := s.hasher.Compare(existingUser.PasswordHash, in.Password); err != nil {
-		return nil, ErrInvalidCredentials
+		return nil, apperr.Service("Login", ErrInvalidCredentials)
 	}
 
 	return s.issueSession(ctx, existingUser, ipAddress, userAgent, jkt, in.Latitude, in.Longitude)
@@ -272,7 +277,7 @@ func IsValidEmail(email string) bool {
 func generateSixDigitOTP() (string, error) {
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000))
 	if err != nil {
-		return "", err
+		return "", apperr.Service("generateSixDigitOTP", err)
 	}
 
 	return fmt.Sprintf("%06d", n.Int64()), nil
@@ -281,35 +286,35 @@ func generateSixDigitOTP() (string, error) {
 func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddress, userAgent, jkt string) (*LoginOutput, error) {
 	claims, err := s.tokens.Parse(refreshToken, "refresh")
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 
 	userID, err := claims.GetSubject()
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 
 	session, err := s.tokens.FindByToken(ctx, refreshToken, userID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 
 	if session == nil || session.Revoked || time.Now().After(session.ExpiresAt) {
-		return nil, ErrInvalidCredentials
+		return nil, apperr.Service("RefreshToken", ErrInvalidCredentials)
 	}
 
 	if session.JKT != jkt && session.JKT != "" {
-		return nil, ErrInvalidCredentials
+		return nil, apperr.Service("RefreshToken", ErrInvalidCredentials)
 	}
 	user, err := s.users.GetByUserID(ctx, userID)
 
 	if err != nil {
-		return nil, ErrInvalidCredentials
+		return nil, apperr.Service("RefreshToken", ErrInvalidCredentials)
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, user.IsActivated, jkt)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 
 	location := "Unknown"
@@ -319,10 +324,10 @@ func (s *AuthServiceImpl) RefreshToken(ctx context.Context, refreshToken, ipAddr
 
 	newRefreshToken, err := s.tokens.GenerateRefreshToken(ctx, user.ID, ipAddress, userAgent, location, jkt, nil, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 	if err := s.tokens.RevokeRefreshToken(ctx, refreshToken, user.ID); err != nil {
-		return nil, err
+		return nil, apperr.Service("RefreshToken", err)
 	}
 
 	return &LoginOutput{
@@ -351,9 +356,9 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 	user, err := s.users.GetByUserID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			return nil, ErrInvalidCredentials
+			return nil, apperr.Service("GetMe", ErrInvalidCredentials)
 		}
-		return nil, err
+		return nil, apperr.Service("GetMe", err)
 	}
 
 	return newAuthOutput(user), nil
@@ -362,7 +367,7 @@ func (s *AuthServiceImpl) GetMe(ctx context.Context, userID string) (*AuthOutput
 func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err error) {
 	otp, err := generateSixDigitOTP()
 	if err != nil {
-		return err
+		return apperr.Service("CreateOTP", err)
 	}
 
 	emailVeri := &model.EmailVerification{
@@ -373,13 +378,13 @@ func (s *AuthServiceImpl) CreateOTP(ctx context.Context, email string) (err erro
 
 	err = s.emailVerification.CreateOTP(ctx, emailVeri)
 	if err != nil {
-		return err
+		return apperr.Service("CreateOTP", err)
 	}
 
 	if s.emailSender != nil {
 		err = s.emailSender.SendEmail(email, otp, s.OTPExpiresIn)
 		if err != nil {
-			return err
+			return apperr.Service("CreateOTP", err)
 		}
 	}
 
@@ -394,10 +399,10 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp, jkt strin
 
 	err := s.emailVerification.GetOTP(ctx, emailVeri)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", false, nil
 		}
-		return "", false, err
+		return "", false, apperr.Service("VerifyEmail", err)
 	}
 	if time.Now().After(emailVeri.Expires) || emailVeri.IsUsed {
 		return "", false, nil
@@ -405,21 +410,21 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp, jkt strin
 
 	err = s.emailVerification.UpdateUsedOTP(ctx, emailVeri)
 	if err != nil {
-		return "", false, errors.New("cannot update used otp")
+		return "", false, apperr.Service("VerifyEmail", errors.New("cannot update used otp"))
 	}
 	err = s.users.ActivateUser(ctx, emailVeri.Email)
 	if err != nil {
-		return "", false, err
+		return "", false, apperr.Service("VerifyEmail", err)
 	}
 
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
-		return "", false, err
+		return "", false, apperr.Service("VerifyEmail", err)
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(string(user.Role), user.Email, user.ID, true, jkt)
 	if err != nil {
-		return "", false, err
+		return "", false, apperr.Service("VerifyEmail", err)
 	}
 
 	return accessToken, true, nil
@@ -427,30 +432,30 @@ func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, otp, jkt strin
 
 func (s *AuthServiceImpl) IncrementOTPCheck(ctx context.Context, email string) error {
 	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		err := s.otpCheck.CreateOTPCheck(ctx, email)
 		if err != nil {
-			return err
+			return apperr.Service("IncrementOTPCheck", err)
 		}
 		return nil
 	} else if err != nil {
-		return err
+		return apperr.Service("IncrementOTPCheck", err)
 	}
 
 	err = s.otpCheck.IncrementOTPCheck(ctx, email, otpCheck.OTPFails+1)
-	return err
+	return apperr.Service("IncrementOTPCheck", err)
 }
 
 func (s *AuthServiceImpl) IsBlockOTP(ctx context.Context, email string) (bool, error) {
 	otpCheck, err := s.otpCheck.GetOTPCheck(ctx, email)
-	if err != nil && err != sql.ErrNoRows {
-		return true, err
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return true, apperr.Service("IsBlockOTP", err)
 	}
 	if otpCheck.OTPFails == 5 {
 		if time.Since(otpCheck.BlockTime) > time.Duration(15)*time.Minute {
 			err = s.otpCheck.ResetOTP(ctx, email)
 			if err != nil {
-				return true, err
+				return true, apperr.Service("IsBlockOTP", err)
 			}
 			return false, nil
 		} else {
@@ -488,7 +493,7 @@ func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in U
 	if in.Theme != nil {
 		theme := strings.TrimSpace(*in.Theme)
 		if !isValidTheme(theme) {
-			return nil, fmt.Errorf("invalid theme %q: %w", theme, shared.ErrInvalidInput)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("invalid theme %q: %w", theme, shared.ErrInvalidInput))
 		}
 		updateInput.Theme = &theme
 	}
@@ -497,35 +502,35 @@ func (s *AuthServiceImpl) UpdateProfile(ctx context.Context, userID string, in U
 	if in.ColorMode != nil {
 		mode := strings.TrimSpace(*in.ColorMode)
 		if !isValidColorMode(mode) {
-			return nil, fmt.Errorf("invalid color mode %q: %w", mode, shared.ErrInvalidInput)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("invalid color mode %q: %w", mode, shared.ErrInvalidInput))
 		}
 		updateInput.ColorMode = &mode
 	}
 
 	if in.Password != nil && *in.Password != "" {
 		if in.OldPassword == nil || *in.OldPassword == "" {
-			return nil, fmt.Errorf("old password is required to set a new password: %w", shared.ErrInvalidInput)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("old password is required to set a new password: %w", shared.ErrInvalidInput))
 		}
 
 		user, err := s.users.GetByUserID(ctx, userID)
 		if err != nil {
-			return nil, fmt.Errorf("user not found: %w", err)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("user not found: %w", err))
 		}
 
 		if err := s.hasher.Compare(user.PasswordHash, *in.OldPassword); err != nil {
-			return nil, fmt.Errorf("invalid old password: %w", ErrInvalidCredentials)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("invalid old password: %w", ErrInvalidCredentials))
 		}
 
 		hash, err := s.hasher.Hash(*in.Password)
 		if err != nil {
-			return nil, fmt.Errorf("hash password failed: %w", err)
+			return nil, apperr.Service("UpdateProfile", fmt.Errorf("hash password failed: %w", err))
 		}
 		updateInput.PasswordHash = &hash
 	}
 
 	user, err := s.users.UpdateUser(ctx, userID, updateInput)
 	if err != nil {
-		return nil, fmt.Errorf("update user failed: %w", err)
+		return nil, apperr.Service("UpdateProfile", fmt.Errorf("update user failed: %w", err))
 	}
 
 	return newAuthOutput(user), nil

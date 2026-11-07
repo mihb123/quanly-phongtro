@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mihb123/quanly-phongtro/internal/handler/house"
+	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_service"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -100,7 +102,8 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 			mockBehavior: func(svc *mock_service.MockHouseService) {
 				svc.EXPECT().CreateHouse(gomock.Any(), gomock.Any()).Return(errors.New("db error"))
 			},
-			expectedStatus: http.StatusBadRequest,
+			// Lỗi không lường trước: 500 với thông điệp chung, không lộ chi tiết nội bộ.
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -123,6 +126,9 @@ func TestHouseHandler_CreateHouse(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if rec.Code == http.StatusInternalServerError && !strings.Contains(rec.Body.String(), httpx.InternalErrorMessage) {
+				t.Errorf("500 must use the generic message, got %s", rec.Body.String())
 			}
 		})
 	}
@@ -203,6 +209,9 @@ func TestHouseHandler_GetHouseByID(t *testing.T) {
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
 			}
+			if rec.Code == http.StatusInternalServerError && !strings.Contains(rec.Body.String(), httpx.InternalErrorMessage) {
+				t.Errorf("500 must use the generic message, got %s", rec.Body.String())
+			}
 		})
 	}
 }
@@ -270,6 +279,9 @@ func TestHouseHandler_ListHouseByManagerID(t *testing.T) {
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
 			}
+			if rec.Code == http.StatusInternalServerError && !strings.Contains(rec.Body.String(), httpx.InternalErrorMessage) {
+				t.Errorf("500 must use the generic message, got %s", rec.Body.String())
+			}
 		})
 	}
 }
@@ -317,7 +329,8 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(nil, errors.New("recalculation failed"))
 			},
-			expectedStatus: http.StatusBadRequest,
+			// Lỗi không lường trước: 500 với thông điệp chung, không lộ chi tiết nội bộ.
+			expectedStatus: http.StatusInternalServerError,
 		},
 		{
 			name:           "Unauthorized",
@@ -357,7 +370,7 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 			mockBehavior: func(hSvc *mock_service.MockHouseService, iSvc *mock_service.MockInvoiceService) {
 				hSvc.EXPECT().UpdateHouse(gomock.Any(), "house-1", "user-1", gomock.Any()).Return(nil, errors.New("db error"))
 			},
-			expectedStatus: http.StatusBadRequest,
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -383,6 +396,9 @@ func TestHouseHandler_UpdateHouse(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if rec.Code == http.StatusInternalServerError && !strings.Contains(rec.Body.String(), httpx.InternalErrorMessage) {
+				t.Errorf("500 must use the generic message, got %s", rec.Body.String())
 			}
 		})
 	}
@@ -462,6 +478,9 @@ func TestHouseHandler_DeleteHouse(t *testing.T) {
 
 			if rec.Code != tt.expectedStatus {
 				t.Errorf("expected status %d, got %d", tt.expectedStatus, rec.Code)
+			}
+			if rec.Code == http.StatusInternalServerError && !strings.Contains(rec.Body.String(), httpx.InternalErrorMessage) {
+				t.Errorf("500 must use the generic message, got %s", rec.Body.String())
 			}
 		})
 	}

@@ -12,11 +12,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+
 	"github.com/google/uuid"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
@@ -36,22 +39,22 @@ type zaloInvoiceDeliveryDeps struct {
 // deliverInvoiceToZalo generates and sends an invoice image using the current Zalo recipient rules.
 func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, managerID, invoiceID string) error {
 	if deps.client == nil || deps.userRepo == nil || deps.roomRepo == nil || deps.tenantRepo == nil || deps.invoiceRepo == nil || deps.imageService == nil {
-		return errors.New("zalo invoice delivery is not configured")
+		return apperr.Service("deliverInvoiceToZalo", errors.New("zalo invoice delivery is not configured"))
 	}
 
 	manager, botToken, err := getDecryptedZaloToken(ctx, deps.userRepo, managerID, deps.encryptionKey)
 	if err != nil {
-		return err
+		return apperr.Service("deliverInvoiceToZalo", err)
 	}
 
 	invoice, err := deps.invoiceRepo.GetInvoiceByID(ctx, managerID, invoiceID)
 	if err != nil {
-		return err
+		return apperr.Service("deliverInvoiceToZalo", err)
 	}
 
 	room, err := deps.roomRepo.GetRoomByID(ctx, invoice.RoomID, invoice.HouseID)
 	if err != nil {
-		return err
+		return apperr.Service("deliverInvoiceToZalo", err)
 	}
 
 	// Gather recipients
@@ -64,7 +67,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 
 	tenants, err := deps.tenantRepo.ListTenantByRoomID(ctx, managerID, invoice.RoomID)
 	if err != nil {
-		return err
+		return apperr.Service("deliverInvoiceToZalo", err)
 	}
 
 	var mainTenantName string
@@ -80,17 +83,17 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	}
 
 	if (room.GroupChatID == nil || *room.GroupChatID == "") && len(recipients) == 0 {
-		return errors.New("room does not have a linked zalo group chat, linked manager, or linked tenant")
+		return apperr.Service("deliverInvoiceToZalo", shared.Invalid("room does not have a linked zalo group chat, linked manager, or linked tenant"))
 	}
 
 	// Generate Invoice Image
 	imageBytes, err := deps.imageService.GenerateInvoiceImage(ctx, invoice)
 	if err != nil {
-		return fmt.Errorf("generate image: %w", err)
+		return apperr.Service("deliverInvoiceToZalo", fmt.Errorf("generate image: %w", err))
 	}
 	photoURL, err := saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID, imageBytes)
 	if err != nil {
-		return fmt.Errorf("save zalo invoice image: %w", err)
+		return apperr.Service("deliverInvoiceToZalo", fmt.Errorf("save zalo invoice image: %w", err))
 	}
 
 	// Generate payment link and QR image.
@@ -100,18 +103,18 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 	if deps.paymentService != nil && invoice.Status == model.InvoiceStatusUnpaid {
 		paymentLink, err := deps.paymentService.CreatePreferredPaymentLinkForInvoice(ctx, managerID, invoice, mainTenantName)
 		if err != nil {
-			logger.Error(nil, 0, "create preferred payment link failed", err)
+			logging.RecordWarning(ctx, "create preferred payment link failed", err)
 		}
 		if err == nil && paymentLink != nil {
 			checkoutURL = paymentLink.CheckoutURL
 			qrProvider = paymentLink.Provider
 			qrBytes, err := fetchPaymentQRImage(paymentLink.Provider, paymentLink.QRCode)
 			if err != nil {
-				logger.Error(nil, 0, "fetch payment qr image failed", err)
+				logging.RecordWarning(ctx, "fetch payment qr image failed", err)
 			} else {
 				qrPhotoURL, err = saveZaloInvoiceImage(deps.publicBaseURL, invoice.ID+"_qr", qrBytes)
 				if err != nil {
-					logger.Error(nil, 0, "save payment qr image failed", err)
+					logging.RecordWarning(ctx, "save payment qr image failed", err)
 				}
 			}
 		}
@@ -131,9 +134,9 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		if err := deps.client.SendPhoto(ctx, botToken, *room.GroupChatID, photoURL, caption); err != nil {
 			if zalobot.IsAuthError(err) && deps.markTokenInactive != nil {
 				deps.markTokenInactive(ctx, managerID)
-				return fmt.Errorf("zalo bot token is invalid or expired")
+				return apperr.Service("deliverInvoiceToZalo", shared.Invalid("zalo bot token is invalid or expired"))
 			}
-			return fmt.Errorf("group chat error: %w", err)
+			return apperr.Service("deliverInvoiceToZalo", fmt.Errorf("group chat error: %w", err))
 		}
 		// Send QR
 		if qrPhotoURL != "" {
@@ -147,7 +150,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		if err := deps.client.SendPhoto(ctx, botToken, recipientID, photoURL, caption); err != nil {
 			if zalobot.IsAuthError(err) && deps.markTokenInactive != nil {
 				deps.markTokenInactive(ctx, managerID)
-				return fmt.Errorf("zalo bot token is invalid or expired")
+				return apperr.Service("deliverInvoiceToZalo", shared.Invalid("zalo bot token is invalid or expired"))
 			}
 			sendErrors = append(sendErrors, fmt.Sprintf("%s error: %v", recipientNames[recipientID], err))
 		} else if qrPhotoURL != "" {
@@ -156,7 +159,7 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 		}
 	}
 	if len(sendErrors) > 0 {
-		return fmt.Errorf("some messages failed: %s", strings.Join(sendErrors, ", "))
+		return apperr.Service("deliverInvoiceToZalo", fmt.Errorf("some messages failed: %s", strings.Join(sendErrors, ", ")))
 	}
 
 	return nil
@@ -166,14 +169,14 @@ func deliverInvoiceToZalo(ctx context.Context, deps zaloInvoiceDeliveryDeps, man
 func getDecryptedZaloToken(ctx context.Context, userRepo deliveryUserReader, managerID string, encryptionKey []byte) (*model.User, string, error) {
 	user, err := userRepo.GetByUserID(ctx, managerID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", apperr.Service("getDecryptedZaloToken", err)
 	}
 	if user.ZaloBotToken == nil || *user.ZaloBotToken == "" {
-		return nil, "", errors.New("zalo config not found for manager")
+		return nil, "", apperr.Service("getDecryptedZaloToken", shared.Invalid("zalo config not found for manager"))
 	}
 	botToken, err := security.Decrypt(*user.ZaloBotToken, encryptionKey)
 	if err != nil {
-		return nil, "", fmt.Errorf("decrypt bot token failed: %v", err)
+		return nil, "", apperr.Service("getDecryptedZaloToken", fmt.Errorf("decrypt bot token failed: %w", err))
 	}
 	return user, botToken, nil
 }
@@ -182,13 +185,13 @@ func getDecryptedZaloToken(ctx context.Context, userRepo deliveryUserReader, man
 func saveZaloInvoiceImage(publicBaseURL, invoiceID string, imageBytes []byte) (string, error) {
 	dir := "uploads/zalo-invoices"
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("mkdir: %w", err)
+		return "", apperr.Service("saveZaloInvoiceImage", fmt.Errorf("mkdir: %w", err))
 	}
 
 	fileName := fmt.Sprintf("%s_%s.png", invoiceID, uuid.Must(uuid.NewV7()).String())
 	filePath := filepath.Join(dir, fileName)
 	if err := os.WriteFile(filePath, imageBytes, 0644); err != nil {
-		return "", fmt.Errorf("write file: %w", err)
+		return "", apperr.Service("saveZaloInvoiceImage", fmt.Errorf("write file: %w", err))
 	}
 
 	publicPath := fmt.Sprintf("/api/v1/uploads/zalo-invoices/%s", fileName)
@@ -215,17 +218,17 @@ func downloadQRCodeImage(qrCodeText string) ([]byte, error) {
 func httpGetImage(urlStr string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(context.Background(), "GET", urlStr, nil)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("httpGetImage", err)
 	}
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("httpGetImage", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to download image, status: %d", resp.StatusCode)
+		return nil, apperr.Service("httpGetImage", fmt.Errorf("failed to download image, status: %d", resp.StatusCode))
 	}
 
 	return io.ReadAll(resp.Body)

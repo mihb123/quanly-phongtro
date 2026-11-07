@@ -84,7 +84,7 @@ func TestRoomService_CreateRoom(t *testing.T) {
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
 			err := s.CreateRoom(ctx, tt.room, tt.managerID)
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 		})
@@ -191,7 +191,7 @@ func TestRoomService_GetRoom(t *testing.T) {
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
 			got, err := s.GetRoom(ctx, tt.roomID, tt.houseID, tt.managerID)
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
@@ -293,7 +293,7 @@ func TestRoomService_ListRoomsByHouseID(t *testing.T) {
 				Limit:   tt.limit,
 			})
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
@@ -362,7 +362,7 @@ func TestRoomService_GetRoomStats(t *testing.T) {
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
 			got, err := s.GetRoomStats(ctx, tt.managerID, tt.houseID)
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
@@ -392,7 +392,7 @@ func TestRoomService_ListAvailableRooms(t *testing.T) {
 
 	t.Run("Empty Manager ID", func(t *testing.T) {
 		s := roomsvc.NewRoomService(mock_model.NewMockRoomRepository(ctrl), mock_model.NewMockHouseRepository(ctrl))
-		if _, _, err := s.ListAvailableRooms(ctx, " ", 50); err != sharedsvc.ErrInvalidManagerID {
+		if _, _, err := s.ListAvailableRooms(ctx, " ", 50); !errors.Is(err, sharedsvc.ErrInvalidManagerID) {
 			t.Errorf("expected %v, got %v", sharedsvc.ErrInvalidManagerID, err)
 		}
 	})
@@ -495,7 +495,7 @@ func TestRoomService_UpdateRoom(t *testing.T) {
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
 			got, err := s.UpdateRoom(ctx, tt.roomID, tt.houseID, tt.managerID, tt.input)
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 			if !reflect.DeepEqual(got, tt.want) {
@@ -596,7 +596,7 @@ func TestRoomService_DeleteRoom(t *testing.T) {
 			s := roomsvc.NewRoomService(mockRoomRepo, mockHouseRepo)
 			err := s.DeleteRoom(ctx, tt.roomID, tt.houseID, tt.managerID)
 
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("expected error %v, got %v", tt.wantErr, err)
 			}
 		})

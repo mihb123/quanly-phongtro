@@ -13,8 +13,8 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 )
 
 type HouseHandler struct {
@@ -78,40 +78,34 @@ func NewHouseHandler(service housesvc.HouseService) *HouseHandler {
 func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
 	var req createHouseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
 	rentStart, err := parseOptionalDate(req.RentStartDate)
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid rent_start_date", err)
-		httpx.WriteError(w, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD")
+		httpx.FailWith(w, r, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD", err)
 		return
 	}
 	rentEnd, err := parseOptionalDate(req.RentEndDate)
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid rent_end_date", err)
-		httpx.WriteError(w, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD")
+		httpx.FailWith(w, r, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD", err)
 		return
 	}
 
@@ -144,12 +138,10 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 	err = h.houseService.CreateHouse(r.Context(), house)
 	if err != nil {
 		if errors.Is(err, model.ErrHouseCodeExists) {
-			logger.Warn(r, http.StatusConflict, "house code already exists", err)
-			httpx.WriteError(w, http.StatusConflict, err.Error())
+			httpx.FailWith(w, r, http.StatusConflict, apperr.Message(err), err)
 			return
 		}
-		logger.Error(r, http.StatusBadRequest, "failed to create house", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.Fail(w, r, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, house, "")
@@ -160,8 +152,7 @@ func (h *HouseHandler) CreateHouse(w http.ResponseWriter, r *http.Request) {
 func (h *HouseHandler) CheckHouseCode(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 
@@ -174,8 +165,7 @@ func (h *HouseHandler) CheckHouseCode(w http.ResponseWriter, r *http.Request) {
 
 	available, err := h.houseService.IsHouseCodeAvailable(r.Context(), code, excludeID)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to check house code", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -185,14 +175,12 @@ func (h *HouseHandler) CheckHouseCode(w http.ResponseWriter, r *http.Request) {
 func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -201,14 +189,11 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidHouseID), errors.Is(err, sharedsvc.ErrInvalidManagerID):
-			logger.Warn(r, http.StatusBadRequest, "invalid house or manager ID", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, model.ErrHouseNotFound):
-			logger.Warn(r, http.StatusNotFound, "house not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "house not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "house not found", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "unexpected error getting house by ID", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -219,14 +204,12 @@ func (h *HouseHandler) GetHouseByID(w http.ResponseWriter, r *http.Request) {
 func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -244,8 +227,7 @@ func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Reque
 
 	houses, err := h.houseService.ListHouseByManagerID(r.Context(), userID, pageInt, limitInt, search)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "cannot list house", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "cannot list houseByID")
+		httpx.Fail(w, r, err)
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, houses, "")
@@ -254,39 +236,33 @@ func (h *HouseHandler) ListHouseByManagerID(w http.ResponseWriter, r *http.Reque
 func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 	id := chi.URLParam(r, "id")
 	var req updateHouseRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 	rentStart, err := parseOptionalDate(req.RentStartDate)
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid rent_start_date", err)
-		httpx.WriteError(w, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD")
+		httpx.FailWith(w, r, http.StatusBadRequest, "rent_start_date phải có định dạng YYYY-MM-DD", err)
 		return
 	}
 	rentEnd, err := parseOptionalDate(req.RentEndDate)
 	if err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid rent_end_date", err)
-		httpx.WriteError(w, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD")
+		httpx.FailWith(w, r, http.StatusBadRequest, "rent_end_date phải có định dạng YYYY-MM-DD", err)
 		return
 	}
 
@@ -318,12 +294,10 @@ func (h *HouseHandler) UpdateHouse(w http.ResponseWriter, r *http.Request) {
 	house, err := h.houseService.UpdateHouse(r.Context(), id, userID, updateHouseInput)
 	if err != nil {
 		if errors.Is(err, model.ErrHouseCodeExists) {
-			logger.Warn(r, http.StatusConflict, "house code already exists", err)
-			httpx.WriteError(w, http.StatusConflict, err.Error())
+			httpx.FailWith(w, r, http.StatusConflict, apperr.Message(err), err)
 			return
 		}
-		logger.Warn(r, http.StatusBadRequest, "cannot update house", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -354,8 +328,7 @@ func (h *HouseHandler) UpdateHouseDocuments(w http.ResponseWriter, r *http.Reque
 	id := chi.URLParam(r, "id")
 
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid multipart form", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid multipart form")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid multipart form", err)
 		return
 	}
 
@@ -374,14 +347,11 @@ func (h *HouseHandler) UpdateHouseDocuments(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidHouseID), errors.Is(err, sharedsvc.ErrInvalidManagerID):
-			logger.Warn(r, http.StatusBadRequest, "invalid house or manager ID", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, model.ErrHouseNotFound):
-			logger.Warn(r, http.StatusNotFound, "house not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "house not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "house not found", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to update house documents", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -404,14 +374,12 @@ func keptPathsFromForm(r *http.Request, field string) *string {
 func (h *HouseHandler) DeleteHouse(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", nil)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", errors.New("unauthorized: missing or invalid claims"))
 		return
 	}
 	userID, err := claims.GetSubject()
 	if err != nil {
-		logger.Warn(r, http.StatusUnauthorized, "unauthorized: missing or invalid claims", err)
-		httpx.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "unauthorized", err)
 		return
 	}
 
@@ -420,14 +388,11 @@ func (h *HouseHandler) DeleteHouse(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidHouseID), errors.Is(err, sharedsvc.ErrInvalidManagerID):
-			logger.Warn(r, http.StatusBadRequest, "invalid house or manager ID", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, model.ErrHouseNotFound):
-			logger.Warn(r, http.StatusNotFound, "house not found", err)
-			httpx.WriteError(w, http.StatusNotFound, "house not found")
+			httpx.FailWith(w, r, http.StatusNotFound, "house not found", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to delete house", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}

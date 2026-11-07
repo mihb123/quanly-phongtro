@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -83,12 +82,17 @@ func AuthenticateWebhook(headers http.Header, body []byte, credentials Credentia
 	case AuthMethodAPIKey:
 		return verifyAPIKey(headers, credentials.WebhookAPIKey)
 	case AuthMethodNone, "":
-		// Owner opted out of webhook authentication; accept but warn since this is less secure.
-		log.Printf("SePay webhook accepted without authentication (webhook_auth_method not set)")
+		// Owner opted out of webhook authentication; accept (less secure). Callers that want
+		// to warn can check IsUnauthenticated(credentials).
 		return nil
 	default:
 		return fmt.Errorf("%w: unknown sepay webhook auth method", ErrInvalidWebhook)
 	}
+}
+
+// IsUnauthenticated reports whether webhooks for these credentials are accepted without authentication.
+func IsUnauthenticated(credentials Credentials) bool {
+	return credentials.WebhookAuthMethod == AuthMethodNone || credentials.WebhookAuthMethod == ""
 }
 
 // SignHMAC returns the X-SePay-Signature value SePay sends for a raw body.

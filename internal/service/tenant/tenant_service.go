@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"mime/multipart"
 	"os"
 	"strings"
@@ -130,23 +131,23 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 	}
 
 	if !auth.IsValidEmail(in.Email) {
-		return nil, shared.ErrInvalidInput
+		return nil, apperr.Service("RegisterTenant", shared.ErrInvalidInput)
 	}
 
 	if in.Phone != "" {
 		existingUser, err := s.users.GetByPhone(ctx, in.Phone)
 		if err == nil && existingUser != nil {
-			return nil, model.ErrPhoneAlreadyExists
+			return nil, apperr.Service("RegisterTenant", model.ErrPhoneAlreadyExists)
 		}
 	}
 
 	if _, err := s.rooms.GetRoomByIDForManager(ctx, in.ManagerID, in.RoomID); err != nil {
-		return nil, err
+		return nil, apperr.Service("RegisterTenant", err)
 	}
 
 	passwordHash, err := s.hasher.Hash(in.Password)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RegisterTenant", err)
 	}
 	newTenant := &model.User{
 		Email:        in.Email,
@@ -165,14 +166,14 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 	if len(in.CCCDFiles) > 0 {
 		cccdPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, in.CCCDFiles)
 		if err != nil {
-			return nil, err
+			return nil, apperr.Service("RegisterTenant", err)
 		}
 		newRoomTenant.CCCDPath = cccdPaths
 	}
 
 	err = s.tenants.CreateTenantWithAccount(ctx, newTenant, newRoomTenant)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("RegisterTenant", err)
 	}
 
 	fullInfoTenant := &model.FullInfoTenant{
@@ -195,11 +196,11 @@ func (s *TenantServiceImpl) RegisterTenant(ctx context.Context, in RegisterTenan
 func (s TenantServiceImpl) CheckCapicityOfRoom(ctx context.Context, roomID string) (bool, error) {
 	maxTenant, err := s.rooms.GetMaxTenants(ctx, roomID)
 	if err != nil {
-		return false, err
+		return false, apperr.Service("CheckCapicityOfRoom", err)
 	}
 	numTenant, err := s.tenants.GetCurrentNumTenantInRoom(ctx, roomID)
 	if err != nil {
-		return false, err
+		return false, apperr.Service("CheckCapicityOfRoom", err)
 	}
 	if numTenant < maxTenant {
 		return true, nil
@@ -222,10 +223,10 @@ func (s *TenantServiceImpl) SearchTenants(ctx context.Context, managerID string,
 	if query.HouseID != "" {
 		owned, err := s.houses.IsHouseOwnedBy(ctx, query.HouseID, managerID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, apperr.Service("SearchTenants", err)
 		}
 		if !owned {
-			return nil, nil, model.ErrHouseNotFound
+			return nil, nil, apperr.Service("SearchTenants", model.ErrHouseNotFound)
 		}
 	}
 	return s.tenants.SearchTenants(ctx, managerID, model.TenantListFilter{
@@ -243,13 +244,13 @@ func (s *TenantServiceImpl) SearchTenants(ctx context.Context, managerID string,
 func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, tenantID string, in UpdateTenantInput) (*model.FullInfoTenant, error) {
 	existing, err := s.tenants.GetTenantByID(ctx, managerID, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateTenantInfo", err)
 	}
 
 	if in.Phone != nil && *in.Phone != "" && *in.Phone != existing.Phone {
 		existingUser, err := s.users.GetByPhone(ctx, *in.Phone)
 		if err == nil && existingUser != nil && existingUser.ID != existing.UserID {
-			return nil, model.ErrPhoneAlreadyExists
+			return nil, apperr.Service("UpdateTenantInfo", model.ErrPhoneAlreadyExists)
 		}
 	}
 
@@ -268,7 +269,7 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 	if len(in.CCCDFiles) > 0 {
 		newPaths, err := shared.SaveUploadedFiles(shared.TenantUploadDir, in.CCCDFiles)
 		if err != nil {
-			return nil, err
+			return nil, apperr.Service("UpdateTenantInfo", err)
 		}
 		if tenantInput.CCCDPath != nil && *tenantInput.CCCDPath != "" {
 			combined := *tenantInput.CCCDPath + "," + newPaths
@@ -279,16 +280,16 @@ func (s *TenantServiceImpl) UpdateTenantInfo(ctx context.Context, managerID, ten
 	}
 
 	if _, err := s.users.UpdateUser(ctx, existing.UserID, userInput); err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateTenantInfo", err)
 	}
 
 	if _, err := s.tenants.UpdateTenant(ctx, tenantID, tenantInput); err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateTenantInfo", err)
 	}
 
 	updated, err := s.tenants.GetTenantByID(ctx, managerID, tenantID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("UpdateTenantInfo", err)
 	}
 
 	// TODO: Clean up deleted files from disk if they were removed from kept_paths.
@@ -304,26 +305,26 @@ func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, managerID, tenantI
 
 	existing, err := s.tenants.GetTenantByID(ctx, managerID, tenantID)
 	if err != nil {
-		return err
+		return apperr.Service("DeleteTenant", err)
 	}
 
 	roomID, err := s.tenants.DeleteTenant(ctx, tenantID)
 	if err != nil {
-		return err
+		return apperr.Service("DeleteTenant", err)
 	}
 
 	if err := s.users.DeactivateUser(ctx, existing.UserID); err != nil {
-		return err
+		return apperr.Service("DeleteTenant", err)
 	}
 
 	remaining, err := s.tenants.GetCurrentNumTenantInRoom(ctx, roomID)
 	if err != nil {
-		return err
+		return apperr.Service("DeleteTenant", err)
 	}
 
 	if remaining == 0 {
 		if err := s.rooms.UpdateRoomStatus(ctx, roomID, "AVAILABLE"); err != nil {
-			return err
+			return apperr.Service("DeleteTenant", err)
 		}
 	}
 
@@ -332,22 +333,22 @@ func (s *TenantServiceImpl) DeleteTenant(ctx context.Context, managerID, tenantI
 
 func (s *TenantServiceImpl) CheckoutRoom(ctx context.Context, managerID, roomID string) (int, error) {
 	if _, err := s.rooms.GetRoomByIDForManager(ctx, managerID, roomID); err != nil {
-		return 0, err
+		return 0, apperr.Service("CheckoutRoom", err)
 	}
 
 	tenants, err := s.tenants.ListTenantByRoomID(ctx, managerID, roomID)
 	if err != nil {
-		return 0, err
+		return 0, apperr.Service("CheckoutRoom", err)
 	}
 
 	for i, tenant := range tenants {
 		if err := s.DeleteTenant(ctx, managerID, tenant.TenantID); err != nil {
-			return i, err
+			return i, apperr.Service("CheckoutRoom", err)
 		}
 	}
 
 	if err := s.rooms.UpdateRoomStatus(ctx, roomID, "AVAILABLE"); err != nil {
-		return len(tenants), err
+		return len(tenants), apperr.Service("CheckoutRoom", err)
 	}
 
 	return len(tenants), nil
@@ -357,18 +358,18 @@ func (s *TenantServiceImpl) CheckoutRoom(ctx context.Context, managerID, roomID 
 func (s *TenantServiceImpl) ResolveTenantFilePath(ctx context.Context, managerID, requestPath string) (string, error) {
 	fileName, ok := shared.UploadFileName(requestPath)
 	if !ok {
-		return "", shared.ErrInvalidInput
+		return "", apperr.Service("ResolveTenantFilePath", shared.ErrInvalidInput)
 	}
 
 	storedPath := shared.TenantFileURLPrefix + fileName
 	uploadDir, err := s.authorizeFileAccess(ctx, managerID, storedPath, fileName)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("ResolveTenantFilePath", err)
 	}
 
 	filePath, ok := shared.UploadFilePath(uploadDir, fileName)
 	if !ok {
-		return "", shared.ErrInvalidInput
+		return "", apperr.Service("ResolveTenantFilePath", shared.ErrInvalidInput)
 	}
 	if legacyPath, ok := legacyUploadPath(uploadDir, fileName, filePath); ok {
 		return legacyPath, nil
@@ -405,7 +406,7 @@ func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, 
 			return shared.TenantUploadDir, nil
 		}
 		if !errors.Is(err, model.ErrTenantNotFound) {
-			return "", err
+			return "", apperr.Service("authorizeFileAccess", err)
 		}
 
 		owned, roomErr := s.rooms.HasRoomWithFilePath(ctx, managerID, candidate)
@@ -426,5 +427,5 @@ func (s *TenantServiceImpl) authorizeFileAccess(ctx context.Context, managerID, 
 			}
 		}
 	}
-	return "", model.ErrTenantNotFound
+	return "", apperr.Service("authorizeFileAccess", model.ErrTenantNotFound)
 }

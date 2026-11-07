@@ -3,8 +3,9 @@ package house
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
+
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/service/revenue"
 
@@ -53,10 +54,10 @@ func NewHouseCostService(costRepo model.HouseCostRepository, houseRepo model.Hou
 func (s *houseCostServiceImpl) verifyHouseOwnership(ctx context.Context, managerID, houseID string) error {
 	owned, err := s.houseRepo.IsHouseOwnedBy(ctx, houseID, managerID)
 	if err != nil {
-		return fmt.Errorf("verify house ownership: %w", err)
+		return apperr.Service("verifyHouseOwnership", fmt.Errorf("verify house ownership: %w", err))
 	}
 	if !owned {
-		return model.ErrHouseCostForbidden
+		return apperr.Service("verifyHouseOwnership", model.ErrHouseCostForbidden)
 	}
 	return nil
 }
@@ -99,13 +100,13 @@ func (s *houseCostServiceImpl) buildNextCost(houseID, period string, source *mod
 
 func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID, houseID, period string) (*model.HouseCost, error) {
 	if err := s.verifyHouseOwnership(ctx, managerID, houseID); err != nil {
-		return nil, err
+		return nil, apperr.Service("CreateMonthlyCost", err)
 	}
 
 	// Check if already exists
 	existing, err := s.costRepo.GetByHouseAndPeriod(ctx, houseID, period)
 	if err == nil && existing != nil {
-		return nil, model.ErrHouseCostAlreadyExists
+		return nil, apperr.Service("CreateMonthlyCost", model.ErrHouseCostAlreadyExists)
 	}
 
 	// Get latest to copy defaults
@@ -117,7 +118,7 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 	newCost := s.buildNextCost(houseID, period, latest)
 
 	if err := s.costRepo.Create(ctx, newCost); err != nil {
-		return nil, err
+		return nil, apperr.Service("CreateMonthlyCost", err)
 	}
 
 	// Trigger async recalculation
@@ -133,12 +134,12 @@ func (s *houseCostServiceImpl) CreateMonthlyCost(ctx context.Context, managerID,
 
 func (s *houseCostServiceImpl) GetMonthlyCost(ctx context.Context, managerID, houseID, period string) (*model.HouseCost, error) {
 	if err := s.verifyHouseOwnership(ctx, managerID, houseID); err != nil {
-		return nil, err
+		return nil, apperr.Service("GetMonthlyCost", err)
 	}
 
 	cost, err := s.costRepo.GetByHouseAndPeriod(ctx, houseID, period)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("GetMonthlyCost", err)
 	}
 
 	// Ensure ExtraCosts is never nil for JSON marshaling
@@ -151,16 +152,16 @@ func (s *houseCostServiceImpl) GetMonthlyCost(ctx context.Context, managerID, ho
 
 func (s *houseCostServiceImpl) UpdateMonthlyCost(ctx context.Context, managerID string, input UpdateCostInput) error {
 	if err := s.verifyHouseOwnership(ctx, managerID, input.HouseID); err != nil {
-		return err
+		return apperr.Service("UpdateMonthlyCost", err)
 	}
 
 	cost, err := s.costRepo.GetByHouseAndPeriod(ctx, input.HouseID, input.Period)
 	if err != nil {
-		return err
+		return apperr.Service("UpdateMonthlyCost", err)
 	}
 
 	if cost.ID != input.ID {
-		return model.ErrHouseCostInvalidID
+		return apperr.Service("UpdateMonthlyCost", model.ErrHouseCostInvalidID)
 	}
 
 	cost.Rent = input.Rent
@@ -177,7 +178,7 @@ func (s *houseCostServiceImpl) UpdateMonthlyCost(ctx context.Context, managerID 
 	cost.UpdatedAt = time.Now()
 
 	if err := s.costRepo.Update(ctx, cost); err != nil {
-		return err
+		return apperr.Service("UpdateMonthlyCost", err)
 	}
 
 	// Trigger async recalculation
@@ -207,7 +208,7 @@ func (s *houseCostServiceImpl) GetRevenueSummaries(ctx context.Context, managerI
 
 	summaries, err := s.summaryRepo.ListByHouseIDs(ctx, ownedHouseIDs, period)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("GetRevenueSummaries", err)
 	}
 	return summaries, nil
 }
@@ -221,6 +222,8 @@ type GenerateMonthlyCostsResult struct {
 	Created int
 	Skipped int
 	Failed  int
+	// Errors: lỗi của từng nhà tạo thất bại (len == Failed); caller (cron) tự log.
+	Errors []error
 }
 
 // GenerateMonthlyCostsFromPrevious creates the cost record of `period` for every house that
@@ -232,7 +235,7 @@ func (s *houseCostServiceImpl) GenerateMonthlyCostsFromPrevious(ctx context.Cont
 
 	previousCosts, err := s.costRepo.ListByPeriod(ctx, previousPeriod)
 	if err != nil {
-		return result, fmt.Errorf("list previous period costs: %w", err)
+		return result, apperr.Service("GenerateMonthlyCostsFromPrevious", fmt.Errorf("list previous period costs: %w", err))
 	}
 
 	for i := range previousCosts {
@@ -255,7 +258,7 @@ func (s *houseCostServiceImpl) GenerateMonthlyCostsFromPrevious(ctx context.Cont
 				continue
 			}
 			result.Failed++
-			log.Printf("[HouseCostCron] failed to create cost for house %s period %s: %v", previous.HouseID, period, err)
+			result.Errors = append(result.Errors, apperr.Wrapf(apperr.LayerService, "GenerateMonthlyCostsFromPrevious", err, "house %s period %s", previous.HouseID, period))
 			continue
 		}
 

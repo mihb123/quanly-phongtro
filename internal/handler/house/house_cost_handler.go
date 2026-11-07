@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type HouseCostHandler struct {
@@ -25,16 +25,15 @@ func NewHouseCostHandler(costService housesvc.HouseCostService) *HouseCostHandle
 func handleHouseCostError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case model.IsHouseCostAlreadyExists(err):
-		httpx.WriteError(w, http.StatusConflict, err.Error())
+		httpx.FailWith(w, r, http.StatusConflict, apperr.Message(err), err)
 	case model.IsHouseCostForbidden(err):
-		httpx.WriteError(w, http.StatusForbidden, err.Error())
+		httpx.FailWith(w, r, http.StatusForbidden, apperr.Message(err), err)
 	case model.IsHouseCostNotFound(err):
-		httpx.WriteError(w, http.StatusNotFound, "house cost not found")
+		httpx.FailWith(w, r, http.StatusNotFound, "house cost not found", err)
 	case model.IsHouseCostInvalidID(err):
-		httpx.WriteError(w, http.StatusNotFound, err.Error())
+		httpx.FailWith(w, r, http.StatusNotFound, apperr.Message(err), err)
 	default:
-		logger.Error(r, http.StatusInternalServerError, "house cost operation failed", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to process house cost")
+		httpx.Fail(w, r, err)
 	}
 }
 
@@ -61,7 +60,7 @@ func (h *HouseCostHandler) CreateMonthlyCost(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := httpx.ValidateMonthPeriodValue(req.Period); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -89,7 +88,7 @@ func (h *HouseCostHandler) GetMonthlyCost(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := httpx.ValidateMonthPeriodValue(period); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -127,7 +126,7 @@ func (h *HouseCostHandler) UpdateMonthlyCost(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := httpx.ValidateMonthPeriodValue(req.Period); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -159,7 +158,7 @@ func (h *HouseCostHandler) GetRevenueSummaries(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := httpx.ValidateMonthPeriodValue(period); err != nil {
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -188,7 +187,7 @@ func (h *HouseCostHandler) getRevenueTrend(w http.ResponseWriter, r *http.Reques
 	}
 	for _, p := range periods {
 		if err := httpx.ValidateMonthPeriodValue(p); err != nil {
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}

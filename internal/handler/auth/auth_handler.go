@@ -7,13 +7,14 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	authsvc "github.com/mihb123/quanly-phongtro/internal/service/auth"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type AuthHandler struct {
@@ -75,14 +76,12 @@ func NewAuthHandler(service authsvc.AuthService, options ...AuthHandlerOption) *
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -95,8 +94,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		var err error
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
-			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}
@@ -112,14 +110,11 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidInput):
-			logger.Warn(r, http.StatusBadRequest, "invalid register input", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, authsvc.ErrEmailAlreadyExists):
-			logger.Warn(r, http.StatusConflict, "email already exists", err)
-			httpx.WriteError(w, http.StatusConflict, "email already exists")
+			httpx.FailWith(w, r, http.StatusConflict, "email already exists", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "unexpected error during register", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 
 		return
@@ -132,14 +127,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		return
 	}
 
@@ -152,8 +145,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		var err error
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
-			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}
@@ -167,14 +159,11 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidInput):
-			logger.Warn(r, http.StatusBadRequest, "invalid login input", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, authsvc.ErrInvalidCredentials):
-			logger.Warn(r, http.StatusUnauthorized, "invalid credentials", err)
-			httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
+			httpx.FailWith(w, r, http.StatusUnauthorized, "invalid credentials", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "unexpected error during login", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 
 		return
@@ -187,8 +176,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie("refresh_token")
 	if err != nil || cookie.Value == "" {
-		logger.Warn(r, http.StatusBadRequest, "missing refresh token cookie", nil)
-		httpx.WriteError(w, http.StatusBadRequest, "missing refresh token cookie")
+		httpx.FailWith(w, r, http.StatusBadRequest, "missing refresh token cookie", errors.New("missing refresh token cookie"))
 		return
 	}
 	refreshTokenStr := cookie.Value
@@ -202,8 +190,7 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		var err error
 		jkt, err = security.VerifyDPoPProof(dpopProof, r.Method, security.BuildDPoPHTU(r, h.trustedProxyCIDRs), "")
 		if err != nil {
-			logger.Warn(r, http.StatusBadRequest, "invalid DPoP proof", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}
@@ -212,14 +199,11 @@ func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, sharedsvc.ErrInvalidInput):
-			logger.Warn(r, http.StatusBadRequest, "invalid refresh token input", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 		case errors.Is(err, authsvc.ErrInvalidCredentials):
-			logger.Warn(r, http.StatusUnauthorized, "invalid refresh token", err)
-			httpx.WriteError(w, http.StatusUnauthorized, "invalid credentials")
+			httpx.FailWith(w, r, http.StatusUnauthorized, "invalid credentials", err)
 		default:
-			logger.Error(r, http.StatusInternalServerError, "unexpected error during token refresh", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}
@@ -265,15 +249,13 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	var req authsvc.UpdateProfileInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request body")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request body", err)
 		return
 	}
 
 	user, err := h.service.UpdateProfile(r.Context(), userID, req)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "update profile failed", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "update profile failed")
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -338,21 +320,18 @@ func (h *AuthHandler) setTokenCookies(w http.ResponseWriter, accessToken, refres
 func (h *AuthHandler) CreateOTP(w http.ResponseWriter, r *http.Request) {
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Error(r, http.StatusInternalServerError, "missing or invalid claims in context", nil)
-		httpx.WriteError(w, http.StatusInternalServerError, "invalid access token")
+		httpx.FailWith(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, errors.New("missing or invalid claims in context"))
 		return
 	}
 
 	if claims.IsActivated {
-		logger.Warn(r, http.StatusBadRequest, "create OTP called on already-activated account", nil)
-		httpx.WriteError(w, http.StatusBadRequest, "account is already activated")
+		httpx.FailWith(w, r, http.StatusBadRequest, "account is already activated", errors.New("create OTP called on already-activated account"))
 		return
 	}
 
 	err := h.service.CreateOTP(r.Context(), claims.Email)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to create OTP", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "cannot create otp")
+		httpx.Fail(w, r, err)
 		return
 	}
 	httpx.WriteJSON(w, http.StatusCreated, nil, "success")
@@ -362,37 +341,31 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := security.ClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		logger.Error(r, http.StatusInternalServerError, "missing or invalid claims in context", nil)
-		httpx.WriteError(w, http.StatusInternalServerError, "invalid access token")
+		httpx.FailWith(w, r, http.StatusInternalServerError, httpx.InternalErrorMessage, errors.New("missing or invalid claims in context"))
 		return
 	}
 
 	if claims.IsActivated {
-		logger.Warn(r, http.StatusBadRequest, "verify email called on already-activated account", nil)
-		httpx.WriteError(w, http.StatusBadRequest, "account is already activated")
+		httpx.FailWith(w, r, http.StatusBadRequest, "account is already activated", errors.New("verify email called on already-activated account"))
 		return
 	}
 	var req verifyEmailRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid body request", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid body request")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid body request", err)
 		return
 	}
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "request validation failed", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid body request")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid body request", err)
 		return
 	}
 	isBlock, err := h.service.IsBlockOTP(r.Context(), claims.Email)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to check otp time", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to check otp time")
+		httpx.Fail(w, r, err)
 		return
 	}
 
 	if isBlock {
-		logger.Warn(r, http.StatusBadRequest, "too many request", err)
-		httpx.WriteError(w, http.StatusBadRequest, "too many request")
+		httpx.FailWith(w, r, http.StatusBadRequest, "too many request", err)
 		return
 	}
 	jkt := ""
@@ -402,17 +375,15 @@ func (h *AuthHandler) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, ok, err := h.service.VerifyEmail(r.Context(), claims.Email, req.OTP, jkt)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to verify email", err)
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		httpx.Fail(w, r, err)
 		return
 	}
 
 	if !ok {
-		logger.Warn(r, http.StatusUnauthorized, "invalid OTP attempt", nil)
 		if err := h.service.IncrementOTPCheck(r.Context(), claims.Email); err != nil {
-			logger.Error(r, http.StatusInternalServerError, "failed to increment OTP check", err)
+			logging.RecordWarning(r.Context(), "increment OTP check failed", err)
 		}
-		httpx.WriteJSON(w, http.StatusUnauthorized, nil, "otp is invalid")
+		httpx.FailWith(w, r, http.StatusUnauthorized, "otp is invalid", errors.New("invalid OTP attempt"))
 		return
 	}
 

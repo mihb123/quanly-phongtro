@@ -21,18 +21,19 @@ func newRealGeoIPService(t *testing.T) geosvc.GeoIPService {
 	if err != nil {
 		t.Skipf("GeoIP database not available at %s: %v", embeddedGeoIPPath, err)
 	}
-	return geosvc.NewGeoIPServiceFromBytes(data)
+	svc, _ := geosvc.NewGeoIPServiceFromBytes(data)
+	return svc
 }
 
 func TestNewGeoIPServiceFromBytes(t *testing.T) {
 	// Dữ liệu rỗng → degrade về "Unknown"
-	svc := geosvc.NewGeoIPServiceFromBytes(nil)
+	svc, _ := geosvc.NewGeoIPServiceFromBytes(nil)
 	assert.NotNil(t, svc)
 	assert.Equal(t, "Unknown", svc.LookupLocation("8.8.8.8"))
 	svc.Close()
 
 	// Dữ liệu mmdb không hợp lệ → degrade về "Unknown"
-	svc2 := geosvc.NewGeoIPServiceFromBytes([]byte("invalid data"))
+	svc2, _ := geosvc.NewGeoIPServiceFromBytes([]byte("invalid data"))
 	assert.NotNil(t, svc2)
 	assert.Equal(t, "Unknown", svc2.LookupLocation("8.8.8.8"))
 	svc2.Close()
@@ -40,7 +41,7 @@ func TestNewGeoIPServiceFromBytes(t *testing.T) {
 
 func TestGeoIPService_LookupLocation(t *testing.T) {
 	// Tạo service degraded (không có DB)
-	svc := geosvc.NewGeoIPServiceFromBytes(nil)
+	svc, _ := geosvc.NewGeoIPServiceFromBytes(nil)
 
 	t.Run("empty IP", func(t *testing.T) {
 		assert.Equal(t, "Unknown", svc.LookupLocation(""))
@@ -94,6 +95,6 @@ func TestGeoIPService_LookupAfterClose(t *testing.T) {
 // TestGeoIPService_Close_Idempotent xác nhận Close() trên service degraded
 // (db == nil) không panic, phủ nhánh db == nil của Close().
 func TestGeoIPService_Close_Idempotent(t *testing.T) {
-	svc := geosvc.NewGeoIPServiceFromBytes(nil)
+	svc, _ := geosvc.NewGeoIPServiceFromBytes(nil)
 	assert.NotPanics(t, func() { svc.Close() })
 }

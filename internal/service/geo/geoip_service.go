@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"github.com/oschwald/geoip2-golang"
 )
 
@@ -19,20 +19,19 @@ type GeoIPServiceImpl struct {
 
 // NewGeoIPServiceFromBytes khởi tạo service từ dữ liệu mmdb đã nhúng trong binary,
 // giúp binary tự chứa GeoIP DB mà không cần file ngoài. Nếu dữ liệu rỗng hoặc lỗi
-// thì degrade về "Unknown" giống NewGeoIPService.
-func NewGeoIPServiceFromBytes(data []byte) GeoIPService {
+// thì degrade về "Unknown" giống NewGeoIPService: service trả về luôn dùng được,
+// error (nếu có) chỉ để caller log cảnh báo.
+func NewGeoIPServiceFromBytes(data []byte) (GeoIPService, error) {
 	if len(data) == 0 {
-		logger.Warn(nil, 0, "Embedded GeoIP database is empty. Location tracking will gracefully degrade to 'Unknown'.", nil)
-		return &GeoIPServiceImpl{db: nil}
+		return &GeoIPServiceImpl{db: nil}, apperr.New(apperr.LayerService, "NewGeoIPServiceFromBytes", "embedded GeoIP database is empty; location degrades to Unknown")
 	}
 
 	db, err := geoip2.FromBytes(data)
 	if err != nil {
-		logger.Error(nil, 0, "Failed to open embedded GeoIP database. Location tracking will gracefully degrade.", err)
-		return &GeoIPServiceImpl{db: nil}
+		return &GeoIPServiceImpl{db: nil}, apperr.Service("NewGeoIPServiceFromBytes", fmt.Errorf("open embedded GeoIP database (location degrades to Unknown): %w", err))
 	}
 
-	return &GeoIPServiceImpl{db: db}
+	return &GeoIPServiceImpl{db: db}, nil
 }
 
 func (s *GeoIPServiceImpl) LookupLocation(ipAddress string) string {

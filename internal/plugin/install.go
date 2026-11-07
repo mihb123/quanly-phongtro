@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,9 +13,11 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
 	"github.com/tetratelabs/wazero"
+	"go.uber.org/zap"
 )
 
 type installer struct {
@@ -58,7 +59,7 @@ func (m *Manager) EnableInstall(ctx context.Context, dir string, adminEmails []s
 			continue
 		}
 		if err := m.loadInstalled(ctx, filepath.Join(dir, name)); err != nil {
-			log.Printf("plugin %s: load failed, skipped: %v", name, err)
+			zap.L().Warn("installed plugin load failed, skipped", zap.String("plugin_dir", name), zap.Error(err))
 		}
 	}
 	return nil
@@ -250,12 +251,13 @@ func (m *Manager) handleInstall(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, se.status, se.message)
 			return
 		}
-		log.Printf("plugin %s: install failed: %v", pkg.Manifest.ID, err)
+		logging.RecordError(r.Context(), fmt.Errorf("plugin %s: install: %w", pkg.Manifest.ID, err))
 		WriteError(w, http.StatusInternalServerError, "Không cài được tiện ích")
 		return
 	}
-	claims, _ := security.ClaimsFromContext(r.Context())
-	log.Printf("plugin %s %s installed by %s", pkg.Manifest.ID, pkg.Manifest.Version, claims.Email)
+	// user_id của người cài đã có trong dòng log request.
+	logging.Annotate(r.Context(), zap.String("plugin_action", "install"),
+		zap.String("plugin_id", pkg.Manifest.ID), zap.String("plugin_version", pkg.Manifest.Version))
 	enabled, err := m.isEnabled(r.Context(), managerID, e)
 	if err != nil {
 		enabled = pkg.Manifest.DefaultEnabled
@@ -278,12 +280,11 @@ func (m *Manager) handleUninstall(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, se.status, se.message)
 			return
 		}
-		log.Printf("plugin %s: uninstall failed: %v", id, err)
+		logging.RecordError(r.Context(), fmt.Errorf("plugin %s: uninstall: %w", id, err))
 		WriteError(w, http.StatusInternalServerError, "Không gỡ được tiện ích")
 		return
 	}
-	claims, _ := security.ClaimsFromContext(r.Context())
-	log.Printf("plugin %s uninstalled by %s", id, claims.Email)
+	logging.Annotate(r.Context(), zap.String("plugin_action", "uninstall"), zap.String("plugin_id", id))
 	WriteJSON(w, http.StatusOK, nil, "Đã gỡ tiện ích")
 }
 

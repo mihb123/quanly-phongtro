@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -36,7 +37,7 @@ func (s *zaloInvoiceCommandServiceImpl) processSingleRoom(ctx context.Context, m
 		AllowOverwrite: allowOverwrite,
 	})
 	if pendingCreated {
-		return err
+		return apperr.Service("processSingleRoom", err)
 	}
 	if err != nil {
 		return s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
@@ -75,35 +76,35 @@ func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Contex
 		roomName = parsed.Entries[0].RoomName
 	}
 	if roomName == "" {
-		return nil, errors.New("Vui lòng nhập tên phòng. Ví dụ: #dien 679qt P201 661")
+		return nil, apperr.Service("resolveRoomTargetRoom", errors.New("Vui lòng nhập tên phòng. Ví dụ: #dien 679qt P201 661"))
 	}
 
 	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.SenderID)
 	if err != nil {
-		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
+		return nil, apperr.Service("resolveRoomTargetRoom", errors.New("Tài khoản Zalo này chưa liên kết với hệ thống."))
 	}
 
 	if linkedUser.Role != model.RoleManager {
 		return s.tenantOwnRoom(ctx, managerID, linkedUser.ID, roomName)
 	}
 	if linkedUser.ID != managerID {
-		return nil, errors.New("Chỉ quản lý của bot này mới được cập nhật theo tên phòng.")
+		return nil, apperr.Service("resolveRoomTargetRoom", errors.New("Chỉ quản lý của bot này mới được cập nhật theo tên phòng."))
 	}
 
 	house, roomName, err := s.resolveCommandHouse(ctx, managerID, parsed.HouseCode, roomName)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("resolveRoomTargetRoom", err)
 	}
 	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, house.ID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("resolveRoomTargetRoom", err)
 	}
 	room, err := MatchRoom(roomName, rooms)
 	if err != nil {
 		if errors.Is(err, ErrAmbiguousRoomName) {
-			return nil, fmt.Errorf("Nhà %s có nhiều phòng trùng tên %s. Vui lòng nhập tên phòng đầy đủ.", house.Name, roomName)
+			return nil, apperr.Service("resolveRoomTargetRoom", fmt.Errorf("Nhà %s có nhiều phòng trùng tên %s. Vui lòng nhập tên phòng đầy đủ.", house.Name, roomName))
 		}
-		return nil, fmt.Errorf("Không tìm thấy phòng %s trong nhà %s.", roomName, house.Name)
+		return nil, apperr.Service("resolveRoomTargetRoom", fmt.Errorf("Không tìm thấy phòng %s trong nhà %s.", roomName, house.Name))
 	}
 	return room, nil
 }
@@ -112,14 +113,14 @@ func (s *zaloInvoiceCommandServiceImpl) resolveRoomTargetRoom(ctx context.Contex
 func (s *zaloInvoiceCommandServiceImpl) tenantOwnRoom(ctx context.Context, managerID, userID, roomName string) (*model.Room, error) {
 	tenant, err := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, userID)
 	if err != nil {
-		return nil, errors.New("Không tìm thấy phòng đang thuê cho tài khoản này.")
+		return nil, apperr.Service("tenantOwnRoom", errors.New("Không tìm thấy phòng đang thuê cho tài khoản này."))
 	}
 	room, err := s.roomRepo.GetRoomByIDOnly(ctx, tenant.RoomID)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("tenantOwnRoom", err)
 	}
 	if NormalizeRoomName(room.Name) != NormalizeRoomName(roomName) {
-		return nil, fmt.Errorf("Bạn chỉ có thể cập nhật cho phòng %s của mình. Chỉ cần nhắn: #dien <số mới>", room.Name)
+		return nil, apperr.Service("tenantOwnRoom", fmt.Errorf("Bạn chỉ có thể cập nhật cho phòng %s của mình. Chỉ cần nhắn: #dien <số mới>", room.Name))
 	}
 	return room, nil
 }
@@ -130,12 +131,12 @@ func (s *zaloInvoiceCommandServiceImpl) tenantOwnRoom(ctx context.Context, manag
 func (s *zaloInvoiceCommandServiceImpl) resolveCommandHouse(ctx context.Context, managerID, houseCode, roomName string) (*model.House, string, error) {
 	singleHouse, err := s.singleManagedHouse(ctx, managerID)
 	if err != nil {
-		return nil, "", err
+		return nil, "", apperr.Service("resolveCommandHouse", err)
 	}
 
 	if houseCode == "" {
 		if singleHouse == nil {
-			return nil, "", errors.New("Bạn đang quản lý nhiều nhà. Vui lòng nhập mã nhà. Ví dụ: #dien 679qt P201 661")
+			return nil, "", apperr.Service("resolveCommandHouse", errors.New("Bạn đang quản lý nhiều nhà. Vui lòng nhập mã nhà. Ví dụ: #dien 679qt P201 661"))
 		}
 		return singleHouse, roomName, nil
 	}
@@ -145,7 +146,7 @@ func (s *zaloInvoiceCommandServiceImpl) resolveCommandHouse(ctx context.Context,
 		return house, roomName, nil
 	}
 	if singleHouse == nil {
-		return nil, "", fmt.Errorf("Không tìm thấy nhà với mã: %s", houseCode)
+		return nil, "", apperr.Service("resolveCommandHouse", fmt.Errorf("Không tìm thấy nhà với mã: %s", houseCode))
 	}
 	return singleHouse, strings.TrimSpace(houseCode + " " + roomName), nil
 }
@@ -154,7 +155,7 @@ func (s *zaloInvoiceCommandServiceImpl) resolveCommandHouse(ctx context.Context,
 func (s *zaloInvoiceCommandServiceImpl) singleManagedHouse(ctx context.Context, managerID string) (*model.House, error) {
 	houses, err := s.houseRepo.ListHouseByManagerID(ctx, managerID, 2, 0, "")
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("singleManagedHouse", err)
 	}
 	if len(houses) != 1 {
 		return nil, nil
@@ -178,14 +179,14 @@ func (s *zaloInvoiceCommandServiceImpl) processAwaitUtilitySingleCommand(ctx con
 		ForcedPeriod: forcedPeriod,
 	})
 	if pendingCreated {
-		return err
+		return apperr.Service("processAwaitUtilitySingleCommand", err)
 	}
 	if err != nil {
 		return s.sendTextMessage(ctx, managerID, commandChatID(webhookCtx), err.Error())
 	}
 	if result.Complete {
 		if err := s.pendingRepo.DeleteByID(ctx, pendingID); err != nil {
-			return err
+			return apperr.Service("processAwaitUtilitySingleCommand", err)
 		}
 	}
 	return s.respondAfterSingleUpdate(ctx, managerID, commandChatID(webhookCtx), result, "")
@@ -213,7 +214,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 	}
 	rooms, err := s.roomRepo.ListAllRoomsByHouseID(ctx, house.ID)
 	if err != nil {
-		return err
+		return apperr.Service("handleBatchCommand", err)
 	}
 
 	var matchedEntries []matchedBatchEntry
@@ -235,7 +236,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 		}
 		if resolution.NeedsSelection {
 			if err := s.createBatchPeriodPending(ctx, managerID, webhookCtx, parsed, resolution.Options); err != nil {
-				return err
+				return apperr.Service("handleBatchCommand", err)
 			}
 			return s.sendTextMessage(ctx, managerID, chatID, periodSelectionMessage(house.Name, resolution.Options))
 		}
@@ -254,7 +255,7 @@ func (s *zaloInvoiceCommandServiceImpl) handleBatchCommand(ctx context.Context, 
 			AllowOverwrite: allowOverwrite,
 		}) && !allowOverwrite {
 			if err := s.createBatchOverwritePending(ctx, managerID, webhookCtx, parsed); err != nil {
-				return err
+				return apperr.Service("handleBatchCommand", err)
 			}
 			message := fmt.Sprintf("Một số phòng trong nhà %s đã có số %s cho kỳ cần cập nhật.\nNhắn '#ok' để xác nhận ghi đè, '#huy' để hủy.", house.Name, utilityLabel(parsed.UtilityType))
 			return s.sendTextMessage(ctx, managerID, chatID, message)
@@ -292,25 +293,25 @@ func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Con
 	if webhookCtx.IsGroup {
 		room, err := s.roomRepo.GetRoomByGroupChatID(ctx, webhookCtx.ChatID)
 		if err != nil {
-			return nil, errors.New("Không tìm thấy phòng liên kết với group chat này.")
+			return nil, apperr.Service("resolveSingleCommandRoom", errors.New("Không tìm thấy phòng liên kết với group chat này."))
 		}
 		if _, err := s.houseRepo.GetByID(ctx, room.HouseID, managerID); err != nil {
-			return nil, errors.New("Group chat này không thuộc quản lý hiện tại.")
+			return nil, apperr.Service("resolveSingleCommandRoom", errors.New("Group chat này không thuộc quản lý hiện tại."))
 		}
 		return room, nil
 	}
 
 	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, webhookCtx.SenderID)
 	if err != nil {
-		return nil, errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
+		return nil, apperr.Service("resolveSingleCommandRoom", errors.New("Tài khoản Zalo này chưa liên kết với hệ thống."))
 	}
 	if linkedUser.Role == model.RoleManager {
-		return nil, errors.New("Quản lý vui lòng nhập kèm phòng: #dien <mã nhà> <phòng> <số mới>. Nhắn #help để xem tất cả cú pháp.")
+		return nil, apperr.Service("resolveSingleCommandRoom", errors.New("Quản lý vui lòng nhập kèm phòng: #dien <mã nhà> <phòng> <số mới>. Nhắn #help để xem tất cả cú pháp."))
 	}
 
 	tenant, err := s.tenantRepo.GetFirstTenantByUserID(ctx, managerID, linkedUser.ID)
 	if err != nil {
-		return nil, errors.New("Không tìm thấy phòng đang thuê cho tài khoản này.")
+		return nil, apperr.Service("resolveSingleCommandRoom", errors.New("Không tìm thấy phòng đang thuê cho tài khoản này."))
 	}
 	return s.roomRepo.GetRoomByIDOnly(ctx, tenant.RoomID)
 }
@@ -319,10 +320,10 @@ func (s *zaloInvoiceCommandServiceImpl) resolveSingleCommandRoom(ctx context.Con
 func (s *zaloInvoiceCommandServiceImpl) ensureManagerSender(ctx context.Context, managerID, senderID string) error {
 	linkedUser, err := s.userRepo.GetByZaloUserID(ctx, senderID)
 	if err != nil {
-		return errors.New("Tài khoản Zalo này chưa liên kết với hệ thống.")
+		return apperr.Service("ensureManagerSender", errors.New("Tài khoản Zalo này chưa liên kết với hệ thống."))
 	}
 	if linkedUser.ID != managerID || linkedUser.Role != model.RoleManager {
-		return errors.New("Chỉ quản lý mới được dùng lệnh này.")
+		return apperr.Service("ensureManagerSender", errors.New("Chỉ quản lý mới được dùng lệnh này."))
 	}
 	return nil
 }

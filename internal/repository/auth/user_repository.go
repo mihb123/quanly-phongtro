@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/lib/pq"
@@ -32,9 +33,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("GetByEmail", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, apperr.Repo("GetByEmail", fmt.Errorf("get user: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -52,9 +53,9 @@ func (r *UserRepository) GetAuthUserByEmail(ctx context.Context, email string) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("GetAuthUserByEmail", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("get auth user: %w", err)
+		return nil, apperr.Repo("GetAuthUserByEmail", fmt.Errorf("get auth user: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -72,9 +73,9 @@ func (r *UserRepository) GetByUserID(ctx context.Context, userID string) (*model
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("GetByUserID", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("get user by id: %w", err)
+		return nil, apperr.Repo("GetByUserID", fmt.Errorf("get user by id: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -92,9 +93,9 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*model.U
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("GetByPhone", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("get user by phone: %w", err)
+		return nil, apperr.Repo("GetByPhone", fmt.Errorf("get user by phone: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -112,9 +113,9 @@ func (r *UserRepository) GetByZaloUserID(ctx context.Context, zaloUserID string)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("GetByZaloUserID", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("get user by zalo user id: %w", err)
+		return nil, apperr.Repo("GetByZaloUserID", fmt.Errorf("get user by zalo user id: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -130,9 +131,9 @@ func (r *UserRepository) Create(ctx context.Context, u *model.User) error {
 
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" && strings.Contains(pqErr.Constraint, "users_email") {
-			return model.ErrAlreadyExists
+			return apperr.Repo("Create", model.ErrAlreadyExists)
 		}
-		return fmt.Errorf("create user: %w", err)
+		return apperr.Repo("Create", fmt.Errorf("create user: %w", err))
 	}
 	return nil
 }
@@ -144,7 +145,7 @@ func (r *UserRepository) ActivateUser(ctx context.Context, email string) error {
 		Set("updated_at = NOW()").
 		Where("email = ?", email).
 		Exec(ctx)
-	return err
+	return apperr.Repo("ActivateUser", err)
 }
 
 func (r *UserRepository) DeactivateUser(ctx context.Context, userID string) error {
@@ -154,14 +155,14 @@ func (r *UserRepository) DeactivateUser(ctx context.Context, userID string) erro
 		Where("id = ?", userID).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("deactivate user: %w", err)
+		return apperr.Repo("DeactivateUser", fmt.Errorf("deactivate user: %w", err))
 	}
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("deactivate user rows affected: %w", err)
+		return apperr.Repo("DeactivateUser", fmt.Errorf("deactivate user rows affected: %w", err))
 	}
 	if rowsAffected == 0 {
-		return model.ErrNotFound
+		return apperr.Repo("DeactivateUser", model.ErrNotFound)
 	}
 	return nil
 }
@@ -224,9 +225,9 @@ func (r *UserRepository) UpdateUser(ctx context.Context, userID string, input mo
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrNotFound
+			return nil, apperr.Repo("UpdateUser", model.ErrNotFound)
 		}
-		return nil, fmt.Errorf("update user: %w", err)
+		return nil, apperr.Repo("UpdateUser", fmt.Errorf("update user: %w", err))
 	}
 
 	u.Role = model.Role(role)
@@ -242,7 +243,7 @@ func (r *UserRepository) GetAllUsersWithZaloToken(ctx context.Context) ([]model.
 		Where("zalo_bot_token IS NOT NULL AND zalo_bot_token != ''").
 		Rows(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get users with zalo token: %w", err)
+		return nil, apperr.Repo("GetAllUsersWithZaloToken", fmt.Errorf("get users with zalo token: %w", err))
 	}
 	defer rows.Close()
 
@@ -250,7 +251,7 @@ func (r *UserRepository) GetAllUsersWithZaloToken(ctx context.Context) ([]model.
 	for rows.Next() {
 		var u model.User
 		if err := rows.Scan(&u.ID, &u.Email, &u.ZaloBotToken, &u.IsZaloBotActive); err != nil {
-			return nil, fmt.Errorf("scan user: %w", err)
+			return nil, apperr.Repo("GetAllUsersWithZaloToken", fmt.Errorf("scan user: %w", err))
 		}
 		users = append(users, u)
 	}

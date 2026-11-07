@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
@@ -27,7 +28,7 @@ func (r *PendingInvoiceUpdateRepository) Create(ctx context.Context, pending *mo
 		Returning("id, created_at").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("create pending invoice update: %w", err)
+		return apperr.Repo("Create", fmt.Errorf("create pending invoice update: %w", err))
 	}
 	return nil
 }
@@ -43,9 +44,9 @@ func (r *PendingInvoiceUpdateRepository) GetByChatID(ctx context.Context, manage
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrPendingInvoiceUpdateNotFound
+			return nil, apperr.Repo("GetByChatID", model.ErrPendingInvoiceUpdateNotFound)
 		}
-		return nil, fmt.Errorf("get pending invoice update: %w", err)
+		return nil, apperr.Repo("GetByChatID", fmt.Errorf("get pending invoice update: %w", err))
 	}
 	return &pending, nil
 }
@@ -57,7 +58,7 @@ func (r *PendingInvoiceUpdateRepository) DeleteByChatID(ctx context.Context, man
 		Where("manager_id = ? AND chat_id = ?", managerID, chatID).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("delete pending invoice update by chat: %w", err)
+		return apperr.Repo("DeleteByChatID", fmt.Errorf("delete pending invoice update by chat: %w", err))
 	}
 	return nil
 }
@@ -69,7 +70,7 @@ func (r *PendingInvoiceUpdateRepository) DeleteByID(ctx context.Context, id stri
 		Where("id = ?", id).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("delete pending invoice update by id: %w", err)
+		return apperr.Repo("DeleteByID", fmt.Errorf("delete pending invoice update by id: %w", err))
 	}
 	return nil
 }

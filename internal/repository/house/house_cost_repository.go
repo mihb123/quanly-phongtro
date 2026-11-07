@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -29,9 +30,9 @@ func (r *HouseCostRepository) Create(ctx context.Context, cost *model.HouseCost)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "uq_house_costs_house_period") || strings.Contains(err.Error(), "duplicate key value") {
-			return errors.New("house cost record already exists for this period")
+			return apperr.Repo("Create", errors.New("house cost record already exists for this period"))
 		}
-		return fmt.Errorf("create house cost: %w", err)
+		return apperr.Repo("Create", fmt.Errorf("create house cost: %w", err))
 	}
 	return nil
 }
@@ -47,9 +48,9 @@ func (r *HouseCostRepository) GetByHouseAndPeriod(ctx context.Context, houseID, 
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("house cost not found")
+			return nil, apperr.Repo("GetByHouseAndPeriod", errors.New("house cost not found"))
 		}
-		return nil, fmt.Errorf("get house cost by house and period: %w", err)
+		return nil, apperr.Repo("GetByHouseAndPeriod", fmt.Errorf("get house cost by house and period: %w", err))
 	}
 	return &cost, nil
 }
@@ -66,9 +67,9 @@ func (r *HouseCostRepository) GetLatestByHouseID(ctx context.Context, houseID st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("house cost not found")
+			return nil, apperr.Repo("GetLatestByHouseID", errors.New("house cost not found"))
 		}
-		return nil, fmt.Errorf("get latest house cost: %w", err)
+		return nil, apperr.Repo("GetLatestByHouseID", fmt.Errorf("get latest house cost: %w", err))
 	}
 	return &cost, nil
 }
@@ -87,7 +88,7 @@ func (r *HouseCostRepository) ListByHouseIDs(ctx context.Context, houseIDs []str
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list house costs: %w", err)
+		return nil, apperr.Repo("ListByHouseIDs", fmt.Errorf("list house costs: %w", err))
 	}
 	return costs, nil
 }
@@ -103,11 +104,11 @@ func (r *HouseCostRepository) Update(ctx context.Context, cost *model.HouseCost)
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("update house cost: %w", err)
+		return apperr.Repo("Update", fmt.Errorf("update house cost: %w", err))
 	}
 	rows, err := res.RowsAffected()
 	if err == nil && rows == 0 {
-		return errors.New("house cost not found")
+		return apperr.Repo("Update", errors.New("house cost not found"))
 	}
 	return nil
 }
@@ -121,12 +122,12 @@ func (r *HouseCostRepository) Delete(ctx context.Context, id, houseID string) er
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("delete house cost: %w", err)
+		return apperr.Repo("Delete", fmt.Errorf("delete house cost: %w", err))
 	}
 
 	rows, err := res.RowsAffected()
 	if err == nil && rows == 0 {
-		return errors.New("house cost not found")
+		return apperr.Repo("Delete", errors.New("house cost not found"))
 	}
 	return nil
 }
@@ -140,7 +141,7 @@ func (r *HouseCostRepository) ListByPeriod(ctx context.Context, period string) (
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list house costs by period: %w", err)
+		return nil, apperr.Repo("ListByPeriod", fmt.Errorf("list house costs by period: %w", err))
 	}
 	return costs, nil
 }

@@ -9,14 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/handler/httpx"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 type InvoiceHandler struct {
@@ -158,7 +159,7 @@ func writeInvoiceResponse(w http.ResponseWriter, r *http.Request, status int, in
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(invoice); err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to encode response", err)
+		logging.RecordWarning(r.Context(), "encode response failed", err)
 	}
 }
 
@@ -166,30 +167,24 @@ func writeInvoiceResponse(w http.ResponseWriter, r *http.Request, status int, in
 func writeInvoiceListResponse(w http.ResponseWriter, r *http.Request, invoices []invoiceResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(invoices); err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to encode response", err)
+		logging.RecordWarning(r.Context(), "encode response failed", err)
 	}
 }
 
 func handleInvoiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, model.ErrInvoiceNotFound):
-		logger.Warn(r, http.StatusNotFound, "invoice not found", err)
-		httpx.WriteError(w, http.StatusNotFound, "invoice not found")
+		httpx.FailWith(w, r, http.StatusNotFound, "invoice not found", err)
 	case errors.Is(err, model.ErrRoomNotFound):
-		logger.Warn(r, http.StatusNotFound, "room not found", err)
-		httpx.WriteError(w, http.StatusNotFound, "room not found")
+		httpx.FailWith(w, r, http.StatusNotFound, "room not found", err)
 	case errors.Is(err, model.ErrDuplicateInvoice):
-		logger.Warn(r, http.StatusConflict, "duplicate invoice", err)
-		httpx.WriteError(w, http.StatusConflict, "duplicate invoice for this room and period")
+		httpx.FailWith(w, r, http.StatusConflict, "duplicate invoice for this room and period", err)
 	case errors.Is(err, model.ErrInvalidElectricityIndex), errors.Is(err, model.ErrInvalidWaterIndex):
-		logger.Warn(r, http.StatusBadRequest, "invalid indices", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 	case model.IsInvoiceStateError(err):
-		logger.Warn(r, http.StatusBadRequest, "invalid invoice state transition", err)
-		httpx.WriteError(w, http.StatusBadRequest, err.Error())
+		httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 	default:
-		logger.Error(r, http.StatusInternalServerError, "internal server error", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpx.Fail(w, r, err)
 	}
 }
 
@@ -201,15 +196,13 @@ func (h *InvoiceHandler) CreateInvoice(w http.ResponseWriter, r *http.Request) {
 
 	var req createInvoiceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		logger.Warn(r, http.StatusBadRequest, "invalid request body", err)
-		httpx.WriteError(w, http.StatusBadRequest, "invalid request format")
+		httpx.FailWith(w, r, http.StatusBadRequest, "invalid request format", err)
 		return
 	}
 	defer r.Body.Close()
 
 	if err := httpx.ValidateStruct(req); err != nil {
-		logger.Warn(r, http.StatusUnprocessableEntity, "validation failed", err)
-		httpx.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		httpx.FailWith(w, r, http.StatusUnprocessableEntity, apperr.Message(err), err)
 		return
 	}
 
@@ -264,8 +257,7 @@ func (h *InvoiceHandler) ListInvoices(w http.ResponseWriter, r *http.Request) {
 	}
 	if filter.Period != "" {
 		if err := httpx.ValidateMonthPeriodValue(filter.Period); err != nil {
-			logger.Warn(r, http.StatusBadRequest, "invalid invoice period", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}
@@ -352,8 +344,7 @@ func (h *InvoiceHandler) GetInvoiceBreakdown(w http.ResponseWriter, r *http.Requ
 	}
 	if filter.Period != "" {
 		if err := httpx.ValidateMonthPeriodValue(filter.Period); err != nil {
-			logger.Warn(r, http.StatusBadRequest, "invalid invoice period", err)
-			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			httpx.FailWith(w, r, http.StatusBadRequest, apperr.Message(err), err)
 			return
 		}
 	}
@@ -370,7 +361,7 @@ func (h *InvoiceHandler) GetInvoiceBreakdown(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(newInvoiceBreakdownResponse(totals)); err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to encode response", err)
+		logging.RecordWarning(r.Context(), "encode response failed", err)
 	}
 }
 
@@ -478,8 +469,7 @@ func (h *InvoiceHandler) DownloadInvoiceImage(w http.ResponseWriter, r *http.Req
 
 	imageBytes, err := h.imageService.GenerateInvoiceImage(r.Context(), invoice)
 	if err != nil {
-		logger.Error(r, http.StatusInternalServerError, "failed to generate image", err)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to generate image")
+		httpx.Fail(w, r, err)
 		return
 	}
 
@@ -504,8 +494,7 @@ func (h *InvoiceHandler) DownloadTransactionImage(w http.ResponseWriter, r *http
 		case errors.Is(err, model.ErrInvoiceNotFound):
 			httpx.WriteError(w, http.StatusNotFound, "file not found")
 		default:
-			logger.Error(r, http.StatusInternalServerError, "failed to resolve transaction image", err)
-			httpx.WriteError(w, http.StatusInternalServerError, "internal server error")
+			httpx.Fail(w, r, err)
 		}
 		return
 	}

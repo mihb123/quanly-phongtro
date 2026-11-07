@@ -3,6 +3,7 @@ package geo
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"net/http"
 	"time"
 )
@@ -34,7 +35,7 @@ func (s *geocodingServiceImpl) ReverseGeocode(lat, lng float64) (string, string,
 		// Fallback to OSM if Google Maps fails
 	}
 	addr, err := s.osmReverseGeocode(lat, lng)
-	return addr, "osm", err
+	return addr, "osm", apperr.Service("ReverseGeocode", err)
 }
 
 var (
@@ -53,21 +54,21 @@ func (s *geocodingServiceImpl) googleMapsReverseGeocode(lat, lng float64) (strin
 	url := fmt.Sprintf("%s?latlng=%f,%f&key=%s&language=vi", googleGeocodeBaseURL, lat, lng, s.apiKey)
 	resp, err := s.client.Get(url)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("googleMapsReverseGeocode", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("google maps api returned status: %d", resp.StatusCode)
+		return "", apperr.Service("googleMapsReverseGeocode", fmt.Errorf("google maps api returned status: %d", resp.StatusCode))
 	}
 
 	var data googleGeocodeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", err
+		return "", apperr.Service("googleMapsReverseGeocode", err)
 	}
 
 	if data.Status != "OK" || len(data.Results) == 0 {
-		return "", fmt.Errorf("google maps api status: %s", data.Status)
+		return "", apperr.Service("googleMapsReverseGeocode", fmt.Errorf("google maps api status: %s", data.Status))
 	}
 
 	return data.Results[0].FormattedAddress, nil
@@ -82,32 +83,32 @@ func (s *geocodingServiceImpl) osmReverseGeocode(lat, lng float64) (string, erro
 	url := fmt.Sprintf("%s?format=json&lat=%f&lon=%f&accept-language=vi", osmGeocodeBaseURL, lat, lng)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("osmReverseGeocode", err)
 	}
 	// OSM Requires a descriptive User-Agent
 	req.Header.Set("User-Agent", "quanly-phongtro/1.0 (https://github.com/mihb123/quanly-phongtro)")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("osmReverseGeocode", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("osm api returned status: %d", resp.StatusCode)
+		return "", apperr.Service("osmReverseGeocode", fmt.Errorf("osm api returned status: %d", resp.StatusCode))
 	}
 
 	var data osmGeocodeResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return "", err
+		return "", apperr.Service("osmReverseGeocode", err)
 	}
 
 	if data.Error != "" {
-		return "", fmt.Errorf("osm api error: %s", data.Error)
+		return "", apperr.Service("osmReverseGeocode", fmt.Errorf("osm api error: %s", data.Error))
 	}
 
 	if data.DisplayName == "" {
-		return "", fmt.Errorf("osm api returned empty display name")
+		return "", apperr.Service("osmReverseGeocode", fmt.Errorf("osm api returned empty display name"))
 	}
 
 	return data.DisplayName, nil

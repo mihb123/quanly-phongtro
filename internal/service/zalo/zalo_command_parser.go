@@ -2,6 +2,7 @@ package zalo
 
 import (
 	"errors"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"regexp"
 	"strconv"
 	"strings"
@@ -268,7 +269,7 @@ func NormalizeRoomName(name string) string {
 func MatchRoom(input string, rooms []model.Room) (*model.Room, error) {
 	normalizedInput := NormalizeRoomName(input)
 	if normalizedInput == "" {
-		return nil, model.ErrRoomNotFound
+		return nil, apperr.Service("MatchRoom", model.ErrRoomNotFound)
 	}
 
 	var matched *model.Room
@@ -277,14 +278,14 @@ func MatchRoom(input string, rooms []model.Room) (*model.Room, error) {
 			continue
 		}
 		if matched != nil {
-			return nil, ErrAmbiguousRoomName
+			return nil, apperr.Service("MatchRoom", ErrAmbiguousRoomName)
 		}
 		room := rooms[i]
 		matched = &room
 	}
 
 	if matched == nil {
-		return nil, model.ErrRoomNotFound
+		return nil, apperr.Service("MatchRoom", model.ErrRoomNotFound)
 	}
 	return matched, nil
 }

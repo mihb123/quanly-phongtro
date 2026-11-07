@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/security"
@@ -82,12 +83,12 @@ func (s *paymentCredentialService) GetCredentials(ctx context.Context, managerID
 		if managerID != "" {
 			credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, provider)
 			if err != nil {
-				return nil, err
+				return nil, apperr.Service("GetCredentials", err)
 			}
 			if credential != nil {
 				payOSCredentials, err := s.decryptPayOSCredentials(credential.EncryptedCredentials)
 				if err != nil {
-					return nil, err
+					return nil, apperr.Service("GetCredentials", err)
 				}
 				return payOSCredentialsMap(payOSCredentials), nil
 			}
@@ -95,25 +96,25 @@ func (s *paymentCredentialService) GetCredentials(ctx context.Context, managerID
 		if s.hasFallbackPayOS {
 			return payOSCredentialsMap(s.fallbackPayOS), nil
 		}
-		return nil, ErrPaymentCredentialsNotFound
+		return nil, apperr.Service("GetCredentials", ErrPaymentCredentialsNotFound)
 	}
 	if provider == model.PaymentProviderSePay {
 		if managerID != "" {
 			credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, provider)
 			if err != nil {
-				return nil, err
+				return nil, apperr.Service("GetCredentials", err)
 			}
 			if credential != nil {
 				sePayCredentials, err := s.decryptSePayCredentials(credential.EncryptedCredentials)
 				if err != nil {
-					return nil, err
+					return nil, apperr.Service("GetCredentials", err)
 				}
 				return sePayCredentials.Map(), nil
 			}
 		}
-		return nil, ErrPaymentCredentialsNotFound
+		return nil, apperr.Service("GetCredentials", ErrPaymentCredentialsNotFound)
 	}
-	return nil, ErrPaymentProviderNotFound
+	return nil, apperr.Service("GetCredentials", ErrPaymentProviderNotFound)
 }
 
 // GetPayOSConfig returns masked manager PayOS configuration details and webhook URL.
@@ -124,7 +125,7 @@ func (s *paymentCredentialService) GetPayOSConfig(ctx context.Context, managerID
 	}
 	credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderPayOS)
 	if err != nil {
-		return PayOSConfigStatus{}, err
+		return PayOSConfigStatus{}, apperr.Service("GetPayOSConfig", err)
 	}
 	if credential == nil {
 		return status, nil
@@ -132,7 +133,7 @@ func (s *paymentCredentialService) GetPayOSConfig(ctx context.Context, managerID
 
 	credentials, err := s.decryptPayOSCredentials(credential.EncryptedCredentials)
 	if err != nil {
-		return PayOSConfigStatus{}, err
+		return PayOSConfigStatus{}, apperr.Service("GetPayOSConfig", err)
 	}
 	status.HasConfig = true
 	status.IsActive = credential.IsActive
@@ -144,11 +145,11 @@ func (s *paymentCredentialService) GetPayOSConfig(ctx context.Context, managerID
 func (s *paymentCredentialService) SavePayOSConfig(ctx context.Context, managerID string, credentials PayOSCredentials) error {
 	payload, err := json.Marshal(credentials)
 	if err != nil {
-		return fmt.Errorf("marshal payos credentials: %w", err)
+		return apperr.Service("SavePayOSConfig", fmt.Errorf("marshal payos credentials: %w", err))
 	}
 	encryptedCredentials, err := security.Encrypt(string(payload), s.encryptionKey)
 	if err != nil {
-		return fmt.Errorf("encrypt payos credentials: %w", err)
+		return apperr.Service("SavePayOSConfig", fmt.Errorf("encrypt payos credentials: %w", err))
 	}
 
 	if err := s.repository.UpsertPaymentProviderCredential(ctx, &model.PaymentProviderCredential{
@@ -157,7 +158,7 @@ func (s *paymentCredentialService) SavePayOSConfig(ctx context.Context, managerI
 		EncryptedCredentials: encryptedCredentials,
 		IsActive:             true,
 	}); err != nil {
-		return err
+		return apperr.Service("SavePayOSConfig", err)
 	}
 	return s.repository.MarkActivePaymentLinksStaleByManager(ctx, managerID, model.PaymentProviderPayOS)
 }
@@ -165,7 +166,7 @@ func (s *paymentCredentialService) SavePayOSConfig(ctx context.Context, managerI
 // DeletePayOSConfig deactivates manager-specific PayOS credentials.
 func (s *paymentCredentialService) DeletePayOSConfig(ctx context.Context, managerID string) error {
 	if err := s.repository.DeletePaymentProviderCredential(ctx, managerID, model.PaymentProviderPayOS); err != nil {
-		return err
+		return apperr.Service("DeletePayOSConfig", err)
 	}
 	return s.repository.MarkActivePaymentLinksStaleByManager(ctx, managerID, model.PaymentProviderPayOS)
 }
@@ -178,7 +179,7 @@ func (s *paymentCredentialService) GetSePayConfig(ctx context.Context, managerID
 	}
 	credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderSePay)
 	if err != nil {
-		return SePayConfigStatus{}, err
+		return SePayConfigStatus{}, apperr.Service("GetSePayConfig", err)
 	}
 	if credential == nil {
 		return status, nil
@@ -186,7 +187,7 @@ func (s *paymentCredentialService) GetSePayConfig(ctx context.Context, managerID
 
 	credentials, err := s.decryptSePayCredentials(credential.EncryptedCredentials)
 	if err != nil {
-		return SePayConfigStatus{}, err
+		return SePayConfigStatus{}, apperr.Service("GetSePayConfig", err)
 	}
 	status.HasConfig = true
 	status.IsActive = credential.IsActive
@@ -206,11 +207,11 @@ func (s *paymentCredentialService) GetSePayConfig(ctx context.Context, managerID
 func (s *paymentCredentialService) GetSePayCredentials(ctx context.Context, managerID string) (*sepay.Credentials, error) {
 	credential, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderSePay)
 	if err != nil || credential == nil {
-		return nil, err
+		return nil, apperr.Service("GetSePayCredentials", err)
 	}
 	credentials, err := s.decryptSePayCredentials(credential.EncryptedCredentials)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("GetSePayCredentials", err)
 	}
 	return &credentials, nil
 }
@@ -219,11 +220,11 @@ func (s *paymentCredentialService) GetSePayCredentials(ctx context.Context, mana
 func (s *paymentCredentialService) SaveSePayConfig(ctx context.Context, managerID string, credentials sepay.Credentials) error {
 	payload, err := json.Marshal(credentials)
 	if err != nil {
-		return fmt.Errorf("marshal sepay credentials: %w", err)
+		return apperr.Service("SaveSePayConfig", fmt.Errorf("marshal sepay credentials: %w", err))
 	}
 	encryptedCredentials, err := security.Encrypt(string(payload), s.encryptionKey)
 	if err != nil {
-		return fmt.Errorf("encrypt sepay credentials: %w", err)
+		return apperr.Service("SaveSePayConfig", fmt.Errorf("encrypt sepay credentials: %w", err))
 	}
 
 	if err := s.repository.UpsertPaymentProviderCredential(ctx, &model.PaymentProviderCredential{
@@ -232,7 +233,7 @@ func (s *paymentCredentialService) SaveSePayConfig(ctx context.Context, managerI
 		EncryptedCredentials: encryptedCredentials,
 		IsActive:             true,
 	}); err != nil {
-		return err
+		return apperr.Service("SaveSePayConfig", err)
 	}
 	return s.repository.MarkActivePaymentLinksStaleByManager(ctx, managerID, model.PaymentProviderSePay)
 }
@@ -240,7 +241,7 @@ func (s *paymentCredentialService) SaveSePayConfig(ctx context.Context, managerI
 // DeleteSePayConfig deactivates manager-specific SePay credentials.
 func (s *paymentCredentialService) DeleteSePayConfig(ctx context.Context, managerID string) error {
 	if err := s.repository.DeletePaymentProviderCredential(ctx, managerID, model.PaymentProviderSePay); err != nil {
-		return err
+		return apperr.Service("DeleteSePayConfig", err)
 	}
 	return s.repository.MarkActivePaymentLinksStaleByManager(ctx, managerID, model.PaymentProviderSePay)
 }
@@ -249,7 +250,7 @@ func (s *paymentCredentialService) DeleteSePayConfig(ctx context.Context, manage
 func (s *paymentCredentialService) ResolvePreferredProvider(ctx context.Context, managerID string) (string, error) {
 	sepayCred, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderSePay)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("ResolvePreferredProvider", err)
 	}
 	if sepayCred != nil {
 		return model.PaymentProviderSePay, nil
@@ -257,24 +258,24 @@ func (s *paymentCredentialService) ResolvePreferredProvider(ctx context.Context,
 
 	payosCred, err := s.repository.GetActivePaymentProviderCredential(ctx, managerID, model.PaymentProviderPayOS)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("ResolvePreferredProvider", err)
 	}
 	if payosCred != nil || s.hasFallbackPayOS {
 		return model.PaymentProviderPayOS, nil
 	}
 
-	return "", ErrPaymentCredentialsNotFound
+	return "", apperr.Service("ResolvePreferredProvider", ErrPaymentCredentialsNotFound)
 }
 
 // decryptPayOSCredentials decrypts stored PayOS credential JSON.
 func (s *paymentCredentialService) decryptPayOSCredentials(encryptedCredentials string) (PayOSCredentials, error) {
 	plaintext, err := security.Decrypt(encryptedCredentials, s.encryptionKey)
 	if err != nil {
-		return PayOSCredentials{}, fmt.Errorf("decrypt payment credentials: %w", err)
+		return PayOSCredentials{}, apperr.Service("decryptPayOSCredentials", fmt.Errorf("decrypt payment credentials: %w", err))
 	}
 	var credentials PayOSCredentials
 	if err := json.Unmarshal([]byte(plaintext), &credentials); err != nil {
-		return PayOSCredentials{}, fmt.Errorf("unmarshal payos credentials: %w", err)
+		return PayOSCredentials{}, apperr.Service("decryptPayOSCredentials", fmt.Errorf("unmarshal payos credentials: %w", err))
 	}
 	return credentials, nil
 }
@@ -292,11 +293,11 @@ func payOSCredentialsMap(credentials PayOSCredentials) map[string]string {
 func (s *paymentCredentialService) decryptSePayCredentials(encryptedCredentials string) (sepay.Credentials, error) {
 	plaintext, err := security.Decrypt(encryptedCredentials, s.encryptionKey)
 	if err != nil {
-		return sepay.Credentials{}, fmt.Errorf("decrypt sepay credentials: %w", err)
+		return sepay.Credentials{}, apperr.Service("decryptSePayCredentials", fmt.Errorf("decrypt sepay credentials: %w", err))
 	}
 	var credentials sepay.Credentials
 	if err := json.Unmarshal([]byte(plaintext), &credentials); err != nil {
-		return sepay.Credentials{}, fmt.Errorf("unmarshal sepay credentials: %w", err)
+		return sepay.Credentials{}, apperr.Service("decryptSePayCredentials", fmt.Errorf("unmarshal sepay credentials: %w", err))
 	}
 	return credentials, nil
 }

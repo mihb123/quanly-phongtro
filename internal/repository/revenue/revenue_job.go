@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
 )
@@ -14,10 +15,10 @@ func (r *RevenueSummaryRepository) RecalculateJob(ctx context.Context, payload j
 		Period  string `json:"period"`
 	}
 	if err := json.Unmarshal(payload, &key); err != nil {
-		return err
+		return apperr.Repo("RecalculateJob", err)
 	}
 	if key.HouseID == "" || key.Period == "" {
-		return fmt.Errorf("invalid revenue job")
+		return apperr.Repo("RecalculateJob", fmt.Errorf("invalid revenue job"))
 	}
 	_, err := database.Executor(ctx, r.db).ExecContext(ctx, `
  INSERT INTO house_revenue_summaries (house_id, period, total_revenue, total_cost, profit)
@@ -33,5 +34,5 @@ func (r *RevenueSummaryRepository) RecalculateJob(ctx context.Context, payload j
  WHERE h.id = ?
  ON CONFLICT (house_id, period) DO UPDATE SET total_revenue = EXCLUDED.total_revenue,
  total_cost = EXCLUDED.total_cost, profit = EXCLUDED.profit, updated_at = NOW()`, key.Period, key.Period, key.Period, key.HouseID)
-	return err
+	return apperr.Repo("RecalculateJob", err)
 }

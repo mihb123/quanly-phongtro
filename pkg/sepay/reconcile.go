@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 )
@@ -33,6 +32,9 @@ type Reconciler struct {
 	Lister   TransactionLister
 	Throttle time.Duration
 	MaxPages int
+	// OnSkip (tuỳ chọn) được gọi khi một giao dịch xử lý lỗi và bị bỏ qua.
+	// Module không tự log: app quyết định ghi lỗi ở đâu.
+	OnSkip func(ctx context.Context, transactionID string, err error)
 }
 
 func NewReconciler(lister TransactionLister) *Reconciler {
@@ -72,12 +74,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, credentials Credentials, dat
 			}
 			if err := handle(ctx, TransferFromTransaction(tx)); err != nil {
 				// A cancelled context aborts the whole run; a per-transaction failure is
-				// logged and skipped so one bad transaction can't sink the entire batch.
+				// reported via OnSkip and skipped so one bad transaction can't sink the entire batch.
 				if ctx.Err() != nil {
 					return result, ctx.Err()
 				}
 				result.Failed++
-				log.Printf("SePay reconciliation: skipping transaction %s: %v", tx.ID, err)
+				if r.OnSkip != nil {
+					r.OnSkip(ctx, tx.ID, err)
+				}
 				continue
 			}
 			result.Processed++
@@ -87,8 +91,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, credentials Credentials, dat
 			return result, nil
 		}
 		if page == maxPages {
-			result.Truncated = true
-			log.Printf("SePay reconciliation hit the %d-page cap; remaining transactions not pulled", maxPages)
+			result.Truncated = true // caller reads it: remaining transactions were not pulled
 			break
 		}
 

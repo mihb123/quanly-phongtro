@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -26,7 +27,7 @@ func (r *PluginRepository) ListPluginSettings(ctx context.Context, managerID str
 		Where("manager_id = ?", managerID).
 		Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list plugin settings: %w", err)
+		return nil, apperr.Repo("ListPluginSettings", fmt.Errorf("list plugin settings: %w", err))
 	}
 	return settings, nil
 }
@@ -42,7 +43,7 @@ func (r *PluginRepository) GetPluginSetting(ctx context.Context, managerID, plug
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("get plugin setting: %w", err)
+		return nil, apperr.Repo("GetPluginSetting", fmt.Errorf("get plugin setting: %w", err))
 	}
 	return &setting, nil
 }
@@ -57,7 +58,7 @@ func (r *PluginRepository) SetPluginEnabled(ctx context.Context, managerID, plug
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("set plugin enabled: %w", err)
+		return apperr.Repo("SetPluginEnabled", fmt.Errorf("set plugin enabled: %w", err))
 	}
 	return nil
 }
@@ -72,7 +73,7 @@ func (r *PluginRepository) SavePluginData(ctx context.Context, managerID, plugin
 		Set("updated_at = CURRENT_TIMESTAMP").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("save plugin data: %w", err)
+		return apperr.Repo("SavePluginData", fmt.Errorf("save plugin data: %w", err))
 	}
 	return nil
 }
@@ -80,7 +81,7 @@ func (r *PluginRepository) SavePluginData(ctx context.Context, managerID, plugin
 func (r *PluginRepository) ListOutstandingInvoices(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error) {
 	invoices, err := r.listInvoices(ctx, managerID, []string{model.InvoiceStatusUnpaid, model.InvoiceStatusPendingVerification}, periods)
 	if err != nil {
-		return nil, fmt.Errorf("list outstanding invoices: %w", err)
+		return nil, apperr.Repo("ListOutstandingInvoices", fmt.Errorf("list outstanding invoices: %w", err))
 	}
 	return invoices, nil
 }
@@ -88,7 +89,7 @@ func (r *PluginRepository) ListOutstandingInvoices(ctx context.Context, managerI
 func (r *PluginRepository) ListPaidInvoices(ctx context.Context, managerID string, periods []string) ([]model.OutstandingInvoice, error) {
 	invoices, err := r.listInvoices(ctx, managerID, []string{model.InvoiceStatusPaid}, periods)
 	if err != nil {
-		return nil, fmt.Errorf("list paid invoices: %w", err)
+		return nil, apperr.Repo("ListPaidInvoices", fmt.Errorf("list paid invoices: %w", err))
 	}
 	return invoices, nil
 }
@@ -108,7 +109,7 @@ func (r *PluginRepository) listInvoices(ctx context.Context, managerID string, s
 		q = q.Where("invoice.period IN (?)", bun.In(periods))
 	}
 	err := q.Order("invoice.period ASC", "r.name ASC").Scan(ctx, &invoices)
-	return invoices, err
+	return invoices, apperr.Repo("listInvoices", err)
 }
 
 func (r *PluginRepository) RecordedPayment(ctx context.Context, source, accountRef, transactionRef string) (string, bool, error) {
@@ -122,7 +123,7 @@ func (r *PluginRepository) RecordedPayment(ctx context.Context, source, accountR
 		Limit(1).
 		Scan(ctx, &invoiceIDs)
 	if err != nil {
-		return "", false, fmt.Errorf("find plugin payment: %w", err)
+		return "", false, apperr.Repo("RecordedPayment", fmt.Errorf("find plugin payment: %w", err))
 	}
 	if len(invoiceIDs) == 0 {
 		return "", false, nil
@@ -141,7 +142,7 @@ func (r *PluginRepository) PaymentRecorded(ctx context.Context, source, accountR
 		Where("transaction_reference = ?", transactionRef).
 		Exists(ctx)
 	if err != nil {
-		return false, fmt.Errorf("check plugin payment recorded: %w", err)
+		return false, apperr.Repo("PaymentRecorded", fmt.Errorf("check plugin payment recorded: %w", err))
 	}
 	return exists, nil
 }
@@ -150,14 +151,14 @@ func (r *PluginRepository) SettleInvoice(ctx context.Context, managerID string, 
 	return database.WithinTransaction(ctx, r.db, func(ctx context.Context) error {
 		db := database.Executor(ctx, r.db)
 		if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", payment.Source+":"+payment.AccountRef+":"+payment.TransactionReference); err != nil {
-			return fmt.Errorf("lock plugin payment: %w", err)
+			return apperr.Repo("SettleInvoice", fmt.Errorf("lock plugin payment: %w", err))
 		}
 		recorded, err := r.PaymentRecorded(ctx, payment.Source, payment.AccountRef, payment.TransactionReference)
 		if err != nil {
-			return err
+			return apperr.Repo("SettleInvoice", err)
 		}
 		if recorded {
-			return model.ErrPluginPaymentRecorded
+			return apperr.Repo("SettleInvoice", model.ErrPluginPaymentRecorded)
 		}
 
 		res, err := db.NewUpdate().
@@ -169,10 +170,10 @@ func (r *PluginRepository) SettleInvoice(ctx context.Context, managerID string, 
 			Where("room_id IN (SELECT r.id FROM rooms r JOIN houses h ON r.house_id = h.id WHERE h.manager_id = ?)", managerID).
 			Exec(ctx)
 		if err != nil {
-			return fmt.Errorf("settle invoice: %w", err)
+			return apperr.Repo("SettleInvoice", fmt.Errorf("settle invoice: %w", err))
 		}
 		if rows, err := res.RowsAffected(); err != nil || rows == 0 {
-			return model.ErrPluginInvoiceNotPayable
+			return apperr.Repo("SettleInvoice", model.ErrPluginInvoiceNotPayable)
 		}
 
 		matchingMethod := payment.MatchingMethod
@@ -189,7 +190,7 @@ func (r *PluginRepository) SettleInvoice(ctx context.Context, managerID string, 
 			Status:               model.PaymentEventStatusProcessed,
 		}
 		if _, err := db.NewInsert().Model(event).ExcludeColumn("id", "created_at").Returning("id, created_at").Exec(ctx); err != nil {
-			return fmt.Errorf("record plugin payment: %w", err)
+			return apperr.Repo("SettleInvoice", fmt.Errorf("record plugin payment: %w", err))
 		}
 		return nil
 	})

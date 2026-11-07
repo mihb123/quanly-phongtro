@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/uptrace/bun"
@@ -22,7 +24,7 @@ func (r *AuthSessionRepository) Create(ctx context.Context, session *model.AuthS
 		Column("user_id", "refresh_token", "ip_address", "user_agent", "location", "latitude", "longitude", "geocoding_source", "jkt", "expires_at").
 		Returning("id, revoked, created_at").
 		Exec(ctx)
-	return err
+	return apperr.Repo("Create", err)
 }
 
 func (r *AuthSessionRepository) FindByToken(ctx context.Context, token, userID string) (*model.AuthSession, error) {
@@ -34,10 +36,10 @@ func (r *AuthSessionRepository) FindByToken(ctx context.Context, token, userID s
 		Scan(ctx)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, apperr.Repo("FindByToken", err)
 	}
 
 	return t, nil
@@ -49,7 +51,7 @@ func (r *AuthSessionRepository) Revoke(ctx context.Context, token, userID string
 		Set("revoked = true").
 		Where("refresh_token = ? AND user_id = ?", token, userID).
 		Exec(ctx)
-	return err
+	return apperr.Repo("Revoke", err)
 }
 
 // UpdateLocation persists a refined session location resolved by background
@@ -62,5 +64,5 @@ func (r *AuthSessionRepository) UpdateLocation(ctx context.Context, refreshToken
 		Set("geocoding_source = ?", geocodingSource).
 		Where("refresh_token = ? AND user_id = ?", refreshToken, userID).
 		Exec(ctx)
-	return err
+	return apperr.Repo("UpdateLocation", err)
 }

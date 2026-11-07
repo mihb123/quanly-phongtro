@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -19,11 +18,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 	"github.com/tetratelabs/wazero/sys"
+	"go.uber.org/zap"
 )
 
 const (
@@ -181,7 +182,7 @@ func (p *installedPlugin) serve(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, http.StatusGatewayTimeout, "Tiện ích xử lý quá lâu")
 		return
 	case err != nil:
-		log.Printf("plugin %s: %v", p.manifest.ID, err)
+		logging.RecordError(r.Context(), fmt.Errorf("plugin %s: %w", p.manifest.ID, err))
 		WriteError(w, http.StatusInternalServerError, "Tiện ích gặp lỗi")
 		return
 	}
@@ -264,7 +265,11 @@ func (p *installedPlugin) invoke(ctx context.Context, managerID string, req wasm
 		_ = mod.Close(context.Background())
 	}
 	if out := strings.TrimSpace(output.String()); out != "" {
-		log.Printf("plugin %s output: %s", p.manifest.ID, out)
+		const maxOutput = 2048 // stdout/stderr của plugin: chỉ giữ phần đầu trong log
+		if len(out) > maxOutput {
+			out = out[:maxOutput] + "…"
+		}
+		logging.Annotate(ctx, zap.String("plugin_output", out))
 	}
 	var exitErr *sys.ExitError
 	if errors.As(err, &exitErr) && exitErr.ExitCode() == 0 {
@@ -338,7 +343,7 @@ func (c *invocation) handle(ctx context.Context, payload []byte) []byte {
 		if errors.As(err, &failure) {
 			return callError(failure.status, failure.message)
 		}
-		log.Printf("plugin %s: host %s: %v", c.plugin.manifest.ID, op.Op, err)
+		logging.RecordError(ctx, fmt.Errorf("plugin %s: host %s: %w", c.plugin.manifest.ID, op.Op, err))
 		return callError(http.StatusInternalServerError, "lỗi hệ thống khi xử lý "+op.Op)
 	}
 	if raw, ok := data.(json.RawMessage); ok {

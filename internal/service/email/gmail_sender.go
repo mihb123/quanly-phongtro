@@ -2,6 +2,7 @@ package email
 
 import (
 	"bytes"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"html/template"
 	"strconv"
 	"time"
@@ -97,7 +98,7 @@ func RenderOTPEmailHTML(otpCode string, expiresInMins int64) (string, error) {
 		ExpiresInMins: expiresInMins,
 	})
 	if err != nil {
-		return "", err
+		return "", apperr.Service("RenderOTPEmailHTML", err)
 	}
 
 	return body.String(), nil
@@ -107,7 +108,7 @@ func (s *GoogleSMTPSender) SendEmail(toEmail string, otpCode string, expiresIn t
 
 	messageBody, err := RenderOTPEmailHTML(otpCode, int64(expiresIn.Minutes()))
 	if err != nil {
-		return err
+		return apperr.Service("SendEmail", err)
 	}
 
 	message := gomail.NewMessage()

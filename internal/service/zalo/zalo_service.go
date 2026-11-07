@@ -2,9 +2,10 @@ package zalo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
@@ -49,7 +50,7 @@ type zaloServiceImpl struct {
 func NewZaloService(client ZaloClient, userRepo model.UserRepository, roomRepo model.RoomRepository, tenantRepo model.TenantRepository, houseRepo model.HouseRepository, invoiceRepo model.InvoiceRepository, imageService invoicesvc.ImageService, paymentService paymentsvc.PaymentService, hexKey string, publicBaseURL ...string) (ZaloService, error) {
 	keyBytes, err := shared.DecodeEncryptionKey(hexKey)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("NewZaloService", err)
 	}
 
 	baseURL := "http://localhost:8080"
@@ -79,22 +80,22 @@ func (s *zaloServiceImpl) SetInvoiceCommandService(commandService ZaloInvoiceCom
 func (s *zaloServiceImpl) SaveZaloConfig(ctx context.Context, managerID, botToken, webhookUrl, secretToken string) error {
 	// 1. Validate bot token by calling GetMe
 	if _, err := s.client.GetMe(ctx, botToken); err != nil {
-		return fmt.Errorf("invalid bot token: %v", err)
+		return apperr.Service("SaveZaloConfig", shared.InvalidCause("invalid bot token", err))
 	}
 
 	// 2. Set Webhook
 	if err := s.client.SetWebhook(ctx, botToken, webhookUrl, secretToken); err != nil {
-		return fmt.Errorf("set webhook failed: %v", err)
+		return apperr.Service("SaveZaloConfig", fmt.Errorf("set webhook failed: %w", err))
 	}
 
 	// 3. Encrypt token and webhook secret
 	encToken, err := security.Encrypt(botToken, s.encryptionKey)
 	if err != nil {
-		return fmt.Errorf("encrypt token: %v", err)
+		return apperr.Service("SaveZaloConfig", fmt.Errorf("encrypt token: %w", err))
 	}
 	encSecret, err := security.Encrypt(secretToken, s.encryptionKey)
 	if err != nil {
-		return fmt.Errorf("encrypt webhook secret: %v", err)
+		return apperr.Service("SaveZaloConfig", fmt.Errorf("encrypt webhook secret: %w", err))
 	}
 
 	// 4. Save to DB and mark bot as active
@@ -106,14 +107,14 @@ func (s *zaloServiceImpl) SaveZaloConfig(ctx context.Context, managerID, botToke
 	}
 
 	_, err = s.userRepo.UpdateUser(ctx, managerID, input)
-	return err
+	return apperr.Service("SaveZaloConfig", err)
 }
 
 // GetZaloConfigStatus returns the current Zalo bot configuration and token health for a manager.
 func (s *zaloServiceImpl) GetZaloConfigStatus(ctx context.Context, managerID string) (ZaloBotStatus, error) {
 	user, err := s.userRepo.GetByUserID(ctx, managerID)
 	if err != nil {
-		return ZaloBotStatus{}, err
+		return ZaloBotStatus{}, apperr.Service("GetZaloConfigStatus", err)
 	}
 
 	hasConfig := user.ZaloBotToken != nil && *user.ZaloBotToken != ""
@@ -140,16 +141,16 @@ func (s *zaloServiceImpl) GetZaloConfigStatus(ctx context.Context, managerID str
 func (s *zaloServiceImpl) getDecryptedToken(ctx context.Context, managerID string) (string, error) {
 	user, err := s.userRepo.GetByUserID(ctx, managerID)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("getDecryptedToken", err)
 	}
 
 	if user.ZaloBotToken == nil || *user.ZaloBotToken == "" {
-		return "", errors.New("zalo config not found for manager")
+		return "", apperr.Service("getDecryptedToken", shared.Invalid("zalo config not found for manager"))
 	}
 
 	botToken, err := security.Decrypt(*user.ZaloBotToken, s.encryptionKey)
 	if err != nil {
-		return "", fmt.Errorf("decrypt bot token failed: %v", err)
+		return "", apperr.Service("getDecryptedToken", fmt.Errorf("decrypt bot token failed: %w", err))
 	}
 
 	return botToken, nil
@@ -165,7 +166,7 @@ func (s *zaloServiceImpl) markTokenInactive(ctx context.Context, managerID strin
 func (s *zaloServiceImpl) SendTextMessage(ctx context.Context, managerID, chatID, text string) error {
 	botToken, err := s.getDecryptedToken(ctx, managerID)
 	if err != nil {
-		return err
+		return apperr.Service("SendTextMessage", err)
 	}
 
 	return s.client.SendMessage(ctx, botToken, chatID, text)

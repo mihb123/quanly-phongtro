@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,6 +18,8 @@ import (
 	roomhandler "github.com/mihb123/quanly-phongtro/internal/handler/room"
 	tenanthandler "github.com/mihb123/quanly-phongtro/internal/handler/tenant"
 	zalohandler "github.com/mihb123/quanly-phongtro/internal/handler/zalo"
+	"github.com/mihb123/quanly-phongtro/internal/logging"
+	"github.com/mihb123/quanly-phongtro/internal/logging/filelog"
 	"github.com/mihb123/quanly-phongtro/internal/plugin"
 	authrepo "github.com/mihb123/quanly-phongtro/internal/repository/auth"
 	houserepo "github.com/mihb123/quanly-phongtro/internal/repository/house"
@@ -36,7 +37,6 @@ import (
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
 	invoicesvc "github.com/mihb123/quanly-phongtro/internal/service/invoice"
 	jobsvc "github.com/mihb123/quanly-phongtro/internal/service/jobs"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	paymentsvc "github.com/mihb123/quanly-phongtro/internal/service/payment"
 	roomsvc "github.com/mihb123/quanly-phongtro/internal/service/room"
 	sharedsvc "github.com/mihb123/quanly-phongtro/internal/service/shared"
@@ -46,17 +46,26 @@ import (
 	"github.com/mihb123/quanly-phongtro/pkg/sepay"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 	_ "github.com/mihb123/quanly-phongtro/plugins"
+	"go.uber.org/zap"
 )
 
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		// Logger chưa có cấu hình: dùng production logger mặc định để vẫn ra JSON.
+		zap.Must(logging.New("prod", "info")).Fatal("load config", zap.Error(err))
 	}
+
+	zl, err := logging.New(cfg.AppEnv, cfg.LogLevel)
+	if err != nil {
+		panic("failed to init logger: " + err.Error())
+	}
+	defer func() { _ = zl.Sync() }()
+	zap.ReplaceGlobals(zl)
 
 	sqlDB, err := db.NewPostgres(cfg.PostgresDSN)
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		zl.Fatal("connect database", zap.Error(err))
 	}
 	defer sqlDB.Close()
 	emailSender := email.NewGoogleSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.MailFromEmail, cfg.MailFromName)
@@ -66,7 +75,10 @@ func main() {
 	userRepo := authrepo.NewUserRepository(sqlDB)
 	hasher := security.NewBcryptHasher()
 	tokenProvider := security.NewJWTProvider(cfg.AccessTokenJWTSecret, cfg.RefreshTokenJWTSecret, cfg.TokenTTL, jwtRepo)
-	geoIPService := geosvc.NewGeoIPServiceFromBytes(assets.GeoLite2City)
+	geoIPService, err := geosvc.NewGeoIPServiceFromBytes(assets.GeoLite2City)
+	if err != nil {
+		zl.Warn("geoip disabled", zap.Error(err))
+	}
 	defer geoIPService.Close()
 	geocodingService := geosvc.NewGeocodingService(cfg.GoogleMapAPIKey)
 	authService := authsvc.NewAuthService(userRepo, hasher, tokenProvider, verifyEmailRepo, emailSender, cfg.OTPEXpireMinutes, otpCheckRepo, geoIPService, geocodingService)
@@ -124,7 +136,7 @@ func main() {
 	invoicePaymentRepo := invoicerepo.NewInvoicePaymentRepository(sqlDB)
 	appSecretKeyBytes, err := sharedsvc.DecodeAES256Key(cfg.AppSecretEncryptionKey, "APP_SECRET_ENCRYPTION_KEY")
 	if err != nil {
-		log.Fatalf("decode app secret encryption key: %v", err)
+		zl.Fatal("decode app secret encryption key", zap.Error(err))
 	}
 	paymentCredentialService := paymentsvc.NewPaymentCredentialService(invoicePaymentRepo, appSecretKeyBytes, paymentsvc.PayOSCredentials{
 		ClientID:    cfg.PayOSClientID,
@@ -136,14 +148,14 @@ func main() {
 
 	zaloService, err := zalosvc.NewZaloService(zaloClient, userRepo, roomRepo, tenantRepo, houseRepo, invoiceRepo, imageService, paymentService, cfg.ZaloBotEncryptionKey, webhookBaseURL, cfg.UploadURLSigningKey)
 	if err != nil {
-		log.Fatalf("failed to init zalo service: %v", err)
+		zl.Fatal("failed to init zalo service", zap.Error(err))
 	}
 	paymentService.SetZaloService(zaloService)
 	notificationWorker := jobsvc.NewWorker(jobRepo, "payment_notification", paymentService.DeliverNotification)
 	notificationWorker.Start()
 	keyBytes, err := sharedsvc.DecodeEncryptionKey(cfg.ZaloBotEncryptionKey)
 	if err != nil {
-		log.Fatalf("decode zalo encryption key: %v", err)
+		zl.Fatal("decode zalo encryption key", zap.Error(err))
 	}
 	pendingInvoiceUpdateRepo := invoicerepo.NewPendingInvoiceUpdateRepository(sqlDB)
 	zaloInvoiceCommandService := zalosvc.NewZaloInvoiceCommandService(invoiceService, invoiceRepo, roomRepo, houseRepo, tenantRepo, tenantService, userRepo, pendingInvoiceUpdateRepo, zaloClient, imageService, paymentService, keyBytes, webhookBaseURL)
@@ -166,29 +178,29 @@ func main() {
 
 	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
 	if err := pluginManager.EnableInstall(context.Background(), cfg.PluginDir, cfg.PluginAdminEmails); err != nil {
-		log.Printf("plugin install disabled: %v", err)
+		zl.Warn("plugin install disabled", zap.Error(err))
 	}
 	defer pluginManager.Close(context.Background())
 
-	slowAPILogger, err := logger.NewSlowAPILogger(logger.SlowAPIConfig{
+	slowAPILogger, err := filelog.NewSlowAPILogger(filelog.SlowAPIConfig{
 		Threshold: cfg.SlowAPIThreshold,
 		FilePath:  cfg.SlowAPILogFile,
 		MaxDays:   cfg.SlowAPILogMaxDays,
 	})
 	if err != nil {
-		log.Fatalf("init slow api logger: %v", err)
+		zl.Fatal("init slow api logger", zap.Error(err))
 	}
 	defer slowAPILogger.Close()
 
-	securityLogger, err := logger.NewSecurityLogger(logger.SecurityConfig{})
+	securityLogger, err := filelog.NewSecurityLogger(filelog.SecurityConfig{})
 	if err != nil {
-		log.Fatalf("init security logger: %v", err)
+		zl.Fatal("init security logger", zap.Error(err))
 	}
 	defer securityLogger.Close()
 
 	frontendFS, err := web.DistFS()
 	if err != nil {
-		log.Fatalf("load embedded frontend: %v", err)
+		zl.Fatal("load embedded frontend", zap.Error(err))
 	}
 
 	router := httpRouter.New(
@@ -201,6 +213,7 @@ func main() {
 		zaloHandler,
 		houseCostHandler,
 		paymentHandler,
+		httpRouter.WithLogger(zl),
 		httpRouter.WithTrustedProxies(cfg.TrustedProxyCIDRs),
 		httpRouter.WithUploadURLSigningKey(cfg.UploadURLSigningKey),
 		httpRouter.WithStaticFS(frontendFS),
@@ -215,9 +228,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("api listening on http://localhost:%s", listenPort)
+		zl.Info("api listening", zap.String("addr", "http://localhost:"+listenPort))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("start server: %v", err)
+			zl.Fatal("start server", zap.Error(err))
 		}
 	}()
 
@@ -229,7 +242,7 @@ func main() {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("shutdown error: %v", err)
+		zl.Error("shutdown error", zap.Error(err))
 	}
 
 	notificationWorker.Stop()

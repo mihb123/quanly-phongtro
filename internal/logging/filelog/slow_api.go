@@ -1,9 +1,8 @@
-package logger
+package filelog
 
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -160,14 +161,14 @@ func (l *SlowAPILogger) Log(entry SlowAPIEntry) {
 
 	payload, err := json.Marshal(record)
 	if err != nil {
-		log.Printf("slow api log marshal: %v", err)
+		zap.L().Error("slow api log marshal failed", zap.Error(err))
 		return
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, err := l.file.write(append(payload, '\n'), entry.Time); err != nil {
-		log.Printf("slow api log write: %v", err)
+		zap.L().Error("slow api log write failed", zap.Error(err))
 	}
 }
 

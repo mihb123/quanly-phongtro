@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/mihb123/quanly-phongtro/internal/model"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 	"github.com/mihb123/quanly-phongtro/pkg/zalobot"
 )
 
@@ -25,11 +25,11 @@ func (s *zaloServiceImpl) handleHelpCommand(ctx context.Context, managerID strin
 
 	botToken, err := s.getDecryptedToken(ctx, managerID)
 	if err != nil {
-		logger.Error(nil, 0, "zalo help get token failed", err)
+		logging.RecordWarning(ctx, "zalo help get token failed", err)
 		return
 	}
 	if err := s.client.SendMessage(ctx, botToken, chatID, s.buildHelpMessage(ctx, managerID, manager, webhookCtx)); err != nil {
-		logger.Error(nil, 0, "zalo help send message failed", err)
+		logging.RecordWarning(ctx, "zalo help send message failed", err)
 	}
 }
 

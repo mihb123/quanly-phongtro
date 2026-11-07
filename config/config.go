@@ -22,6 +22,7 @@ const (
 type Config struct {
 	AppPort                string
 	AppEnv                 string
+	LogLevel               string
 	AppURL                 string
 	AppPortDev             string
 	AppURLDev              string
@@ -148,6 +149,7 @@ func Load() (*Config, error) {
 	return &Config{
 		AppPort:                appPort,
 		AppEnv:                 appEnv,
+		LogLevel:               getOrDefault("LOG_LEVEL", "info"),
 		AppURL:                 appURL,
 		AppPortDev:             appPortDev,
 		AppURLDev:              appURLDev,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"time"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
@@ -25,13 +26,13 @@ func (r *Repository) ProcessNext(ctx context.Context, kind string, process func(
 		executor := database.Executor(ctx, r.db)
 		err := executor.NewRaw("SELECT id, payload FROM background_jobs WHERE kind = ? AND available_at <= NOW() ORDER BY available_at, id LIMIT 1 FOR UPDATE SKIP LOCKED", kind).Scan(ctx, &job)
 		if err != nil {
-			return err
+			return apperr.Repo("ProcessNext", err)
 		}
 		if err := process(ctx, job.Payload); err != nil {
-			return err
+			return apperr.Repo("ProcessNext", err)
 		}
 		_, err = executor.ExecContext(ctx, "DELETE FROM background_jobs WHERE id = ?", job.ID)
-		return err
+		return apperr.Repo("ProcessNext", err)
 	})
 	if errors.Is(err, sql.ErrNoRows) && job.ID == 0 {
 		return false, nil
@@ -44,5 +45,5 @@ func (r *Repository) ProcessNext(ctx context.Context, kind string, process func(
 			return false, errors.Join(err, fmt.Errorf("schedule job retry: %w", retryErr))
 		}
 	}
-	return job.ID != 0, err
+	return job.ID != 0, apperr.Repo("ProcessNext", err)
 }

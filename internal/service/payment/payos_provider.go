@@ -13,7 +13,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
+
 	"github.com/mihb123/quanly-phongtro/internal/model"
+	"github.com/mihb123/quanly-phongtro/internal/service/shared"
 	"github.com/payOSHQ/payos-lib-golang/v2"
 )
 
@@ -41,18 +44,18 @@ func (p *PayOSProvider) Name() string {
 func (p *PayOSProvider) CreatePaymentLink(ctx context.Context, input PaymentCreateInput) (*PaymentProviderLink, error) {
 	client, err := newPayOSClient(input.Credentials)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePaymentLink", err)
 	}
 
 	amount := int(input.Invoice.TotalAmount)
 	if amount <= 0 {
-		return nil, errors.New("invoice amount must be greater than 0")
+		return nil, apperr.Service("CreatePaymentLink", shared.Invalid("invoice amount must be greater than 0"))
 	}
 
 	orderReferenceCode := buildOrderReferenceCode(input.Invoice.ID, input.Invoice.RoomID)
 	orderCode, err := generateUniquePayOSOrderCode(ctx, input.Invoice, orderReferenceCode, input.ProviderOrderRefExists)
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("CreatePaymentLink", err)
 	}
 
 	req := payos.CreatePaymentLinkRequest{
@@ -75,7 +78,7 @@ func (p *PayOSProvider) CreatePaymentLink(ctx context.Context, input PaymentCrea
 
 	res, err := client.PaymentRequests.Create(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("payos API create payment link: %w", err)
+		return nil, apperr.Service("CreatePaymentLink", fmt.Errorf("payos API create payment link: %w", err))
 	}
 
 	return &PaymentProviderLink{
@@ -92,14 +95,14 @@ func (p *PayOSProvider) CreatePaymentLink(ctx context.Context, input PaymentCrea
 func (p *PayOSProvider) CancelPaymentLink(ctx context.Context, input PaymentCancelInput) error {
 	client, err := newPayOSClient(input.Credentials)
 	if err != nil {
-		return err
+		return apperr.Service("CancelPaymentLink", err)
 	}
 	orderCode, err := strconv.ParseInt(input.ProviderOrderRef, 10, 64)
 	if err != nil {
-		return fmt.Errorf("parse payos order code: %w", err)
+		return apperr.Service("CancelPaymentLink", fmt.Errorf("parse payos order code: %w", err))
 	}
 	if _, err := client.PaymentRequests.Cancel(ctx, orderCode, &input.Reason); err != nil {
-		return fmt.Errorf("payos API cancel payment link: %w", err)
+		return apperr.Service("CancelPaymentLink", fmt.Errorf("payos API cancel payment link: %w", err))
 	}
 	return nil
 }
@@ -108,18 +111,18 @@ func (p *PayOSProvider) CancelPaymentLink(ctx context.Context, input PaymentCanc
 func (p *PayOSProvider) VerifyWebhook(_ context.Context, input PaymentWebhookInput) (*VerifiedPaymentEvent, error) {
 	var webhook payos.WebhookType
 	if err := json.Unmarshal(input.Body, &webhook); err != nil {
-		return nil, fmt.Errorf("%w: parse payos webhook body: %v", ErrPaymentWebhookInvalid, err)
+		return nil, apperr.Service("VerifyWebhook", fmt.Errorf("%w: parse payos webhook body: %w", ErrPaymentWebhookInvalid, err))
 	}
 	if isPayOSTestPing(webhook) {
-		return nil, ErrPaymentWebhookIgnored
+		return nil, apperr.Service("VerifyWebhook", ErrPaymentWebhookIgnored)
 	}
 
 	verifiedData, err := verifyPayOSWebhookData(webhook, input.Credentials["checksum_key"])
 	if err != nil {
-		return nil, err
+		return nil, apperr.Service("VerifyWebhook", err)
 	}
 	if verifiedData == nil {
-		return nil, ErrPayOSVerifiedDataNil
+		return nil, apperr.Service("VerifyWebhook", ErrPayOSVerifiedDataNil)
 	}
 
 	return &VerifiedPaymentEvent{
@@ -140,7 +143,7 @@ func newPayOSClient(credentials map[string]string) (*payos.PayOS, error) {
 	apiKey := credentials["api_key"]
 	checksumKey := credentials["checksum_key"]
 	if clientID == "" || apiKey == "" || checksumKey == "" {
-		return nil, errors.New("missing PayOS credentials")
+		return nil, apperr.Service("newPayOSClient", errors.New("missing PayOS credentials"))
 	}
 
 	client, err := payos.NewPayOS(&payos.PayOSOptions{
@@ -149,7 +152,7 @@ func newPayOSClient(credentials map[string]string) (*payos.PayOS, error) {
 		ChecksumKey: checksumKey,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("init payos client: %w", err)
+		return nil, apperr.Service("newPayOSClient", fmt.Errorf("init payos client: %w", err))
 	}
 	return client, nil
 }
@@ -163,14 +166,14 @@ func generateUniquePayOSOrderCode(ctx context.Context, invoice *model.InvoiceWit
 		}
 		found, err := exists(ctx, fmt.Sprint(orderCode))
 		if err != nil {
-			return 0, fmt.Errorf("check payment order code: %w", err)
+			return 0, apperr.Service("generateUniquePayOSOrderCode", fmt.Errorf("check payment order code: %w", err))
 		}
 		if !found {
 			return orderCode, nil
 		}
 	}
 
-	return 0, errors.New("could not generate unique PayOS order code")
+	return 0, apperr.Service("generateUniquePayOSOrderCode", errors.New("could not generate unique PayOS order code"))
 }
 
 // payOSDescription creates the short PayOS invoice description.
@@ -185,21 +188,21 @@ func payOSDescription(referenceCode, roomName string) string {
 // verifyPayOSWebhookData validates the webhook signature with the configured checksum key.
 func verifyPayOSWebhookData(webhook payos.WebhookType, checksumKey string) (*payos.WebhookDataType, error) {
 	if checksumKey == "" {
-		return nil, fmt.Errorf("%w: payos checksum key is required", ErrPaymentCredentialsNotFound)
+		return nil, apperr.Service("verifyPayOSWebhookData", fmt.Errorf("%w: payos checksum key is required", ErrPaymentCredentialsNotFound))
 	}
 	if webhook.Data == nil {
-		return nil, ErrPayOSVerifiedDataNil
+		return nil, apperr.Service("verifyPayOSWebhookData", ErrPayOSVerifiedDataNil)
 	}
 	if webhook.Signature == "" {
-		return nil, fmt.Errorf("%w: payos webhook signature is required", ErrPaymentWebhookInvalid)
+		return nil, apperr.Service("verifyPayOSWebhookData", fmt.Errorf("%w: payos webhook signature is required", ErrPaymentWebhookInvalid))
 	}
 
 	expectedSignature, err := createPayOSSignature(webhook.Data, checksumKey)
 	if err != nil {
-		return nil, fmt.Errorf("create payos signature: %w", err)
+		return nil, apperr.Service("verifyPayOSWebhookData", fmt.Errorf("create payos signature: %w", err))
 	}
 	if !hmac.Equal([]byte(expectedSignature), []byte(webhook.Signature)) {
-		return nil, fmt.Errorf("%w: payos webhook signature mismatch", ErrPaymentWebhookInvalid)
+		return nil, apperr.Service("verifyPayOSWebhookData", fmt.Errorf("%w: payos webhook signature mismatch", ErrPaymentWebhookInvalid))
 	}
 
 	return webhook.Data, nil
@@ -209,12 +212,12 @@ func verifyPayOSWebhookData(webhook payos.WebhookType, checksumKey string) (*pay
 func createPayOSSignature(data any, checksumKey string) (string, error) {
 	sortedPayload, err := sortPayOSObjectByKey(data)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("createPayOSSignature", err)
 	}
 
 	hasher := hmac.New(sha256.New, []byte(checksumKey))
 	if _, err := hasher.Write([]byte(sortedPayload)); err != nil {
-		return "", err
+		return "", apperr.Service("createPayOSSignature", err)
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -224,12 +227,12 @@ func createPayOSSignature(data any, checksumKey string) (string, error) {
 func sortPayOSObjectByKey(data any) (string, error) {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		return "", err
+		return "", apperr.Service("sortPayOSObjectByKey", err)
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(jsonBytes, &payload); err != nil {
-		return "", err
+		return "", apperr.Service("sortPayOSObjectByKey", err)
 	}
 
 	keys := make([]string, 0, len(payload))
@@ -242,7 +245,7 @@ func sortPayOSObjectByKey(data any) (string, error) {
 	for _, key := range keys {
 		value, err := payOSSignatureValue(payload[key])
 		if err != nil {
-			return "", err
+			return "", apperr.Service("sortPayOSObjectByKey", err)
 		}
 		pairs = append(pairs, fmt.Sprintf("%s=%s", key, value))
 	}
@@ -261,7 +264,7 @@ func payOSSignatureValue(value any) (string, error) {
 		return v, nil
 	default:
 		resultBytes, err := json.Marshal(value)
-		return string(resultBytes), err
+		return string(resultBytes), apperr.Service("payOSSignatureValue", err)
 	}
 }
 

@@ -3,6 +3,7 @@ package invoice
 import (
 	"context"
 	"encoding/json"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
 )
@@ -14,10 +15,10 @@ func (r *InvoicePaymentRepository) QueueNotification(ctx context.Context, invoic
 		Message   string `json:"message"`
 	}{managerID, chatID, message})
 	if err != nil {
-		return err
+		return apperr.Repo("QueueNotification", err)
 	}
 	_, err = database.Executor(ctx, r.db).ExecContext(ctx,
 		"INSERT INTO background_jobs (kind, job_key, payload) VALUES ('payment_notification', ?, ?::jsonb) ON CONFLICT (kind, job_key) DO NOTHING",
 		invoiceID+":"+chatID, string(payload))
-	return err
+	return apperr.Repo("QueueNotification", err)
 }

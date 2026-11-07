@@ -2,11 +2,14 @@ package house
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/mihb123/quanly-phongtro/internal/logging"
 	"github.com/robfig/cron/v3"
+	"go.uber.org/zap"
 )
+
+const houseCostCronTask = "house_cost_cron"
 
 // MonthlyCostCronSchedule fires at 00:05 on the 1st of every month (ICT).
 var MonthlyCostCronSchedule = "5 0 1 * *"
@@ -30,7 +33,7 @@ func NewHouseCostCronService(service HouseCostService) *HouseCostCronService {
 	if _, err := c.AddFunc(MonthlyCostCronSchedule, func() {
 		svc.generateForCurrentMonth()
 	}); err != nil {
-		log.Printf("[HouseCostCron] Failed to schedule monthly cost generation: %v", err)
+		zap.L().Error("schedule monthly cost generation failed", zap.String("task", houseCostCronTask), zap.Error(err))
 	}
 
 	return svc
@@ -39,13 +42,13 @@ func NewHouseCostCronService(service HouseCostService) *HouseCostCronService {
 // Start begins the cron scheduler in a background goroutine.
 func (s *HouseCostCronService) Start() {
 	s.cron.Start()
-	log.Println("[HouseCostCron] Started monthly operating cost scheduler (00:05 on the 1st).")
+	zap.L().Info("cron started", zap.String("task", houseCostCronTask), zap.String("schedule", MonthlyCostCronSchedule))
 }
 
 // Stop gracefully shuts down the cron scheduler.
 func (s *HouseCostCronService) Stop() {
 	s.cron.Stop()
-	log.Println("[HouseCostCron] Stopped monthly operating cost scheduler.")
+	zap.L().Info("cron stopped", zap.String("task", houseCostCronTask))
 }
 
 // RunNow immediately generates the current month's records, bypassing the schedule.
@@ -60,19 +63,22 @@ func (s *HouseCostCronService) generateForCurrentMonth() {
 	period := formatPeriod(monthStart)
 	previousPeriod := formatPeriod(monthStart.AddDate(0, -1, 0))
 
-	log.Printf("[HouseCostCron] Generating operating costs for %s from %s...", period, previousPeriod)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(logging.TaskContext(context.Background(), houseCostCronTask), 5*time.Minute)
 	defer cancel()
+	log := logging.FromCtx(ctx).With(zap.String("period", period), zap.String("previous_period", previousPeriod))
+	log.Info("generating operating costs")
 
 	result, err := s.service.GenerateMonthlyCostsFromPrevious(ctx, previousPeriod, period)
 	if err != nil {
-		log.Printf("[HouseCostCron] Generation for %s failed: %v", period, err)
+		logging.LogTaskError(ctx, "operating cost generation failed", err, zap.String("period", period))
 		return
 	}
+	for _, houseErr := range result.Errors {
+		logging.LogTaskError(ctx, "operating cost generation failed for house", houseErr, zap.String("period", period))
+	}
 
-	log.Printf("[HouseCostCron] Generation for %s done: %d created, %d skipped, %d failed.",
-		period, result.Created, result.Skipped, result.Failed)
+	log.Info("operating cost generation done",
+		zap.Int("created", result.Created), zap.Int("skipped", result.Skipped), zap.Int("failed", result.Failed))
 }
 
 // formatPeriod renders a time as the yyyy-mm period key used by house_costs.

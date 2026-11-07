@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -26,7 +27,7 @@ func (r *HouseRepository) CreateHouse(ctx context.Context, h *model.House) error
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("create house: %w", err)
+		return apperr.Repo("CreateHouse", fmt.Errorf("create house: %w", err))
 	}
 	return nil
 }
@@ -39,9 +40,9 @@ func (r *HouseRepository) GetByID(ctx context.Context, id, managerID string) (*m
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrHouseNotFound
+			return nil, apperr.Repo("GetByID", model.ErrHouseNotFound)
 		}
-		return nil, fmt.Errorf("get house by id: %w", err)
+		return nil, apperr.Repo("GetByID", fmt.Errorf("get house by id: %w", err))
 	}
 	return &h, nil
 }
@@ -55,9 +56,9 @@ func (r *HouseRepository) GetHouseByCode(ctx context.Context, managerID, houseCo
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrHouseNotFound
+			return nil, apperr.Repo("GetHouseByCode", model.ErrHouseNotFound)
 		}
-		return nil, fmt.Errorf("get house by code: %w", err)
+		return nil, apperr.Repo("GetHouseByCode", fmt.Errorf("get house by code: %w", err))
 	}
 	return &h, nil
 }
@@ -73,7 +74,7 @@ func (r *HouseRepository) IsHouseCodeTaken(ctx context.Context, houseCode, exclu
 	}
 	exists, err := q.Exists(ctx)
 	if err != nil {
-		return false, fmt.Errorf("is house code taken: %w", err)
+		return false, apperr.Repo("IsHouseCodeTaken", fmt.Errorf("is house code taken: %w", err))
 	}
 	return exists, nil
 }
@@ -93,7 +94,7 @@ func (r *HouseRepository) ListHouseByManagerID(ctx context.Context, managerID st
 
 	err := q.Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list houses: %w", err)
+		return nil, apperr.Repo("ListHouseByManagerID", fmt.Errorf("list houses: %w", err))
 	}
 	return houses, nil
 }
@@ -131,9 +132,9 @@ func (r *HouseRepository) UpdateHouse(ctx context.Context, id, managerID string,
 
 	if err := q.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrHouseNotFound
+			return nil, apperr.Repo("UpdateHouse", model.ErrHouseNotFound)
 		}
-		return nil, fmt.Errorf("update house: %w", err)
+		return nil, apperr.Repo("UpdateHouse", fmt.Errorf("update house: %w", err))
 	}
 	return &h, nil
 }
@@ -152,9 +153,9 @@ func (r *HouseRepository) UpdateHouseDocuments(ctx context.Context, id, managerI
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrHouseNotFound
+			return nil, apperr.Repo("UpdateHouseDocuments", model.ErrHouseNotFound)
 		}
-		return nil, fmt.Errorf("update house documents: %w", err)
+		return nil, apperr.Repo("UpdateHouseDocuments", fmt.Errorf("update house documents: %w", err))
 	}
 	return &h, nil
 }
@@ -172,7 +173,7 @@ func (r *HouseRepository) HasHouseWithFilePath(ctx context.Context, managerID, f
 		)`, filePath).
 		Exists(ctx)
 	if err != nil {
-		return false, fmt.Errorf("has house with file path: %w", err)
+		return false, apperr.Repo("HasHouseWithFilePath", fmt.Errorf("has house with file path: %w", err))
 	}
 	return exists, nil
 }
@@ -183,14 +184,14 @@ func (r *HouseRepository) DeleteHouse(ctx context.Context, id, managerID string)
 		Where("id = ? AND manager_id = ?", id, managerID).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("delete house: %w", err)
+		return apperr.Repo("DeleteHouse", fmt.Errorf("delete house: %w", err))
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("delete house rows affected: %w", err)
+		return apperr.Repo("DeleteHouse", fmt.Errorf("delete house rows affected: %w", err))
 	}
 	if rows == 0 {
-		return model.ErrHouseNotFound
+		return apperr.Repo("DeleteHouse", model.ErrHouseNotFound)
 	}
 	return nil
 }
@@ -206,7 +207,7 @@ func (r *HouseRepository) IsHouseOwnedBy(ctx context.Context, houseID, managerID
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
-		return false, fmt.Errorf("is house owned by: %w", err)
+		return false, apperr.Repo("IsHouseOwnedBy", fmt.Errorf("is house owned by: %w", err))
 	}
 	return true, nil
 }

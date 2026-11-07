@@ -1,13 +1,14 @@
-package logger
+package filelog
 
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -104,14 +105,14 @@ func (l *SecurityLogger) Log(event SecurityEvent) {
 
 	payload, err := json.Marshal(record)
 	if err != nil {
-		log.Printf("security log marshal: %v", err)
+		zap.L().Error("security log marshal failed", zap.Error(err))
 		return
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, err := l.file.write(append(payload, '\n'), event.Time); err != nil {
-		log.Printf("security log write: %v", err)
+		zap.L().Error("security log write failed", zap.Error(err))
 	}
 }
 

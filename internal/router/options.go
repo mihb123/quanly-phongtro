@@ -5,7 +5,8 @@ import (
 	"net/netip"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
+	"github.com/mihb123/quanly-phongtro/internal/logging/filelog"
+	"go.uber.org/zap"
 )
 
 type Option func(*options)
@@ -14,9 +15,17 @@ type options struct {
 	trustedProxies      []netip.Prefix
 	uploadURLSigningKey string
 	staticFS            fs.FS
-	slowAPILogger       *logger.SlowAPILogger
-	securityLogger      *logger.SecurityLogger
+	slowAPILogger       *filelog.SlowAPILogger
+	securityLogger      *filelog.SecurityLogger
 	pluginRoutes        func(chi.Router)
+	logger              *zap.Logger
+}
+
+// WithLogger đặt logger gốc cho dòng log mỗi request (mặc định zap.L()).
+func WithLogger(l *zap.Logger) Option {
+	return func(o *options) {
+		o.logger = l
+	}
 }
 
 // WithTrustedProxies configures the proxy CIDRs trusted for X-Forwarded-* headers in DPoP htu.
@@ -41,13 +50,13 @@ func WithStaticFS(staticFS fs.FS) Option {
 }
 
 // WithSlowAPILogger bật ghi log các request vượt ngưỡng chậm ra file riêng.
-func WithSlowAPILogger(slowLogger *logger.SlowAPILogger) Option {
+func WithSlowAPILogger(slowLogger *filelog.SlowAPILogger) Option {
 	return func(o *options) {
 		o.slowAPILogger = slowLogger
 	}
 }
 
-func WithSecurityLogger(securityLogger *logger.SecurityLogger) Option {
+func WithSecurityLogger(securityLogger *filelog.SecurityLogger) Option {
 	return func(o *options) {
 		o.securityLogger = securityLogger
 	}

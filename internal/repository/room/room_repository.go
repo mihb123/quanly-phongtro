@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 	"strings"
 
 	database "github.com/mihb123/quanly-phongtro/internal/db"
@@ -28,7 +29,7 @@ func (r *RoomRepository) CreateRoom(ctx context.Context, room *model.Room) error
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("create room: %w", err)
+		return apperr.Repo("CreateRoom", fmt.Errorf("create room: %w", err))
 	}
 	return nil
 }
@@ -44,9 +45,9 @@ func (r *RoomRepository) GetRoomByID(ctx context.Context, id, houseID string) (*
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("GetRoomByID", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("get room by id: %w", err)
+		return nil, apperr.Repo("GetRoomByID", fmt.Errorf("get room by id: %w", err))
 	}
 	return &room, nil
 }
@@ -75,7 +76,7 @@ func (r *RoomRepository) ListRoomsByHouseID(ctx context.Context, filter model.Ro
 		ScanAndCount(ctx)
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("list rooms: %w", err)
+		return nil, 0, apperr.Repo("ListRoomsByHouseID", fmt.Errorf("list rooms: %w", err))
 	}
 	return rooms, total, nil
 }
@@ -97,7 +98,7 @@ func (r *RoomRepository) GetRoomStats(ctx context.Context, managerID, houseID st
 		q.Where("room.house_id = ?", houseID)
 	}
 	if err := q.Scan(ctx, &stats); err != nil {
-		return nil, fmt.Errorf("get room stats: %w", err)
+		return nil, apperr.Repo("GetRoomStats", fmt.Errorf("get room stats: %w", err))
 	}
 	return &stats, nil
 }
@@ -116,7 +117,7 @@ func (r *RoomRepository) ListAvailableRooms(ctx context.Context, managerID strin
 		Limit(limit).
 		ScanAndCount(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("list available rooms: %w", err)
+		return nil, 0, apperr.Repo("ListAvailableRooms", fmt.Errorf("list available rooms: %w", err))
 	}
 	return rooms, total, nil
 }
@@ -136,7 +137,7 @@ func (r *RoomRepository) ListAllRoomsByHouseID(ctx context.Context, houseID stri
 		Scan(ctx)
 
 	if err != nil {
-		return nil, fmt.Errorf("list all rooms: %w", err)
+		return nil, apperr.Repo("ListAllRoomsByHouseID", fmt.Errorf("list all rooms: %w", err))
 	}
 	return rooms, nil
 }
@@ -169,9 +170,9 @@ func (r *RoomRepository) UpdateRoom(ctx context.Context, id, houseID string, par
 	err := q.Scan(ctx, &room.ID, &room.HouseID, &room.Name, &room.Price, &room.MaxTenants, &room.Status, &room.ElectricityPrice, &room.WaterPrice, &room.WifiPrice, &room.ParkingPrice, &room.ServicePrice, &room.ExtraPersonThreshold, &room.ExtraPersonFee, &room.ExtraVehicleThreshold, &room.ExtraVehicleFee, &room.GroupChatID, &room.ContractPath, &room.CreatedAt, &room.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("UpdateRoom", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("update room: %w", err)
+		return nil, apperr.Repo("UpdateRoom", fmt.Errorf("update room: %w", err))
 	}
 	return &room, nil
 }
@@ -184,14 +185,14 @@ func (r *RoomRepository) DeleteRoom(ctx context.Context, id, houseID string) err
 		Where("id = ? AND house_id = ?", id, houseID).
 		Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("delete room: %w", err)
+		return apperr.Repo("DeleteRoom", fmt.Errorf("delete room: %w", err))
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("delete room rows affected: %w", err)
+		return apperr.Repo("DeleteRoom", fmt.Errorf("delete room rows affected: %w", err))
 	}
 	if n == 0 {
-		return model.ErrRoomNotFound
+		return apperr.Repo("DeleteRoom", model.ErrRoomNotFound)
 	}
 	return nil
 }
@@ -205,9 +206,9 @@ func (r *RoomRepository) GetMaxTenants(ctx context.Context, roomID string) (int6
 		Scan(ctx, &maxTenants)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, model.ErrNotFound
+			return 0, apperr.Repo("GetMaxTenants", model.ErrNotFound)
 		}
-		return 0, fmt.Errorf("error get max tenant by id: %v", err)
+		return 0, apperr.Repo("GetMaxTenants", fmt.Errorf("error get max tenant by id: %w", err))
 	}
 	return maxTenants, nil
 }
@@ -219,11 +220,11 @@ func (r *RoomRepository) UpdateRoomStatus(ctx context.Context, roomID, status st
 		Where("id = ?", roomID).
 		Exec(ctx)
 	if err != nil {
-		return err
+		return apperr.Repo("UpdateRoomStatus", err)
 	}
 	row, err := res.RowsAffected()
 	if err != nil || row == 0 {
-		return model.ErrNotFound
+		return apperr.Repo("UpdateRoomStatus", model.ErrNotFound)
 	}
 	return nil
 }
@@ -237,9 +238,9 @@ func (r *RoomRepository) GetRoomByIDOnly(ctx context.Context, id string) (*model
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("GetRoomByIDOnly", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("get room by id only: %w", err)
+		return nil, apperr.Repo("GetRoomByIDOnly", fmt.Errorf("get room by id only: %w", err))
 	}
 	return &room, nil
 }
@@ -257,9 +258,9 @@ func (r *RoomRepository) GetRoomByIDForManager(ctx context.Context, managerID, r
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("GetRoomByIDForManager", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("get room by id for manager: %w", err)
+		return nil, apperr.Repo("GetRoomByIDForManager", fmt.Errorf("get room by id for manager: %w", err))
 	}
 	return &room, nil
 }
@@ -273,9 +274,9 @@ func (r *RoomRepository) GetRoomByGroupChatID(ctx context.Context, groupChatID s
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("GetRoomByGroupChatID", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("get room by group chat id: %w", err)
+		return nil, apperr.Repo("GetRoomByGroupChatID", fmt.Errorf("get room by group chat id: %w", err))
 	}
 	return &room, nil
 }
@@ -293,9 +294,9 @@ func (r *RoomRepository) UpdateRoomContract(ctx context.Context, id, houseID, co
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRoomNotFound
+			return nil, apperr.Repo("UpdateRoomContract", model.ErrRoomNotFound)
 		}
-		return nil, fmt.Errorf("update room contract: %w", err)
+		return nil, apperr.Repo("UpdateRoomContract", fmt.Errorf("update room contract: %w", err))
 	}
 	return &room, nil
 }
@@ -313,7 +314,7 @@ func (r *RoomRepository) HasRoomWithFilePath(ctx context.Context, managerID, fil
 		)`, filePath).
 		Exists(ctx)
 	if err != nil {
-		return false, fmt.Errorf("has room with file path: %w", err)
+		return false, apperr.Repo("HasRoomWithFilePath", fmt.Errorf("has room with file path: %w", err))
 	}
 	return exists, nil
 }

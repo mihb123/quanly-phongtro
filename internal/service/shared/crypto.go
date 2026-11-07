@@ -3,6 +3,7 @@ package shared
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 )
 
 // DecodeEncryptionKey decodes the hex or raw 32-byte encryption key string used for Zalo tokens.
@@ -17,10 +18,10 @@ func DecodeAES256Key(hexKey, keyName string) ([]byte, error) {
 		if len(hexKey) == 32 {
 			return []byte(hexKey), nil
 		}
-		return nil, fmt.Errorf("invalid encryption key: %v", err)
+		return nil, apperr.Service("DecodeAES256Key", fmt.Errorf("invalid encryption key: %w", err))
 	}
 	if len(keyBytes) != 32 {
-		return nil, fmt.Errorf("%s must be exactly 32 bytes", keyName)
+		return nil, apperr.Service("DecodeAES256Key", fmt.Errorf("%s must be exactly 32 bytes", keyName))
 	}
 	return keyBytes, nil
 }

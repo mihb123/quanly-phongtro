@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/mihb123/quanly-phongtro/internal/logging/filelog"
 	"github.com/mihb123/quanly-phongtro/internal/security"
-	"github.com/mihb123/quanly-phongtro/internal/service/logger"
 )
 
 const (
@@ -44,10 +44,10 @@ type activityTracker struct {
 	retention time.Duration
 	entries   map[string]*ipActivity
 	lastPrune time.Time
-	logger    *logger.SecurityLogger
+	logger    *filelog.SecurityLogger
 }
 
-func newActivityTracker(securityLogger *logger.SecurityLogger, event, message string, rules ...abuseRule) *activityTracker {
+func newActivityTracker(securityLogger *filelog.SecurityLogger, event, message string, rules ...abuseRule) *activityTracker {
 	if securityLogger == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (t *activityTracker) record(r *http.Request, trustedProxies []netip.Prefix)
 	}
 }
 
-func (t *activityTracker) observe(ip, userAgent, route string, now time.Time) (logger.SecurityEvent, bool) {
+func (t *activityTracker) observe(ip, userAgent, route string, now time.Time) (filelog.SecurityEvent, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -123,11 +123,11 @@ func (t *activityTracker) observe(ip, userAgent, route string, now time.Time) (l
 	}
 
 	if len(triggered) == 0 || now.Sub(activity.lastLogged) < abuseLogCooldown {
-		return logger.SecurityEvent{}, false
+		return filelog.SecurityEvent{}, false
 	}
 	activity.lastLogged = now
 
-	return logger.SecurityEvent{
+	return filelog.SecurityEvent{
 		Time:       now,
 		Event:      t.event,
 		Message:    t.message,
@@ -177,7 +177,7 @@ type abuseMonitor struct {
 	trustedProxies []netip.Prefix
 }
 
-func newAbuseMonitor(securityLogger *logger.SecurityLogger, trustedProxies []netip.Prefix) *abuseMonitor {
+func newAbuseMonitor(securityLogger *filelog.SecurityLogger, trustedProxies []netip.Prefix) *abuseMonitor {
 	return &abuseMonitor{
 		registrations: newActivityTracker(securityLogger, "suspicious_registration", "Too many accounts created from one IP",
 			abuseRule{window: time.Minute, threshold: 10, label: "1m"},

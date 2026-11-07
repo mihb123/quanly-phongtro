@@ -10,6 +10,7 @@ import (
 	"github.com/mihb123/quanly-phongtro/internal/model"
 	"github.com/mihb123/quanly-phongtro/internal/repository/house"
 	"github.com/mihb123/quanly-phongtro/internal/repository/repotest"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 )
 
 func TestHouseCostRepository_Create(t *testing.T) {
@@ -39,7 +40,7 @@ func TestHouseCostRepository_Create(t *testing.T) {
 
 	mock.ExpectQuery(`INSERT INTO "house_costs"`).WillReturnError(errors.New("duplicate key value violates unique constraint"))
 	err = repo.Create(ctx, cost)
-	if err == nil || err.Error() != "house cost record already exists for this period" {
+	if err == nil || apperr.Message(err) != "house cost record already exists for this period" {
 		t.Errorf("expected duplicate error, got %v", err)
 	}
 }
@@ -67,7 +68,7 @@ func TestHouseCostRepository_GetByHouseAndPeriod(t *testing.T) {
 	// Not found
 	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(sql.ErrNoRows)
 	_, err = repo.GetByHouseAndPeriod(ctx, "house-1", "2023-11")
-	if err == nil || err.Error() != "house cost not found" {
+	if err == nil || apperr.Message(err) != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
 	}
 
@@ -101,7 +102,7 @@ func TestHouseCostRepository_GetLatestByHouseID(t *testing.T) {
 	// Not found
 	mock.ExpectQuery(`SELECT .* FROM "house_costs"`).WillReturnError(sql.ErrNoRows)
 	_, err = repo.GetLatestByHouseID(ctx, "house-2")
-	if err == nil || err.Error() != "house cost not found" {
+	if err == nil || apperr.Message(err) != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
 	}
 
@@ -173,7 +174,7 @@ func TestHouseCostRepository_Update(t *testing.T) {
 	// Not found
 	mock.ExpectExec(`UPDATE "house_costs"`).WillReturnResult(sqlmock.NewResult(0, 0))
 	err = repo.Update(ctx, cost)
-	if err == nil || err.Error() != "house cost not found" {
+	if err == nil || apperr.Message(err) != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
 	}
 
@@ -200,7 +201,7 @@ func TestHouseCostRepository_Delete(t *testing.T) {
 
 	mock.ExpectExec(`DELETE FROM "house_costs"`).WillReturnResult(sqlmock.NewResult(0, 0))
 	err = repo.Delete(ctx, "cost-1", "house-1")
-	if err == nil || err.Error() != "house cost not found" {
+	if err == nil || apperr.Message(err) != "house cost not found" {
 		t.Errorf("expected house cost not found, got %v", err)
 	}
 

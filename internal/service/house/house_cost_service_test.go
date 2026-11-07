@@ -8,6 +8,7 @@ import (
 
 	housesvc "github.com/mihb123/quanly-phongtro/internal/service/house"
 	revenuesvc "github.com/mihb123/quanly-phongtro/internal/service/revenue"
+	"github.com/mihb123/quanly-phongtro/pkg/apperr"
 
 	"github.com/mihb123/quanly-phongtro/internal/mock/mock_model"
 	"github.com/mihb123/quanly-phongtro/internal/model"
@@ -32,7 +33,7 @@ func TestHouseCostService_CreateMonthlyCost(t *testing.T) {
 		Return(false, nil)
 
 	_, err := costService.CreateMonthlyCost(ctx, "manager-1", "house-1", "2023-10")
-	if err == nil || err.Error() != "forbidden: you do not own this house" {
+	if err == nil || apperr.Message(err) != "forbidden: you do not own this house" {
 		t.Errorf("expected forbidden error, got %v", err)
 	}
 
@@ -79,7 +80,7 @@ func TestHouseCostService_CreateMonthlyCost(t *testing.T) {
 		Return(&model.HouseCost{ID: "cost-1"}, nil)
 
 	_, err = costService.CreateMonthlyCost(ctx, "manager-1", "house-1", "2023-10")
-	if err == nil || err.Error() != "house cost record already exists for this period" {
+	if err == nil || apperr.Message(err) != "house cost record already exists for this period" {
 		t.Errorf("expected existing cost error, got %v", err)
 	}
 
@@ -98,7 +99,7 @@ func TestHouseCostService_CreateMonthlyCost(t *testing.T) {
 		Return(errors.New("db error"))
 
 	_, err = costService.CreateMonthlyCost(ctx, "manager-1", "house-1", "2023-10")
-	if err == nil || err.Error() != "db error" {
+	if err == nil || apperr.Message(err) != "db error" {
 		t.Errorf("expected db error, got %v", err)
 	}
 }
@@ -173,7 +174,7 @@ func TestHouseCostService_GetMonthlyCost(t *testing.T) {
 		Return(false, nil)
 
 	_, err = costService.GetMonthlyCost(ctx, "manager-1", "house-2", "2023-10")
-	if err == nil || err.Error() != "forbidden: you do not own this house" {
+	if err == nil || apperr.Message(err) != "forbidden: you do not own this house" {
 		t.Errorf("expected forbidden error, got %v", err)
 	}
 
@@ -194,7 +195,7 @@ func TestHouseCostService_GetMonthlyCost(t *testing.T) {
 		Return(nil, errors.New("db error"))
 
 	_, err = costService.GetMonthlyCost(ctx, "manager-1", "house-4", "2023-10")
-	if err == nil || err.Error() != "db error" {
+	if err == nil || apperr.Message(err) != "db error" {
 		t.Errorf("expected db error, got %v", err)
 	}
 }
@@ -250,7 +251,7 @@ func TestHouseCostService_UpdateMonthlyCost(t *testing.T) {
 		Return(&model.HouseCost{ID: "different", HouseID: "house-1", Period: "2023-10"}, nil)
 
 	err = costService.UpdateMonthlyCost(ctx, "manager-1", input)
-	if err == nil || err.Error() != "invalid cost ID" {
+	if err == nil || apperr.Message(err) != "invalid cost ID" {
 		t.Errorf("expected invalid cost ID, got %v", err)
 	}
 
@@ -266,7 +267,7 @@ func TestHouseCostService_UpdateMonthlyCost(t *testing.T) {
 		Return(errors.New("db error"))
 
 	err = costService.UpdateMonthlyCost(ctx, "manager-1", input)
-	if err == nil || err.Error() != "db error" {
+	if err == nil || apperr.Message(err) != "db error" {
 		t.Errorf("expected db error, got %v", err)
 	}
 
@@ -289,7 +290,7 @@ func TestHouseCostService_UpdateMonthlyCost(t *testing.T) {
 		Return(nil, errors.New("lookup error"))
 
 	err = costService.UpdateMonthlyCost(ctx, "manager-1", input)
-	if err == nil || err.Error() != "lookup error" {
+	if err == nil || apperr.Message(err) != "lookup error" {
 		t.Errorf("expected lookup error, got %v", err)
 	}
 }
@@ -404,7 +405,7 @@ func TestHouseCostService_GetRevenueSummaries(t *testing.T) {
 		Return(nil, errors.New("db error"))
 
 	_, err = costService.GetRevenueSummaries(ctx, "manager-1", []string{"house-1"}, "2023-10")
-	if err == nil || err.Error() != "db error" {
+	if err == nil || apperr.Message(err) != "db error" {
 		t.Errorf("expected db error, got %v", err)
 	}
 }
