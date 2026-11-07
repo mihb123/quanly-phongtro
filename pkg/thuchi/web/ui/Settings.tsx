@@ -295,9 +295,26 @@ const NO_PARENT = '__root__'
 
 function CategoriesPanel() {
   const categories = useCategories()
+  const { engine, preset } = useThuChi()
   const [editing, setEditing] = useState<Category | 'expense' | 'income' | null>(null)
+  async function addDefaults() {
+    await engine.action('add_default_categories', {})
+    toast.success('Đã gửi yêu cầu, danh mục mẫu hiện ra sau khi đồng bộ')
+  }
   return (
     <>
+      <Section>
+        <div className="flex items-center gap-3 p-3">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {preset === 'landlord'
+              ? 'Bộ danh mục cho nhà trọ: sửa chữa điện nước, trang bị phòng (tủ lạnh, kệ bếp…), vệ sinh, môi giới, quảng cáo, thuế phí, tiền phòng, tiền cọc… Thiếu cái nào thì bấm thêm, danh mục bạn đã có giữ nguyên.'
+              : 'Thêm lại các danh mục mặc định còn thiếu, danh mục bạn đã có giữ nguyên.'}
+          </p>
+          <Button size="sm" variant="outline" className="shrink-0" onClick={addDefaults}>
+            <Plus /> Thêm danh mục mẫu
+          </Button>
+        </div>
+      </Section>
       {(['expense', 'income'] as const).map((kind) => (
         <Section key={kind} title={kind === 'expense' ? 'Chi' : 'Thu'} action={<Button size="xs" variant="ghost" onClick={() => setEditing(kind)}><Plus /> Thêm</Button>}>
           <div className="divide-y">
@@ -926,12 +943,24 @@ function ConnectPanel() {
   )
 }
 
-const TELEGRAM_EXAMPLES: [string, string][] = [
-  ['cafe 15k', 'chi 15.000đ, tự vào Ăn uống'],
-  ['ăn trưa 45k, gửi xe 5k', 'nhiều khoản trong một tin'],
-  ['+2tr lương', 'dấu + là khoản thu'],
-  ['hôm qua grab 32k', 'ghi cho ngày hôm qua; hoặc 20/10 tiền điện 450k'],
+const TELEGRAM_EXAMPLES = [
+  { text: 'cafe 15k', desc: 'chi 15.000đ, tự vào Ăn uống' },
+  { text: 'ăn trưa 45k, gửi xe 5k', desc: 'nhiều khoản trong một tin' },
+  { text: '+2tr lương', desc: 'dấu + là khoản thu' },
+  { text: 'hôm qua grab 32k', desc: 'ghi cho ngày hôm qua; hoặc 20/10 tiền điện 450k' },
 ]
+
+function Step({ n, title, children }: { n: number; title: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">{n}</span>
+      <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+        <p className="leading-5 font-medium">{title}</p>
+        {children && <div className="space-y-2 text-xs text-muted-foreground">{children}</div>}
+      </div>
+    </li>
+  )
+}
 
 function TelegramPanel() {
   const { transport } = useThuChi()
@@ -1007,17 +1036,16 @@ function TelegramPanel() {
   if (!info.enabled) return <Empty>Máy chủ chưa bật bot Telegram.</Empty>
 
   const accountItems = [{ value: 'auto', label: 'Tiền mặt (mặc định)' }, ...accounts.map((a) => ({ value: a.id, label: a.name }))]
+  const bot = `@${info.bot_username}`
+  const examples = info.examples?.length ? info.examples : TELEGRAM_EXAMPLES
+  const linked = info.links.length > 0
+  const expiresAt = code ? new Date(code.expires_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''
 
   return (
     <div className="space-y-3">
-      <Section title="Tài khoản Telegram">
-        <div className="space-y-3 px-3 pb-3 text-sm">
-          {info.bot_username && !info.reads_group_messages && (
-            <p className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
-              Bot đang bật privacy mode nên trong nhóm chỉ thấy lệnh và tin trả lời bot (chat riêng vẫn ghi bình thường). Tắt: BotFather → /setprivacy → chọn bot → Disable, rồi xoá và thêm lại bot vào nhóm.
-            </p>
-          )}
-          {info.links.length > 0 && (
+      {linked && (
+        <Section title="Tài khoản Telegram đã kết nối">
+          <div className="space-y-3 px-3 pb-3 text-sm">
             <div className="divide-y rounded-lg border">
               {info.links.map((l) => (
                 <div key={l.id} className="space-y-2 px-3 py-2">
@@ -1051,38 +1079,131 @@ function TelegramPanel() {
                 </div>
               ))}
             </div>
-          )}
-          {code ? (
-            <div className="space-y-3 rounded-lg bg-muted/60 p-3">
-              <a href={code.url} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: 'lg' }), 'w-full')}>
-                <ExternalLink /> Mở Telegram, bấm Start
-              </a>
-              <p className="text-center text-xs text-muted-foreground">hoặc gửi lệnh này vào nhóm có @{info.bot_username}</p>
-              <CopyField label="Lệnh kết nối" value={code.command} />
-              <p className="text-xs text-muted-foreground">Mã dùng một lần, hết hạn sau 15 phút. Trang này tự cập nhật khi kết nối xong.</p>
-            </div>
-          ) : (
+            <p className="text-xs text-muted-foreground">
+              Nhắn cho {bot} (chat riêng hoặc trong nhóm có bot), ví dụ <code className="rounded bg-muted px-1">{examples[0].text}</code>, là khoản đó được ghi vào sổ.
+            </p>
+            <a href={`https://t.me/${info.bot_username}`} target="_blank" rel="noreferrer" className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}>
+              <ExternalLink /> Mở chat với {bot}
+            </a>
+          </div>
+        </Section>
+      )}
+
+      <Section title={linked ? 'Kết nối thêm tài khoản Telegram' : 'Kết nối Telegram'}>
+        <div className="space-y-4 px-3 pb-3 text-sm">
+          <p className="text-xs text-muted-foreground">
+            {linked
+              ? 'Dùng khi bạn có thêm điện thoại/tài khoản Telegram khác, hoặc muốn người cùng quản lý ghi chung vào sổ này: tạo mã rồi gửi link kết nối cho người đó.'
+              : `Sau khi kết nối, bạn chỉ cần nhắn cho bot ${bot} kiểu “${examples[0].text}” là khoản đó được ghi vào sổ. Mỗi tài khoản Telegram chỉ cần kết nối một lần.`}
+          </p>
+          <ol className="space-y-4">
+            <Step n={1} title="Cài Telegram và đăng nhập">
+              <p>
+                Trên điện thoại hoặc máy tính. Chưa có thì tải ở{' '}
+                <a href="https://telegram.org/apps" target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+                  telegram.org/apps
+                </a>
+                .
+              </p>
+            </Step>
+            <Step n={2} title="Tạo mã kết nối">
+              {code ? (
+                <p>
+                  Mã của bạn: <code className="rounded bg-muted px-1 font-semibold text-foreground">{code.code}</code> · dùng 1 lần, hết hạn lúc {expiresAt}.
+                </p>
+              ) : (
+                <Button className="w-full" onClick={createCode}>
+                  <Send /> Tạo mã kết nối
+                </Button>
+              )}
+            </Step>
+            <Step n={3} title={<>Mở {bot} trên Telegram và bấm <b>Start</b></>}>
+              {code ? (
+                <>
+                  <a href={code.url} target="_blank" rel="noreferrer" className={cn(buttonVariants({ size: 'lg' }), 'w-full')}>
+                    <ExternalLink /> Mở Telegram
+                  </a>
+                  <p>
+                    Telegram mở khung chat với {bot}. Bấm nút <b>Start</b> (hoặc <b>Bắt đầu</b>) ở cuối màn hình. Trên máy tính, nếu trình duyệt hiện trang t.me thì bấm <b>Start Bot</b> hoặc <b>Open in Telegram</b>.
+                  </p>
+                </>
+              ) : (
+                <p>Nút “Mở Telegram” hiện ra sau khi tạo mã ở bước 2.</p>
+              )}
+            </Step>
+            <Step n={4} title={<>Bot trả lời “✅ Đã kết nối” là xong</>}>
+              {code ? (
+                <p className="flex items-center gap-1.5">
+                  <RefreshCw className="size-3.5 animate-spin" /> Đang chờ Telegram xác nhận, trang này tự cập nhật.
+                </p>
+              ) : (
+                <p>Trang này tự cập nhật, không cần tải lại.</p>
+              )}
+            </Step>
+          </ol>
+
+          {code && (
             <>
-              {info.links.length === 0 && <p className="text-muted-foreground">Kết nối một lần, sau đó nhắn cho @{info.bot_username} hoặc trong nhóm có bot là ghi được thu chi.</p>}
-              <Button className="w-full" variant={info.links.length ? 'outline' : 'default'} onClick={createCode}>
-                <Send /> {info.links.length ? 'Kết nối thêm tài khoản Telegram' : 'Kết nối Telegram'}
-              </Button>
+              <div className="space-y-2 rounded-lg border border-dashed p-3">
+                <p className="text-xs font-medium">Nút “Mở Telegram” không mở được? Làm tay:</p>
+                <ol className="list-decimal space-y-1 pl-4 text-xs text-muted-foreground">
+                  <li>
+                    Mở Telegram, gõ <b>{bot}</b> vào ô tìm kiếm rồi chọn bot.
+                  </li>
+                  <li>Gửi cho bot đúng tin nhắn dưới đây (bấm sao chép rồi dán):</li>
+                </ol>
+                <CopyField label="Tin nhắn kết nối" value={code.command} />
+                <CopyField label="Hoặc gửi link này cho người cần kết nối (mở trên máy có Telegram)" value={code.url} />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" className="flex-1" onClick={() => setCode(null)}>
+                  Huỷ
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={createCode}>
+                  <RefreshCw /> Tạo mã mới
+                </Button>
+              </div>
             </>
           )}
         </div>
       </Section>
 
+      <Section title="Ghi chung trong nhóm Telegram (tuỳ chọn)">
+        <div className="space-y-4 px-3 pb-3 text-sm">
+          <p className="text-xs text-muted-foreground">Hợp khi nhiều người cùng ghi chi phí, ví dụ hai vợ chồng hoặc người quản lý. Mọi khoản trong nhóm đều vào sổ này.</p>
+          <ol className="space-y-4">
+            <Step n={1} title="Thêm bot vào nhóm">
+              <p>
+                Mở nhóm → bấm tên nhóm → <b>Thêm thành viên</b> → tìm <b>{bot}</b> → <b>Thêm</b>.
+              </p>
+            </Step>
+            <Step n={2} title="Mỗi người tự kết nối tài khoản Telegram của mình">
+              <p>Người nào muốn ghi thì làm các bước kết nối ở trên (bạn tạo mã rồi gửi link cho họ). Tin của người chưa kết nối sẽ không được ghi, bot sẽ nhắc họ kết nối.</p>
+            </Step>
+            <Step n={3} title="Nhắn trong nhóm như chat riêng">
+              {info.reads_group_messages ? (
+                <p>Bot đọc mọi tin trong nhóm, tin nào có số tiền sẽ được ghi.</p>
+              ) : (
+                <p className="rounded-lg bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                  Bot đang bật privacy mode nên trong nhóm chỉ thấy lệnh và tin trả lời bot (chat riêng vẫn ghi bình thường). Người quản trị bot cần tắt: BotFather → /setprivacy → chọn bot → Disable, rồi xoá và thêm lại bot vào nhóm.
+                </p>
+              )}
+            </Step>
+          </ol>
+        </div>
+      </Section>
+
       <Section title="Cách nhắn">
         <div className="divide-y px-3 pb-1 text-sm">
-          {TELEGRAM_EXAMPLES.map(([msg, desc]) => (
-            <div key={msg} className="flex items-baseline justify-between gap-3 py-2">
-              <code className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">{msg}</code>
-              <span className="text-right text-xs text-muted-foreground">{desc}</span>
+          {examples.map((ex) => (
+            <div key={ex.text} className="flex items-baseline justify-between gap-3 py-2">
+              <code className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs">{ex.text}</code>
+              <span className="text-right text-xs text-muted-foreground">{ex.desc}</span>
             </div>
           ))}
         </div>
         <p className="px-3 pb-3 text-xs text-muted-foreground">
-          Bot tự chọn danh mục. Sai thì bấm ✏️ trên tin trả lời để chọn lại, bot nhớ cho lần sau (xem ở Luật phân loại). Trả lời tin của bot bằng tên danh mục, số tiền mới hoặc “xoá” để sửa nhanh; sửa tin gốc thì giao dịch sửa theo.
+          Bot tự chọn danh mục. Sai thì bấm ✏️ trên tin trả lời để chọn lại, bot nhớ cho lần sau (xem ở Luật phân loại). Trả lời tin của bot bằng tên danh mục, số tiền mới hoặc “xoá” để sửa nhanh; sửa tin gốc thì giao dịch sửa theo. Gõ /tong để xem tổng tháng.
         </p>
       </Section>
     </div>

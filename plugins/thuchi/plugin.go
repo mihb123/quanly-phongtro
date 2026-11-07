@@ -19,12 +19,14 @@ func init() { plugin.Register(instance) }
 type Plugin struct {
 	api    http.Handler
 	public http.Handler
+	hook   http.Handler
 	bot    *thuchi.TelegramBot
 }
 
-func Use(api, public http.Handler, bot *thuchi.TelegramBot) {
+func Use(api, public, hook http.Handler, bot *thuchi.TelegramBot) {
 	instance.api = api
 	instance.public = public
+	instance.hook = hook
 	instance.bot = bot
 }
 
@@ -58,4 +60,10 @@ func (p *Plugin) Routes(r chi.Router) {
 
 func (p *Plugin) PublicRoutes(r chi.Router) {
 	r.Handle("/*", p.public)
+}
+
+func (p *Plugin) HookRoutes(r chi.Router) {
+	if p.hook != nil {
+		r.Handle("/*", p.hook)
+	}
 }

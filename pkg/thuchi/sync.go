@@ -98,30 +98,42 @@ func (s *Service) ensureSeeded(ctx context.Context, tx Tx) error {
 	if err != nil || seeded {
 		return err
 	}
-	existing, err := tx.ListCategories(ctx)
-	if err != nil {
+	if err := s.addDefaultCategories(ctx, tx); err != nil {
 		return err
-	}
-	have := map[string]bool{}
-	for _, c := range existing {
-		if c.Key != "" {
-			have[c.Key+"/"+c.Kind] = true
-		}
-	}
-	for i, d := range DefaultCategories {
-		if have[d.Key+"/"+d.Kind] {
-			continue
-		}
-		c := &Category{ID: NewID(), Key: d.Key, Name: d.Name, Icon: d.Icon, Color: d.Color, Kind: d.Kind, Sort: i}
-		if err := tx.SaveCategory(ctx, c); err != nil {
-			return err
-		}
 	}
 	cash := &Account{ID: NewID(), Name: "Tiền mặt", Kind: "cash", Connector: ConnectorManual, IncludeInStats: true, Sort: 100}
 	if err := tx.SaveAccount(ctx, cash); err != nil {
 		return err
 	}
 	return tx.MarkSeeded(ctx)
+}
+
+func (s *Service) addDefaultCategories(ctx context.Context, tx Tx) error {
+	existing, err := tx.ListCategories(ctx)
+	if err != nil {
+		return err
+	}
+	have := map[string]string{}
+	for _, c := range existing {
+		if c.Key != "" {
+			have[c.Key+"/"+c.Kind] = c.ID
+		}
+	}
+	p := s.preset()
+	for i, d := range p.Categories {
+		if _, ok := have[d.Key+"/"+d.Kind]; ok {
+			continue
+		}
+		c := &Category{ID: NewID(), Key: d.Key, Name: d.Name, Icon: d.Icon, Color: d.Color, Kind: d.Kind, Sort: i}
+		if parent, ok := have[p.Parents[d.Key]+"/"+d.Kind]; ok {
+			c.ParentID = &parent
+		}
+		if err := tx.SaveCategory(ctx, c); err != nil {
+			return err
+		}
+		have[d.Key+"/"+d.Kind] = c.ID
+	}
+	return nil
 }
 
 func (s *Service) Push(ctx context.Context, ownerID string, muts []Mutation) (*PushResult, error) {

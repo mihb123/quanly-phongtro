@@ -20,5 +20,5 @@ const transport: Transport = async <T,>(method: 'GET' | 'POST' | 'PUT' | 'DELETE
 export function ThuChiView() {
   const { user } = useAuth()
   if (!user) return null
-  return <ThuChiApp key={user.user_id} ownerId={user.user_id} transport={transport} userEmail={user.email} embedded />
+  return <ThuChiApp key={user.user_id} ownerId={user.user_id} transport={transport} userEmail={user.email} embedded preset="landlord" />
 }

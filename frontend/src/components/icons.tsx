@@ -96,6 +96,26 @@ import {
   SparklesIcon,
   Target01Icon,
   Restaurant01Icon,
+  Wrench01Icon,
+  DropletIcon,
+  ToolsIcon,
+  PaintBrush01Icon,
+  Sofa01Icon,
+  FridgeIcon,
+  Package01Icon,
+  CleanIcon,
+  WasteIcon,
+  Toilet01Icon,
+  PlugSocketIcon,
+  Wifi01Icon,
+  HandshakeIcon,
+  Megaphone01Icon,
+  TaxesIcon,
+  FireExtinguisherIcon,
+  Undo02Icon,
+  PercentIcon,
+  Coins01Icon,
+  PiggyBankIcon,
 } from '@hugeicons/core-free-icons'
 
 // Props của 1 icon: giống lucide (nhận className/size/onClick...), trừ `icon` đã bind sẵn.
@@ -223,3 +243,23 @@ export const ShoppingBag = makeIcon(ShoppingBag01Icon)
 export const Sparkles = makeIcon(SparklesIcon)
 export const Target = makeIcon(Target01Icon)
 export const Utensils = makeIcon(Restaurant01Icon)
+export const Wrench = makeIcon(Wrench01Icon)
+export const Droplet = makeIcon(DropletIcon)
+export const Tools = makeIcon(ToolsIcon)
+export const PaintBrush = makeIcon(PaintBrush01Icon)
+export const Sofa = makeIcon(Sofa01Icon)
+export const Fridge = makeIcon(FridgeIcon)
+export const PackageBox = makeIcon(Package01Icon)
+export const Broom = makeIcon(CleanIcon)
+export const Waste = makeIcon(WasteIcon)
+export const Toilet = makeIcon(Toilet01Icon)
+export const PlugSocket = makeIcon(PlugSocketIcon)
+export const Wifi = makeIcon(Wifi01Icon)
+export const Handshake = makeIcon(HandshakeIcon)
+export const Megaphone = makeIcon(Megaphone01Icon)
+export const Taxes = makeIcon(TaxesIcon)
+export const FireExtinguisher = makeIcon(FireExtinguisherIcon)
+export const Undo = makeIcon(Undo02Icon)
+export const Percent = makeIcon(PercentIcon)
+export const Coins = makeIcon(Coins01Icon)
+export const PiggyBank = makeIcon(PiggyBankIcon)

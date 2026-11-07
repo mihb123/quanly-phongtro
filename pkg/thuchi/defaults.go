@@ -54,6 +54,29 @@ var DefaultCategories = []DefaultCategory{
 	{CatKhacThu, "Khác", "more", "#94a3b8", "income"},
 }
 
+type TelegramExample struct {
+	Text string `json:"text"`
+	Desc string `json:"desc"`
+}
+
+type Preset struct {
+	Categories []DefaultCategory
+	Parents    map[string]string
+	Keywords   []MerchantEntry
+	Examples   []TelegramExample
+}
+
+var PersonalPreset = Preset{
+	Categories: DefaultCategories,
+	Keywords:   QuickKeywords,
+	Examples: []TelegramExample{
+		{"cafe 15k", "chi 15.000đ, tự vào Ăn uống"},
+		{"ăn trưa 45k, gửi xe 5k", "nhiều khoản trong một tin"},
+		{"+2tr lương", "dấu + là khoản thu"},
+		{"hôm qua grab 32k", "ghi cho ngày hôm qua; hoặc 20/10 tiền điện 450k"},
+	},
+}
+
 type MerchantEntry struct {
 	Keywords []string
 	Name     string

@@ -18,6 +18,7 @@ type Service struct {
 	Now    func() time.Time
 
 	Telegram *TelegramBot
+	Preset   *Preset
 
 	kickOnce sync.Once
 	kick     chan struct{}
@@ -25,6 +26,13 @@ type Service struct {
 
 func NewService(store Store, crypto Crypto) *Service {
 	return &Service{Store: store, Crypto: crypto}
+}
+
+func (s *Service) preset() *Preset {
+	if s.Preset != nil {
+		return s.Preset
+	}
+	return &PersonalPreset
 }
 
 func (s *Service) now() time.Time {

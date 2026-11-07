@@ -5,6 +5,7 @@ import { ThuChiProvider } from './context'
 import { useReviewQueue } from './hooks'
 import { monthKey } from './format'
 import type { Transport } from './types'
+import type { PresetName } from './presets'
 import { MonthPicker, SyncBadge } from './ui/common'
 import { Overview } from './ui/Overview'
 import { Transactions } from './ui/Transactions'
@@ -32,6 +33,7 @@ export interface ThuChiAppProps {
   userEmail?: string
   offline?: boolean
   embedded?: boolean
+  preset?: PresetName
   onLogout?: () => void
 }
 
@@ -39,7 +41,7 @@ export default function ThuChiApp(props: ThuChiAppProps) {
   const [month, setMonthState] = useState(() => monthKey(new Date()))
   const setMonth = useCallback((m: string) => setMonthState(m), [])
   return (
-    <ThuChiProvider ownerId={props.ownerId} transport={props.transport} month={month} setMonth={setMonth}>
+    <ThuChiProvider ownerId={props.ownerId} transport={props.transport} month={month} setMonth={setMonth} preset={props.preset}>
       <Shell {...props} />
     </ThuChiProvider>
   )

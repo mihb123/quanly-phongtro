@@ -166,8 +166,12 @@ func main() {
 	sePayReconciliationService := paymentsvc.NewSePayReconciliationService(sepay.NewClient(nil), paymentCredentialService, paymentService)
 	paymentHandler.SetSePayReconciler(sePayReconciliationService)
 
-	thuchiModule := thuchisvc.New(sqlDB.DB, appSecretKeyBytes, webhookBaseURL, thuchisvc.TelegramConfig{BotToken: cfg.ThuChiTelegramToken, ChatIDs: cfg.ThuChiTelegramChatIDs, APIBase: cfg.ThuChiTelegramAPIBase})
-	thuchiplugin.Use(thuchiModule.API, thuchiModule.Public, thuchiModule.Telegram)
+	thuchiTelegram := thuchisvc.TelegramConfig{BotToken: cfg.ThuChiTelegramToken, ChatIDs: cfg.ThuChiTelegramChatIDs, APIBase: cfg.ThuChiTelegramAPIBase}
+	if cfg.ThuChiTelegramWebhook {
+		thuchiTelegram.WebhookURL = webhookBaseURL + thuchisvc.TelegramWebhookURL
+	}
+	thuchiModule := thuchisvc.New(sqlDB.DB, appSecretKeyBytes, webhookBaseURL, thuchiTelegram)
+	thuchiplugin.Use(thuchiModule.API, thuchiModule.Public, thuchiModule.Hook, thuchiModule.Telegram)
 
 	pluginManager := plugin.NewManager(pluginrepo.NewPluginRepository(sqlDB), appSecretKeyBytes, plugin.Registered())
 	if err := pluginManager.EnableInstall(context.Background(), cfg.PluginDir, cfg.PluginAdminEmails); err != nil {

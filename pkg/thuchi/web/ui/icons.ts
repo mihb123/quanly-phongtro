@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import {
   Bank, Bill, Book, Car, Cloud, Fuel, Game, House, Key, Medicine, MoneyIn, MoreDots, Perfume, Restaurant, SendMoney, ShoppingBag, Sparkles,
-  Tag, Utensils, Wallet, Money, CreditCard, Cash, Coffee, type IconProps,
+  Tag, Utensils, Wallet, Money, CreditCard, Cash, Coffee, Wrench, Zap, Droplet, Droplets, Tools, PaintBrush, Sofa, Fridge, PackageBox, Broom, Waste,
+  Toilet, PlugSocket, Wifi, Handshake, Megaphone, Taxes, FireExtinguisher, Users, Undo, Percent, Coins, PiggyBank, type IconProps,
 } from '@/components/icons'
 import { isDebtKind, type Category, type Transaction } from '../types'
 
@@ -30,6 +31,29 @@ export const ICONS: Record<string, ComponentType<IconProps>> = {
   wallet: Wallet,
   card: CreditCard,
   cash: Cash,
+  repair: Wrench,
+  electric: Zap,
+  water: Droplet,
+  tools: Tools,
+  paint: PaintBrush,
+  sofa: Sofa,
+  fridge: Fridge,
+  package: PackageBox,
+  clean: Broom,
+  waste: Waste,
+  toilet: Toilet,
+  plug: PlugSocket,
+  droplets: Droplets,
+  wifi: Wifi,
+  handshake: Handshake,
+  megaphone: Megaphone,
+  tax: Taxes,
+  fire: FireExtinguisher,
+  worker: Users,
+  undo: Undo,
+  percent: Percent,
+  coins: Coins,
+  piggy: PiggyBank,
 }
 
 export const ICON_KEYS = Object.keys(ICONS)

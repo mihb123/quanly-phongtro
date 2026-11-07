@@ -72,6 +72,10 @@ type PublicRouter interface {
 	PublicRoutes(r chi.Router)
 }
 
+type HookRouter interface {
+	HookRoutes(r chi.Router)
+}
+
 type Host interface {
 	Invoices() InvoiceAPI
 	Config() Config

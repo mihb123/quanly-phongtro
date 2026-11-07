@@ -79,6 +79,7 @@ type ingestCtx struct {
 	categories map[string]*Category
 	byKey      map[string]string
 	rules      []*Rule
+	keywords   []MerchantEntry
 }
 
 func (s *Service) loadIngestCtx(ctx context.Context, tx Tx) (*ingestCtx, error) {
@@ -94,7 +95,7 @@ func (s *Service) loadIngestCtx(ctx context.Context, tx Tx) (*ingestCtx, error) 
 	if err != nil {
 		return nil, err
 	}
-	ic := &ingestCtx{owner: tx.Owner(), accounts: accounts, categories: map[string]*Category{}, byKey: map[string]string{}, rules: rules}
+	ic := &ingestCtx{owner: tx.Owner(), accounts: accounts, categories: map[string]*Category{}, byKey: map[string]string{}, rules: rules, keywords: s.preset().Keywords}
 	for _, c := range cats {
 		ic.categories[c.ID] = c
 		if c.Key != "" {

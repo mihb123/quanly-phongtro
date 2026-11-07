@@ -3,12 +3,14 @@ import { ThuChiDB, dbName } from './db'
 import { SyncEngine } from './sync'
 import type { Transport } from './types'
 import { Ctx } from './ctx'
+import type { PresetName } from './presets'
 
-export function ThuChiProvider({ ownerId, transport, month, setMonth, children }: {
+export function ThuChiProvider({ ownerId, transport, month, setMonth, preset = 'personal', children }: {
   ownerId: string
   transport: Transport
   month: string
   setMonth: (m: string) => void
+  preset?: PresetName
   children: React.ReactNode
 }) {
   const [{ db, engine }] = useState(() => {
@@ -19,6 +21,6 @@ export function ThuChiProvider({ ownerId, transport, month, setMonth, children }
     engine.start()
     return () => engine.stop()
   }, [engine])
-  const value = useMemo(() => ({ db, engine, transport, month, setMonth }), [db, engine, transport, month, setMonth])
+  const value = useMemo(() => ({ db, engine, transport, month, setMonth, preset }), [db, engine, transport, month, setMonth, preset])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

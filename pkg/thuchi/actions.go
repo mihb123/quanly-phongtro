@@ -59,6 +59,8 @@ func (s *Service) applyAction(ctx context.Context, tx Tx, action string, raw jso
 			return invalid("args")
 		}
 		return s.actAdjustBalance(ctx, tx, aa, ts)
+	case "add_default_categories":
+		return s.addDefaultCategories(ctx, tx)
 	case "reparse_raw", "dismiss_raw":
 		ev, err := tx.GetRawEvent(ctx, args.ID)
 		if err != nil {

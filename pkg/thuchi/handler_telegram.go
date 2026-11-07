@@ -9,11 +9,12 @@ import (
 )
 
 type telegramInfo struct {
-	Enabled            bool            `json:"enabled"`
-	BotUsername        string          `json:"bot_username"`
-	Mode               string          `json:"mode"`
-	ReadsGroupMessages bool            `json:"reads_group_messages"`
-	Links              []*TelegramLink `json:"links"`
+	Enabled            bool              `json:"enabled"`
+	BotUsername        string            `json:"bot_username"`
+	Mode               string            `json:"mode"`
+	ReadsGroupMessages bool              `json:"reads_group_messages"`
+	Links              []*TelegramLink   `json:"links"`
+	Examples           []TelegramExample `json:"examples"`
 }
 
 func (h *Handler) telegramWebhook(w http.ResponseWriter, r *http.Request) {
@@ -35,7 +36,7 @@ func (h *Handler) telegramInfo(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "load failed")
 		return
 	}
-	info := telegramInfo{Links: links}
+	info := telegramInfo{Links: links, Examples: h.svc.preset().Examples}
 	if bot := h.svc.Telegram; bot != nil {
 		info.Enabled = true
 		info.BotUsername = bot.Username()

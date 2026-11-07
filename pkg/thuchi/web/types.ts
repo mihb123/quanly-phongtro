@@ -201,6 +201,7 @@ export interface TelegramInfo {
   mode: 'webhook' | 'polling'
   reads_group_messages: boolean
   links: TelegramLink[]
+  examples?: { text: string; desc: string }[]
 }
 
 export interface TelegramCode {

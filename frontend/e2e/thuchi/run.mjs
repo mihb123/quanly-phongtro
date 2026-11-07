@@ -4,7 +4,7 @@ import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync } from 'n
 import path from 'node:path'
 import { ARTIFACTS_DIR, BASE_URL, BINARY, DB_NAME, DB_URL, E2E_DIR, FRONTEND_DIR, PG_ADMIN_URL, PORT, ROOT_DIR, SERVER_LOG, TELEGRAM_FAKE_URL, TMP_DIR } from './lib/config.mjs'
 import { psql } from './lib/db.mjs'
-import { FAKE_BOT_TOKEN, startFakeTelegram } from './lib/telegram-fake.mjs'
+import { FAKE_ALLOWED_GROUP, FAKE_BOT_TOKEN, startFakeTelegram } from './lib/telegram-fake.mjs'
 
 const args = process.argv.slice(2)
 const filters = args.filter((a) => !a.startsWith('-'))
@@ -78,6 +78,7 @@ async function startServer() {
     PLUGIN_DIR: path.join(TMP_DIR, 'plugins'),
     THUCHI_TELEGRAM_BOT_TOKEN: FAKE_BOT_TOKEN,
     THUCHI_TELEGRAM_API_BASE: `${TELEGRAM_FAKE_URL}/bot`,
+    THUCHI_TELEGRAM_CHAT_ID: String(FAKE_ALLOWED_GROUP),
   }
   log(`Chạy server ${BASE_URL} (log: ${SERVER_LOG})`)
   const proc = spawn(BINARY, [], { cwd: TMP_DIR, env, stdio: ['ignore', 'pipe', 'pipe'] })

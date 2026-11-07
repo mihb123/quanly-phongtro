@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { useAccounts, useCategories, useParties, useRules, useThuChi } from '../hooks'
 import { money, parseAmount, recurrenceLabel, timeLabel } from '../format'
 import { suggestCategory } from '../classify'
+import { PRESET_DICT } from '../presets'
 import { categoryTree } from '../stats'
 import { isManual, localTx, shiftBalances } from '../db'
 import { uuidv7 } from '../sync'
@@ -408,7 +409,7 @@ function allowedKinds(e?: Editing): FormKind[] {
 }
 
 function QuickAddForm({ editing, onDone }: { editing?: Editing; onDone: () => void }) {
-  const { engine, db } = useThuChi()
+  const { engine, db, preset } = useThuChi()
   const categories = useCategories()
   const accounts = useAccounts()
   const rules = useRules()
@@ -429,7 +430,7 @@ function QuickAddForm({ editing, onDone }: { editing?: Editing; onDone: () => vo
   const direction: Direction = debt ? DEBT_FORM.find((d) => d.kind === debtKind)!.direction : kind === 'in' ? 'in' : 'out'
   const showCategory = !transfer && !debt && (!editing || editing.tx.kind === 'normal' || isDebtKind(editing.tx.kind))
   const kindCats = useMemo(() => categories.filter((c) => c.kind === (direction === 'out' ? 'expense' : 'income')), [categories, direction])
-  const suggested = useMemo(() => (showCategory && title.trim() ? suggestCategory(title, direction, categories, rules) : null), [showCategory, title, direction, categories, rules])
+  const suggested = useMemo(() => (showCategory && title.trim() ? suggestCategory(title, direction, categories, rules, PRESET_DICT[preset]) : null), [showCategory, title, direction, categories, rules, preset])
   const categoryId = showCategory ? (pickedCategory ?? suggested) : null
   const swapSides = !!editing && !editing.pair && editing.tx.direction === 'in'
   const accountId = pickedAccount || (transfer && swapSides ? '' : (accounts.find((a) => a.kind === 'cash') ?? accounts[0])?.id || '')

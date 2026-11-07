@@ -48,6 +48,7 @@ type entry struct {
 	host      *host
 	router    chi.Router
 	public    chi.Router
+	hook      chi.Router
 	installed *installedPlugin
 }
 
@@ -83,6 +84,11 @@ func (m *Manager) add(p Plugin) error {
 		public = chi.NewRouter()
 		pr.PublicRoutes(public)
 	}
+	var hook chi.Router
+	if hr, ok := p.(HookRouter); ok {
+		hook = chi.NewRouter()
+		hr.HookRoutes(hook)
+	}
 	installed, _ := p.(*installedPlugin)
 
 	m.mu.Lock()
@@ -95,7 +101,7 @@ func (m *Manager) add(p Plugin) error {
 		m.order = append(m.order, manifest.ID)
 		slices.Sort(m.order)
 	}
-	m.entries[manifest.ID] = &entry{plugin: p, host: h, router: router, public: public, installed: installed}
+	m.entries[manifest.ID] = &entry{plugin: p, host: h, router: router, public: public, hook: hook, installed: installed}
 	return nil
 }
 
@@ -137,6 +143,7 @@ func (m *Manager) Routes(r chi.Router) {
 
 func (m *Manager) PublicRoutes(r chi.Router) {
 	r.HandleFunc("/{pluginID}/public/{managerID}/*", m.handlePublicRequest)
+	r.HandleFunc("/{pluginID}/hook/*", m.handleHookRequest)
 }
 
 func (m *Manager) List(ctx context.Context, managerID string) ([]PluginInfo, error) {
@@ -380,6 +387,17 @@ func (m *Manager) handlePublicRequest(w http.ResponseWriter, r *http.Request) {
 	rctx := chi.RouteContext(r.Context())
 	rctx.RoutePath = "/" + chi.URLParam(r, "*")
 	e.public.ServeHTTP(w, r)
+}
+
+func (m *Manager) handleHookRequest(w http.ResponseWriter, r *http.Request) {
+	e, exists := m.get(chi.URLParam(r, "pluginID"))
+	if !exists || e.hook == nil {
+		WriteError(w, http.StatusNotFound, "not found")
+		return
+	}
+	rctx := chi.RouteContext(r.Context())
+	rctx.RoutePath = "/" + chi.URLParam(r, "*")
+	e.hook.ServeHTTP(w, r)
 }
 
 type host struct {

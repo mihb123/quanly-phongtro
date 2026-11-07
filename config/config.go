@@ -53,6 +53,7 @@ type Config struct {
 	ThuChiTelegramToken    string
 	ThuChiTelegramChatIDs  []int64
 	ThuChiTelegramAPIBase  string
+	ThuChiTelegramWebhook  bool
 }
 
 func Load() (*Config, error) {
@@ -152,6 +153,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, errors.New("THUCHI_TELEGRAM_CHAT_ID must be a comma-separated list of chat IDs")
 	}
+	thuChiTelegramMode := strings.ToLower(strings.TrimSpace(getOrDefault("THUCHI_TELEGRAM_MODE", "polling")))
+	if thuChiTelegramMode != "polling" && thuChiTelegramMode != "webhook" {
+		return nil, errors.New("THUCHI_TELEGRAM_MODE must be polling or webhook")
+	}
 
 	return &Config{
 		AppPort:                appPort,
@@ -187,6 +192,7 @@ func Load() (*Config, error) {
 		ThuChiTelegramToken:    strings.TrimSpace(os.Getenv("THUCHI_TELEGRAM_BOT_TOKEN")),
 		ThuChiTelegramChatIDs:  thuChiTelegramChatIDs,
 		ThuChiTelegramAPIBase:  strings.TrimSpace(os.Getenv("THUCHI_TELEGRAM_API_BASE")),
+		ThuChiTelegramWebhook:  thuChiTelegramMode == "webhook",
 	}, nil
 }
 

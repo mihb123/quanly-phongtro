@@ -38,6 +38,7 @@ type TelegramBot struct {
 	APIBase     string
 	WebhookURL  string
 	OwnerActive func(ctx context.Context, ownerID string) bool
+	SetupPath   string
 
 	svc     *Service
 	token   string
@@ -401,15 +402,28 @@ func (b *TelegramBot) handleMessage(ctx context.Context, m *tgMessage, edited bo
 	b.handleEntry(ctx, link, m, text, private)
 }
 
-const telegramHelp = `<b>Ghi thu chi bằng tin nhắn</b>, mỗi dòng một khoản:
-• <code>cafe 15k</code>
-• <code>ăn trưa 45k, gửi xe 5k</code>
-• <code>+2tr lương</code> (dấu + là khoản thu)
-• <code>hôm qua grab 32k</code> · <code>20/10 tiền điện 450k</code>
+func (b *TelegramBot) setupPath() string {
+	return "<b>" + html.EscapeString(firstNonEmpty(b.SetupPath, "app Thu Chi → Cài đặt → Telegram")) + "</b>"
+}
 
-Mình tự chọn danh mục. Sai thì bấm ✏️ chọn lại, lần sau mình nhớ.
-Sửa nhanh: trả lời tin của mình bằng tên danh mục, số tiền mới (<code>20k</code>) hoặc <code>xoá</code>. Sửa tin gốc thì giao dịch cũng sửa theo.
-/tong — tổng thu chi tháng này`
+func (b *TelegramBot) example() string {
+	if ex := b.svc.preset().Examples; len(ex) > 0 {
+		return html.EscapeString(ex[0].Text)
+	}
+	return "cafe 15k"
+}
+
+func (b *TelegramBot) help() string {
+	var sb strings.Builder
+	sb.WriteString("<b>Ghi thu chi bằng tin nhắn</b>, mỗi dòng một khoản:\n")
+	for _, ex := range b.svc.preset().Examples {
+		sb.WriteString("• <code>" + html.EscapeString(ex.Text) + "</code> — " + html.EscapeString(ex.Desc) + "\n")
+	}
+	sb.WriteString("\nMình tự chọn danh mục. Sai thì bấm ✏️ chọn lại, lần sau mình nhớ.\n")
+	sb.WriteString("Sửa nhanh: trả lời tin của mình bằng tên danh mục, số tiền mới (<code>20k</code>) hoặc <code>xoá</code>. Sửa tin gốc thì giao dịch cũng sửa theo.\n")
+	sb.WriteString("/tong — tổng thu chi tháng này")
+	return sb.String()
+}
 
 func (b *TelegramBot) stripMention(text string) string {
 	mention := "@" + strings.ToLower(b.Username())
@@ -447,13 +461,13 @@ func (b *TelegramBot) handleCommand(ctx context.Context, m *tgMessage, text stri
 		}
 		if cmd == "/start" && private {
 			if _, err := b.svc.Store.FindTelegramLink(ctx, m.From.ID); errors.Is(err, ErrNotFound) {
-				b.reply(ctx, m, "👋 Chào bạn! Mở app Thu Chi → <b>Cài đặt → Telegram</b> → bấm <b>Kết nối</b> để mình biết bạn là ai.\n\n"+telegramHelp)
+				b.reply(ctx, m, "👋 Chào bạn! Bạn chưa kết nối tài khoản nên mình chưa ghi được. Cách kết nối:\n1. Mở "+b.setupPath()+"\n2. Bấm <b>Tạo mã kết nối</b> rồi bấm <b>Mở Telegram</b>\n3. Quay lại đây bấm <b>Start / Bắt đầu</b>\n\n"+b.help())
 				return
 			}
 		}
-		b.reply(ctx, m, telegramHelp)
+		b.reply(ctx, m, b.help())
 	case "/help", "/huongdan":
-		b.reply(ctx, m, telegramHelp)
+		b.reply(ctx, m, b.help())
 	case "/tong", "/thang":
 		link, err := b.findLink(ctx, m.From.ID)
 		if errors.Is(err, errTelegramInactive) {
@@ -472,7 +486,7 @@ func (b *TelegramBot) handleCommand(ctx context.Context, m *tgMessage, text stri
 		b.reply(ctx, m, text)
 	default:
 		if private {
-			b.reply(ctx, m, telegramHelp)
+			b.reply(ctx, m, b.help())
 		}
 	}
 }
@@ -481,7 +495,7 @@ func (b *TelegramBot) claim(ctx context.Context, m *tgMessage, code string) {
 	code = strings.ToUpper(strings.TrimSpace(code))
 	_, err := b.svc.Store.ClaimTelegramCode(ctx, code, m.From.ID, m.From.Username, m.From.displayName())
 	if errors.Is(err, ErrNotFound) {
-		b.reply(ctx, m, "Mã kết nối không đúng hoặc đã hết hạn. Tạo mã mới trong app → Cài đặt → Telegram.")
+		b.reply(ctx, m, "Mã kết nối không đúng hoặc đã hết hạn (mỗi mã dùng 1 lần, hạn 15 phút). Tạo mã mới ở "+b.setupPath()+".")
 		return
 	}
 	if err != nil {
@@ -492,7 +506,7 @@ func (b *TelegramBot) claim(ctx context.Context, m *tgMessage, code string) {
 	b.mu.Lock()
 	delete(b.hinted, m.From.ID)
 	b.mu.Unlock()
-	b.reply(ctx, m, "✅ Đã kết nối với Thu Chi. Từ giờ chỉ cần nhắn kiểu <code>cafe 15k</code>, mình ghi ngay.")
+	b.reply(ctx, m, "✅ Đã kết nối với Thu Chi. Từ giờ chỉ cần nhắn kiểu <code>"+b.example()+"</code>, mình ghi ngay. Gõ /huongdan để xem thêm cách nhắn.")
 }
 
 func (b *TelegramBot) hintLink(ctx context.Context, m *tgMessage, force bool) {
@@ -504,7 +518,7 @@ func (b *TelegramBot) hintLink(ctx context.Context, m *tgMessage, force bool) {
 	}
 	b.hinted[m.From.ID] = time.Now()
 	b.mu.Unlock()
-	b.reply(ctx, m, fmt.Sprintf("👋 %s ơi, mình chưa biết bạn dùng tài khoản Thu Chi nào. Mở app → <b>Cài đặt → Telegram</b> → bấm <b>Kết nối</b> (chỉ 1 lần).", html.EscapeString(firstNonEmpty(m.From.FirstName, m.From.Username, "Bạn"))))
+	b.reply(ctx, m, fmt.Sprintf("👋 %s ơi, mình chưa biết bạn dùng tài khoản Thu Chi nào. Mở %s → bấm <b>Tạo mã kết nối</b> → <b>Mở Telegram</b> → <b>Start</b> (chỉ 1 lần).", html.EscapeString(firstNonEmpty(m.From.FirstName, m.From.Username, "Bạn")), b.setupPath()))
 }
 
 func (ic *ingestCtx) quickAccount(link *TelegramLink) *string {
@@ -557,7 +571,7 @@ func (b *TelegramBot) handleEntry(ctx context.Context, link *TelegramLink, m *tg
 	items := ParseQuick(text, time.Unix(m.Date, 0))
 	if len(items) == 0 {
 		if private {
-			b.reply(ctx, m, "Mình chưa thấy số tiền. Nhắn kiểu <code>cafe 15k</code> hoặc /huongdan.")
+			b.reply(ctx, m, "Mình chưa thấy số tiền. Nhắn kiểu <code>"+b.example()+"</code> hoặc /huongdan.")
 		}
 		return
 	}
@@ -932,7 +946,7 @@ func (b *TelegramBot) handleCallback(ctx context.Context, cb *tgCallback) {
 		return
 	}
 	if err != nil {
-		b.answer(ctx, cb.ID, "Bạn chưa kết nối Thu Chi: mở app → Cài đặt → Telegram.", true)
+		b.answer(ctx, cb.ID, "Bạn chưa kết nối Thu Chi: mở "+firstNonEmpty(b.SetupPath, "app Thu Chi → Cài đặt → Telegram")+".", true)
 		return
 	}
 	s := b.svc
@@ -1085,9 +1099,15 @@ func (s *Service) fillPicker(ctx context.Context, tx Tx, v *entryView) error {
 			uses[*t.CategoryID]++
 		}
 	}
+	parents := map[string]bool{}
+	for _, c := range v.cats {
+		if c.ParentID != nil {
+			parents[*c.ParentID] = true
+		}
+	}
 	var cats []*Category
 	for _, c := range v.cats {
-		if c.Kind == v.pickKind && c.Key != CatPhiNganHang {
+		if c.Kind == v.pickKind && c.Key != CatPhiNganHang && !parents[c.ID] {
 			cats = append(cats, c)
 		}
 	}
@@ -1108,6 +1128,9 @@ var categoryEmoji = map[string]string{
 	"food": "🍜", "restaurant": "🍽", "shopping": "🛍", "cosmetic": "💄", "beauty": "💅", "car": "🚗", "fuel": "⛽", "medicine": "💊",
 	"book": "📚", "cloud": "☁️", "game": "🎮", "bill": "🧾", "home": "🏠", "send": "📤", "bank": "🏦", "more": "📦", "salary": "💰",
 	"key": "🔑", "receive": "📥", "coffee": "☕", "tag": "🏷", "wallet": "👛", "card": "💳", "cash": "💵",
+	"repair": "🔧", "electric": "⚡", "water": "💧", "tools": "🛠", "paint": "🖌", "sofa": "🛋", "fridge": "🧊", "package": "📦",
+	"clean": "🧹", "waste": "🗑", "toilet": "🚽", "plug": "🔌", "droplets": "🚰", "wifi": "📶", "handshake": "🤝", "megaphone": "📣",
+	"tax": "🏛", "fire": "🧯", "worker": "👷", "undo": "↩️", "percent": "📈", "coins": "🪙", "piggy": "🐷",
 }
 
 func FormatVND(n int64) string {

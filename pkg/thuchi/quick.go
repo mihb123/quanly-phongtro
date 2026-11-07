@@ -366,16 +366,22 @@ func kindOf(direction string) string {
 	return "expense"
 }
 
-func longestKeyword(text string, entries []MerchantEntry) (string, int) {
-	best, bestLen := "", 0
-	for _, m := range entries {
-		for _, k := range m.Keywords {
-			if len(k) > bestLen && containsWord(text, k) {
-				best, bestLen = m.Category, len(k)
+func (ic *ingestCtx) keywordCategory(text string, fits func(*string) bool) *string {
+	var best *string
+	bestLen := 0
+	for _, dict := range [][]MerchantEntry{ic.keywords, MerchantDictionary} {
+		for _, m := range dict {
+			for _, k := range m.Keywords {
+				if len(k) <= bestLen || !containsWord(text, k) {
+					continue
+				}
+				if id := ic.catID(m.Category); fits(id) {
+					best, bestLen = id, len(k)
+				}
 			}
 		}
 	}
-	return best, bestLen
+	return best
 }
 
 func (ic *ingestCtx) classifyQuick(desc, direction string) (*string, *Rule) {
@@ -415,14 +421,8 @@ func (ic *ingestCtx) classifyQuick(desc, direction string) (*string, *Rule) {
 			return r.CategoryID, r
 		}
 	}
-	catKey, n := longestKeyword(key, MerchantDictionary)
-	if k2, n2 := longestKeyword(key, QuickKeywords); n2 > n {
-		catKey = k2
-	}
-	if catKey != "" {
-		if id := ic.catID(catKey); fits(id) {
-			return id, nil
-		}
+	if id := ic.keywordCategory(key, fits); id != nil {
+		return id, nil
 	}
 	if direction == DirectionIn {
 		return ic.catID(CatKhacThu), nil
